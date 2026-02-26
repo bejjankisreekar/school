@@ -1,0 +1,29 @@
+{% extends "core/base_student.html" %}
+
+{% block title %}Attendance | School ERP{% endblock %}
+
+{% block student_content %}
+<h1 class="text-2xl font-semibold mb-6">Attendance Records</h1>
+
+<!-- Calendar Grid -->
+<div class="grid grid-cols-7 gap-2 mb-4">
+  <!-- Weekdays Header -->
+  {% for day in weekdays %}
+    <div class="text-center font-semibold">{{ day }}</div>
+  {% endfor %}
+</div>
+
+<!-- Calendar Days -->
+<div class="grid grid-cols-7 gap-2">
+  {% for date in calendar_dates %}
+    {% if date in attendance_present %}
+      <div class="p-2 bg-green-500 text-white text-center rounded">{{ date.day }}</div>
+    {% elif date in attendance_absent %}
+      <div class="p-2 bg-red-500 text-white text-center rounded">{{ date.day }}</div>
+    {% else %}
+      <div class="p-2 bg-gray-200 text-center rounded">{{ date.day }}</div>
+    {% endif %}
+  {% endfor %}
+</div>
+
+{% endblock %}

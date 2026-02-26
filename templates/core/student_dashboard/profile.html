@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Student Dashboard | School ERP{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Student Dashboard</h1>
+
+<!-- Stats Cards -->
+<div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+
+  <!-- Attendance -->
+  <div class="card bg-indigo-600 text-white shadow-xl rounded-lg">
+    <div class="card-body p-5">
+      <p class="text-sm opacity-80">Attendance</p>
+      <h2 class="text-3xl font-bold">92%</h2>
+    </div>
+  </div>
+
+  <!-- Average Marks -->
+  <div class="card bg-emerald-600 text-white shadow-xl rounded-lg">
+    <div class="card-body p-5">
+      <p class="text-sm opacity-80">Average Marks</p>
+      <h2 class="text-3xl font-bold">85%</h2>
+    </div>
+  </div>
+
+  <!-- Assignments -->
+  <div class="card bg-amber-500 text-white shadow-xl rounded-lg">
+    <div class="card-body p-5">
+      <p class="text-sm opacity-80">Assignments</p>
+      <h2 class="text-3xl font-bold">3 Pending</h2>
+    </div>
+  </div>
+
+  <!-- Notifications -->
+  <div class="card bg-rose-600 text-white shadow-xl rounded-lg">
+    <div class="card-body p-5">
+      <p class="text-sm opacity-80">Notifications</p>
+      <h2 class="text-3xl font-bold">2</h2>
+    </div>
+  </div>
+
+</div>
+
+<!-- Quick Access Buttons -->
+<div class="mt-10">
+  <h2 class="text-lg font-semibold mb-4">Quick Access</h2>
+  <div class="flex gap-3 flex-wrap">
+    <a href="{% url 'core:student_profile' %}" class="btn btn-primary btn-sm">Profile</a>
+    <a href="{% url 'core:student_attendance' %}" class="btn btn-secondary btn-sm">Attendance</a>
+    <a href="{% url 'core:student_marks' %}" class="btn btn-accent btn-sm">Marks</a>
+    <a href="#" class="btn btn-outline btn-sm">Assignments</a>
+  </div>
+</div>
+
+{% endblock %}

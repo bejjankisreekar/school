@@ -1,0 +1,27 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Student Dashboard{% endblock %}</title>
+</head>
+<body class="flex">
+
+  <!-- Sidebar -->
+  <aside class="w-64 bg-gray-800 text-white h-screen p-5">
+    <h2 class="text-xl font-bold mb-6">Student Menu</h2>
+    <ul class="space-y-3">
+      <li><a href="{% url 'core:student_dashboard' %}" class="hover:text-gray-300">Dashboard</a></li>
+      <li><a href="{% url 'core:student_profile' %}" class="hover:text-gray-300">Profile</a></li>
+      <li><a href="{% url 'core:student_attendance' %}" class="hover:text-gray-300">Attendance</a></li>
+      <li><a href="{% url 'core:student_marks' %}" class="hover:text-gray-300">Marks</a></li>
+    </ul>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 p-6">
+    {% block student_content %}{% endblock %}
+  </main>
+
+</body>
+</html>

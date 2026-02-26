@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Student Dashboard{% endblock %}
+
+{% block content %}
+<div class="flex min-h-screen bg-gray-100">
+
+  <!-- Sidebar -->
+  <aside class="w-64 bg-white shadow-lg">
+    <div class="p-6">
+      <h2 class="text-2xl font-bold mb-6 text-indigo-600">Student Menu</h2>
+      <nav class="space-y-3">
+        <a href="{% url 'core:student_dashboard' %}" class="block px-4 py-2 rounded hover:bg-indigo-100 transition">Dashboard</a>
+        <a href="{% url 'core:student_profile' %}" class="block px-4 py-2 rounded hover:bg-indigo-100 transition">Profile</a>
+        <a href="{% url 'core:student_attendance' %}" class="block px-4 py-2 rounded hover:bg-indigo-100 transition">Attendance</a>
+        <a href="{% url 'core:student_marks' %}" class="block px-4 py-2 rounded hover:bg-indigo-100 transition">Marks</a>
+        <a href="#" class="block px-4 py-2 rounded hover:bg-indigo-100 transition">Assignments</a>
+      </nav>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 p-6">
+    <h1 class="text-3xl font-semibold mb-6">Student Dashboard</h1>
+
+    <!-- Stats Cards -->
+    <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+
+      <div class="card bg-indigo-600 text-white shadow-xl rounded-lg">
+        <div class="card-body p-5">
+          <p class="text-sm opacity-80">Attendance</p>
+          <h2 class="text-3xl font-bold">92%</h2>
+        </div>
+      </div>
+
+      <div class="card bg-emerald-600 text-white shadow-xl rounded-lg">
+        <div class="card-body p-5">
+          <p class="text-sm opacity-80">Average Marks</p>
+          <h2 class="text-3xl font-bold">85%</h2>
+        </div>
+      </div>
+
+      <div class="card bg-amber-500 text-white shadow-xl rounded-lg">
+        <div class="card-body p-5">
+          <p class="text-sm opacity-80">Assignments</p>
+          <h2 class="text-3xl font-bold">3 Pending</h2>
+        </div>
+      </div>
+
+      <div class="card bg-rose-600 text-white shadow-xl rounded-lg">
+        <div class="card-body p-5">
+          <p class="text-sm opacity-80">Notifications</p>
+          <h2 class="text-3xl font-bold">2</h2>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+</div>
+{% endblock %}

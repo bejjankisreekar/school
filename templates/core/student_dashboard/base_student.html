@@ -1,0 +1,54 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{% block title %}Student Dashboard{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
+</head>
+<body class="flex h-screen bg-gray-100 dark:bg-gray-900">
+
+  <!-- Sidebar -->
+  <aside class="w-64 bg-white dark:bg-gray-800 shadow-md">
+    <div class="p-6">
+      <h1 class="text-xl font-bold text-gray-900 dark:text-white">School ERP</h1>
+    </div>
+    <nav class="mt-6">
+      <ul>
+        <li class="mb-2">
+          <a href="{% url 'core:student_dashboard' %}" class="block px-6 py-3 rounded hover:bg-gray-200 dark:hover:bg-gray-700 {% if request.path == '/student-dashboard/' %}bg-gray-200 dark:bg-gray-700{% endif %}">
+            Dashboard
+          </a>
+        </li>
+        <li class="mb-2">
+          <a href="{% url 'core:student_profile' %}" class="block px-6 py-3 rounded hover:bg-gray-200 dark:hover:bg-gray-700 {% if request.path == '/student-dashboard/profile/' %}bg-gray-200 dark:bg-gray-700{% endif %}">
+            Profile
+          </a>
+        </li>
+        <li class="mb-2">
+          <a href="{% url 'core:student_attendance' %}" class="block px-6 py-3 rounded hover:bg-gray-200 dark:hover:bg-gray-700 {% if request.path == '/student-dashboard/attendance/' %}bg-gray-200 dark:bg-gray-700{% endif %}">
+            Attendance
+          </a>
+        </li>
+        <li class="mb-2">
+          <a href="{% url 'core:student_marks' %}" class="block px-6 py-3 rounded hover:bg-gray-200 dark:hover:bg-gray-700 {% if request.path == '/student-dashboard/marks/' %}bg-gray-200 dark:bg-gray-700{% endif %}">
+            Marks
+          </a>
+        </li>
+        <li class="mb-2">
+          <a href="#" class="block px-6 py-3 rounded hover:bg-gray-200 dark:hover:bg-gray-700">
+            Assignments
+          </a>
+        </li>
+      </ul>
+    </nav>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 p-6 overflow-auto">
+    {% block student_content %}
+    {% endblock %}
+  </main>
+
+</body>
+</html>

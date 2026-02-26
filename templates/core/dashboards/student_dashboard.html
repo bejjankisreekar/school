@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Student Dashboard | School ERP{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header -->
+  <div>
+    <h1 class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
+      Student Dashboard
+    </h1>
+    <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">
+      Welcome back! Here’s your academic overview.
+    </p>
+  </div>
+
+  <!-- Cards -->
+  <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+
+    <!-- Profile -->
+    <a href="{% url 'core:student_profile' %}" 
+       class="block rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white/90 dark:bg-slate-900/80 p-4 shadow hover:shadow-lg transition">
+      <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        My Profile
+      </div>
+      <p class="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">—</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        View your personal and academic details.
+      </p>
+    </a>
+
+    <!-- Attendance -->
+    <a href="{% url 'core:student_attendance' %}" 
+       class="block rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white/90 dark:bg-slate-900/80 p-4 shadow hover:shadow-lg transition">
+      <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        Attendance
+      </div>
+      <p class="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">—</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        Track your daily attendance records.
+      </p>
+    </a>
+
+    <!-- Marks -->
+    <a href="{% url 'core:student_marks' %}" 
+       class="block rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white/90 dark:bg-slate-900/80 p-4 shadow hover:shadow-lg transition">
+      <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        Exam Results
+      </div>
+      <p class="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">—</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        View your marks and performance.
+      </p>
+    </a>
+
+    <!-- Assignments -->
+    <a href="{% url 'core:student_dashboard' %}" 
+       class="block rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white/90 dark:bg-slate-900/80 p-4 shadow hover:shadow-lg transition">
+      <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        Assignments
+      </div>
+      <p class="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">—</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        Check your pending assignments and submissions.
+      </p>
+    </a>
+
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+{% load static %}
+<html
+  lang="en"
+  class="h-full"
+  x-data="{}"
+>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}School ERP Demo{% endblock %}</title>
+    {% load tailwind_tags %}
+    {% tailwind_css %}
+    <script>
+      (function () {
+        const stored = localStorage.getItem("theme");
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const useDark = stored === "dark" || (!stored && prefersDark);
+        if (useDark) {
+          document.documentElement.classList.add("dark");
+        } else {
+          document.documentElement.classList.remove("dark");
+        }
+      })();
+      function toggleTheme() {
+        const root = document.documentElement;
+        const isDark = root.classList.toggle("dark");
+        localStorage.setItem("theme", isDark ? "dark" : "light");
+      }
+    </script>
+  </head>
+  <body class="h-full bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <div class="min-h-screen flex flex-col">
+      <header class="border-b border-slate-200/70 dark:border-slate-700/70 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur">
+        <div class="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 text-white font-semibold shadow-sm">
+              SE
+            </span>
+            <div>
+              <div class="text-sm font-semibold tracking-tight">School ERP Demo</div>
+              <div class="text-xs text-slate-500 dark:text-slate-400">Modular school management system</div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onclick="toggleTheme()"
+            class="inline-flex items-center gap-1 rounded-full border border-slate-200/70 dark:border-slate-700/70 bg-white/80 dark:bg-slate-800/80 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-100 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+          >
+            <span class="hidden sm:inline">Toggle theme</span>
+            <span class="sm:hidden">Theme</span>
+          </button>
+        </div>
+      </header>
+
+      <main class="flex-1">
+        <div class="mx-auto max-w-6xl px-4 py-6 lg:py-8">
+          <div class="grid gap-6 lg:grid-cols-[2fr,1fr] items-start">
+            <section class="rounded-2xl bg-white dark:bg-slate-900 shadow-sm shadow-slate-900/5 border border-slate-200 dark:border-slate-800 p-5 lg:p-6">
+              {% block content %}{% endblock %}
+            </section>
+
+            <aside class="space-y-4">
+              <div class="rounded-2xl bg-white dark:bg-slate-900 shadow-sm shadow-slate-900/5 border border-slate-200 dark:border-slate-800 p-4">
+                <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  System overview
+                </h2>
+                <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                  Use this layout as the foundation for your ERP modules: students, staff, attendance, exams, and more.
+                </p>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </main>
+
+      <footer class="border-t border-slate-200/70 dark:border-slate-800/70 bg-slate-50/80 dark:bg-slate-900/80">
+        <div class="mx-auto max-w-6xl px-4 py-3 text-xs text-slate-500 dark:text-slate-400 flex justify-between gap-3">
+          <span>© {% now "Y" %} School ERP Demo</span>
+          <span class="hidden sm:inline">Built with Django & Tailwind CSS</span>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>
+
