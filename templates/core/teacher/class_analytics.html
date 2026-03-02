@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}Class Analytics | School ERP{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <h1 class="h4 fw-bold mb-2">Class Analytics</h1>
+  <p class="text-muted mb-4">Compare student performance across your class.</p>
+
+  <!-- Class Average Card -->
+  <div class="row g-3 mb-4">
+    <div class="col-12">
+      <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body">
+          <p class="text-muted small text-uppercase mb-1">Class Average Percentage</p>
+          <h2 class="display-5 fw-bold text-primary mb-0">{{ class_avg }}%</h2>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top 5 & Bottom 5 -->
+  <div class="row g-3 mb-4">
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-header bg-white border-0 pt-4">
+          <h5 class="mb-0"><i class="bi bi-trophy text-warning me-2"></i>Top 5 Students</h5>
+        </div>
+        <div class="card-body">
+          {% for item in top_5 %}
+          <div class="mb-3">
+            <div class="d-flex justify-content-between mb-1">
+              <span class="fw-medium">{{ item.name }}</span>
+              <span class="badge bg-success rounded-pill">{{ item.pct }}%</span>
+            </div>
+            <div class="progress rounded-3" style="height: 8px;">
+              <div class="progress-bar bg-success" role="progressbar" style="width: {{ item.pct }}%" aria-valuenow="{{ item.pct }}" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+          </div>
+          {% empty %}
+          <p class="text-muted mb-0">No students with marks yet.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-header bg-white border-0 pt-4">
+          <h5 class="mb-0"><i class="bi bi-arrow-down-circle text-info me-2"></i>Bottom 5 Students</h5>
+        </div>
+        <div class="card-body">
+          {% for item in bottom_5 %}
+          <div class="mb-3">
+            <div class="d-flex justify-content-between mb-1">
+              <span class="fw-medium">{{ item.name }}</span>
+              <span class="badge {% if item.pct >= 50 %}bg-warning text-dark{% else %}bg-danger{% endif %} rounded-pill">{{ item.pct }}%</span>
+            </div>
+            <div class="progress rounded-3" style="height: 8px;">
+              <div class="progress-bar {% if item.pct >= 50 %}bg-warning{% else %}bg-danger{% endif %}" role="progressbar" style="width: {{ item.pct }}%" aria-valuenow="{{ item.pct }}" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+          </div>
+          {% empty %}
+          <p class="text-muted mb-0">No students with marks yet.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="row g-3 mb-4">
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body">
+          <h6 class="card-title fw-semibold text-muted mb-3">Subject-wise Class Average</h6>
+          <div class="position-relative" style="height: 260px;">
+            <canvas id="subjectBarChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body">
+          <h6 class="card-title fw-semibold text-muted mb-3">Attendance Comparison (Top 15 by Marks)</h6>
+          <div class="position-relative" style="height: 260px;">
+            <canvas id="attendanceBarChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ranking Table -->
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-header bg-white border-0 pt-4">
+      <h5 class="mb-0"><i class="bi bi-list-ol me-2"></i>Full Class Ranking</h5>
+    </div>
+    <div class="card-body p-0">
+      {% if ranking %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="rounded-start">#</th>
+              <th>Student</th>
+              <th>Overall %</th>
+              <th class="rounded-end">Progress</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in ranking %}
+            <tr>
+              <td class="fw-semibold">{{ forloop.counter }}</td>
+              <td>{{ item.name }}</td>
+              <td>
+                <span class="badge {% if item.pct >= 70 %}bg-success{% elif item.pct >= 50 %}bg-warning text-dark{% else %}bg-danger{% endif %} rounded-pill">{{ item.pct }}%</span>
+              </td>
+              <td style="width: 180px;">
+                <div class="progress rounded-3" style="height: 6px;">
+                  <div class="progress-bar {% if item.pct >= 70 %}bg-success{% elif item.pct >= 50 %}bg-warning{% else %}bg-danger{% endif %}" style="width: {{ item.pct }}%"></div>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-muted text-center py-5 mb-0">No students in class yet.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{{ subject_chart_labels|json_script:"subject-labels" }}
+{{ subject_chart_data|json_script:"subject-data" }}
+{{ att_chart_labels|json_script:"att-labels" }}
+{{ att_chart_data|json_script:"att-data" }}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const subjLabels = JSON.parse(document.getElementById('subject-labels').textContent);
+  const subjData = JSON.parse(document.getElementById('subject-data').textContent);
+  const attLabels = JSON.parse(document.getElementById('att-labels').textContent);
+  const attData = JSON.parse(document.getElementById('att-data').textContent);
+
+  if (subjLabels.length > 0) {
+    new Chart(document.getElementById('subjectBarChart'), {
+      type: 'bar',
+      data: {
+        labels: subjLabels,
+        datasets: [{
+          label: 'Class Avg %',
+          data: subjData,
+          backgroundColor: 'rgba(13, 110, 253, 0.7)',
+          borderColor: '#0d6efd',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { min: 0, max: 100 } }
+      }
+    });
+  }
+
+  if (attLabels.length > 0) {
+    new Chart(document.getElementById('attendanceBarChart'), {
+      type: 'bar',
+      data: {
+        labels: attLabels,
+        datasets: [{
+          label: 'Attendance %',
+          data: attData,
+          backgroundColor: 'rgba(25, 135, 84, 0.7)',
+          borderColor: '#198754',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { min: 0, max: 100 } }
+      }
+    });
+  }
+});
+</script>
+{% endblock %}

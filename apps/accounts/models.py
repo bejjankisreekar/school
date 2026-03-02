@@ -4,7 +4,8 @@ from django.db import models
 
 class User(AbstractUser):
     class Roles(models.TextChoices):
-        ADMIN = "ADMIN", "Admin"
+        SUPERADMIN = "SUPERADMIN", "Super admin"
+        ADMIN = "ADMIN", "School admin"
         TEACHER = "TEACHER", "Teacher"
         STUDENT = "STUDENT", "Student"
 
@@ -12,6 +13,13 @@ class User(AbstractUser):
         max_length=20,
         choices=Roles.choices,
         default=Roles.STUDENT,
+    )
+    school = models.ForeignKey(
+        "core.School",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="users",
     )
     phone_number = models.CharField(
         max_length=20,

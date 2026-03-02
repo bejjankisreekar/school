@@ -26,6 +26,7 @@ def role_required(*allowed_roles: str):
     return decorator
 
 
+superadmin_required = role_required(User.Roles.SUPERADMIN)
 admin_required = role_required(User.Roles.ADMIN)
 teacher_required = role_required(User.Roles.TEACHER)
 student_required = role_required(User.Roles.STUDENT)

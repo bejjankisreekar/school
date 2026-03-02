@@ -1,61 +1,80 @@
 {% extends "base.html" %}
 
-{% block title %}Admin Dashboard | School ERP{% endblock %}
+{% block title %}School Admin Dashboard | School ERP{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
-
   <div>
     <h1 class="text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
-      Admin Dashboard
+      School Admin Dashboard
     </h1>
     <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">
-      Manage the entire school system from here.
+      Overview of your school operations.
     </p>
   </div>
 
-  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-
-    <!-- Students -->
-    <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white/90 dark:bg-slate-900/80 p-4 shadow-sm">
+  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
       <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
         Total Students
       </div>
       <p class="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">
-        0
-      </p>
-      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-        View and manage student records.
+        {{ total_students }}
       </p>
     </div>
-
-    <!-- Teachers -->
-    <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white/90 dark:bg-slate-900/80 p-4 shadow-sm">
+    <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
       <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
         Total Teachers
       </div>
       <p class="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">
-        0
-      </p>
-      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-        Manage teacher assignments and roles.
+        {{ total_teachers }}
       </p>
     </div>
-
-    <!-- Classes -->
-    <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white/90 dark:bg-slate-900/80 p-4 shadow-sm">
+    <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
       <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-        Classes
+        Attendance Today
       </div>
       <p class="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">
-        0
-      </p>
-      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-        Organize sections and academic years.
+        {{ attendance_today_count }}
       </p>
     </div>
-
   </div>
 
+  <div class="grid gap-6 lg:grid-cols-2">
+    <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
+      <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-3">
+        Recent Homework
+      </h2>
+      {% if recent_homework %}
+        <ul class="space-y-2">
+          {% for hw in recent_homework %}
+            <li class="flex justify-between text-sm">
+              <span class="text-slate-700 dark:text-slate-200 truncate">{{ hw.title }}</span>
+              <span class="text-slate-500 dark:text-slate-400 text-xs flex-shrink-0 ml-2">{{ hw.due_date }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-sm text-slate-500 dark:text-slate-400">No homework yet.</p>
+      {% endif %}
+    </div>
+    <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
+      <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-3">
+        Recent Marks
+      </h2>
+      {% if recent_marks %}
+        <ul class="space-y-2">
+          {% for m in recent_marks %}
+            <li class="flex justify-between text-sm">
+              <span class="text-slate-700 dark:text-slate-200 truncate">{{ m.student.user.get_full_name|default:m.student.user.username }} — {{ m.exam_name }}</span>
+              <span class="text-slate-600 dark:text-slate-300 flex-shrink-0 ml-2">{{ m.marks_obtained }}/{{ m.total_marks }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-sm text-slate-500 dark:text-slate-400">No marks recorded yet.</p>
+      {% endif %}
+    </div>
+  </div>
 </div>
 {% endblock %}

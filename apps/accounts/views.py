@@ -1,11 +1,17 @@
 from django.contrib import messages
-from django.contrib.auth import login
+from django.contrib.auth import login, logout
 from django.contrib.auth.forms import AuthenticationForm
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
 
-def login_view(request):
+def logout_view(request):
+    logout(request)
+    messages.success(request, "You have been logged out.")
+    return redirect("core:home")
+
+
+def login_view(request, login_type: str = "portal"):
     if request.method == "POST":
         form = AuthenticationForm(request, data=request.POST)
         if form.is_valid():
@@ -17,10 +23,14 @@ def login_view(request):
                 request.session.set_expiry(0)
 
             role = getattr(user, "role", None)
-            if role == "ADMIN":
-                target = reverse("core:admin_dashboard")
+            if role == "SUPERADMIN":
+                target = reverse("core:super_admin_dashboard")  # /superadmin/dashboard/
+            elif role == "ADMIN":
+                target = reverse("core:admin_dashboard")       # /school/dashboard/
             elif role == "TEACHER":
-                target = reverse("core:teacher_dashboard")
+                target = reverse("core:teacher_dashboard")     # /teacher/dashboard/
+            elif role == "STUDENT":
+                target = reverse("core:student_dashboard")     # /student/dashboard/
             else:
                 target = reverse("core:student_dashboard")
 
@@ -34,5 +44,6 @@ def login_view(request):
         "accounts/login.html",
         {
             "form": form,
+            "login_type": login_type,
         },
     )

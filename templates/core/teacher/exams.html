@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Exam Management | School ERP{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <h1 class="h4 fw-bold mb-4">Exam Management</h1>
+  <p class="text-muted mb-4">Add marks per student per subject. Select exam, subject, and enter marks.</p>
+
+  {% if messages %}
+  <div class="mb-3">
+    {% for m in messages %}
+    <div class="alert alert-{{ m.tags }} alert-dismissible fade show" role="alert">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Add Marks Form -->
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-header bg-white border-0 pt-4">
+      <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i>Add Marks</h5>
+    </div>
+    <div class="card-body">
+      <form method="post" class="row g-3">
+        {% csrf_token %}
+        <div class="col-md-6">
+          <label for="id_exam_name" class="form-label">Exam</label>
+          {{ form.exam_name }}
+          {% if exams %}
+          <datalist id="exam-list">
+            {% for e in exams %}
+            <option value="{{ e.exam_name }}">
+            {% endfor %}
+          </datalist>
+          <script>document.getElementById('id_exam_name').setAttribute('list', 'exam-list');</script>
+          {% endif %}
+          {% if form.exam_name.errors %}<p class="text-danger small mb-0">{{ form.exam_name.errors.0 }}</p>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label for="id_exam_date" class="form-label">Exam Date</label>
+          {{ form.exam_date }}
+          {% if form.exam_date.errors %}<p class="text-danger small mb-0">{{ form.exam_date.errors.0 }}</p>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label for="id_subject" class="form-label">Subject</label>
+          {{ form.subject }}
+          {% if form.subject.errors %}<p class="text-danger small mb-0">{{ form.subject.errors.0 }}</p>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label for="id_student" class="form-label">Student</label>
+          {{ form.student }}
+          {% if form.student.errors %}<p class="text-danger small mb-0">{{ form.student.errors.0 }}</p>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label for="id_marks_obtained" class="form-label">Marks Obtained</label>
+          {{ form.marks_obtained }}
+          {% if form.marks_obtained.errors %}<p class="text-danger small mb-0">{{ form.marks_obtained.errors.0 }}</p>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label for="id_total_marks" class="form-label">Total Marks</label>
+          {{ form.total_marks }}
+          {% if form.total_marks.errors %}<p class="text-danger small mb-0">{{ form.total_marks.errors.0 }}</p>{% endif %}
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save Marks</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Exam List -->
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-header bg-white border-0 pt-4">
+      <h5 class="mb-0"><i class="bi bi-journal-text me-2"></i>Existing Exams</h5>
+    </div>
+    <div class="card-body p-0">
+      {% if exams %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="rounded-start">Exam Name</th>
+              <th>Exam Date</th>
+              <th class="rounded-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in exams %}
+            <tr>
+              <td>{{ e.exam_name }}</td>
+              <td>{% if e.exam_date %}{{ e.exam_date }}{% else %}—{% endif %}</td>
+              <td>—</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-muted text-center py-5 mb-0">No exams yet. Add marks above to create an exam.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

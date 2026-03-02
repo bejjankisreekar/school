@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}My Exams | School ERP{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <h1 class="h4 fw-bold mb-4">My Exams</h1>
+  <p class="text-muted mb-4">Click on an exam to view detailed marks.</p>
+
+  {% if exams %}
+    <div class="row g-3">
+      {% for exam in exams %}
+      <div class="col-sm-6 col-lg-4">
+        <div class="card border-0 shadow-sm rounded-4 h-100 exam-card">
+          <div class="card-body">
+            <h5 class="card-title fw-semibold">{{ exam.exam_name }}</h5>
+            <p class="text-muted small mb-2">
+              <i class="bi bi-calendar3 me-1"></i>
+              {% if exam.exam_date %}{{ exam.exam_date }}{% else %}&#8212;{% endif %}
+            </p>
+            <p class="text-muted small mb-2">
+              <i class="bi bi-book me-1"></i>{{ exam.total_subjects }} subject{{ exam.total_subjects|pluralize }}
+            </p>
+            <div class="d-flex justify-content-between align-items-center mt-3">
+              <span class="badge bg-primary rounded-pill fs-6">{{ exam.overall_pct }}%</span>
+              <a href="{% url 'core:student_exam_detail' exam.exam_name %}" class="btn btn-outline-primary btn-sm">
+                View Details
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="card border-0 shadow-sm rounded-4">
+      <div class="card-body text-center py-5">
+        <i class="bi bi-journal-x display-4 text-muted"></i>
+        <p class="text-muted mt-3 mb-0">No exams recorded yet.</p>
+      </div>
+    </div>
+  {% endif %}
+</div>
+
+<style>
+  .exam-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .exam-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0,0,0,.15) !important;
+  }
+</style>
+{% endblock %}

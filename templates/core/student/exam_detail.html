@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}{{ exam_name }} | School ERP{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:student_exams_list' %}">Exams</a></li>
+      <li class="breadcrumb-item active">{{ exam_name }}</li>
+    </ol>
+  </nav>
+
+  <h1 class="h4 fw-bold mb-2">{{ exam_name }}</h1>
+  {% if exam_date %}
+  <p class="text-muted small mb-4"><i class="bi bi-calendar3 me-1"></i>{{ exam_date }}</p>
+  {% endif %}
+
+  <!-- Overall Stats -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body">
+          <p class="text-muted small text-uppercase mb-1">Overall Percentage</p>
+          <h2 class="display-5 fw-bold text-primary mb-0">{{ overall_pct }}%</h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body">
+          <p class="text-muted small text-uppercase mb-1">Grade</p>
+          <h2 class="display-5 fw-bold mb-0">{{ grade }}</h2>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Progress Bar -->
+  <div class="mb-4">
+    <div class="progress rounded-3" style="height: 10px;">
+      <div class="progress-bar bg-primary" role="progressbar" style="width: {{ overall_pct }}%" aria-valuenow="{{ overall_pct }}" aria-valuemin="0" aria-valuemax="100"></div>
+    </div>
+  </div>
+
+  <!-- Marks Table -->
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="rounded-start">Subject</th>
+              <th>Marks Obtained</th>
+              <th>Total Marks</th>
+              <th>Percentage</th>
+              <th class="rounded-end">Grade</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in marks_rows %}
+            <tr>
+              <td>{{ row.subject }}</td>
+              <td>{{ row.marks_obtained }}</td>
+              <td>{{ row.total_marks }}</td>
+              <td>
+                <span class="badge {% if row.pct >= 90 %}bg-success{% elif row.pct >= 60 %}bg-primary{% elif row.pct >= 50 %}bg-warning text-dark{% else %}bg-danger{% endif %} rounded-pill">
+                  {{ row.pct }}%
+                </span>
+              </td>
+              <td><strong>{{ row.grade }}</strong></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

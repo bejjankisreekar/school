@@ -1,56 +1,68 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard | School ERP Demo{% endblock %}
+{% block title %}EduSaaS | Smart School Management Platform{% endblock %}
 
 {% block content %}
-  <div class="space-y-4">
-    <div>
-      <h1 class="text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
-        Welcome to School ERP Demo
-      </h1>
-      <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">
-        Start organizing your school operations with a clean, modern dashboard layout.
+  <div class="min-h-[60vh] flex flex-col lg:flex-row items-center justify-between gap-10">
+    <!-- Hero copy -->
+    <div class="space-y-5 max-w-xl">
+      <p class="inline-flex items-center gap-2 rounded-full bg-indigo-50 text-indigo-700 px-3 py-1 text-xs font-medium dark:bg-indigo-950/40 dark:text-indigo-200">
+        <span class="h-1.5 w-1.5 rounded-full bg-indigo-500"></span>
+        Welcome to School ERP by EduSaaS
+      </p>
+      <div class="flex items-center gap-3">
+        <div class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-600 text-white font-semibold shadow-md shadow-indigo-500/40">
+          ES
+        </div>
+        <div>
+          <h1 class="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
+            EduSaaS
+          </h1>
+          <p class="text-sm text-slate-600 dark:text-slate-300">
+            Smart School Management Platform
+          </p>
+        </div>
+      </div>
+
+      <p class="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+        EduSaaS is our unified School ERP initiative to digitalize attendance, exams, fees,
+        communication and academic workflows for schools of every size. Centralize data,
+        automate daily operations, and give administrators, teachers and students a clean,
+        modern experience.
+      </p>
+
+      <div class="flex flex-col sm:flex-row gap-3 pt-2">
+        <a
+          href="{% url 'accounts:school_login' %}"
+          class="inline-flex items-center justify-center rounded-xl bg-slate-900 text-white px-5 py-3 text-sm font-semibold shadow-md shadow-slate-900/40 hover:bg-slate-800 transition"
+        >
+          School Login
+        </a>
+        <a
+          href="{% url 'accounts:portal_login' %}"
+          class="inline-flex items-center justify-center rounded-xl border border-indigo-500/80 text-indigo-700 dark:text-indigo-200 px-5 py-3 text-sm font-semibold bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition"
+        >
+          Student / Teacher Login
+        </a>
+      </div>
+
+      <p class="text-xs text-slate-500 dark:text-slate-400">
+        Start with your school code and login details to access your personalized dashboard.
       </p>
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white/90 dark:bg-slate-900/80 p-4 shadow-sm shadow-slate-900/5">
-        <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Students
-        </div>
-        <div class="mt-2 flex items-baseline justify-between">
-          <p class="text-2xl font-semibold text-slate-900 dark:text-slate-50">—</p>
-          <span class="text-xs text-emerald-600 dark:text-emerald-400">Coming soon</span>
-        </div>
-        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Manage admissions, profiles, classes, and performance.
-        </p>
-      </div>
-
-      <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white/90 dark:bg-slate-900/80 p-4 shadow-sm shadow-slate-900/5">
-        <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Staff
-        </div>
-        <div class="mt-2 flex items-baseline justify-between">
-          <p class="text-2xl font-semibold text-slate-900 dark:text-slate-50">—</p>
-          <span class="text-xs text-sky-600 dark:text-sky-400">Planned</span>
-        </div>
-        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Centralize teacher and staff information and roles.
-        </p>
-      </div>
-
-      <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white/90 dark:bg-slate-900/80 p-4 shadow-sm shadow-slate-900/5 sm:col-span-2 lg:col-span-1">
-        <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Attendance & Exams
-        </div>
-        <div class="mt-2 flex items-baseline justify-between">
-          <p class="text-2xl font-semibold text-slate-900 dark:text-slate-50">—</p>
-          <span class="text-xs text-amber-600 dark:text-amber-400">Designing</span>
-        </div>
-        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Build attendance tracking, timetables, and exam workflows.
-        </p>
+    <!-- Side marketing panel -->
+    <div class="w-full max-w-md">
+      <div class="rounded-2xl border border-slate-200/70 dark:border-slate-800/80 bg-white/90 dark:bg-slate-900/90 shadow-lg shadow-slate-900/10 p-5 space-y-4">
+        <h2 class="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-50">
+          Why schools choose EduSaaS
+        </h2>
+        <ul class="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+          <li>✓ Centralized student, staff and academic data</li>
+          <li>✓ Real-time attendance and performance insights</li>
+          <li>✓ Role-based dashboards for school, teacher and student</li>
+          <li>✓ Secure, cloud-ready architecture for growing institutions</li>
+        </ul>
       </div>
     </div>
   </div>
