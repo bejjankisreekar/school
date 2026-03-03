@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Timetable | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <h1 class="h4 fw-bold mb-2">Timetable Management</h1>
+  <p class="text-muted mb-4">Select a class to edit timetable.</p>
+  <div class="d-flex gap-2 mb-4">
+    <a href="{% url 'timetable:school_timeslots' %}" class="btn btn-outline-primary">Time Slots</a>
+  </div>
+  <div class="row g-3">
+    {% for c in classrooms %}
+    <div class="col-md-4">
+      <a href="{% url 'timetable:school_timetable' c.id %}" class="card border-0 shadow-sm rounded-4 text-decoration-none text-dark h-100">
+        <div class="card-body">
+          <h5 class="card-title">{{ c }}</h5>
+          <p class="text-muted small mb-0">Edit timetable</p>
+        </div>
+      </a>
+    </div>
+    {% empty %}
+    <p class="text-muted">No classrooms. Add classrooms first.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

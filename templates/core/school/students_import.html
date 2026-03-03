@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Import Students | School ERP{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0" style="max-width: 500px;">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_students_list' %}">Students</a></li>
+      <li class="breadcrumb-item active">Import CSV</li>
+    </ol>
+  </nav>
+
+  <h1 class="h4 fw-bold mb-4">Bulk Import Students</h1>
+
+  <div class="card border-0 shadow-sm rounded-3">
+    <div class="card-body">
+      <p class="text-muted small mb-3">Upload a CSV with columns: <code>name</code>, <code>username</code>, <code>password</code>, <code>class</code>, <code>section</code>, <code>roll_number</code></p>
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label for="id_csv_file" class="form-label">CSV File</label>
+          <input type="file" name="csv_file" id="id_csv_file" class="form-control" accept=".csv" required>
+          {% if form.csv_file.errors %}<div class="invalid-feedback d-block">{{ form.csv_file.errors.0 }}</div>{% endif %}
+        </div>
+        <button type="submit" class="btn btn-primary">Import</button>
+        <a href="{% url 'core:school_students_list' %}" class="btn btn-outline-secondary">Cancel</a>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Timetable - {{ classroom }} | School ERP</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; font-size: 12px; margin: 1rem; }
+    h1 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #333; padding: 6px 8px; text-align: left; }
+    th { background: #f0f0f0; font-weight: 600; }
+    .break-cell { background: #e8e8e8; color: #555; }
+    .time-col { min-width: 80px; font-weight: 500; }
+    @media print { body { margin: 0; } .no-print { display: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="margin-bottom: 1rem;">
+    <button onclick="window.print()" style="padding: 8px 16px; cursor: pointer;">Print</button>
+    <a href="{% url 'timetable:school_timetable_pdf' classroom.id %}">Download PDF</a>
+  </div>
+  <h1>Class {{ classroom }} - Weekly Timetable</h1>
+  <table>
+    <thead>
+      <tr>
+        <th class="time-col">Time</th>
+        <th>Monday</th><th>Tuesday</th><th>Wednesday</th><th>Thursday</th><th>Friday</th><th>Saturday</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in grid %}
+      <tr>
+        <td class="time-col">{{ row.slot.start_time|time:"H:i" }}-{{ row.slot.end_time|time:"H:i" }}{% if row.slot.is_break %} ({% if row.slot.break_type == 'SHORT_BREAK' %}Short{% else %}Lunch{% endif %}){% endif %}</td>
+        {% for d in row.days %}
+        <td class="{% if row.slot.is_break %}break-cell{% endif %}">
+          {% if row.slot.is_break %}{% if row.slot.break_type == 'SHORT_BREAK' %}Short Break{% else %}Lunch Break{% endif %}
+          {% else %}{% if d.entry and d.entry.subject %}{{ d.entry.subject.name }}{% if d.entry.teachers.all %} - {% for t in d.entry.teachers.all %}{{ t.user.get_full_name|default:t.user.username }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}{% else %}-{% endif %}{% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" style="text-align:center">No time slots.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

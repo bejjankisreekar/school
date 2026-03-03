@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Add Teacher | School ERP{% endblock %}
+{% block extra_head %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+{% endblock %}
+{% block content %}
+<div class="container-fluid px-0" style="max-width:600px">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_teachers_list' %}">Teachers</a></li>
+      <li class="breadcrumb-item active">Add Teacher</li>
+    </ol>
+  </nav>
+  <h1 class="h4 fw-bold mb-4">Add Teacher</h1>
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="card border-0 shadow-sm rounded-3">
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6"><label class="form-label">First Name</label><input type="text" name="first_name" class="form-control" value="{{ form.first_name.value|default:'' }}" required>{% if form.first_name.errors %}<div class="text-danger small">{{ form.first_name.errors.0 }}</div>{% endif %}</div>
+          <div class="col-md-6"><label class="form-label">Last Name</label><input type="text" name="last_name" class="form-control" value="{{ form.last_name.value|default:'' }}" >{% if form.last_name.errors %}<div class="text-danger small">{{ form.last_name.errors.0 }}</div>{% endif %}</div>
+          <div class="col-md-6"><label class="form-label">Username</label><input type="text" name="username" class="form-control" value="{{ form.username.value|default:'' }}" required>{% if form.username.errors %}<div class="text-danger small">{{ form.username.errors.0 }}</div>{% endif %}</div>
+          <div class="col-md-6"><label class="form-label">Password</label><input type="password" name="password" class="form-control" required>{% if form.password.errors %}<div class="text-danger small">{{ form.password.errors.0 }}</div>{% endif %}</div>
+          <div class="col-md-6"><label class="form-label">Employee ID</label><input type="text" name="employee_id" class="form-control" value="{{ form.employee_id.value|default:'' }}"></div>
+          <div class="col-md-6"><label class="form-label">Phone</label><input type="text" name="phone_number" class="form-control" value="{{ form.phone_number.value|default:'' }}"></div>
+          <div class="col-12">
+            <label class="form-label">Subjects (multi-select)</label>
+            {{ form.subjects }}
+            {% if form.subjects.errors %}<div class="text-danger small">{{ form.subjects.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-12">
+            <label class="form-label">Assigned Classes (multi-select)</label>
+            {{ form.classrooms }}
+            {% if form.classrooms.errors %}<div class="text-danger small">{{ form.classrooms.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="card-footer bg-transparent"><button type="submit" class="btn btn-primary">Add Teacher</button><a href="{% url 'core:school_teachers_list' %}" class="btn btn-outline-secondary ms-2">Cancel</a></div>
+    </div>
+  </form>
+</div>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+  $(function () {
+    $("#id_subjects, #id_classrooms").select2({ width: "100%" });
+  });
+</script>
+{% endblock %}

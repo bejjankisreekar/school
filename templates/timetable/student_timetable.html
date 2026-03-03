@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}My Timetable | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <h1 class="h4 fw-bold mb-2">{% if classroom %}Class {{ classroom }} Weekly Timetable{% else %}My Timetable{% endif %}</h1>
+  {% if not classroom %}<p class="text-muted">You are not assigned to a class.</p>
+  {% elif not grid %}<p class="text-muted">No timetable available.</p>
+  {% else %}
+  <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+    <div class="table-responsive">
+      <table class="table table-bordered mb-0">
+        <thead class="table-light sticky-top">
+          <tr>
+            <th>Time</th>
+            <th class="{% if current_day == 1 %}table-primary{% endif %}">Monday</th>
+            <th class="{% if current_day == 2 %}table-primary{% endif %}">Tuesday</th>
+            <th class="{% if current_day == 3 %}table-primary{% endif %}">Wednesday</th>
+            <th class="{% if current_day == 4 %}table-primary{% endif %}">Thursday</th>
+            <th class="{% if current_day == 5 %}table-primary{% endif %}">Friday</th>
+            <th class="{% if current_day == 6 %}table-primary{% endif %}">Saturday</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in grid %}
+          <tr>
+            <td class="text-nowrap">{{ row.slot.start_time|time:"H:i" }}-{{ row.slot.end_time|time:"H:i" }}{% if row.slot.is_break %}<br><small class="text-muted">Break</small>{% endif %}</td>
+            {% for d in row.days %}
+            <td class="{% if row.slot.is_break %}table-secondary{% endif %} {% if current_day == d.day and current_slot_id == row.slot.id %}table-warning{% endif %}">
+              {% if row.slot.is_break %}<span class="text-muted">Break</span>
+              {% elif d.entry %}{{ d.entry.subject.name|default:"—" }}
+                <br><small class="text-muted">
+                  {% for t in d.entry.teachers.all %}
+                    {{ t.user.get_full_name|default:t.user.username }}{% if not forloop.last %}, {% endif %}
+                  {% endfor %}
+                </small>
+                {% if current_day == d.day and current_slot_id == row.slot.id %}<span class="badge bg-success">Live Now</span>{% endif %}
+              {% else %}—{% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

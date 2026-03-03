@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Academic Years | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Academic Years</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <h1 class="h4 fw-bold mb-0">Academic Years</h1>
+    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addYearModal"><i class="bi bi-plus-lg"></i> Add Year</button>
+  </div>
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+    {% endfor %}
+  {% endif %}
+  {% if form.errors %}
+    <div class="alert alert-danger alert-dismissible fade show">Please correct the errors below.<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+  {% endif %}
+
+  <div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body">
+      <form method="get" class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label small">Search</label>
+          <input type="text" name="q" class="form-control form-control-sm" placeholder="Year name" value="{{ filters.q }}">
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+          <button type="submit" class="btn btn-outline-primary btn-sm me-2">Search</button>
+          <a href="{% url 'core:school_academic_years' %}" class="btn btn-outline-secondary btn-sm">Clear</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Name</th>
+            <th>Start Date</th>
+            <th>End Date</th>
+            <th>Status</th>
+            <th class="text-center" style="width: 160px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ay in academic_years %}
+          <tr>
+            <td>{{ ay.name }}</td>
+            <td>{{ ay.start_date }}</td>
+            <td>{{ ay.end_date }}</td>
+            <td>
+              {% if ay.is_active %}<span class="badge bg-success">Active</span>
+              {% else %}
+                <form method="post" action="{% url 'core:school_academic_year_set_active' ay.id %}" class="d-inline">{% csrf_token %}<button type="submit" class="btn btn-sm btn-outline-success">Set active</button></form>
+              {% endif %}
+            </td>
+            <td class="text-center" style="width: 160px;">
+              <a href="{% url 'core:school_academic_year_edit' ay.id %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="bi bi-pencil"></i></a>
+              {% if not ay.is_active %}
+              <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#delYear{{ ay.id }}" title="Delete"><i class="bi bi-trash"></i></button>
+              {% else %}
+              <span class="text-muted small">Cannot delete active year</span>
+              {% endif %}
+            </td>
+          </tr>
+          <div class="modal fade" id="delYear{{ ay.id }}" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title">Delete Academic Year</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">Delete <strong>{{ ay.name }}</strong>? This cannot be undone.</div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                  <form method="post" action="{% url 'core:school_academic_year_delete' ay.id %}" class="d-inline">{% csrf_token %}<button type="submit" class="btn btn-danger">Delete</button></form>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% empty %}
+          <tr><td colspan="5" class="text-center text-muted py-4">No academic years. Add one to get started.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if academic_years.has_other_pages %}
+    <div class="card-footer d-flex justify-content-between align-items-center">
+      <span class="small text-muted">Page {{ academic_years.number }} of {{ academic_years.paginator.num_pages }}</span>
+      <ul class="pagination pagination-sm mb-0">
+        {% if academic_years.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ academic_years.previous_page_number }}{% if filters.q %}&q={{ filters.q }}{% endif %}">Previous</a></li>{% endif %}
+        {% if academic_years.has_next %}<li class="page-item"><a class="page-link" href="?page={{ academic_years.next_page_number }}{% if filters.q %}&q={{ filters.q }}{% endif %}">Next</a></li>{% endif %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div class="modal fade" id="addYearModal" tabindex="-1" aria-labelledby="addYearModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="addYearModalLabel">Add Academic Year</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post">
+        {% csrf_token %}
+        <div class="modal-body">
+          {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+          <div class="mb-3">
+            <label class="form-label">Name</label>
+            {{ form.name }}
+            {% if form.name.errors %}<div class="text-danger small">{{ form.name.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Start Date</label>
+            {{ form.start_date }}
+            {% if form.start_date.errors %}<div class="text-danger small">{{ form.start_date.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="mb-3">
+            <label class="form-label">End Date</label>
+            {{ form.end_date }}
+            {% if form.end_date.errors %}<div class="text-danger small">{{ form.end_date.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% if form.errors %}
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var modal = new bootstrap.Modal(document.getElementById("addYearModal"));
+    modal.show();
+  });
+</script>
+{% endif %}
+{% endblock %}

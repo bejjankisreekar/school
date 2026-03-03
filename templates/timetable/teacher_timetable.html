@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}My Schedule | School ERP{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <h1 class="h4 fw-bold mb-2">My Schedule</h1>
+  <p class="text-muted mb-4">Your teaching periods this week.</p>
+
+  {% if entries %}
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light sticky-top">
+            <tr>
+              <th>Day</th>
+              <th>Time</th>
+              <th>Class</th>
+              <th>Subject</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in entries %}
+            <tr>
+              <td>{{ e.get_day_of_week_display }}</td>
+              <td>{{ e.time_slot.start_time|time:"H:i" }}&ndash;{{ e.time_slot.end_time|time:"H:i" }}</td>
+              <td>{{ e.classroom }}</td>
+              <td>{% if e.subject %}{{ e.subject.name }}{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="alert alert-secondary">No schedule assigned yet.</div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -15,51 +15,34 @@
   <!-- Cards -->
   <div class="row g-3 mb-4">
     <div class="col-sm-6 col-lg-4">
-      <div class="card border-0 shadow-sm rounded-4 h-100">
-        <div class="card-body">
-          <div class="d-flex align-items-center gap-3">
-            <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-3">
-              <i class="bi bi-calendar-check fs-4"></i>
-            </div>
-            <div>
-              <p class="text-muted small text-uppercase mb-1">Attendance</p>
-              <h2 class="h4 fw-bold mb-0">{{ attendance_pct }}%</h2>
-            </div>
-          </div>
-        </div>
-      </div>
+      {% include "components/dashboard_card.html" with label="Attendance" value=attendance_pct suffix="%" icon="bi-calendar-check" icon_color="primary" %}
     </div>
     <div class="col-sm-6 col-lg-4">
-      <div class="card border-0 shadow-sm rounded-4 h-100">
-        <div class="card-body">
-          <div class="d-flex align-items-center gap-3">
-            <div class="rounded-3 bg-info bg-opacity-10 text-info p-3">
-              <i class="bi bi-book fs-4"></i>
-            </div>
-            <div>
-              <p class="text-muted small text-uppercase mb-1">Total Subjects</p>
-              <h2 class="h4 fw-bold mb-0">{{ total_subjects }}</h2>
-            </div>
-          </div>
-        </div>
-      </div>
+      {% include "components/dashboard_card.html" with label="Total Subjects" value=total_subjects icon="bi-book" icon_color="info" %}
     </div>
     <div class="col-sm-6 col-lg-4">
-      <div class="card border-0 shadow-sm rounded-4 h-100">
-        <div class="card-body">
-          <div class="d-flex align-items-center gap-3">
-            <div class="rounded-3 bg-success bg-opacity-10 text-success p-3">
-              <i class="bi bi-award fs-4"></i>
-            </div>
-            <div>
-              <p class="text-muted small text-uppercase mb-1">Overall %</p>
-              <h2 class="h4 fw-bold mb-0">{{ overall_pct }}%</h2>
-            </div>
-          </div>
-        </div>
-      </div>
+      {% include "components/dashboard_card.html" with label="Overall %" value=overall_pct suffix="%" icon="bi-award" icon_color="success" %}
     </div>
   </div>
+
+  {% if today_classes %}
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-header bg-white border-0 pt-4 d-flex justify-content-between">
+      <h5 class="mb-0">Today's Classes</h5>
+      <a href="{% url 'timetable:student_timetable' %}" class="btn btn-sm btn-outline-primary">Timetable</a>
+    </div>
+    <ul class="list-group list-group-flush">
+      {% for t in today_classes %}
+      <li class="list-group-item">
+        {{ t.time_slot.start_time|time:"H:i" }}-{{ t.time_slot.end_time|time:"H:i" }} — {{ t.subject.name|default:"-" }} —
+        {% for te in t.teachers.all %}
+          {{ te.user.get_full_name|default:te.user.username }}{% if not forloop.last %}, {% endif %}
+        {% endfor %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
 
   <!-- Small Widgets -->
   <div class="row g-3 mb-4">

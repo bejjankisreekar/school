@@ -4,7 +4,8 @@ Run: python manage.py create_demo_users
 """
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
-from apps.core.models import School, Student, Teacher, Subject, ClassRoom
+from datetime import date, timedelta
+from apps.core.models import School, Student, Teacher, Subject, ClassRoom, Exam, Section
 
 User = get_user_model()
 
@@ -78,14 +79,23 @@ class Command(BaseCommand):
             defaults={},
         )
 
-        # 5. Subject: Mathematics
+        # 5. Exam: Mid Term
+        start = date.today()
+        exam, _ = Exam.objects.get_or_create(
+            school=school,
+            classroom=classroom,
+            name="Mid Term",
+            defaults={"start_date": start, "end_date": start + timedelta(days=1)},
+        )
+
+        # 6. Subject: Mathematics
         subject, _ = Subject.objects.get_or_create(
             school=school,
             name="Mathematics",
             defaults={},
         )
 
-        # 6. Teacher
+        # 7. Teacher
         if User.objects.filter(username="teacher1").exists() and not force:
             log("Teacher already exists, skipping.")
         else:
@@ -105,9 +115,10 @@ class Command(BaseCommand):
                 user=user,
                 defaults={"subject": subject},
             )
+            teacher.subjects.set([subject])
             log(f"Teacher: {'Created' if created else 'Updated'} (username: teacher1, password: admin123, subject: Mathematics)")
 
-        # 7. Student
+        # 8. Student
         if User.objects.filter(username="student1").exists() and not force:
             log("Student already exists, skipping.")
         else:
@@ -123,15 +134,23 @@ class Command(BaseCommand):
             )
             user.set_password("admin123")
             user.save()
+            # Create/get default Section for demo
+            section_obj, _ = Section.objects.get_or_create(
+                school=school,
+                classroom=classroom,
+                name="Alpha",
+            )
             Student.objects.update_or_create(
                 user=user,
                 defaults={
-                    "grade": "10",
-                    "section": "A",
                     "roll_number": "23",
                     "classroom": classroom,
+                    "section": section_obj,
+                    "admission_number": "ADM-23",
+                    "parent_name": "Parent",
+                    "parent_phone": "9999999999",
                 },
             )
-            log(f"Student: {'Created' if created else 'Updated'} (username: student1, password: admin123, grade: 10, section: A, roll: 23)")
+            log(f"Student: {'Created' if created else 'Updated'} (username: student1, password: admin123, class: 10, section: Alpha, roll: 23)")
 
         self.stdout.write(self.style.SUCCESS("Demo users setup complete."))

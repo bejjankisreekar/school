@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Access Denied | School ERP{% endblock %}
+{% block content %}
+<div class="text-center py-5">
+  <h1 class="display-4 text-danger">403</h1>
+  <p class="lead">Access Denied</p>
+  <p class="text-muted">You do not have permission to access this page.</p>
+  <a href="{% url 'core:admin_dashboard' %}" class="btn btn-primary mt-3">Go to Dashboard</a>
+</div>
+{% endblock %}

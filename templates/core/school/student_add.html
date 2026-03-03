@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Add Student | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0" style="max-width: 720px;">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_students_list' %}">Students</a></li>
+      <li class="breadcrumb-item active">Add Student</li>
+    </ol>
+  </nav>
+
+  <h1 class="h4 fw-bold mb-4">Add Student</h1>
+
+  {% if form.non_field_errors %}
+    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <form method="post" class="card border-0 shadow-sm rounded-3">
+    {% csrf_token %}
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">First Name</label>
+          {{ form.first_name }}
+          {% if form.first_name.errors %}<div class="text-danger small">{{ form.first_name.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Last Name</label>
+          {{ form.last_name }}
+          {% if form.last_name.errors %}<div class="text-danger small">{{ form.last_name.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Username</label>
+          {{ form.username }}
+          {% if form.username.errors %}<div class="text-danger small">{{ form.username.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Password</label>
+          {{ form.password }}
+          {% if form.password.errors %}<div class="text-danger small">{{ form.password.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Classroom</label>
+          {{ form.classroom }}
+          {% if form.classroom.errors %}<div class="text-danger small">{{ form.classroom.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Section</label>
+          <select name="section" id="id_section" class="form-select">
+            <option value="">Select section</option>
+            {% for s in form.fields.section.queryset %}
+              <option value="{{ s.id }}" data-classroom="{{ s.classroom_id }}" {% if form.section.value == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+          </select>
+          {% if form.section.errors %}<div class="text-danger small">{{ form.section.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Roll Number</label>
+          {{ form.roll_number }}
+          {% if form.roll_number.errors %}<div class="text-danger small">{{ form.roll_number.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Admission Number</label>
+          {{ form.admission_number }}
+          {% if form.admission_number.errors %}<div class="text-danger small">{{ form.admission_number.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Date of Birth</label>
+          {{ form.date_of_birth }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Parent Name</label>
+          {{ form.parent_name }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Parent Phone</label>
+          {{ form.parent_phone }}
+        </div>
+      </div>
+    </div>
+    <div class="card-footer bg-transparent d-flex gap-2">
+      <button type="submit" class="btn btn-primary">Add Student</button>
+      <a href="{% url 'core:school_students_list' %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+  function filterSections() {
+    const classroom = document.getElementById("id_classroom");
+    const section = document.getElementById("id_section");
+    if (!classroom || !section) return;
+    const cId = classroom.value;
+    Array.from(section.options).forEach(opt => {
+      if (!opt.dataset.classroom) return;
+      opt.hidden = opt.dataset.classroom !== cId;
+    });
+    if (section.selectedOptions.length && section.selectedOptions[0].hidden) {
+      section.value = "";
+    }
+  }
+  document.getElementById("id_classroom")?.addEventListener("change", filterSections);
+  filterSections();
+</script>
+{% endblock %}

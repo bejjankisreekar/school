@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Create Exam | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <h1 class="h4 fw-bold mb-2">Create Exam</h1>
+  <p class="text-muted mb-4">Add a new exam for a class.</p>
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        <div class="row g-3">
+          <div class="col-md-6"><label class="form-label">Exam Name</label>{{ form.name }}</div>
+          <div class="col-md-6"><label class="form-label">Class</label>{{ form.classroom }}</div>
+          <div class="col-md-6"><label class="form-label">Start Date</label>{{ form.start_date }}</div>
+          <div class="col-md-6"><label class="form-label">End Date</label>{{ form.end_date }}</div>
+          <div class="col-12">
+            <button type="submit" class="btn btn-primary">Save Exam</button>
+            <a href="{% url 'core:teacher_exams' %}" class="btn btn-outline-secondary ms-2">Cancel</a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

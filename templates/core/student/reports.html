@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}My Reports | School ERP{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <h1 class="h4 fw-bold mb-3">My Reports</h1>
+  <p class="text-muted mb-4">Overview of your exam performance and attendance.</p>
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="row g-4">
+    <!-- Exam Reports -->
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h5 fw-bold mb-0">Exam Reports</h2>
+          </div>
+          {% if exams %}
+            <div class="row g-3">
+              {% for exam in exams %}
+              <div class="col-12">
+                <div class="border rounded-3 p-3 d-flex flex-column flex-md-row align-items-md-center justify-content-between">
+                  <div>
+                    <h6 class="fw-semibold mb-1">{{ exam.exam_name }}</h6>
+                    <p class="text-muted small mb-1">
+                      <i class="bi bi-calendar3 me-1"></i>
+                      {% if exam.exam_date %}{{ exam.exam_date }}{% else %}—{% endif %}
+                    </p>
+                    <p class="text-muted small mb-0">
+                      {{ exam.total_subjects }} subject{{ exam.total_subjects|pluralize }} ·
+                      Grade: <strong>{{ exam.grade }}</strong>
+                    </p>
+                  </div>
+                  <div class="mt-3 mt-md-0 text-md-end">
+                    <div class="mb-2">
+                      <span class="badge bg-primary rounded-pill fs-6">{{ exam.overall_pct }}%</span>
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                      {% if exam.exam_id %}
+                      <a href="{% url 'core:student_exam_detail_by_id' exam.exam_id %}" class="btn btn-outline-secondary">View Details</a>
+                      <a href="{% url 'core:student_report_card_pdf' exam.exam_id %}" class="btn btn-outline-primary"><i class="bi bi-file-earmark-pdf me-1"></i>Report PDF</a>
+                      {% else %}
+                      <a href="{% url 'core:student_exam_detail' exam.exam_name %}" class="btn btn-outline-secondary">View Details</a>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">No exams recorded yet.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Attendance Summary -->
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h5 fw-bold mb-0">Attendance Summary</h2>
+            <a href="{% url 'core:student_attendance_report_pdf' %}" class="btn btn-outline-primary btn-sm">
+              <i class="bi bi-file-earmark-pdf me-1"></i> Attendance PDF
+            </a>
+          </div>
+          <div class="row g-3">
+            <div class="col-4">
+              <p class="text-muted small text-uppercase mb-1">Total Days</p>
+              <h3 class="h4 fw-bold mb-0">{{ attendance.total_days }}</h3>
+            </div>
+            <div class="col-4">
+              <p class="text-muted small text-uppercase mb-1">Present</p>
+              <h3 class="h4 fw-bold text-success mb-0">{{ attendance.present_days }}</h3>
+            </div>
+            <div class="col-4">
+              <p class="text-muted small text-uppercase mb-1">Attendance %</p>
+              <h3 class="h4 fw-bold text-primary mb-0">{{ attendance.percentage }}%</h3>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Performance Summary -->
+      <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body">
+          <h2 class="h5 fw-bold mb-3">Performance Summary</h2>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="border rounded-3 p-3 h-100">
+                <p class="text-muted small text-uppercase mb-1">Strongest Subject</p>
+                {% if performance.strongest_subject %}
+                  <h6 class="fw-semibold mb-1">{{ performance.strongest_subject }}</h6>
+                  <p class="mb-0 text-success">{{ performance.strongest_pct }}%</p>
+                {% else %}
+                  <p class="text-muted mb-0">Not enough data.</p>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="border rounded-3 p-3 h-100">
+                <p class="text-muted small text-uppercase mb-1">Weakest Subject</p>
+                {% if performance.weakest_subject %}
+                  <h6 class="fw-semibold mb-1">{{ performance.weakest_subject }}</h6>
+                  <p class="mb-0 text-danger">{{ performance.weakest_pct }}%</p>
+                {% else %}
+                  <p class="text-muted mb-0">Not enough data.</p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          <div class="row g-3 mt-2">
+            <div class="col-md-6">
+              <p class="text-muted small text-uppercase mb-1 mt-2">Overall Average</p>
+              <h3 class="h4 fw-bold text-primary mb-0">{{ performance.overall_pct }}%</h3>
+            </div>
+            <div class="col-md-6">
+              <p class="text-muted small text-uppercase mb-1 mt-2">Trend</p>
+              <span class="badge bg-info text-dark rounded-pill">{{ performance.trend }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     # Local apps
     "apps.core",
     "apps.accounts",
+    "apps.timetable",
 ]
 NPM_BIN_PATH = r"C:\Program Files\nodejs\npm.cmd"
 

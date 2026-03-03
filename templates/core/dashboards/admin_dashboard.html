@@ -13,31 +13,34 @@
     </p>
   </div>
 
-  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-    <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-      <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-        Total Students
-      </div>
-      <p class="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">
-        {{ total_students }}
-      </p>
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-4">
+      {% include "components/dashboard_card.html" with label="Total Students" value=total_students icon="bi-people" icon_color="primary" %}
     </div>
-    <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-      <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-        Total Teachers
-      </div>
-      <p class="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">
-        {{ total_teachers }}
-      </p>
+    <div class="col-sm-6 col-lg-4">
+      {% include "components/dashboard_card.html" with label="Total Teachers" value=total_teachers icon="bi-person-badge" icon_color="primary" %}
     </div>
-    <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-      <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-        Attendance Today
-      </div>
-      <p class="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">
-        {{ attendance_today_count }}
-      </p>
+    <div class="col-sm-6 col-lg-4">
+      {% include "components/dashboard_card.html" with label="Total Classes" value=total_classes icon="bi-journal-bookmark" icon_color="info" %}
     </div>
+    <div class="col-sm-6 col-lg-4">
+      {% include "components/dashboard_card.html" with label="Total Sections" value=total_sections icon="bi-diagram-3" icon_color="info" %}
+    </div>
+    <div class="col-sm-6 col-lg-4">
+      {% include "components/dashboard_card.html" with label="Active Academic Year" raw_content=active_academic_year_html icon="bi-calendar-range" icon_color="success" %}
+    </div>
+    <div class="col-sm-6 col-lg-4">
+      {% include "components/dashboard_card.html" with label="Attendance Today" value=attendance_today_count icon="bi-calendar-check" icon_color="warning" %}
+    </div>
+  </div>
+
+  <div class="flex flex-wrap gap-3 mb-4">
+    <a href="{% url 'core:school_academic_years' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Academic Years</a>
+    <a href="{% url 'core:school_classes' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Classes</a>
+    <a href="{% url 'core:school_sections' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Sections</a>
+    <a href="{% url 'core:school_subjects' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Subjects</a>
+    <a href="{% url 'timetable:school_timeslots' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Time Slots</a>
+    <a href="{% url 'timetable:school_timetable_index' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Timetable</a>
   </div>
 
   <div class="grid gap-6 lg:grid-cols-2">

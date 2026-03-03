@@ -13,14 +13,25 @@
     </p>
   </div>
 
-  <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-indigo-50/50 dark:bg-indigo-950/30 p-4">
-    <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-      Assigned Subject
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-4">
+      {% include "components/dashboard_card.html" with label="Assigned Subject" value=assigned_subject_display icon="bi-book" icon_color="primary" %}
     </div>
-    <p class="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-50">
-      {% if assigned_subject %}{{ assigned_subject.name }}{% else %}Not assigned{% endif %}
-    </p>
   </div>
+
+  {% if today_schedule %}
+  <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 p-4 shadow-sm mb-4">
+    <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-3">Today's Schedule</h2>
+    <ul class="space-y-2">
+      {% for t in today_schedule %}
+      <li class="flex justify-between text-sm">
+        <span class="text-slate-700 dark:text-slate-200">{{ t.time_slot.start_time|time:"H:i" }}-{{ t.time_slot.end_time|time:"H:i" }} — {{ t.classroom }} — {{ t.subject.name|default:"—" }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    <a href="{% url 'timetable:teacher_timetable' %}" class="text-sm text-indigo-600 dark:text-indigo-400 mt-2 inline-block">View full schedule</a>
+  </div>
+  {% endif %}
 
   <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
     <a href="{% url 'core:create_homework' %}" class="flex items-center gap-3 rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 p-4 shadow-sm hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-700 transition">

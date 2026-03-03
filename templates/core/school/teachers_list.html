@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Teachers | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Teachers</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <h1 class="h4 fw-bold mb-0">Teachers</h1>
+    <a href="{% url 'core:school_teacher_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Teacher</a>
+  </div>
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light sticky-top">
+          <tr>
+            <th>Employee ID</th>
+            <th>Name</th>
+            <th>Subjects</th>
+            <th>Assigned Classes</th>
+            <th>Phone</th>
+            <th class="text-center" style="width: 140px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in teachers %}
+            <tr>
+              <td>{{ t.employee_id|default:"—" }}</td>
+              <td>{{ t.user.get_full_name|default:t.user.username }}</td>
+              <td>
+                {% for s in t.subjects.all %}
+                  <span class="badge bg-primary bg-opacity-25 text-primary me-1">{{ s.name }}</span>
+                {% empty %}
+                  —
+                {% endfor %}
+              </td>
+              <td>
+                {% for c in t.classrooms.all %}
+                  <span class="badge bg-secondary bg-opacity-25 text-secondary me-1">{{ c.name }}</span>
+                {% empty %}
+                  —
+                {% endfor %}
+              </td>
+              <td>{{ t.phone_number|default:"—" }}</td>
+              <td class="text-center" style="width: 140px;">
+                <a href="{% url 'core:school_teacher_edit' t.id %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="bi bi-pencil"></i></a>
+                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteTeacher{{ t.id }}" title="Delete"><i class="bi bi-trash"></i></button>
+              </td>
+            </tr>
+            <div class="modal fade" id="deleteTeacher{{ t.id }}" tabindex="-1" aria-hidden="true">
+              <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title">Delete Teacher</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                  </div>
+                  <div class="modal-body">
+                    Delete <strong>{{ t.user.get_full_name|default:t.user.username }}</strong>? If assigned in timetable, deletion is blocked.
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form method="post" action="{% url 'core:school_teacher_delete' t.id %}">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-danger">Delete</button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% empty %}
+            <tr><td colspan="6" class="text-center text-muted py-4">No teachers found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

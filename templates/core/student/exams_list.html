@@ -22,9 +22,16 @@
             </p>
             <div class="d-flex justify-content-between align-items-center mt-3">
               <span class="badge bg-primary rounded-pill fs-6">{{ exam.overall_pct }}%</span>
+              {% if exam.grade %}<span class="badge bg-secondary me-1">{{ exam.grade }}</span>{% endif %}
+              {% if exam.exam_id %}
+              <a href="{% url 'core:student_exam_detail_by_id' exam.exam_id %}" class="btn btn-outline-primary btn-sm">
+                View Details
+              </a>
+              {% else %}
               <a href="{% url 'core:student_exam_detail' exam.exam_name %}" class="btn btn-outline-primary btn-sm">
                 View Details
               </a>
+              {% endif %}
             </div>
           </div>
         </div>

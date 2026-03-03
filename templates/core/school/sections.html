@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Sections | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Sections</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <h1 class="h4 fw-bold mb-0">Section Management</h1>
+    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addSectionModal"><i class="bi bi-plus-lg"></i> Add Section</button>
+  </div>
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body">
+      <form method="get" class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label small">Academic Year</label>
+          <select name="academic_year" class="form-select form-select-sm">
+            <option value="">All</option>
+            {% for ay in academic_years %}
+              <option value="{{ ay.id }}" {% if filters.academic_year == ay.id|stringformat:"s" %}selected{% endif %}>{{ ay.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small">Search</label>
+          <input type="text" name="q" class="form-control form-control-sm" placeholder="Section or class name" value="{{ filters.q }}">
+        </div>
+        <div class="col-md-3 d-flex align-items-end gap-2">
+          <button type="submit" class="btn btn-outline-primary btn-sm">Filter</button>
+          <a href="{% url 'core:school_sections' %}" class="btn btn-outline-secondary btn-sm">Clear</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Section Name</th>
+            <th>Class</th>
+            <th>Class Teacher</th>
+            <th>Capacity</th>
+            <th>Total Students</th>
+            <th class="text-center" style="width: 140px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in sections %}
+          <tr>
+            <td><span class="badge bg-info bg-opacity-25 text-info">{{ s.name }}</span></td>
+            <td>{{ s.classroom }}</td>
+            <td>{% if s.class_teacher and s.class_teacher.user %}{{ s.class_teacher.user.get_full_name|default:s.class_teacher.user.username }}{% else %}—{% endif %}</td>
+            <td>{{ s.capacity|default:"—" }}</td>
+            <td>{{ s.student_count }}</td>
+            <td class="text-center" style="width: 140px;">
+              <a href="{% url 'core:school_section_edit' s.id %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="bi bi-pencil"></i></a>
+              <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#delSection{{ s.id }}" title="Delete"><i class="bi bi-trash"></i></button>
+            </td>
+          </tr>
+          <div class="modal fade" id="delSection{{ s.id }}" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title">Delete Section</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">Delete <strong>{{ s.name }}</strong> ({{ s.classroom }})? You cannot delete if students are assigned.</div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                  <form method="post" action="{% url 'core:school_section_delete' s.id %}" class="d-inline">{% csrf_token %}<button type="submit" class="btn btn-danger">Delete</button></form>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No sections yet. Create classes first, then add sections.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if sections.has_other_pages %}
+    <div class="card-footer d-flex justify-content-between align-items-center">
+      <span class="small text-muted">Page {{ sections.number }} of {{ sections.paginator.num_pages }}</span>
+      <ul class="pagination pagination-sm mb-0">
+        {% if sections.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ sections.previous_page_number }}{% if filters.academic_year %}&academic_year={{ filters.academic_year }}{% endif %}{% if filters.q %}&q={{ filters.q }}{% endif %}">Previous</a></li>{% endif %}
+        {% if sections.has_next %}<li class="page-item"><a class="page-link" href="?page={{ sections.next_page_number }}{% if filters.academic_year %}&academic_year={{ filters.academic_year }}{% endif %}{% if filters.q %}&q={{ filters.q }}{% endif %}">Next</a></li>{% endif %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div class="modal fade" id="addSectionModal" tabindex="-1" aria-labelledby="addSectionModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="addSectionModalLabel">Add Section</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post">
+        {% csrf_token %}
+        <div class="modal-body">
+          {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+          <div class="mb-3">
+            <label class="form-label">Class</label>
+            {{ form.classroom }}
+            {% if form.classroom.errors %}<div class="text-danger small">{{ form.classroom.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Section Name</label>
+            {{ form.name }}
+            {% if form.name.errors %}<div class="text-danger small">{{ form.name.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Capacity</label>
+            {{ form.capacity }}
+            {% if form.capacity.errors %}<div class="text-danger small">{{ form.capacity.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Class Teacher</label>
+            {{ form.class_teacher }}
+            {% if form.class_teacher.errors %}<div class="text-danger small">{{ form.class_teacher.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
