@@ -21,6 +21,7 @@ class TimeSlot(models.Model):
         "core.School",
         on_delete=models.CASCADE,
         related_name="time_slots",
+        to_field="code",
     )
 
     class Meta:
@@ -72,6 +73,7 @@ class Timetable(models.Model):
         "core.School",
         on_delete=models.CASCADE,
         related_name="timetable_entries",
+        to_field="code",
     )
 
     class Meta:

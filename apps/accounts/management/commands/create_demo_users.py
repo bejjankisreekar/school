@@ -11,7 +11,7 @@ User = get_user_model()
 
 
 class Command(BaseCommand):
-    help = "Create demo users: SuperAdmin, School, SchoolAdmin, Teacher, Student"
+    help = "Create demo users: SuperAdmin + multi-school admins/teachers/students"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -45,112 +45,143 @@ class Command(BaseCommand):
             user.save()
             log(f"SuperAdmin: {'Created' if created else 'Updated'} (username: superadmin, password: admin123)")
 
-        # 2. School
-        school, school_created = School.objects.get_or_create(
-            code="GVS001",
-            defaults={"name": "Green Valley School", "address": ""},
-        )
-        if school_created:
-            log("School: Created (Green Valley School, GVS001)")
+        # 2. Create demo data for two schools, each isolated by `User.school`
+        schools_spec = [
+            {
+                "code": "GVS001",
+                "name": "Green Valley School",
+                "address": "",
+                "prefix": "gvs",
+            },
+            {
+                "code": "BRS001",
+                "name": "Blue Ridge School",
+                "address": "",
+                "prefix": "brs",
+            },
+        ]
 
-        # 3. School Admin
-        if User.objects.filter(username="schooladmin").exists() and not force:
-            log("SchoolAdmin already exists, skipping.")
-        else:
-            user, created = User.objects.update_or_create(
-                username="schooladmin",
-                defaults={
-                    "role": User.Roles.ADMIN,
-                    "school": school,
-                    "is_staff": False,
-                    "is_superuser": False,
-                    "is_active": True,
-                },
-            )
-            user.set_password("admin123")
-            user.save()
-            log(f"SchoolAdmin: {'Created' if created else 'Updated'} (username: schooladmin, password: admin123)")
-
-        # 4. ClassRoom: 10-A
-        classroom, _ = ClassRoom.objects.get_or_create(
-            school=school,
-            name="10",
-            section="A",
-            defaults={},
-        )
-
-        # 5. Exam: Mid Term
         start = date.today()
-        exam, _ = Exam.objects.get_or_create(
-            school=school,
-            classroom=classroom,
-            name="Mid Term",
-            defaults={"start_date": start, "end_date": start + timedelta(days=1)},
-        )
 
-        # 6. Subject: Mathematics
-        subject, _ = Subject.objects.get_or_create(
-            school=school,
-            name="Mathematics",
-            defaults={},
-        )
+        for spec in schools_spec:
+            school, school_created = School.objects.get_or_create(
+                code=spec["code"],
+                defaults={"name": spec["name"], "address": spec["address"]},
+            )
+            if school_created:
+                log(f"School: Created ({spec['name']}, {spec['code']})")
+            else:
+                log(f"School: Using existing ({spec['name']}, {spec['code']})", level=2)
 
-        # 7. Teacher
-        if User.objects.filter(username="teacher1").exists() and not force:
-            log("Teacher already exists, skipping.")
-        else:
-            user, created = User.objects.update_or_create(
-                username="teacher1",
-                defaults={
-                    "role": User.Roles.TEACHER,
-                    "school": school,
-                    "is_staff": False,
-                    "is_superuser": False,
-                    "is_active": True,
-                },
+            # ClassRoom + Section + Subject + Exam per school
+            classroom, _ = ClassRoom.objects.get_or_create(
+                school=school,
+                name="10",
+                section="A",
+                defaults={},
             )
-            user.set_password("admin123")
-            user.save()
-            teacher, _ = Teacher.objects.update_or_create(
-                user=user,
-                defaults={"subject": subject},
-            )
-            teacher.subjects.set([subject])
-            log(f"Teacher: {'Created' if created else 'Updated'} (username: teacher1, password: admin123, subject: Mathematics)")
-
-        # 8. Student
-        if User.objects.filter(username="student1").exists() and not force:
-            log("Student already exists, skipping.")
-        else:
-            user, created = User.objects.update_or_create(
-                username="student1",
-                defaults={
-                    "role": User.Roles.STUDENT,
-                    "school": school,
-                    "is_staff": False,
-                    "is_superuser": False,
-                    "is_active": True,
-                },
-            )
-            user.set_password("admin123")
-            user.save()
-            # Create/get default Section for demo
             section_obj, _ = Section.objects.get_or_create(
                 school=school,
                 classroom=classroom,
                 name="Alpha",
             )
-            Student.objects.update_or_create(
-                user=user,
-                defaults={
-                    "roll_number": "23",
-                    "classroom": classroom,
-                    "section": section_obj,
-                    "admission_number": "ADM-23",
-                    "parent_name": "Parent",
-                    "parent_phone": "9999999999",
-                },
+            subject, _ = Subject.objects.get_or_create(
+                school=school,
+                name="Mathematics",
+                defaults={},
             )
-            log(f"Student: {'Created' if created else 'Updated'} (username: student1, password: admin123, class: 10, section: Alpha, roll: 23)")
+            Exam.objects.get_or_create(
+                school=school,
+                classroom=classroom,
+                name="Mid Term",
+                defaults={"start_date": start, "end_date": start + timedelta(days=1)},
+            )
 
-        self.stdout.write(self.style.SUCCESS("Demo users setup complete."))
+            # 2 admins per school
+            for i in range(1, 3):
+                username = f"{spec['prefix']}_admin{i}"
+                if User.objects.filter(username=username).exists() and not force:
+                    log(f"SchoolAdmin {username} already exists, skipping.", level=2)
+                    continue
+                user, created = User.objects.update_or_create(
+                    username=username,
+                    defaults={
+                        "role": User.Roles.ADMIN,
+                        "school": school,
+                        "is_staff": False,
+                        "is_superuser": False,
+                        "is_active": True,
+                    },
+                )
+                user.set_password("admin123")
+                user.save()
+                log(
+                    f"SchoolAdmin: {'Created' if created else 'Updated'} "
+                    f"(username: {username}, password: admin123, school: {school.code})"
+                )
+
+            # 5 teachers per school
+            for i in range(1, 6):
+                username = f"{spec['prefix']}_teacher{i}"
+                if User.objects.filter(username=username).exists() and not force:
+                    log(f"Teacher {username} already exists, skipping.", level=2)
+                    continue
+                user, created = User.objects.update_or_create(
+                    username=username,
+                    defaults={
+                        "role": User.Roles.TEACHER,
+                        "school": school,
+                        "is_staff": False,
+                        "is_superuser": False,
+                        "is_active": True,
+                    },
+                )
+                user.set_password("admin123")
+                user.save()
+                teacher, _ = Teacher.objects.update_or_create(
+                    user=user,
+                    defaults={"subject": subject},
+                )
+                teacher.subjects.set([subject])
+                teacher.classrooms.set([classroom])
+                log(
+                    f"Teacher: {'Created' if created else 'Updated'} "
+                    f"(username: {username}, password: admin123, school: {school.code})"
+                )
+
+            # 10 students per school
+            for i in range(1, 11):
+                username = f"{spec['prefix']}_student{i}"
+                if User.objects.filter(username=username).exists() and not force:
+                    log(f"Student {username} already exists, skipping.", level=2)
+                    continue
+                user, created = User.objects.update_or_create(
+                    username=username,
+                    defaults={
+                        "role": User.Roles.STUDENT,
+                        "school": school,
+                        "is_staff": False,
+                        "is_superuser": False,
+                        "is_active": True,
+                    },
+                )
+                user.set_password("admin123")
+                user.save()
+                Student.objects.update_or_create(
+                    user=user,
+                    defaults={
+                        "roll_number": str(i),
+                        "classroom": classroom,
+                        "section": section_obj,
+                        "admission_number": f"{school.code}-ADM-{i:03d}",
+                        "parent_name": f"Parent {i}",
+                        "parent_phone": f"99999999{i:02d}",
+                    },
+                )
+                log(
+                    f"Student: {'Created' if created else 'Updated'} "
+                    f"(username: {username}, password: admin123, school: {school.code})",
+                    level=2,
+                )
+
+        self.stdout.write(self.style.SUCCESS("Demo users setup complete for two schools."))

@@ -112,10 +112,13 @@
         <h5 class="modal-title" id="addSectionModalLabel">Add Section</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <form method="post">
+      <form method="post" action="{% url 'core:school_sections' %}">
         {% csrf_token %}
         <div class="modal-body">
           {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+          {% if not form.fields.classroom.queryset %}
+          <div class="alert alert-warning mb-3">Create <a href="{% url 'core:school_classes' %}">Classes</a> first, then add sections.</div>
+          {% endif %}
           <div class="mb-3">
             <label class="form-label">Class</label>
             {{ form.classroom }}
@@ -145,4 +148,15 @@
     </div>
   </div>
 </div>
+{% if form.errors %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  var modalEl = document.getElementById("addSectionModal");
+  if (modalEl) {
+    var modal = new bootstrap.Modal(modalEl);
+    modal.show();
+  }
+});
+</script>
+{% endif %}
 {% endblock %}

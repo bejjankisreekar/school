@@ -1398,7 +1398,7 @@ def enter_marks(request):
 
 def _teacher_exam_access(exam, school):
     """Ensure teacher's school can access this exam."""
-    return exam and exam.school_id == school.id
+    return exam and exam.school == school
 
 
 @teacher_required

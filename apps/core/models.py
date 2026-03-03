@@ -23,10 +23,11 @@ class AcademicYear(models.Model):
         School,
         on_delete=models.CASCADE,
         related_name="academic_years",
+        to_field="code",
     )
 
     class Meta:
-        ordering = ["-start_date"]
+        ordering = ["start_date"]
         constraints = [
             models.UniqueConstraint(
                 fields=["school"],
@@ -61,6 +62,7 @@ class ClassRoom(models.Model):
         School,
         on_delete=models.CASCADE,
         related_name="classrooms",
+        to_field="code",
     )
 
     class Meta:
@@ -100,6 +102,7 @@ class Section(models.Model):
         School,
         on_delete=models.CASCADE,
         related_name="sections",
+        to_field="code",
     )
 
     class Meta:
@@ -167,6 +170,7 @@ class Exam(models.Model):
         School,
         on_delete=models.CASCADE,
         related_name="exams",
+        to_field="code",
     )
     start_date = models.DateField()
     end_date = models.DateField()
@@ -203,6 +207,7 @@ class Subject(models.Model):
         School,
         on_delete=models.CASCADE,
         related_name="subjects",
+        to_field="code",
     )
 
     class Meta:

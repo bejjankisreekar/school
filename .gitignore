@@ -1,0 +1,29 @@
+# Environment and secrets — never commit
+.env
+.env.local
+.env.*.local
+
+# SQLite (no longer used, but ignore if present)
+*.sqlite3
+db.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+
+# Static and media
+staticfiles/
+media/
+
+# IDE and OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
+*.swo

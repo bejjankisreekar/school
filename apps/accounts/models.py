@@ -21,6 +21,7 @@ class User(AbstractUser):
         blank=True,
         related_name="users",
         db_index=True,
+        to_field="code",
     )
     phone_number = models.CharField(
         max_length=20,

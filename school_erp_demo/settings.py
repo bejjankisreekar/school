@@ -7,6 +7,7 @@ Production-ready base configuration using environment variables.
 from pathlib import Path
 
 import environ
+from django.core.exceptions import ImproperlyConfigured
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -81,13 +82,32 @@ TEMPLATES = [
 WSGI_APPLICATION = "school_erp_demo.wsgi.application"
 
 
-# Database
-# Uses SQLite by default; can be overridden with DATABASE_URL
+# Database — PostgreSQL only (production config)
+# No SQLite fallback. All credentials must be set in .env.
+# Fails loudly if any DB_* variable is missing or empty.
+# CONN_MAX_AGE: connection pooling for better concurrency.
+# ATOMIC_REQUESTS: each request runs in a transaction.
+def _get_db_config(key: str) -> str:
+    val = env.str(key, default="")
+    if not val or not str(val).strip():
+        raise ImproperlyConfigured(
+            f"PostgreSQL credential {key} is required. Set {key} in .env. "
+            "See .env.example for template."
+        )
+    return str(val).strip()
+
+
 DATABASES = {
-    "default": env.db_url(
-        "DATABASE_URL",
-        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
-    )
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": _get_db_config("DB_NAME"),
+        "USER": _get_db_config("DB_USER"),
+        "PASSWORD": _get_db_config("DB_PASSWORD"),
+        "HOST": _get_db_config("DB_HOST"),
+        "PORT": _get_db_config("DB_PORT"),
+        "CONN_MAX_AGE": 60,
+        "ATOMIC_REQUESTS": True,
+    }
 }
 
 

@@ -1,19 +1,19 @@
 <!DOCTYPE html>
 {% load static %}
+{% load nav_tags %}
 <html lang="en" class="h-full">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% block title %}School ERP{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     {% load tailwind_tags %}
     {% tailwind_css %}
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-    <style>
-      aside.bg-dark a { color: rgba(255,255,255,.75); }
-      aside.bg-dark a:hover { color: #fff; background: rgba(255,255,255,.1); }
-      .main-content-area { background: #fff; }
-    </style>
+    <link href="{% static 'css/sidebar.css' %}" rel="stylesheet">
     {% block extra_head %}{% endblock %}
     <script>
       (function () {
@@ -31,109 +31,154 @@
         const isDark = root.classList.toggle("dark");
         localStorage.setItem("theme", isDark ? "dark" : "light");
       }
+      function toggleSidebar() {
+        document.getElementById("sidebar").classList.toggle("sidebar-open");
+        document.getElementById("sidebarOverlay").classList.toggle("sidebar-overlay-visible");
+      }
+      function closeSidebar() {
+        document.getElementById("sidebar").classList.remove("sidebar-open");
+        document.getElementById("sidebarOverlay").classList.remove("sidebar-overlay-visible");
+      }
     </script>
   </head>
   <body class="h-full bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
     <div class="min-h-screen flex flex-col">
       {% if request.user.is_authenticated %}
-        {# Dashboard: sidebar + main area #}
-        <div class="flex flex-1 min-h-0">
-          <aside class="hidden md:flex md:flex-col w-64 flex-shrink-0 bg-dark">
-            <div class="p-4 border-bottom border-secondary">
-              <span class="rounded-3 bg-primary text-white fw-semibold d-inline-flex align-items-center justify-content-center" style="width:36px;height:36px">ES</span>
-            </div>
-            <nav class="flex-1 px-2 py-3 overflow-y-auto">
-              <a href="{% if request.user.role == 'SUPERADMIN' %}{% url 'core:super_admin_dashboard' %}{% elif request.user.role == 'ADMIN' %}{% url 'core:admin_dashboard' %}{% elif request.user.role == 'TEACHER' %}{% url 'core:teacher_dashboard' %}{% else %}{% url 'core:student_dashboard' %}{% endif %}" class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-                <svg class="h-5 w-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z"></path></svg>
-                Dashboard
-              </a>
-              <a href="{% if request.user.role == 'ADMIN' %}{% url 'core:school_students_list' %}{% else %}{% url 'core:students_list' %}{% endif %}" class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-                <svg class="h-5 w-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-                Students
-              </a>
-              <a href="{% if request.user.role == 'ADMIN' %}{% url 'core:school_teachers_list' %}{% else %}{% url 'core:teachers_list' %}{% endif %}" class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-                <svg class="h-5 w-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                Teachers
-              </a>
-              {% if request.user.role == 'ADMIN' %}
-              <a href="{% url 'core:school_academic_years' %}" class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-                <i class="bi bi-calendar-range text-slate-500"></i>
-                Academic Years
-              </a>
-              <a href="{% url 'core:school_classes' %}" class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-                <i class="bi bi-journal-bookmark text-slate-500"></i>
-                Classes
-              </a>
-              <a href="{% url 'core:school_sections' %}" class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-                <i class="bi bi-diagram-3 text-slate-500"></i>
-                Sections
-              </a>
-              <a href="{% url 'core:school_subjects' %}" class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-                <i class="bi bi-book text-slate-500"></i>
-                Subjects
-              </a>
-              {% endif %}
-              <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_attendance' %}{% elif request.user.role == 'TEACHER' %}{% url 'core:bulk_attendance' %}{% else %}{% url 'core:attendance_list' %}{% endif %}" class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-                <svg class="h-5 w-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                Attendance
-              </a>
-              <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_exams_list' %}{% elif request.user.role == 'TEACHER' %}{% url 'core:teacher_exams' %}{% else %}{% url 'core:marks_list' %}{% endif %}" class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-                <svg class="h-5 w-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                {% if request.user.role == 'TEACHER' %}Exams{% else %}Marks{% endif %}
-              </a>
-              <a href="{% url 'core:homework_list' %}" class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-                <svg class="h-5 w-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-                Homework
-              </a>
-              <a href="{% if request.user.role == 'ADMIN' %}{% url 'timetable:school_timetable_index' %}{% elif request.user.role == 'TEACHER' %}{% url 'timetable:teacher_timetable' %}{% elif request.user.role == 'STUDENT' %}{% url 'timetable:student_timetable' %}{% else %}{% url 'core:reports_list' %}{% endif %}" class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-                <svg class="h-5 w-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                Timetable
-              </a>
-              <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_reports' %}{% else %}{% url 'core:reports_list' %}{% endif %}" class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-                <svg class="h-5 w-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                Reports
-              </a>
-            </nav>
-            <div class="p-2 border-t border-slate-200/70 dark:border-slate-800/70">
-              <a href="{% url 'accounts:logout' %}" class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition">
-                <i class="bi bi-box-arrow-right"></i>
-                <span>Logout</span>
+        <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle menu">
+          <i class="bi bi-list fs-4"></i>
+        </button>
+        <div id="sidebarOverlay" class="sidebar-overlay" onclick="closeSidebar()"></div>
+
+        <aside id="sidebar" class="sidebar">
+          <div class="sidebar-logo">
+            <span>SE</span>
+          </div>
+
+          <nav class="d-flex flex-column" style="flex: 1;">
+            <div class="sidebar-section">
+              <div class="sidebar-section-title">Main</div>
+              <a href="{% if request.user.role == 'SUPERADMIN' %}{% url 'core:super_admin_dashboard' %}{% elif request.user.role == 'ADMIN' %}{% url 'core:admin_dashboard' %}{% elif request.user.role == 'TEACHER' %}{% url 'core:teacher_dashboard' %}{% else %}{% url 'core:student_dashboard' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'super_admin_dashboard' 'admin_dashboard' 'teacher_dashboard' 'student_dashboard' %}">
+                <span class="sidebar-nav-icon"><i class="bi bi-grid-1x2"></i></span>
+                <span class="sidebar-nav-text">Dashboard</span>
+                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
               </a>
             </div>
-          </aside>
-          <div class="flex flex-col flex-1 min-w-0">
-            <header class="flex-shrink-0 border-b border-slate-200/70 dark:border-slate-700/70 bg-white dark:bg-slate-900/95 backdrop-blur">
-              <div class="flex items-center justify-between h-14 px-4 lg:px-6">
-                <h1 class="text-base font-semibold tracking-tight text-slate-900 dark:text-slate-50 truncate">
-                  {% if request.user.school %}{{ request.user.school.name }}{% else %}EduSaaS{% endif %}
-                </h1>
-                <div class="flex items-center gap-2">
-                  <button type="button" onclick="toggleTheme()" class="rounded-lg p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition" title="Toggle theme">
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
-                  </button>
-                  <details class="relative group">
-                    <summary class="flex items-center gap-2 rounded-lg px-3 py-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition list-none [&::-webkit-details-marker]:hidden">
-                      <div class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white">
-                        {{ request.user.first_name|default:request.user.username|slice:":1" }}{{ request.user.last_name|slice:":1" }}
-                      </div>
-                      <div class="hidden sm:block text-left">
-                        <span class="block text-sm font-medium text-slate-900 dark:text-slate-50 truncate max-w-[120px]">{{ request.user.get_full_name|default:request.user.username }}</span>
-                        <span class="block text-xs text-slate-500 dark:text-slate-400">{{ request.user.get_role_display|default:"User" }}</span>
-                      </div>
-                      <svg class="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </summary>
-                    <div class="absolute right-0 mt-1 w-48 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg py-1 z-50">
-                      {% if request.user.role == "STUDENT" %}
-                      <a href="{% url 'core:student_profile' %}" class="block px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700">Profile</a>
-                      {% endif %}
-                      <a href="{% url 'accounts:logout' %}" class="block px-4 py-2 text-sm text-rose-600 dark:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-700">Logout</a>
+
+            <div class="sidebar-section">
+              <div class="sidebar-section-title">People</div>
+              <a href="{% if request.user.role == 'ADMIN' %}{% url 'core:school_students_list' %}{% else %}{% url 'core:students_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'school_students_list' 'students_list' 'school_student_add' 'school_student_edit' 'school_students_import' %}">
+                <span class="sidebar-nav-icon"><i class="bi bi-people"></i></span>
+                <span class="sidebar-nav-text">Students</span>
+                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+              </a>
+              <a href="{% if request.user.role == 'ADMIN' %}{% url 'core:school_teachers_list' %}{% else %}{% url 'core:teachers_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'school_teachers_list' 'teachers_list' 'school_teacher_add' 'school_teacher_edit' %}">
+                <span class="sidebar-nav-icon"><i class="bi bi-person-badge"></i></span>
+                <span class="sidebar-nav-text">Teachers</span>
+                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+              </a>
+            </div>
+
+            {% if request.user.role == 'ADMIN' %}
+            <div class="sidebar-section">
+              <div class="sidebar-section-title">Academic</div>
+              <a href="{% url 'core:school_academic_years' %}" class="sidebar-nav-item {% nav_active_names request 'school_academic_years' 'school_academic_year_edit' %}">
+                <span class="sidebar-nav-icon"><i class="bi bi-calendar-range"></i></span>
+                <span class="sidebar-nav-text">Academic Years</span>
+                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+              </a>
+              <a href="{% url 'core:school_classes' %}" class="sidebar-nav-item {% nav_active_names request 'school_classes' 'school_class_add' 'school_class_edit' %}">
+                <span class="sidebar-nav-icon"><i class="bi bi-journal-bookmark"></i></span>
+                <span class="sidebar-nav-text">Classes</span>
+                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+              </a>
+              <a href="{% url 'core:school_sections' %}" class="sidebar-nav-item {% nav_active_names request 'school_sections' 'school_section_edit' %}">
+                <span class="sidebar-nav-icon"><i class="bi bi-diagram-3"></i></span>
+                <span class="sidebar-nav-text">Sections</span>
+                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+              </a>
+              <a href="{% url 'core:school_subjects' %}" class="sidebar-nav-item {% nav_active_names request 'school_subjects' 'school_subject_add' 'school_subject_edit' %}">
+                <span class="sidebar-nav-icon"><i class="bi bi-book"></i></span>
+                <span class="sidebar-nav-text">Subjects</span>
+                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+              </a>
+            </div>
+            {% endif %}
+
+            <div class="sidebar-section">
+              <div class="sidebar-section-title">Operations</div>
+              <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_attendance' %}{% elif request.user.role == 'TEACHER' %}{% url 'core:bulk_attendance' %}{% else %}{% url 'core:attendance_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'student_attendance' 'bulk_attendance' 'attendance_list' 'mark_attendance' %}">
+                <span class="sidebar-nav-icon"><i class="bi bi-calendar-check"></i></span>
+                <span class="sidebar-nav-text">Attendance</span>
+                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+              </a>
+              <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_exams_list' %}{% elif request.user.role == 'TEACHER' %}{% url 'core:teacher_exams' %}{% else %}{% url 'core:marks_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'student_exams_list' 'teacher_exams' 'teacher_exam_create' 'teacher_exam_summary' 'teacher_exam_enter_marks' 'marks_list' 'student_exam_detail' 'student_exam_detail_by_id' %}">
+                <span class="sidebar-nav-icon"><i class="bi bi-clipboard-check"></i></span>
+                <span class="sidebar-nav-text">{% if request.user.role == 'TEACHER' %}Exams{% else %}Marks{% endif %}</span>
+                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+              </a>
+              <a href="{% url 'core:homework_list' %}" class="sidebar-nav-item {% nav_active_names request 'homework_list' %}">
+                <span class="sidebar-nav-icon"><i class="bi bi-journal-text"></i></span>
+                <span class="sidebar-nav-text">Homework</span>
+                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+              </a>
+              <a href="{% if request.user.role == 'ADMIN' %}{% url 'timetable:school_timetable_index' %}{% elif request.user.role == 'TEACHER' %}{% url 'timetable:teacher_timetable' %}{% elif request.user.role == 'STUDENT' %}{% url 'timetable:student_timetable' %}{% else %}{% url 'core:reports_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'school_timetable_index' 'school_timetable' 'school_timeslots' 'teacher_timetable' 'student_timetable' 'reports_list' %}">
+                <span class="sidebar-nav-icon"><i class="bi bi-calendar3"></i></span>
+                <span class="sidebar-nav-text">Timetable</span>
+                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+              </a>
+            </div>
+
+            <div class="sidebar-section">
+              <div class="sidebar-section-title">Reports</div>
+              <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_reports' %}{% else %}{% url 'core:reports_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'student_reports' 'reports_list' 'student_report_card_pdf' 'student_attendance_report_pdf' %}">
+                <span class="sidebar-nav-icon"><i class="bi bi-graph-up"></i></span>
+                <span class="sidebar-nav-text">Reports</span>
+                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+              </a>
+            </div>
+          </nav>
+
+          <div class="sidebar-footer">
+            <a href="{% url 'accounts:logout' %}" class="sidebar-nav-item sidebar-logout">
+              <span class="sidebar-nav-icon"><i class="bi bi-box-arrow-right"></i></span>
+              <span class="sidebar-nav-text">Logout</span>
+              <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+            </a>
+          </div>
+        </aside>
+
+        <div class="sidebar-main flex flex-col flex-1 min-w-0">
+          <header class="flex-shrink-0 border-b border-slate-200/70 dark:border-slate-700/70 bg-white dark:bg-slate-900/95 backdrop-blur">
+            <div class="flex items-center justify-between h-14 px-4 lg:px-6" style="margin-left: 0;">
+              <h1 class="text-base font-semibold tracking-tight text-slate-900 dark:text-slate-50 truncate">
+                {% if request.user.school %}{{ request.user.school.name }}{% else %}EduSaaS{% endif %}
+              </h1>
+              <div class="flex items-center gap-2">
+                <button type="button" onclick="toggleTheme()" class="rounded-lg p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition" title="Toggle theme">
+                  <i class="bi bi-moon-stars"></i>
+                </button>
+                <details class="relative group">
+                  <summary class="flex items-center gap-2 rounded-lg px-3 py-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition list-none [&::-webkit-details-marker]:hidden">
+                    <div class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white">
+                      {{ request.user.first_name|default:request.user.username|slice:":1" }}{{ request.user.last_name|slice:":1" }}
                     </div>
-                  </details>
-                </div>
+                    <div class="hidden sm:block text-left">
+                      <span class="block text-sm font-medium text-slate-900 dark:text-slate-50 truncate max-w-[120px]">{{ request.user.get_full_name|default:request.user.username }}</span>
+                      <span class="block text-xs text-slate-500 dark:text-slate-400">{{ request.user.get_role_display|default:"User" }}</span>
+                    </div>
+                    <i class="bi bi-chevron-down"></i>
+                  </summary>
+                  <div class="absolute right-0 mt-1 w-48 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg py-1 z-50">
+                    {% if request.user.role == "STUDENT" %}
+                    <a href="{% url 'core:student_profile' %}" class="block px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700">Profile</a>
+                    {% endif %}
+                    <a href="{% url 'accounts:logout' %}" class="block px-4 py-2 text-sm text-rose-600 dark:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-700">Logout</a>
+                  </div>
+                </details>
               </div>
-            </header>
+            </div>
+          </header>
       {% else %}
-        {# Public: simple header #}
         <header class="border-b border-slate-200/70 dark:border-slate-700/70 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur">
           <div class="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
             <div class="flex items-center gap-3">
@@ -163,7 +208,7 @@
         </div>
       {% endif %}
 
-      <footer class="flex-shrink-0 border-t border-slate-200/70 dark:border-slate-800/70 bg-slate-50/80 dark:bg-slate-900/80">
+      <footer class="flex-shrink-0 border-t border-slate-200/70 dark:border-slate-800/70 bg-slate-50/80 dark:bg-slate-900/80 {% if request.user.is_authenticated %}sidebar-footer-page{% endif %}">
         <div class="mx-auto max-w-6xl px-4 py-3 text-xs text-slate-500 dark:text-slate-400 flex justify-between gap-3">
           <span>© {% now "Y" %} School ERP</span>
           <span class="hidden sm:inline">EduSaaS · Smart School Management</span>

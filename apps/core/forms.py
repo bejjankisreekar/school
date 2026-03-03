@@ -252,11 +252,11 @@ class TeacherEditForm(forms.Form):
         data = super().clean()
         subjects = data.get("subjects") or []
         for s in subjects:
-            if s.school_id != self.school.id:
+            if s.school != self.school:
                 raise forms.ValidationError("Cannot assign subject from another school.")
         sections = data.get("sections") or []
         for sec in sections:
-            if sec.school_id != self.school.id:
+            if sec.school != self.school:
                 raise forms.ValidationError("Cannot assign section from another school.")
         return data
 
@@ -314,7 +314,7 @@ class ClassRoomForm(forms.ModelForm):
     def clean(self):
         data = super().clean()
         ay = data.get("academic_year")
-        if ay and ay.school_id != self.school.id:
+        if ay and ay.school != self.school:
             raise forms.ValidationError("Invalid academic year.")
         return data
 
@@ -342,12 +342,12 @@ class SectionForm(forms.ModelForm):
         data = super().clean()
         classroom = data.get("classroom")
         capacity = data.get("capacity")
-        if classroom and classroom.school_id != self.school.id:
+        if classroom and classroom.school != self.school:
             raise forms.ValidationError("Invalid classroom.")
         if classroom and capacity is not None and classroom.capacity is not None and capacity > classroom.capacity:
             raise forms.ValidationError("Section capacity cannot exceed classroom capacity (%s)." % classroom.capacity)
         teacher = data.get("class_teacher")
-        if teacher and teacher.user.school_id != self.school.id:
+        if teacher and teacher.user.school != self.school:
             raise forms.ValidationError("Teacher must belong to this school.")
         # Optional: prevent same teacher as class teacher in multiple sections
         if teacher:
@@ -386,10 +386,10 @@ class SubjectForm(forms.ModelForm):
         classroom = data.get("classroom")
         ay = data.get("academic_year")
         teacher = data.get("teacher")
-        if classroom and classroom.school_id != self.school.id:
+        if classroom and classroom.school != self.school:
             raise forms.ValidationError("Invalid class.")
-        if ay and ay.school_id != self.school.id:
+        if ay and ay.school != self.school:
             raise forms.ValidationError("Invalid academic year.")
-        if teacher and teacher.user.school_id != self.school.id:
+        if teacher and teacher.user.school != self.school:
             raise forms.ValidationError("Teacher must belong to this school.")
         return data
