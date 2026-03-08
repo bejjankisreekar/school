@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} | Admin{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'core:super_admin_dashboard' %}">Dashboard</a></li><li class="breadcrumb-item"><a href="{% url 'admin_manage:teachers_list' %}">Teachers</a></li><li class="breadcrumb-item active">{{ title }}</li></ol>
+  </nav>
+  <div class="card border-0 shadow-sm rounded-3" style="max-width: 32rem;">
+    <div class="card-body">
+      <h2 class="h5 fw-bold mb-4">{{ title }}</h2>
+      {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+      <form method="post">{% csrf_token %}
+        <div class="mb-3"><label class="form-label">Username</label>{{ form.username }}{% if form.username.errors %}<div class="text-danger small">{{ form.username.errors.0 }}</div>{% endif %}</div>
+        <div class="row"><div class="col-md-6 mb-3"><label class="form-label">First Name</label>{{ form.first_name }}{% if form.first_name.errors %}<div class="text-danger small">{{ form.first_name.errors.0 }}</div>{% endif %}</div><div class="col-md-6 mb-3"><label class="form-label">Last Name</label>{{ form.last_name }}{% if form.last_name.errors %}<div class="text-danger small">{{ form.last_name.errors.0 }}</div>{% endif %}</div></div>
+        <div class="mb-3"><label class="form-label">Email</label>{{ form.email }}{% if form.email.errors %}<div class="text-danger small">{{ form.email.errors.0 }}</div>{% endif %}</div>
+        {% if form.for_create %}
+        <div class="mb-3"><label class="form-label">Password</label>{{ form.password }}{% if form.password.errors %}<div class="text-danger small">{{ form.password.errors.0 }}</div>{% endif %}</div>
+        <div class="mb-3"><label class="form-label">Confirm Password</label>{{ form.confirm_password }}{% if form.confirm_password.errors %}<div class="text-danger small">{{ form.confirm_password.errors.0 }}</div>{% endif %}</div>
+        {% endif %}
+        <div class="mb-3"><label class="form-label">Phone</label>{{ form.phone }}{% if form.phone.errors %}<div class="text-danger small">{{ form.phone.errors.0 }}</div>{% endif %}</div>
+        <div class="mb-3"><label class="form-label">Qualification</label>{{ form.qualification }}{% if form.qualification.errors %}<div class="text-danger small">{{ form.qualification.errors.0 }}</div>{% endif %}</div>
+        <div class="mb-3"><label class="form-label">Assigned School</label>{{ form.school }}{% if form.school.errors %}<div class="text-danger small">{{ form.school.errors.0 }}</div>{% endif %}</div>
+        <div class="d-flex gap-2"><button type="submit" class="btn btn-primary">Save</button><a href="{% url 'admin_manage:teachers_list' %}" class="btn btn-outline-secondary">Cancel</a></div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

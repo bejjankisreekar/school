@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Teachers | Admin{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:super_admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Teachers</li>
+    </ol>
+  </nav>
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <h1 class="h4 fw-bold mb-0">Teachers</h1>
+    <a href="{% url 'admin_manage:teacher_create' %}" class="btn btn-primary btn-sm">Create Teacher</a>
+  </div>
+  {% if messages %}
+    {% for m in messages %}
+      <div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+  <div class="card border-0 shadow-sm rounded-3 mb-3">
+    <div class="card-body">
+      <form method="get" class="row g-2">
+        <div class="col-auto"><input type="text" name="q" class="form-control form-control-sm" placeholder="Search" value="{{ search }}"></div>
+        <div class="col-auto"><select name="school" class="form-select form-select-sm"><option value="">All Schools</option>{% for s in schools %}<option value="{{ s.code }}" {% if school_code == s.code %}selected{% endif %}>{{ s.name }}</option>{% endfor %}</select></div>
+        <div class="col-auto"><button type="submit" class="btn btn-outline-primary btn-sm">Filter</button></div>
+      </form>
+    </div>
+  </div>
+  <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light"><tr><th>Name</th><th>Email</th><th>Phone</th><th>School</th><th>Qualification</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for t in teachers %}
+        <tr>
+          <td>{{ t.user.get_full_name|default:t.user.username }}</td>
+          <td>{{ t.user.email|default:"-" }}</td>
+          <td>{{ t.phone_number|default:"-" }}</td>
+          <td>{{ t.user.school.name|default:"-" }}</td>
+          <td>{{ t.qualification|default:"-" }}</td>
+          <td>
+            <a href="{% url 'admin_manage:teacher_view' t.user.school.code t.id %}" class="btn btn-sm btn-outline-secondary" title="View">View &#128065;</a>
+            <a href="{% url 'admin_manage:teacher_edit' t.user.school.code t.id %}" class="btn btn-sm btn-outline-primary" title="Edit">Edit &#9998;</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-4">No teachers found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if teachers.has_other_pages %}
+    <div class="card-footer"><span>Page {{ teachers.number }} of {{ teachers.paginator.num_pages }}</span></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

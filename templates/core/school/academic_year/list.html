@@ -62,12 +62,11 @@
                 <form method="post" action="{% url 'core:school_academic_year_set_active' ay.id %}" class="d-inline">{% csrf_token %}<button type="submit" class="btn btn-sm btn-outline-success">Set active</button></form>
               {% endif %}
             </td>
-            <td class="text-center" style="width: 160px;">
-              <a href="{% url 'core:school_academic_year_edit' ay.id %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="bi bi-pencil"></i></a>
+            <td class="text-center" style="width: 200px;">
+              <a href="{% url 'core:school_academic_year_edit' ay.id %}" class="btn btn-sm btn-outline-secondary" title="View">View &#128065;</a>
+              <a href="{% url 'core:school_academic_year_edit' ay.id %}" class="btn btn-sm btn-outline-primary" title="Edit">Edit &#9998;</a>
               {% if not ay.is_active %}
-              <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#delYear{{ ay.id }}" title="Delete"><i class="bi bi-trash"></i></button>
-              {% else %}
-              <span class="text-muted small">Cannot delete active year</span>
+              <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#delYear{{ ay.id }}" title="Delete">Delete &#128465;</button>
               {% endif %}
             </td>
           </tr>

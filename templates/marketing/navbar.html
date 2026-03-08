@@ -1,0 +1,20 @@
+<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm sticky-top">
+  <div class="container">
+    <a class="navbar-brand fw-bold text-primary d-flex align-items-center gap-2" href="{% url 'core:home' %}">
+      <span class="bg-primary bg-gradient text-white rounded px-2 py-1">SE</span>
+      <span>School ERP</span>
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto align-items-lg-center gap-2">
+        <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'pricing' %}active fw-semibold{% endif %}" href="{% url 'core:pricing' %}">Pricing</a></li>
+        <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'about' %}active fw-semibold{% endif %}" href="{% url 'core:about' %}">About</a></li>
+        <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'contact' %}active fw-semibold{% endif %}" href="{% url 'core:contact' %}">Contact</a></li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'accounts:login' %}">Login</a></li>
+        <li class="nav-item"><a class="btn btn-cta btn-primary text-white px-3 py-2 ms-lg-2" href="{% url 'core:home' %}#trial">Start Free Trial</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>

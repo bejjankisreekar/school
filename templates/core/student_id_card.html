@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Student ID Card - {{ student.user.username }}</title>
+  <style>
+    body { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; }
+    .card { width: 85mm; height: 54mm; border: 1px solid #333; padding: 8px; }
+    .header { text-align: center; font-weight: bold; font-size: 11pt; margin-bottom: 6px; border-bottom: 1px solid #222; padding-bottom: 4px; }
+    .content { display: table; width: 100%; }
+    .photo-cell { display: table-cell; width: 28mm; vertical-align: middle; text-align: center; }
+    .photo-placeholder { width: 22mm; height: 28mm; background: #e0e0e0; border: 1px dashed #999; display: flex; align-items: center; justify-content: center; font-size: 8pt; color: #666; }
+    .info-cell { display: table-cell; vertical-align: middle; padding-left: 8px; }
+    .info-row { margin-bottom: 4px; }
+    .label { font-size: 8pt; color: #555; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">{{ school.name }}</div>
+    <div class="content">
+      <div class="photo-cell">
+        <div class="photo-placeholder">Photo</div>
+      </div>
+      <div class="info-cell">
+        <div class="info-row"><strong>{{ student.user.get_full_name|default:student.user.username }}</strong></div>
+        <div class="info-row"><span class="label">Class:</span> {{ student.classroom.name|default:"—" }}</div>
+        <div class="info-row"><span class="label">Section:</span> {{ student.section.name|default:"—" }}</div>
+        <div class="info-row"><span class="label">Roll:</span> {{ student.roll_number }}</div>
+        {% if qr_b64 %}
+        <div class="info-row" style="margin-top: 4px;"><img src="data:image/png;base64,{{ qr_b64 }}" alt="QR" width="32" height="32" style="vertical-align: middle;" /></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</body>
+</html>

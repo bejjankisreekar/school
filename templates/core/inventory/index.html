@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Inventory | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Inventory</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <h1 class="h4 fw-bold mb-0">Inventory</h1>
+    <div class="d-flex gap-2">
+      <a href="{% url 'core:school_inventory_item_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Item</a>
+      <a href="{% url 'core:school_purchase_add' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-cart-plus"></i> Add Purchase</a>
+      <a href="{% url 'core:school_invoices_list' %}" class="btn btn-outline-secondary btn-sm">Invoices</a>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-7">
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-0"><strong>Inventory Items</strong></div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Name</th>
+                <th>SKU</th>
+                <th>Quantity</th>
+                <th>Unit</th>
+                <th>Unit Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in items %}
+              <tr>
+                <td>{{ item.name }}</td>
+                <td><code>{{ item.sku|default:"—" }}</code></td>
+                <td>{{ item.quantity }}</td>
+                <td>{{ item.unit|default:"pcs" }}</td>
+                <td>{{ item.unit_price|default:"—" }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="5" class="text-muted text-center py-4">No inventory items. Add items to get started.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0"><strong>Recent Purchases</strong></div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Item</th>
+                <th>Qty</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in purchases %}
+              <tr>
+                <td>{{ p.inventory_item.name }}</td>
+                <td>{{ p.quantity }}</td>
+                <td>{{ p.purchase_date }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="3" class="text-muted text-center py-4">No purchases yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

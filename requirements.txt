@@ -1,5 +1,6 @@
 asgiref==3.11.1
 Django==6.0.2
+django-tenants==3.6.1
 django-environ==0.13.0
 django-tailwind==4.4.2
 psycopg2-binary==2.9.9
@@ -8,3 +9,4 @@ pytailwindcss==0.3.0
 sqlparse==0.5.5
 tzdata==2025.3
 xhtml2pdf==0.2.16
+qrcode[pil]==7.4.2

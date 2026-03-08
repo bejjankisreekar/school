@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Marks - {{ student.user.get_full_name|default:student.user.username }} | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:parent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Marks - {{ student.user.get_full_name|default:student.user.username }}</li>
+    </ol>
+  </nav>
+  <h1 class="h4 fw-bold mb-4">Marks</h1>
+  <p class="text-muted small mb-3">{{ student.user.get_full_name|default:student.user.username }}{% if student.classroom %} — {{ student.classroom.name }}{% if student.section %} - {{ student.section.name }}{% endif %}{% endif %}</p>
+
+  {% if exams %}
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white border-0"><strong>Exam Summaries</strong></div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Exam</th>
+              <th>Subjects</th>
+              <th>Percentage</th>
+              <th>Grade</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in exams %}
+            <tr>
+              <td>{{ e.exam_name }}</td>
+              <td>{{ e.total_subjects }}</td>
+              <td><span class="badge {% if e.overall_pct >= 60 %}bg-success{% elif e.overall_pct >= 40 %}bg-warning text-dark{% else %}bg-danger{% endif %}">{{ e.overall_pct }}%</span></td>
+              <td>{{ e.grade|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-0"><strong>Subject-wise Marks</strong></div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Subject</th>
+            <th>Exam</th>
+            <th>Marks</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in marks %}
+          <tr>
+            <td>{{ m.subject.name|default:"—" }}</td>
+            <td>{{ m.exam_name|default:m.exam.name|default:"—" }}</td>
+            <td>{{ m.marks_obtained }}</td>
+            <td>{{ m.total_marks }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="text-muted text-center py-4">No marks recorded yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

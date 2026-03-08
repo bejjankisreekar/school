@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Return Book | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_library_index' %}">Library</a></li>
+      <li class="breadcrumb-item active">Return Book</li>
+    </ol>
+  </nav>
+  <h1 class="h4 fw-bold mb-4">Confirm Return</h1>
+
+  <div class="card border-0 shadow-sm" style="max-width: 28rem;">
+    <div class="card-body">
+      <table class="table table-borderless mb-3">
+        <tr><th class="text-muted" style="width:40%;">Book</th><td>{{ issue.book.title }}</td></tr>
+        <tr><th class="text-muted">Student</th><td>{{ issue.student.user.get_full_name|default:issue.student.user.username }}</td></tr>
+        <tr><th class="text-muted">Issue Date</th><td>{{ issue.issue_date|date:"d M Y" }}</td></tr>
+        <tr><th class="text-muted">Due Date</th><td>{{ issue.due_date|date:"d M Y" }}</td></tr>
+        {% with today=request.resolver_match.url_name %}
+        {% endwith %}
+      </table>
+      <p class="mb-3"><span id="late-fee" class="text-muted">Late fee: —</span></p>
+      <form method="post">
+        {% csrf_token %}
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-success">Confirm Return</button>
+          <a href="{% url 'core:school_library_index' %}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+  (function(){
+    var due = "{{ issue.due_date|date:'Y-m-d' }}";
+    var today = new Date().toISOString().slice(0,10);
+    if (today > due) {
+      var days = Math.floor((new Date(today) - new Date(due)) / 86400000);
+      var fee = days * 5;
+      var el = document.getElementById("late-fee");
+      if (el) el.textContent = "Late fee: \u20B9 " + fee + " (" + days + " day(s) overdue)";
+    }
+  })();
+</script>
+{% endblock %}

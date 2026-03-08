@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Fee Collection | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_fees_index' %}">Fees</a></li>
+      <li class="breadcrumb-item active">Fee Collection</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <h1 class="h4 fw-bold mb-0">Fee Dues (Pending)</h1>
+    <a href="{% url 'core:school_fee_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Generate Fees</a>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-0"><strong>Pending Dues</strong></div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Student</th>
+            <th>Fee Type</th>
+            <th>Amount</th>
+            <th>Due Date</th>
+            <th>Status</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in dues %}
+          <tr>
+            <td>{{ f.student.user.get_full_name|default:f.student.user.username }}</td>
+            <td>{{ f.fee_structure.fee_type.name }}</td>
+            <td>{{ f.amount }}</td>
+            <td>{{ f.due_date }}</td>
+            <td><span class="badge bg-{% if f.status == 'PAID' %}success{% elif f.status == 'PARTIAL' %}warning{% else %}secondary{% endif %}">{{ f.status }}</span></td>
+            <td class="text-end">
+              <a href="{% url 'core:school_fee_collect' f.id %}" class="btn btn-sm btn-primary">Collect</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-muted text-center py-4">No pending dues.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

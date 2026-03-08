@@ -119,6 +119,9 @@
 
   <!-- Remarks -->
   <h4 class="mt-3 mb-2">Remarks</h4>
+  {% if ai_remarks %}
+  <p class="small mb-1"><strong>AI Summary:</strong> {{ ai_remarks }}</p>
+  {% endif %}
   <p class="small" style="min-height:50px;">Teacher Remarks: ________________________________________________</p>
 
   <!-- Signatures -->

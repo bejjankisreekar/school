@@ -1,0 +1,72 @@
+{% extends "marketing/base.html" %}
+{% block title %}View Results | {{ school.name }}{% endblock %}
+{% block content %}
+<section class="py-5">
+  <div class="container">
+    <h1 class="text-center fw-bold mb-2">{{ school.name }}</h1>
+    <p class="text-center text-secondary mb-4">View Exam Results</p>
+
+    <div class="row justify-content-center">
+      <div class="col-lg-6">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body p-4">
+            <form method="get" action="">
+              <div class="mb-3">
+                <label for="roll" class="form-label">Roll Number</label>
+                <input type="text" name="roll" class="form-control" id="roll" value="{{ roll }}" placeholder="Enter roll number" required>
+              </div>
+              <div class="mb-3">
+                <label for="dob" class="form-label">Date of Birth</label>
+                <input type="date" name="dob" class="form-control" id="dob" value="{{ dob }}" required>
+              </div>
+              <button type="submit" class="btn btn-primary w-100">View Results</button>
+            </form>
+          </div>
+        </div>
+
+        {% if roll and dob %}
+          <div class="card border-0 shadow-sm mt-4">
+            <div class="card-body p-4">
+              {% if student %}
+                <h5 class="mb-3">{{ student.user.get_full_name|default:student.user.username }}</h5>
+                <p class="text-muted small mb-3">Roll: {{ student.roll_number|default:"—" }} | Class: {{ student.classroom.name|default:"—" }}{% if student.section %} - {{ student.section.name }}{% endif %}</p>
+
+                {% if exams %}
+                  <div class="table-responsive">
+                    <table class="table table-bordered">
+                      <thead class="table-light">
+                        <tr>
+                          <th>Exam</th>
+                          <th>Date</th>
+                          <th>Subjects</th>
+                          <th>Percentage</th>
+                          <th>Grade</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for e in exams %}
+                        <tr>
+                          <td>{{ e.exam_name }}</td>
+                          <td>{{ e.exam_date|date:"d M Y"|default:"—" }}</td>
+                          <td>{{ e.total_subjects }}</td>
+                          <td>{{ e.overall_pct }}%</td>
+                          <td>{{ e.grade|default:"—" }}</td>
+                        </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                {% else %}
+                  <p class="text-muted mb-0">No exam results found.</p>
+                {% endif %}
+              {% else %}
+                <div class="alert alert-warning mb-0">No student found with roll number <strong>{{ roll }}</strong> and date of birth <strong>{{ dob }}</strong>.</div>
+              {% endif %}
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

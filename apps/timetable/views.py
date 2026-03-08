@@ -7,7 +7,9 @@ from django.template.loader import render_to_string
 from django.db import transaction
 from django.db.models import Q
 
-from apps.core.models import School, ClassRoom, Subject, Teacher
+from apps.customers.models import School
+from apps.school_data.models import ClassRoom, Subject, Teacher
+from apps.core.utils import add_warning_once
 from apps.accounts.decorators import admin_required, teacher_required, student_required
 from .models import TimeSlot, Timetable
 
@@ -16,7 +18,7 @@ DAYS = Timetable.DayOfWeek.choices
 
 def _build_timetable_grid(classroom, school):
     """Build grid of (slot, days) for timetable display."""
-    slots = list(TimeSlot.objects.filter(school=school).order_by("order", "start_time"))
+    slots = list(TimeSlot.objects.order_by("order", "start_time"))
     existing = {
         (t.day_of_week, t.time_slot_id): t
         for t in Timetable.objects.filter(classroom=classroom)
@@ -37,7 +39,7 @@ def _school_required(view):
     """Ensure user has school; redirect if not."""
     def wrapped(request, *args, **kwargs):
         if not request.user.school:
-            messages.warning(request, "Invalid setup.")
+            add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
             return redirect("core:admin_dashboard")
         return view(request, *args, **kwargs)
     return wrapped
@@ -48,9 +50,9 @@ def school_timetable_index(request):
     """List classrooms - pick one to edit timetable."""
     school = request.user.school
     if not school:
-        messages.warning(request, "Invalid setup.")
+        add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:admin_dashboard")
-    classrooms = ClassRoom.objects.filter(school=school).order_by("name", "section")
+    classrooms = ClassRoom.objects.order_by("name", "section")
     return render(request, "timetable/school_timetable_index.html", {"classrooms": classrooms})
 
 
@@ -58,17 +60,16 @@ def school_timetable_index(request):
 def school_timeslots(request):
     school = request.user.school
     if not school:
-        messages.warning(request, "Invalid setup.")
+        add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:admin_dashboard")
 
-    slots = TimeSlot.objects.filter(school=school).order_by("order", "start_time")
+    slots = TimeSlot.objects.order_by("order", "start_time")
 
     if request.method == "POST":
         from .forms import TimeSlotForm
         form = TimeSlotForm(request.POST)
         if form.is_valid():
             slot = form.save(commit=False)
-            slot.school = school
             if not slot.order and slots.exists():
                 slot.order = slots.order_by("-order").first().order + 1
             slot.save()
@@ -88,13 +89,13 @@ def school_timeslots(request):
 def school_timetable(request, classroom_id):
     school = request.user.school
     if not school:
-        messages.warning(request, "Invalid setup.")
+        add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:admin_dashboard")
 
-    classroom = get_object_or_404(ClassRoom, id=classroom_id, school=school)
-    slots = list(TimeSlot.objects.filter(school=school).order_by("order", "start_time"))
-    subjects = Subject.objects.filter(Q(classroom=classroom) | Q(classroom__isnull=True), school=school).order_by("name")
-    teachers = Teacher.objects.filter(user__school=school).select_related("user")
+    classroom = get_object_or_404(ClassRoom, id=classroom_id)
+    slots = list(TimeSlot.objects.order_by("order", "start_time"))
+    subjects = Subject.objects.filter(Q(classroom=classroom) | Q(classroom__isnull=True)).order_by("name")
+    teachers = Teacher.objects.select_related("user")
 
     existing = {
         (t.day_of_week, t.time_slot_id): t
@@ -118,7 +119,7 @@ def school_timetable(request, classroom_id):
                         subj_id = request.POST.get(f"subj_{day_val}_{slot.id}") or None
                         teacher_ids = request.POST.getlist(f"teach_{day_val}_{slot.id}")
                         if subj_id:
-                            subj = Subject.objects.filter(id=subj_id, school=school).first()
+                            subj = Subject.objects.filter(id=subj_id).first()
                             if subj and (subj.classroom_id == classroom.id or subj.classroom_id is None):
                                 subj_id = int(subj_id)
                             else:
@@ -127,7 +128,7 @@ def school_timetable(request, classroom_id):
                         teacher_ids = [int(x) for x in teacher_ids if str(x).isdigit()]
                         if teacher_ids:
                             teacher_ids = list(
-                                Teacher.objects.filter(id__in=teacher_ids, user__school=school)
+                                Teacher.objects.filter(id__in=teacher_ids)
                                 .values_list("id", flat=True)
                             )
 
@@ -142,7 +143,6 @@ def school_timetable(request, classroom_id):
                             day_of_week=day_val,
                             time_slot=slot,
                             subject_id=subj_id,
-                            school=school,
                         ))
                     desired_teachers[key] = teacher_ids
             if to_create:
@@ -174,7 +174,7 @@ def school_timetable(request, classroom_id):
         "days": DAYS,
         "subjects": subjects,
         "teachers": teachers,
-        "classrooms": list(ClassRoom.objects.filter(school=school).exclude(id=classroom.id).order_by("name", "section")),
+        "classrooms": list(ClassRoom.objects.exclude(id=classroom.id).order_by("name", "section")),
     })
 
 
@@ -184,7 +184,7 @@ def school_timetable_print(request, classroom_id):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
-    classroom = get_object_or_404(ClassRoom, id=classroom_id, school=school)
+    classroom = get_object_or_404(ClassRoom, id=classroom_id)
     grid = _build_timetable_grid(classroom, school)
     return render(request, "timetable/timetable_print.html", {"classroom": classroom, "grid": grid, "days": DAYS})
 
@@ -195,7 +195,7 @@ def school_timetable_pdf(request, classroom_id):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
-    classroom = get_object_or_404(ClassRoom, id=classroom_id, school=school)
+    classroom = get_object_or_404(ClassRoom, id=classroom_id)
     grid = _build_timetable_grid(classroom, school)
     html = render_to_string("timetable/timetable_pdf.html", {"classroom": classroom, "grid": grid, "days": DAYS})
     try:
@@ -221,7 +221,7 @@ def school_timetable_copy_monday(request, classroom_id):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
-    classroom = get_object_or_404(ClassRoom, id=classroom_id, school=school)
+    classroom = get_object_or_404(ClassRoom, id=classroom_id)
     monday = Timetable.DayOfWeek.MONDAY
     monday_entries = list(
         Timetable.objects.filter(classroom=classroom, day_of_week=monday)
@@ -254,12 +254,12 @@ def school_timetable_duplicate(request, classroom_id):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
-    classroom = get_object_or_404(ClassRoom, id=classroom_id, school=school)
+    classroom = get_object_or_404(ClassRoom, id=classroom_id)
     target_id = request.POST.get("target_classroom")
     if not target_id:
         messages.warning(request, "Select a target class.")
         return redirect("timetable:school_timetable", classroom_id=classroom.id)
-    target = ClassRoom.objects.filter(id=target_id, school=school).first()
+    target = ClassRoom.objects.filter(id=target_id).first()
     if not target:
         messages.warning(request, "Invalid target class.")
         return redirect("timetable:school_timetable", classroom_id=classroom.id)
@@ -292,7 +292,7 @@ def student_timetable(request):
         return render(request, "timetable/student_timetable.html", {"classroom": None, "grid": [], "current_day": None, "current_slot_id": None})
 
     school = request.user.school
-    slots = list(TimeSlot.objects.filter(school=school).order_by("order", "start_time"))
+    slots = list(TimeSlot.objects.order_by("order", "start_time"))
     existing = {
         (t.day_of_week, t.time_slot_id): t
         for t in Timetable.objects.filter(classroom=classroom)

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Library | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Library</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <h1 class="h4 fw-bold mb-0">Library</h1>
+    <div class="d-flex gap-2">
+      <a href="{% url 'core:school_library_book_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Book</a>
+      <a href="{% url 'core:school_library_issue' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-journal-plus"></i> Issue Book</a>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-7 mb-4">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0"><strong>Books</strong></div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Title</th>
+                <th>Author</th>
+                <th>ISBN</th>
+                <th>Category</th>
+                <th>Copies</th>
+                <th>Available</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for b in books %}
+              <tr>
+                <td>{{ b.title }}</td>
+                <td>{{ b.author|default:"—" }}</td>
+                <td><code>{{ b.isbn|default:"—" }}</code></td>
+                <td>{{ b.category|default:"—" }}</td>
+                <td>{{ b.total_copies }}</td>
+                <td>{{ b.available_copies }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="6" class="text-muted text-center py-4">No books. <a href="{% url 'core:school_library_book_add' %}">Add book</a></td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-5 mb-4">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0"><strong>Issued Books</strong></div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Book</th>
+                <th>Student</th>
+                <th>Due</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for i in issues %}
+              <tr>
+                <td>{{ i.book.title }}</td>
+                <td>{{ i.student.user.get_full_name|default:i.student.user.username }}</td>
+                <td>{{ i.due_date|date:"d M Y" }}</td>
+                <td>
+                  <a href="{% url 'core:school_library_return' i.id %}" class="btn btn-outline-success btn-sm">Return</a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="4" class="text-muted text-center py-4">No books currently issued.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

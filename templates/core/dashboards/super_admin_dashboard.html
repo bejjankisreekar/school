@@ -4,7 +4,6 @@
 
 {% block content %}
 <div class="space-y-6">
-
   <div>
     <h1 class="text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
       Super Admin Dashboard
@@ -14,48 +13,25 @@
     </p>
   </div>
 
-  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-
-    <!-- Schools -->
-    <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white/90 dark:bg-slate-900/80 p-4 shadow-sm">
-      <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-        Schools
-      </div>
-      <p class="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">
-        0
-      </p>
-      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-        Manage all registered schools.
-      </p>
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-4">
+      {% include "components/dashboard_card.html" with label="Total Schools" value=total_schools icon="bi-building" icon_color="primary" %}
     </div>
-
-    <!-- Admins -->
-    <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white/90 dark:bg-slate-900/80 p-4 shadow-sm">
-      <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-        School Admins
-      </div>
-      <p class="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">
-        0
-      </p>
-      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-        View and manage school administrators.
-      </p>
+    <div class="col-sm-6 col-lg-4">
+      {% include "components/dashboard_card.html" with label="Total Teachers" value=total_teachers icon="bi-person-badge" icon_color="primary" %}
     </div>
-
-    <!-- Platform Stats -->
-    <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white/90 dark:bg-slate-900/80 p-4 shadow-sm">
-      <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-        Platform Stats
-      </div>
-      <p class="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">
-        —
-      </p>
-      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-        Teachers, students, and overall usage.
-      </p>
+    <div class="col-sm-6 col-lg-4">
+      {% include "components/dashboard_card.html" with label="Total Students" value=total_students icon="bi-people" icon_color="primary" %}
     </div>
-
+    <div class="col-sm-6 col-lg-4">
+      {% include "components/dashboard_card.html" with label="Total Classes" value=total_classes icon="bi-journal-bookmark" icon_color="info" %}
+    </div>
   </div>
 
+  <div class="flex flex-wrap gap-3 mb-4">
+    <a href="{% url 'admin_manage:schools_list' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Schools</a>
+    <a href="{% url 'admin_manage:teachers_list' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Teachers</a>
+    <a href="{% url 'admin_manage:students_list' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Students</a>
+  </div>
 </div>
 {% endblock %}

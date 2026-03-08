@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Allocate Room | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_hostel_index' %}">Hostel</a></li>
+      <li class="breadcrumb-item active">Allocate Room</li>
+    </ol>
+  </nav>
+  <h1 class="h4 fw-bold mb-4">Allocate Student to Room</h1>
+
+  <div class="card border-0 shadow-sm" style="max-width: 32rem;">
+    <div class="card-body">
+      {% if messages %}
+        {% for m in messages %}
+          <div class="alert alert-{{ m.tags }}">{{ m }}</div>
+        {% endfor %}
+      {% endif %}
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label for="room_id" class="form-label">Room</label>
+          <select name="room_id" class="form-select" id="room_id" required>
+            <option value="">-- Select Room --</option>
+            {% for room in rooms %}
+              <option value="{{ room.id }}">{{ room.hostel.name }} - {{ room.room_number }} ({{ room.capacity }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="student_id" class="form-label">Student</label>
+          <select name="student_id" class="form-select" id="student_id" required>
+            <option value="">-- Select Student --</option>
+            {% for s in students %}
+              <option value="{{ s.id }}">{{ s.user.get_full_name|default:s.user.username }} - {{ s.classroom.name|default:"" }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="start_date" class="form-label">Start Date</label>
+          <input type="date" name="start_date" class="form-control" id="start_date" required>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary">Allocate</button>
+          <a href="{% url 'core:school_hostel_index' %}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Invoices | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_inventory_index' %}">Inventory</a></li>
+      <li class="breadcrumb-item active">Invoices</li>
+    </ol>
+  </nav>
+  <h1 class="h4 fw-bold mb-4">Invoices</h1>
+
+  <div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Invoice #</th>
+            <th>Customer</th>
+            <th>Issue Date</th>
+            <th>Amount</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inv in invoices %}
+          <tr>
+            <td>{{ inv.invoice_number }}</td>
+            <td>{{ inv.customer_name }}</td>
+            <td>{{ inv.issue_date }}</td>
+            <td>{{ inv.total_amount }}</td>
+            <td><span class="badge bg-{% if inv.status == 'PAID' %}success{% elif inv.status == 'ISSUED' %}primary{% else %}secondary{% endif %}">{{ inv.status }}</span></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="text-muted text-center py-4">No invoices yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

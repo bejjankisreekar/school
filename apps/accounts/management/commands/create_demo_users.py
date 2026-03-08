@@ -5,7 +5,8 @@ Run: python manage.py create_demo_users
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
 from datetime import date, timedelta
-from apps.core.models import School, Student, Teacher, Subject, ClassRoom, Exam, Section
+from apps.customers.models import School
+from apps.school_data.models import Student, Teacher, Subject, ClassRoom, Exam, Section
 
 User = get_user_model()
 

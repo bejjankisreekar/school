@@ -1,0 +1,219 @@
+{% extends "marketing/base.html" %}
+{% block title %}School ERP | The All-in-One School Management Platform{% endblock %}
+{% block extra_head %}
+<style>
+  @keyframes scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+  .logo-carousel { animation: scroll 20s linear infinite; }
+  .logo-carousel:hover { animation-play-state: paused; }
+</style>
+{% endblock %}
+{% block content %}
+
+<!-- HERO SECTION -->
+<section class="py-5 py-lg-7 bg-white">
+  <div class="container text-center">
+    <h1 class="display-4 fw-bold mb-3">The All-in-One School Management Platform</h1>
+    <p class="lead text-primary mb-2">The Modern ERP for Educational Institutions</p>
+    <p class="text-secondary mb-4 mx-auto" style="max-width: 680px;">Our platform centralizes student data, fee management, attendance, exams, and more, empowering your institution to operate with unparalleled efficiency.</p>
+    <div class="d-flex flex-wrap justify-content-center gap-3">
+      <a href="#trial" class="btn btn-cta btn-primary btn-lg px-4 py-3">Get Started for Free</a>
+      <a href="{% url 'core:contact' %}" class="btn btn-outline-primary btn-lg px-4 py-3">Contact Sales</a>
+    </div>
+  </div>
+</section>
+
+<!-- TRUSTED BY SECTION -->
+<section class="py-4 bg-light border-top border-bottom overflow-hidden">
+  <div class="container">
+    <p class="text-center text-muted small mb-3">Trusted by leading educational institutions</p>
+    <div class="d-flex overflow-hidden">
+      <div class="logo-carousel d-flex align-items-center gap-5 flex-nowrap">
+        <div class="flex-shrink-0"><div class="rounded-3 bg-white border shadow-sm d-flex align-items-center justify-content-center text-muted fw-bold" style="width:100px;height:50px">School</div></div>
+        <div class="flex-shrink-0"><div class="rounded-3 bg-white border shadow-sm d-flex align-items-center justify-content-center text-muted fw-bold" style="width:100px;height:50px">Academy</div></div>
+        <div class="flex-shrink-0"><div class="rounded-3 bg-white border shadow-sm d-flex align-items-center justify-content-center text-muted fw-bold" style="width:100px;height:50px">NGO Edu</div></div>
+        <div class="flex-shrink-0"><div class="rounded-3 bg-white border shadow-sm d-flex align-items-center justify-content-center text-muted fw-bold" style="width:100px;height:50px">Demo School</div></div>
+        <div class="flex-shrink-0"><div class="rounded-3 bg-white border shadow-sm d-flex align-items-center justify-content-center text-muted fw-bold" style="width:100px;height:50px">School</div></div>
+        <div class="flex-shrink-0"><div class="rounded-3 bg-white border shadow-sm d-flex align-items-center justify-content-center text-muted fw-bold" style="width:100px;height:50px">Academy</div></div>
+        <div class="flex-shrink-0"><div class="rounded-3 bg-white border shadow-sm d-flex align-items-center justify-content-center text-muted fw-bold" style="width:100px;height:50px">NGO Edu</div></div>
+        <div class="flex-shrink-0"><div class="rounded-3 bg-white border shadow-sm d-flex align-items-center justify-content-center text-muted fw-bold" style="width:100px;height:50px">Demo School</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PLATFORM DESCRIPTION -->
+<section id="platform" class="py-5 py-lg-6 bg-white">
+  <div class="container">
+    <div class="row align-items-center g-5">
+      <div class="col-lg-6">
+        <h2 class="display-6 fw-bold mb-4">A Powerful, Unified Platform for Your Entire Campus</h2>
+        <p class="text-secondary mb-4">Everything your institution needs in one place:</p>
+        <ul class="list-unstyled mb-4">
+          <li class="d-flex align-items-start gap-3 mb-3"><i class="bi bi-check-circle-fill text-primary mt-1"></i><span>Centralized data management for easy access and reporting</span></li>
+          <li class="d-flex align-items-start gap-3 mb-3"><i class="bi bi-check-circle-fill text-primary mt-1"></i><span>Automated workflows to reduce administrative burden</span></li>
+          <li class="d-flex align-items-start gap-3 mb-3"><i class="bi bi-check-circle-fill text-primary mt-1"></i><span>Secure role-based access for all users</span></li>
+        </ul>
+        <a href="{% url 'core:about' %}" class="btn btn-cta btn-primary px-4 py-2">Learn More About Us</a>
+      </div>
+      <div class="col-lg-6"></div>
+    </div>
+  </div>
+</section>
+
+<!-- DASHBOARD PREVIEW -->
+<section class="py-5 py-lg-6 bg-light">
+  <div class="container">
+    <h2 class="text-center display-6 fw-bold mb-4">EduSaaS Dashboard Preview</h2>
+    <div class="rounded-4 border bg-white shadow-sm overflow-hidden">
+      <div class="d-flex align-items-center gap-2 bg-dark text-white px-3 py-2 small">
+        <span class="rounded-circle bg-secondary" style="width:8px;height:8px"></span>
+        <span class="rounded-circle bg-secondary" style="width:8px;height:8px"></span>
+        <span class="rounded-circle bg-secondary" style="width:8px;height:8px"></span>
+        <span class="ms-2 text-white-50">School Admin Dashboard</span>
+      </div>
+      <div class="row g-0 p-4">
+        <div class="col-3 d-none d-md-block border-end">
+          <div class="mb-3"><span class="badge bg-primary">Dashboard</span></div>
+          <div class="mb-2 text-muted small">Students</div>
+          <div class="mb-2 text-muted small">Teachers</div>
+          <div class="mb-2 text-muted small">Classes</div>
+          <div class="mb-2 text-muted small">Reports</div>
+        </div>
+        <div class="col-12 col-md-9 ps-md-4">
+          <div class="row g-2 mb-3">
+            <div class="col-4"><div class="rounded bg-primary bg-opacity-10 p-3 text-center"><span class="fw-bold">156</span><br><span class="small text-muted">Students</span></div></div>
+            <div class="col-4"><div class="rounded bg-primary bg-opacity-10 p-3 text-center"><span class="fw-bold">24</span><br><span class="small text-muted">Teachers</span></div></div>
+            <div class="col-4"><div class="rounded bg-primary bg-opacity-10 p-3 text-center"><span class="fw-bold">12</span><br><span class="small text-muted">Classes</span></div></div>
+          </div>
+          <div class="border rounded p-3"><div class="text-muted small">Recent activity, charts, and analytics...</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES SECTION -->
+<section id="features" class="py-5 py-lg-6 bg-white">
+  <div class="container">
+    <h2 class="text-center display-6 fw-bold mb-2">A Feature for Every Need</h2>
+    <p class="text-center text-secondary mb-5">Comprehensive modules for your institution</p>
+    <div class="row g-4">
+      <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body p-4">
+            <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-3 mb-3 d-inline-block"><i class="bi bi-people fs-4"></i></div>
+            <h5 class="card-title">Student & Staff Management</h5>
+            <p class="card-text text-secondary small mb-0">Centralize student admissions, records, and staff information. Manage roles and permissions with ease.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body p-4">
+            <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-3 mb-3 d-inline-block"><i class="bi bi-currency-dollar fs-4"></i></div>
+            <h5 class="card-title">Fee & Payroll Automation</h5>
+            <p class="card-text text-secondary small mb-0">Automate fee collection with reminders and streamline payroll processing.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body p-4">
+            <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-3 mb-3 d-inline-block"><i class="bi bi-journal-bookmark fs-4"></i></div>
+            <h5 class="card-title">Academic Management</h5>
+            <p class="card-text text-secondary small mb-0">Manage subjects, class schedules, and lesson plans.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body p-4">
+            <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-3 mb-3 d-inline-block"><i class="bi bi-clipboard-check fs-4"></i></div>
+            <h5 class="card-title">Exams & AI-Powered Results</h5>
+            <p class="card-text text-secondary small mb-0">Conduct exams and generate AI-powered marksheet summaries.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body p-4">
+            <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-3 mb-3 d-inline-block"><i class="bi bi-bus-front fs-4"></i></div>
+            <h5 class="card-title">Transport & Hostel Management</h5>
+            <p class="card-text text-secondary small mb-0">Manage transport routes, vehicles, hostel rooms, and residents.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body p-4">
+            <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-3 mb-3 d-inline-block"><i class="bi bi-shield-lock fs-4"></i></div>
+            <h5 class="card-title">Secure Multi-Tenant Platform</h5>
+            <p class="card-text text-secondary small mb-0">Data isolation and secure cloud hosting for every school.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING PREVIEW -->
+<section class="py-5 py-lg-6 bg-light">
+  <div class="container">
+    <h2 class="text-center display-6 fw-bold mb-2">Simple, Transparent Pricing</h2>
+    <p class="text-center text-secondary mb-4">Get started with a full-featured 15-day free trial.</p>
+    <div class="text-center">
+      <a href="{% url 'core:pricing' %}" class="btn btn-cta btn-primary btn-lg px-4 py-3">View Pricing Plans</a>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ SECTION -->
+<section class="py-5 py-lg-6 bg-white">
+  <div class="container">
+    <h2 class="text-center display-6 fw-bold mb-5">Frequently Asked Questions</h2>
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="accordion" id="faqAccordion">
+          <div class="accordion-item">
+            <h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#faq1" aria-expanded="true">What is the difference between SaaS and traditional ERP?</button></h2>
+            <div id="faq1" class="accordion-collapse collapse show" data-bs-parent="#faqAccordion"><div class="accordion-body text-secondary">SaaS (Software as a Service) ERP runs in the cloud with subscription pricing, automatic updates, and no on-premise infrastructure. Traditional ERP typically requires installation, maintenance, and upfront licensing costs.</div></div>
+          </div>
+          <div class="accordion-item">
+            <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">Why is the basic SaaS plan low cost?</button></h2>
+            <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion"><div class="accordion-body text-secondary">Our basic plan is designed to make professional school management accessible to smaller institutions. We keep costs low through efficient cloud infrastructure and scalable architecture.</div></div>
+          </div>
+          <div class="accordion-item">
+            <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq3">Do you offer single-tenant ERP with custom domain?</button></h2>
+            <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion"><div class="accordion-body text-secondary">Yes, our Enterprise plan includes single-tenant deployment with custom domain, dedicated resources, and enhanced security options. Contact sales for details.</div></div>
+          </div>
+          <div class="accordion-item">
+            <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq4">How secure is our data?</button></h2>
+            <div id="faq4" class="accordion-collapse collapse" data-bs-parent="#faqAccordion"><div class="accordion-body text-secondary">We use industry-standard encryption, secure cloud hosting, role-based access control, and regular security audits. Your data is isolated per tenant and backed up regularly.</div></div>
+          </div>
+          <div class="accordion-item">
+            <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq5">How does the multi-tenant system work?</button></h2>
+            <div id="faq5" class="accordion-collapse collapse" data-bs-parent="#faqAccordion"><div class="accordion-body text-secondary">Each school operates in its own isolated environment. Data, users, and configurations are completely separate. You never see or access another institution's data.</div></div>
+          </div>
+          <div class="accordion-item">
+            <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq6">What payment gateway is used?</button></h2>
+            <div id="faq6" class="accordion-collapse collapse" data-bs-parent="#faqAccordion"><div class="accordion-body text-secondary">We integrate with leading payment gateways for secure fee collection and subscriptions. Contact us to discuss options available in your region.</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA SECTION -->
+<section id="trial" class="py-5 py-lg-7 bg-primary text-white">
+  <div class="container text-center">
+    <h2 class="display-6 fw-bold mb-3">Transform Your School's Administration Today</h2>
+    <p class="lead opacity-75 mb-4">Join hundreds of institutions already using EduSaaS.</p>
+    <div class="d-flex flex-wrap justify-content-center gap-3">
+      <a href="{% url 'accounts:school_login' %}" class="btn btn-light btn-lg px-4 py-3 fw-semibold">Start Your 15-Day Free Trial</a>
+      <a href="{% url 'core:contact' %}" class="btn btn-outline-light btn-lg px-4 py-3">Contact Sales</a>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

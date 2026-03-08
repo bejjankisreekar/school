@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Branding | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Branding</li>
+    </ol>
+  </nav>
+  <h1 class="h4 fw-bold mb-4">Custom Branding</h1>
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="alert alert-{{ m.tags }} alert-dismissible fade show">
+        {{ m }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="card border-0 shadow-sm" style="max-width: 32rem;">
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label for="theme_color" class="form-label">Theme Color</label>
+          <input type="color" name="theme_color" class="form-control form-control-color d-block" id="theme_color" value="{{ school.theme_color|default:'#4F46E5' }}" title="Theme color">
+          {% if school.theme_color %}<div class="form-text">Current: {{ school.theme_color }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label for="header_text" class="form-label">Header Text</label>
+          <input type="text" name="header_text" class="form-control" id="header_text" value="{{ school.header_text|default:'' }}" placeholder="e.g. Welcome to Our School">
+        </div>
+        <button type="submit" class="btn btn-primary">Save Branding</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -30,4 +30,5 @@ superadmin_required = role_required(User.Roles.SUPERADMIN)
 admin_required = role_required(User.Roles.ADMIN)
 teacher_required = role_required(User.Roles.TEACHER)
 student_required = role_required(User.Roles.STUDENT)
+parent_required = role_required(User.Roles.PARENT)
 

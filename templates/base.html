@@ -17,19 +17,39 @@
     {% block extra_head %}{% endblock %}
     <script>
       (function () {
-        const stored = localStorage.getItem("theme");
-        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        const useDark = stored === "dark" || (!stored && prefersDark);
+        var stored = localStorage.getItem("theme");
+        var prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        var useDark = stored === "dark" || (!stored && prefersDark);
         if (useDark) {
           document.documentElement.classList.add("dark");
         } else {
           document.documentElement.classList.remove("dark");
         }
+        if (document.body) {
+          if (useDark) document.body.classList.add("dark-mode");
+          else document.body.classList.remove("dark-mode");
+        }
       })();
-      function toggleTheme() {
-        const root = document.documentElement;
-        const isDark = root.classList.toggle("dark");
+      function applyTheme(isDark) {
+        var root = document.documentElement;
+        var body = document.body;
+        if (isDark) {
+          root.classList.add("dark");
+          body.classList.add("dark-mode");
+        } else {
+          root.classList.remove("dark");
+          body.classList.remove("dark-mode");
+        }
         localStorage.setItem("theme", isDark ? "dark" : "light");
+        var icon = document.getElementById("themeIcon");
+        if (icon) {
+          icon.className = isDark ? "bi bi-sun fs-5" : "bi bi-moon-stars fs-5";
+        }
+      }
+      function toggleTheme() {
+        var root = document.documentElement;
+        var isDark = !root.classList.contains("dark");
+        applyTheme(isDark);
       }
       function toggleSidebar() {
         document.getElementById("sidebar").classList.toggle("sidebar-open");
@@ -42,6 +62,7 @@
     </script>
   </head>
   <body class="h-full bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <script>var _t=localStorage.getItem("theme");var _d=_t==="dark"||(!_t&&window.matchMedia("(prefers-color-scheme: dark)").matches);if(_d)document.body.classList.add("dark-mode");else document.body.classList.remove("dark-mode");</script>
     <div class="min-h-screen flex flex-col">
       {% if request.user.is_authenticated %}
         <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle menu">
@@ -49,135 +70,10 @@
         </button>
         <div id="sidebarOverlay" class="sidebar-overlay" onclick="closeSidebar()"></div>
 
-        <aside id="sidebar" class="sidebar">
-          <div class="sidebar-logo">
-            <span>SE</span>
-          </div>
-
-          <nav class="d-flex flex-column" style="flex: 1;">
-            <div class="sidebar-section">
-              <div class="sidebar-section-title">Main</div>
-              <a href="{% if request.user.role == 'SUPERADMIN' %}{% url 'core:super_admin_dashboard' %}{% elif request.user.role == 'ADMIN' %}{% url 'core:admin_dashboard' %}{% elif request.user.role == 'TEACHER' %}{% url 'core:teacher_dashboard' %}{% else %}{% url 'core:student_dashboard' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'super_admin_dashboard' 'admin_dashboard' 'teacher_dashboard' 'student_dashboard' %}">
-                <span class="sidebar-nav-icon"><i class="bi bi-grid-1x2"></i></span>
-                <span class="sidebar-nav-text">Dashboard</span>
-                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-              </a>
-            </div>
-
-            <div class="sidebar-section">
-              <div class="sidebar-section-title">People</div>
-              <a href="{% if request.user.role == 'ADMIN' %}{% url 'core:school_students_list' %}{% else %}{% url 'core:students_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'school_students_list' 'students_list' 'school_student_add' 'school_student_edit' 'school_students_import' %}">
-                <span class="sidebar-nav-icon"><i class="bi bi-people"></i></span>
-                <span class="sidebar-nav-text">Students</span>
-                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-              </a>
-              <a href="{% if request.user.role == 'ADMIN' %}{% url 'core:school_teachers_list' %}{% else %}{% url 'core:teachers_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'school_teachers_list' 'teachers_list' 'school_teacher_add' 'school_teacher_edit' %}">
-                <span class="sidebar-nav-icon"><i class="bi bi-person-badge"></i></span>
-                <span class="sidebar-nav-text">Teachers</span>
-                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-              </a>
-            </div>
-
-            {% if request.user.role == 'ADMIN' %}
-            <div class="sidebar-section">
-              <div class="sidebar-section-title">Academic</div>
-              <a href="{% url 'core:school_academic_years' %}" class="sidebar-nav-item {% nav_active_names request 'school_academic_years' 'school_academic_year_edit' %}">
-                <span class="sidebar-nav-icon"><i class="bi bi-calendar-range"></i></span>
-                <span class="sidebar-nav-text">Academic Years</span>
-                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-              </a>
-              <a href="{% url 'core:school_classes' %}" class="sidebar-nav-item {% nav_active_names request 'school_classes' 'school_class_add' 'school_class_edit' %}">
-                <span class="sidebar-nav-icon"><i class="bi bi-journal-bookmark"></i></span>
-                <span class="sidebar-nav-text">Classes</span>
-                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-              </a>
-              <a href="{% url 'core:school_sections' %}" class="sidebar-nav-item {% nav_active_names request 'school_sections' 'school_section_edit' %}">
-                <span class="sidebar-nav-icon"><i class="bi bi-diagram-3"></i></span>
-                <span class="sidebar-nav-text">Sections</span>
-                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-              </a>
-              <a href="{% url 'core:school_subjects' %}" class="sidebar-nav-item {% nav_active_names request 'school_subjects' 'school_subject_add' 'school_subject_edit' %}">
-                <span class="sidebar-nav-icon"><i class="bi bi-book"></i></span>
-                <span class="sidebar-nav-text">Subjects</span>
-                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-              </a>
-            </div>
-            {% endif %}
-
-            <div class="sidebar-section">
-              <div class="sidebar-section-title">Operations</div>
-              <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_attendance' %}{% elif request.user.role == 'TEACHER' %}{% url 'core:bulk_attendance' %}{% else %}{% url 'core:attendance_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'student_attendance' 'bulk_attendance' 'attendance_list' 'mark_attendance' %}">
-                <span class="sidebar-nav-icon"><i class="bi bi-calendar-check"></i></span>
-                <span class="sidebar-nav-text">Attendance</span>
-                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-              </a>
-              <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_exams_list' %}{% elif request.user.role == 'TEACHER' %}{% url 'core:teacher_exams' %}{% else %}{% url 'core:marks_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'student_exams_list' 'teacher_exams' 'teacher_exam_create' 'teacher_exam_summary' 'teacher_exam_enter_marks' 'marks_list' 'student_exam_detail' 'student_exam_detail_by_id' %}">
-                <span class="sidebar-nav-icon"><i class="bi bi-clipboard-check"></i></span>
-                <span class="sidebar-nav-text">{% if request.user.role == 'TEACHER' %}Exams{% else %}Marks{% endif %}</span>
-                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-              </a>
-              <a href="{% url 'core:homework_list' %}" class="sidebar-nav-item {% nav_active_names request 'homework_list' %}">
-                <span class="sidebar-nav-icon"><i class="bi bi-journal-text"></i></span>
-                <span class="sidebar-nav-text">Homework</span>
-                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-              </a>
-              <a href="{% if request.user.role == 'ADMIN' %}{% url 'timetable:school_timetable_index' %}{% elif request.user.role == 'TEACHER' %}{% url 'timetable:teacher_timetable' %}{% elif request.user.role == 'STUDENT' %}{% url 'timetable:student_timetable' %}{% else %}{% url 'core:reports_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'school_timetable_index' 'school_timetable' 'school_timeslots' 'teacher_timetable' 'student_timetable' 'reports_list' %}">
-                <span class="sidebar-nav-icon"><i class="bi bi-calendar3"></i></span>
-                <span class="sidebar-nav-text">Timetable</span>
-                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-              </a>
-            </div>
-
-            <div class="sidebar-section">
-              <div class="sidebar-section-title">Reports</div>
-              <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_reports' %}{% else %}{% url 'core:reports_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'student_reports' 'reports_list' 'student_report_card_pdf' 'student_attendance_report_pdf' %}">
-                <span class="sidebar-nav-icon"><i class="bi bi-graph-up"></i></span>
-                <span class="sidebar-nav-text">Reports</span>
-                <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-              </a>
-            </div>
-          </nav>
-
-          <div class="sidebar-footer">
-            <a href="{% url 'accounts:logout' %}" class="sidebar-nav-item sidebar-logout">
-              <span class="sidebar-nav-icon"><i class="bi bi-box-arrow-right"></i></span>
-              <span class="sidebar-nav-text">Logout</span>
-              <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-            </a>
-          </div>
-        </aside>
+        {% include "components/sidebar.html" %}
 
         <div class="sidebar-main flex flex-col flex-1 min-w-0">
-          <header class="flex-shrink-0 border-b border-slate-200/70 dark:border-slate-700/70 bg-white dark:bg-slate-900/95 backdrop-blur">
-            <div class="flex items-center justify-between h-14 px-4 lg:px-6" style="margin-left: 0;">
-              <h1 class="text-base font-semibold tracking-tight text-slate-900 dark:text-slate-50 truncate">
-                {% if request.user.school %}{{ request.user.school.name }}{% else %}EduSaaS{% endif %}
-              </h1>
-              <div class="flex items-center gap-2">
-                <button type="button" onclick="toggleTheme()" class="rounded-lg p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition" title="Toggle theme">
-                  <i class="bi bi-moon-stars"></i>
-                </button>
-                <details class="relative group">
-                  <summary class="flex items-center gap-2 rounded-lg px-3 py-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition list-none [&::-webkit-details-marker]:hidden">
-                    <div class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white">
-                      {{ request.user.first_name|default:request.user.username|slice:":1" }}{{ request.user.last_name|slice:":1" }}
-                    </div>
-                    <div class="hidden sm:block text-left">
-                      <span class="block text-sm font-medium text-slate-900 dark:text-slate-50 truncate max-w-[120px]">{{ request.user.get_full_name|default:request.user.username }}</span>
-                      <span class="block text-xs text-slate-500 dark:text-slate-400">{{ request.user.get_role_display|default:"User" }}</span>
-                    </div>
-                    <i class="bi bi-chevron-down"></i>
-                  </summary>
-                  <div class="absolute right-0 mt-1 w-48 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg py-1 z-50">
-                    {% if request.user.role == "STUDENT" %}
-                    <a href="{% url 'core:student_profile' %}" class="block px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700">Profile</a>
-                    {% endif %}
-                    <a href="{% url 'accounts:logout' %}" class="block px-4 py-2 text-sm text-rose-600 dark:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-700">Logout</a>
-                  </div>
-                </details>
-              </div>
-            </div>
-          </header>
+          {% include "components/navbar.html" %}
       {% else %}
         <header class="border-b border-slate-200/70 dark:border-slate-700/70 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur">
           <div class="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
@@ -197,6 +93,16 @@
       {% endif %}
             <main class="flex-1 overflow-auto">
               <div class="mx-auto max-w-6xl px-4 py-6 lg:py-8">
+                {% if messages %}
+                <div class="mb-4 space-y-2">
+                  {% for message in messages %}
+                  <div class="rounded-lg border px-4 py-2 text-sm alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                  </div>
+                  {% endfor %}
+                </div>
+                {% endif %}
                 <section class="rounded-2xl bg-white dark:bg-slate-900 shadow-sm shadow-slate-900/5 border border-slate-200 dark:border-slate-800 p-5 lg:p-6">
                   {% block content %}{% endblock %}
                 </section>
@@ -216,5 +122,18 @@
       </footer>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function() {
+        var isDark = document.documentElement.classList.contains("dark");
+        if (document.body) {
+          if (isDark) document.body.classList.add("dark-mode");
+          else document.body.classList.remove("dark-mode");
+        }
+        var icon = document.getElementById("themeIcon");
+        if (icon) icon.className = isDark ? "bi bi-sun fs-5" : "bi bi-moon-stars fs-5";
+        var themeBtn = document.getElementById("themeToggle");
+        if (themeBtn) themeBtn.addEventListener("click", toggleTheme);
+      });
+    </script>
   </body>
 </html>

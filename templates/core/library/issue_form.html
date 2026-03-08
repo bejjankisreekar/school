@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Issue Book | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_library_index' %}">Library</a></li>
+      <li class="breadcrumb-item active">Issue Book</li>
+    </ol>
+  </nav>
+  <h1 class="h4 fw-bold mb-4">Issue Book</h1>
+
+  <div class="card border-0 shadow-sm" style="max-width: 32rem;">
+    <div class="card-body">
+      {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+      {% if messages %}{% for m in messages %}<div class="alert alert-{{ m.tags }}">{{ m }}</div>{% endfor %}{% endif %}
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label for="id_book" class="form-label">Book</label>
+          <select name="book" class="form-select" id="id_book" required>
+            <option value="">-- Select Book --</option>
+            {% for choice in form.book.field.queryset %}
+              <option value="{{ choice.pk }}">{{ choice.title }} ({{ choice.available_copies }} available)</option>
+            {% endfor %}
+          </select>
+          {% if form.book.errors %}<div class="invalid-feedback d-block">{{ form.book.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label for="id_student" class="form-label">Student</label>
+          <select name="student" class="form-select" id="id_student" required>
+            <option value="">-- Select Student --</option>
+            {% for choice in form.student.field.queryset %}
+              <option value="{{ choice.pk }}">{{ choice.user.get_full_name|default:choice.user.username }} - {{ choice.classroom.name|default:"" }}</option>
+            {% endfor %}
+          </select>
+          {% if form.student.errors %}<div class="invalid-feedback d-block">{{ form.student.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label for="id_issue_date" class="form-label">Issue Date</label>
+          <input type="date" name="issue_date" class="form-control" id="id_issue_date" value="{{ form.issue_date.value|default:'' }}" required>
+          {% if form.issue_date.errors %}<div class="invalid-feedback d-block">{{ form.issue_date.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label for="id_due_date" class="form-label">Due Date</label>
+          <input type="date" name="due_date" class="form-control" id="id_due_date" value="{{ form.due_date.value|default:'' }}" required>
+          {% if form.due_date.errors %}<div class="invalid-feedback d-block">{{ form.due_date.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary">Issue Book</button>
+          <a href="{% url 'core:school_library_index' %}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

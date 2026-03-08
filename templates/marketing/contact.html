@@ -1,0 +1,49 @@
+{% extends "marketing/base.html" %}
+{% block title %}Contact Us | School ERP{% endblock %}
+{% block content %}
+<section class="py-5 py-lg-6">
+  <div class="container">
+    <h1 class="text-center display-5 fw-bold mb-5">Contact Us</h1>
+    <div class="row g-5">
+      <div class="col-lg-5">
+        <div class="mb-4">
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-2"><i class="bi bi-envelope fs-5"></i></div>
+            <div><strong>Email</strong><p class="text-secondary small mb-0">support@schoolerp.example.com</p></div>
+          </div>
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-2"><i class="bi bi-telephone fs-5"></i></div>
+            <div><strong>Phone</strong><p class="text-secondary small mb-0">+91 12345 67890</p></div>
+          </div>
+          <div class="d-flex align-items-center gap-3">
+            <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-2"><i class="bi bi-geo-alt fs-5"></i></div>
+            <div><strong>Office Address</strong><p class="text-secondary small mb-0">123 Education Ave, Suite 100, City, State 123456</p></div>
+          </div>
+        </div>
+        <div class="ratio ratio-16x9 rounded-3 overflow-hidden border">
+          <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3502.57!2d77.21!3d28.61!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x390ce2a99b6f9fa7%3A0x83a25e55f0af1c82!2sConnaught%20Place%2C%20New%20Delhi!5e0!3m2!1sen!2sin!4v1699000000000" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Office location"></iframe>
+        </div>
+      </div>
+      <div class="col-lg-7">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body p-4 p-lg-5">
+            <h5 class="fw-semibold mb-4">Send us a message</h5>
+            <form method="post" action="{% url 'core:contact' %}">
+              {% csrf_token %}
+              {% if messages %}{% for m in messages %}<div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>{% endfor %}{% endif %}
+              <div class="row g-3">
+                <div class="col-md-6"><label for="name" class="form-label">Name</label><input type="text" class="form-control" id="name" name="name" required placeholder="Your name"></div>
+                <div class="col-md-6"><label for="email" class="form-label">Email</label><input type="email" class="form-control" id="email" name="email" required placeholder="you@school.com"></div>
+                <div class="col-md-6"><label for="phone" class="form-label">Phone</label><input type="tel" class="form-control" id="phone" name="phone" placeholder="+91 98765 43210"></div>
+                <div class="col-md-6"><label for="school_name" class="form-label">School Name</label><input type="text" class="form-control" id="school_name" name="school_name" placeholder="Your school name"></div>
+                <div class="col-12"><label for="message" class="form-label">Message</label><textarea class="form-control" id="message" name="message" rows="4" required placeholder="Your message..."></textarea></div>
+                <div class="col-12"><button type="submit" class="btn btn-cta btn-primary w-100 py-2">Send Message</button></div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% comment %}
+Reusable table action buttons: Edit ✏️, Delete 🗑️, View 👁️
+Usage:
+  {% include "components/table_actions.html" with edit_url="..." delete_url="..." view_url="..." delete_modal_id="..." delete_confirm_text="..." show_delete=1 %}
+All URLs and delete_modal_id are required for full display. Omit show_view=0 to hide View.
+{% endcomment %}
+<div class="d-flex gap-1 justify-content-center flex-wrap">
+  {% if view_url %}
+  <a href="{{ view_url }}" class="btn btn-sm btn-outline-secondary" title="View">View 👁️</a>
+  {% endif %}
+  {% if edit_url %}
+  <a href="{{ edit_url }}" class="btn btn-sm btn-outline-primary" title="Edit">Edit ✏️</a>
+  {% endif %}
+  {% if show_delete != False and delete_url and delete_modal_id %}
+  <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#{{ delete_modal_id }}" title="Delete">Delete 🗑️</button>
+  {% endif %}
+</div>

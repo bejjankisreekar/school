@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Attendance - {{ student.user.get_full_name|default:student.user.username }} | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:parent_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Attendance - {{ student.user.get_full_name|default:student.user.username }}</li>
+    </ol>
+  </nav>
+  <h1 class="h4 fw-bold mb-4">Attendance Records</h1>
+  <p class="text-muted small mb-3">{{ student.user.get_full_name|default:student.user.username }}{% if student.classroom %} — {{ student.classroom.name }}{% if student.section %} - {{ student.section.name }}{% endif %}{% endif %}</p>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+      <form method="get" class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label small">From Date</label>
+          <input type="date" name="from_date" class="form-control form-control-sm" value="{{ from_date }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small">To Date</label>
+          <input type="date" name="to_date" class="form-control form-control-sm" value="{{ to_date }}">
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+          <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+        </div>
+      </form>
+      <div class="mt-3 small">
+        <strong>Summary:</strong> {{ present_days }} present / {{ total_days }} days — {{ percentage }}%
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-0"><strong>Attendance Records</strong></div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Date</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for rec in records %}
+          <tr>
+            <td>{{ rec.date }}</td>
+            <td><span class="badge {% if rec.status == 'PRESENT' %}bg-success{% else %}bg-danger{% endif %}">{{ rec.get_status_display }}</span></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="2" class="text-muted text-center py-4">No attendance records in this period.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

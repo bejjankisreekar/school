@@ -1,0 +1,51 @@
+{% extends "marketing/base.html" %}
+{% block title %}Check Admission Status | {{ school.name }}{% endblock %}
+{% block content %}
+<section class="py-5">
+  <div class="container">
+    <h1 class="text-center fw-bold mb-2">{{ school.name }}</h1>
+    <p class="text-center text-secondary mb-4">Check Admission Status</p>
+
+    <div class="row justify-content-center">
+      <div class="col-lg-6">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body p-4">
+            <form method="get" action="">
+              <div class="mb-3">
+                <label for="app_no" class="form-label">Application Number</label>
+                <input type="text" name="app_no" class="form-control" id="app_no" value="{{ application_number }}" placeholder="e.g. APPSCH001234" required>
+              </div>
+              <button type="submit" class="btn btn-primary w-100">Check Status</button>
+            </form>
+          </div>
+        </div>
+
+        {% if application_number %}
+          <div class="card border-0 shadow-sm mt-4">
+            <div class="card-body p-4">
+              {% if application %}
+                <h5 class="mb-3">Application Status</h5>
+                <table class="table table-borderless mb-0">
+                  <tr><th class="text-muted" style="width:40%;">App Number</th><td>{{ application.application_number }}</td></tr>
+                  <tr><th class="text-muted">Name</th><td>{{ application.first_name }} {{ application.last_name }}</td></tr>
+                  <tr><th class="text-muted">Email</th><td>{{ application.email }}</td></tr>
+                  <tr><th class="text-muted">Class</th><td>{{ application.applied_class.name|default:"—" }}</td></tr>
+                  <tr><th class="text-muted">Status</th>
+                    <td>
+                      <span class="badge bg-{% if application.status == 'APPROVED' %}success{% elif application.status == 'REJECTED' %}danger{% else %}warning{% endif %}">
+                        {{ application.status }}
+                      </span>
+                    </td>
+                  </tr>
+                </table>
+              {% else %}
+                <div class="alert alert-warning mb-0">No application found with application number <strong>{{ application_number }}</strong>.</div>
+              {% endif %}
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

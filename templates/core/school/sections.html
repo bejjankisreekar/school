@@ -65,9 +65,10 @@
             <td>{% if s.class_teacher and s.class_teacher.user %}{{ s.class_teacher.user.get_full_name|default:s.class_teacher.user.username }}{% else %}—{% endif %}</td>
             <td>{{ s.capacity|default:"—" }}</td>
             <td>{{ s.student_count }}</td>
-            <td class="text-center" style="width: 140px;">
-              <a href="{% url 'core:school_section_edit' s.id %}" class="btn btn-sm btn-outline-primary" title="Edit"><i class="bi bi-pencil"></i></a>
-              <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#delSection{{ s.id }}" title="Delete"><i class="bi bi-trash"></i></button>
+            <td class="text-center" style="width: 180px;">
+              <a href="{% url 'core:school_section_edit' s.id %}" class="btn btn-sm btn-outline-secondary" title="View">View &#128065;</a>
+              <a href="{% url 'core:school_section_edit' s.id %}" class="btn btn-sm btn-outline-primary" title="Edit">Edit &#9998;</a>
+              <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#delSection{{ s.id }}" title="Delete">Delete &#128465;</button>
             </td>
           </tr>
           <div class="modal fade" id="delSection{{ s.id }}" tabindex="-1">

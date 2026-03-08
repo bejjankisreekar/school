@@ -32,31 +32,51 @@ DEBUG = env("DEBUG")
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
 
-# Application definition
-
-INSTALLED_APPS = [
+# Application definition — django-tenants multi-tenancy
+# SHARED_APPS: public schema. TENANT_APPS: per-school schema.
+SHARED_APPS = [
+    "django_tenants",
+    "apps.customers",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    # Third-party apps
     "tailwind",
-    "theme", 
-    # Local apps
+    "theme",
     "apps.core",
     "apps.accounts",
+]
+
+TENANT_APPS = [
+    "apps.school_data",
     "apps.timetable",
+]
+
+INSTALLED_APPS = list(SHARED_APPS) + [a for a in TENANT_APPS if a not in SHARED_APPS]
+
+# Tenant model (School) and domain model
+TENANT_MODEL = "customers.School"  # app_label.Model
+TENANT_DOMAIN_MODEL = "customers.Domain"
+
+# When no domain matches (e.g. 127.0.0.1, localhost), use public schema for main site
+SHOW_PUBLIC_IF_NO_TENANT_FOUND = True
+
+# Database router for tenant/shared schema sync
+DATABASE_ROUTERS = [
+    "django_tenants.routers.TenantSyncRouter",
 ]
 NPM_BIN_PATH = r"C:\Program Files\nodejs\npm.cmd"
 
 MIDDLEWARE = [
+    "django_tenants.middleware.main.TenantMainMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "apps.core.middleware.TenantSchemaFromUserMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -99,7 +119,7 @@ def _get_db_config(key: str) -> str:
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
+        "ENGINE": "django_tenants.postgresql_backend",
         "NAME": _get_db_config("DB_NAME"),
         "USER": _get_db_config("DB_USER"),
         "PASSWORD": _get_db_config("DB_PASSWORD"),
@@ -159,3 +179,9 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Custom user model
 AUTH_USER_MODEL = "accounts.User"
+
+# CSRF: allow localhost and common subdomains for development
+CSRF_TRUSTED_ORIGINS = env.list(
+    "CSRF_TRUSTED_ORIGINS",
+    default=["http://localhost:8000", "http://127.0.0.1:8000"],
+)

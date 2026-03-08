@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Online Admissions | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Online Admissions</li>
+    </ol>
+  </nav>
+  <h1 class="h4 fw-bold mb-4">Online Admission Applications</h1>
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="alert alert-{{ m.tags }} alert-dismissible fade show">
+        {{ m }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>App Number</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Class</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for app in applications %}
+            <tr>
+              <td><code>{{ app.application_number|default:"—" }}</code></td>
+              <td>{{ app.first_name }} {{ app.last_name }}</td>
+              <td>{{ app.email }}</td>
+              <td>{{ app.applied_class.name|default:"—" }}</td>
+              <td>
+                <span class="badge bg-{% if app.status == 'APPROVED' %}success{% elif app.status == 'REJECTED' %}danger{% else %}warning{% endif %}">
+                  {{ app.status }}
+                </span>
+              </td>
+              <td>
+                {% if app.status == 'PENDING' %}
+                  <form method="post" action="{% url 'core:school_admission_approve' app.pk %}" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success btn-sm">Approve</button>
+                  </form>
+                  <form method="post" action="{% url 'core:school_admission_reject' app.pk %}" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger btn-sm">Reject</button>
+                  </form>
+                {% else %}
+                  <span class="text-muted small">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-muted text-center py-4">No applications yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

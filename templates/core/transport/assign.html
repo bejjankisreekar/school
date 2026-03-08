@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Assign Student to Route | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_transport_index' %}">Transport</a></li>
+      <li class="breadcrumb-item active">Assign Student</li>
+    </ol>
+  </nav>
+  <h1 class="h4 fw-bold mb-4">Assign Student to Route</h1>
+
+  <div class="card border-0 shadow-sm" style="max-width: 32rem;">
+    <div class="card-body">
+      {% if messages %}
+        {% for m in messages %}
+          <div class="alert alert-{{ m.tags }}">{{ m }}</div>
+        {% endfor %}
+      {% endif %}
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label for="route_id" class="form-label">Route</label>
+          <select name="route_id" class="form-select" id="route_id" required>
+            <option value="">-- Select Route --</option>
+            {% for r in routes %}
+              <option value="{{ r.id }}">{{ r.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="student_id" class="form-label">Student</label>
+          <select name="student_id" class="form-select" id="student_id" required>
+            <option value="">-- Select Student --</option>
+            {% for s in students %}
+              <option value="{{ s.id }}">{{ s.user.get_full_name|default:s.user.username }} - {{ s.classroom.name|default:"" }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="vehicle_id" class="form-label">Vehicle (optional)</label>
+          <select name="vehicle_id" class="form-select" id="vehicle_id">
+            <option value="">-- Select Vehicle --</option>
+            {% for v in vehicles %}
+              <option value="{{ v.id }}">{{ v.registration_number }} - {{ v.route.name|default:"Unassigned" }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="pickup_point" class="form-label">Pickup Point</label>
+          <input type="text" name="pickup_point" class="form-control" id="pickup_point" placeholder="e.g. Main Gate">
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary">Assign</button>
+          <a href="{% url 'core:school_transport_index' %}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

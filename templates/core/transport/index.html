@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Transport | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Transport</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <h1 class="h4 fw-bold mb-0">Transport Management</h1>
+    <div class="d-flex gap-2">
+      <a href="{% url 'core:school_transport_route_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Route</a>
+      <a href="{% url 'core:school_transport_vehicle_add' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-truck"></i> Add Vehicle</a>
+      <a href="{% url 'core:school_transport_assign' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-person-plus"></i> Assign Student</a>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-4 mb-4">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0"><strong>Routes</strong></div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr><th>Name</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              {% for r in routes %}
+              <tr>
+                <td>{{ r.name }}</td>
+                <td>{{ r.description|truncatewords:10|default:"—" }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="2" class="text-muted text-center py-4">No routes. <a href="{% url 'core:school_transport_route_add' %}">Add route</a></td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4 mb-4">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0"><strong>Vehicles</strong></div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr><th>Reg No</th><th>Type</th><th>Capacity</th><th>Route</th></tr>
+            </thead>
+            <tbody>
+              {% for v in vehicles %}
+              <tr>
+                <td><code>{{ v.registration_number }}</code></td>
+                <td>{{ v.vehicle_type|default:"—" }}</td>
+                <td>{{ v.capacity }}</td>
+                <td>{{ v.route.name|default:"—" }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="4" class="text-muted text-center py-4">No vehicles.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4 mb-4">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0"><strong>Assignments</strong></div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr><th>Student</th><th>Route</th><th>Pickup</th></tr>
+            </thead>
+            <tbody>
+              {% for a in assignments %}
+              <tr>
+                <td>{{ a.student.user.get_full_name|default:a.student.user.username }}</td>
+                <td>{{ a.route.name }}</td>
+                <td>{{ a.pickup_point|default:"—" }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="3" class="text-muted text-center py-4">No assignments.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

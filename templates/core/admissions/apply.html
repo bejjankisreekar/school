@@ -1,0 +1,87 @@
+{% extends "marketing/base.html" %}
+{% block title %}Online Admission | {{ school.name }}{% endblock %}
+{% block content %}
+<section class="py-5">
+  <div class="container">
+    <h1 class="text-center fw-bold mb-2">{{ school.name }}</h1>
+    <p class="text-center text-secondary mb-4">Online Admission Form</p>
+
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body p-4 p-lg-5">
+            {% if messages %}
+              {% for m in messages %}
+                <div class="alert alert-{{ m.tags }} alert-dismissible fade show">
+                  {{ m }}
+                  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+              {% endfor %}
+            {% endif %}
+
+            <form method="post">
+              {% csrf_token %}
+              {% if form.non_field_errors %}
+                <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+              {% endif %}
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label for="id_first_name" class="form-label">First Name</label>
+                  <input type="text" name="first_name" class="form-control" id="id_first_name" value="{{ form.first_name.value|default:'' }}" required>
+                  {% if form.first_name.errors %}<div class="invalid-feedback d-block">{{ form.first_name.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-6">
+                  <label for="id_last_name" class="form-label">Last Name</label>
+                  <input type="text" name="last_name" class="form-control" id="id_last_name" value="{{ form.last_name.value|default:'' }}" required>
+                  {% if form.last_name.errors %}<div class="invalid-feedback d-block">{{ form.last_name.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-6">
+                  <label for="id_email" class="form-label">Email</label>
+                  <input type="email" name="email" class="form-control" id="id_email" value="{{ form.email.value|default:'' }}" required>
+                  {% if form.email.errors %}<div class="invalid-feedback d-block">{{ form.email.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-6">
+                  <label for="id_phone" class="form-label">Phone</label>
+                  <input type="text" name="phone" class="form-control" id="id_phone" value="{{ form.phone.value|default:'' }}" required>
+                  {% if form.phone.errors %}<div class="invalid-feedback d-block">{{ form.phone.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-6">
+                  <label for="id_date_of_birth" class="form-label">Date of Birth</label>
+                  <input type="date" name="date_of_birth" class="form-control" id="id_date_of_birth" value="{{ form.date_of_birth.value|default:'' }}" required>
+                  {% if form.date_of_birth.errors %}<div class="invalid-feedback d-block">{{ form.date_of_birth.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-6">
+                  <label for="id_applied_class" class="form-label">Applied Class</label>
+                  <select name="applied_class" class="form-select" id="id_applied_class">
+                    <option value="">-- Select --</option>
+                    {% for choice in form.applied_class.field.queryset %}
+                      <option value="{{ choice.pk }}" {% if form.applied_class.value == choice.pk %}selected{% endif %}>{{ choice.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-12">
+                  <label for="id_parent_name" class="form-label">Parent/Guardian Name</label>
+                  <input type="text" name="parent_name" class="form-control" id="id_parent_name" value="{{ form.parent_name.value|default:'' }}" required>
+                  {% if form.parent_name.errors %}<div class="invalid-feedback d-block">{{ form.parent_name.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-12">
+                  <label for="id_parent_phone" class="form-label">Parent/Guardian Phone</label>
+                  <input type="text" name="parent_phone" class="form-control" id="id_parent_phone" value="{{ form.parent_phone.value|default:'' }}" required>
+                  {% if form.parent_phone.errors %}<div class="invalid-feedback d-block">{{ form.parent_phone.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-12">
+                  <label for="id_address" class="form-label">Address</label>
+                  <textarea name="address" class="form-control" id="id_address" rows="2">{{ form.address.value|default:'' }}</textarea>
+                </div>
+                <div class="col-12">
+                  <button type="submit" class="btn btn-primary btn-lg w-100">Submit Application</button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -42,17 +42,18 @@ body {
   transition: margin-left 0.3s ease;
 }
 
-/* Section headers */
-.sidebar-section {
-  padding: 16px 16px 6px;
+/* Nav list - no section headers, clean list */
+.sidebar-nav-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 12px 0;
+  gap: 2px;
 }
 
-.sidebar-section-title {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--sidebar-text-muted);
+.sidebar-nav-list .sidebar-nav-item {
+  margin-left: 12px;
+  margin-right: 12px;
 }
 
 /* Nav item base */
@@ -197,4 +198,44 @@ body {
 
 .sidebar-overlay.sidebar-overlay-visible {
   display: block;
+}
+
+/* Dark mode: when html has .dark or body has .dark-mode */
+html.dark .sidebar,
+body.dark-mode .sidebar {
+  background: #1e293b;
+  border-right: 1px solid rgba(255,255,255,0.06);
+}
+
+html.dark .sidebar-logo,
+body.dark-mode .sidebar-logo {
+  border-color: rgba(255,255,255,0.08);
+}
+
+html.dark .sidebar-nav-item,
+body.dark-mode .sidebar-nav-item {
+  color: #e2e8f0;
+}
+
+html.dark .sidebar-nav-item:hover,
+body.dark-mode .sidebar-nav-item:hover {
+  background: rgba(255,255,255,0.08);
+}
+
+html.dark .sidebar-nav-item.sidebar-nav-active,
+body.dark-mode .sidebar-nav-item.sidebar-nav-active {
+  background: var(--sidebar-active);
+  color: white;
+}
+
+html.dark .sidebar-nav-icon,
+html.dark .sidebar-nav-arrow,
+body.dark-mode .sidebar-nav-icon,
+body.dark-mode .sidebar-nav-arrow {
+  color: #94a3b8;
+}
+
+html.dark .sidebar-footer,
+body.dark-mode .sidebar-footer {
+  border-color: rgba(255,255,255,0.08);
 }

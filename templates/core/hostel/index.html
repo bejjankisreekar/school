@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Hostel | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Hostel</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <h1 class="h4 fw-bold mb-0">Hostel Management</h1>
+    <div class="d-flex gap-2">
+      <a href="{% url 'core:school_hostel_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Hostel</a>
+      <a href="{% url 'core:school_hostel_allocate' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-person-plus"></i> Allocate Room</a>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-6 mb-4">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+          <strong>Hostels & Rooms</strong>
+          <span class="text-muted small">Click hostel to add room</span>
+        </div>
+        <div class="card-body p-0">
+          {% for hostel in hostels %}
+          <div class="border-bottom p-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <strong>{{ hostel.name }}</strong>
+              <a href="{% url 'core:school_hostel_room_add' hostel.id %}" class="btn btn-outline-secondary btn-sm">Add Room</a>
+            </div>
+            <div class="mt-2">
+              {% for room in hostel.rooms.all %}
+                <span class="badge bg-light text-dark me-1 mb-1">{{ room.room_number }} ({{ room.capacity }} bed{% if room.capacity > 1 %}s{% endif %}{% if room.room_type %}, {{ room.room_type }}{% endif %})</span>
+              {% empty %}
+                <span class="text-muted small">No rooms yet</span>
+              {% endfor %}
+            </div>
+          </div>
+          {% empty %}
+          <p class="text-muted text-center py-4 mb-0">No hostels. <a href="{% url 'core:school_hostel_add' %}">Add hostel</a></p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6 mb-4">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0"><strong>Current Allocations</strong></div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Student</th>
+                <th>Room</th>
+                <th>Hostel</th>
+                <th>Start Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for a in allocations %}
+              <tr>
+                <td>{{ a.student.user.get_full_name|default:a.student.user.username }}</td>
+                <td>{{ a.room.room_number }}</td>
+                <td>{{ a.room.hostel.name }}</td>
+                <td>{{ a.start_date|date:"d M Y" }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="4" class="text-muted text-center py-4">No allocations.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

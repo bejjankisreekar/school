@@ -15,10 +15,13 @@
 
   <div class="row g-3 mb-4">
     <div class="col-sm-6 col-lg-4">
-      {% include "components/dashboard_card.html" with label="Total Students" value=total_students icon="bi-people" icon_color="primary" %}
+      {% include "components/dashboard_card.html" with label="Total Schools" value=total_schools icon="bi-building" icon_color="primary" %}
     </div>
     <div class="col-sm-6 col-lg-4">
       {% include "components/dashboard_card.html" with label="Total Teachers" value=total_teachers icon="bi-person-badge" icon_color="primary" %}
+    </div>
+    <div class="col-sm-6 col-lg-4">
+      {% include "components/dashboard_card.html" with label="Total Students" value=total_students icon="bi-people" icon_color="primary" %}
     </div>
     <div class="col-sm-6 col-lg-4">
       {% include "components/dashboard_card.html" with label="Total Classes" value=total_classes icon="bi-journal-bookmark" icon_color="info" %}

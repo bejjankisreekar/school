@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 
 
 class TimeSlot(models.Model):
+    """Tenant model - schema defines school."""
     class BreakType(models.TextChoices):
         NONE = "NONE", "None"
         SHORT_BREAK = "SHORT_BREAK", "Short Break"
@@ -17,15 +18,9 @@ class TimeSlot(models.Model):
         default=BreakType.NONE,
     )
     order = models.IntegerField(default=0)
-    school = models.ForeignKey(
-        "core.School",
-        on_delete=models.CASCADE,
-        related_name="time_slots",
-        to_field="code",
-    )
 
     class Meta:
-        ordering = ["school", "order", "start_time"]
+        ordering = ["order", "start_time"]
 
     def __str__(self) -> str:
         if self.is_break:
@@ -47,7 +42,7 @@ class Timetable(models.Model):
         SATURDAY = 6, "Saturday"
 
     classroom = models.ForeignKey(
-        "core.ClassRoom",
+        "school_data.ClassRoom",
         on_delete=models.CASCADE,
         related_name="timetables",
     )
@@ -58,22 +53,16 @@ class Timetable(models.Model):
         related_name="timetable_entries",
     )
     subject = models.ForeignKey(
-        "core.Subject",
+        "school_data.Subject",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="timetable_entries",
     )
     teachers = models.ManyToManyField(
-        "core.Teacher",
+        "school_data.Teacher",
         blank=True,
         related_name="timetable_entries",
-    )
-    school = models.ForeignKey(
-        "core.School",
-        on_delete=models.CASCADE,
-        related_name="timetable_entries",
-        to_field="code",
     )
 
     class Meta:

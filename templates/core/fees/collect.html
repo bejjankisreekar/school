@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Collect Payment | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_fee_collection' %}">Fee Collection</a></li>
+      <li class="breadcrumb-item active">Collect</li>
+    </ol>
+  </nav>
+  <h1 class="h4 fw-bold mb-4">Collect Payment</h1>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+      <p><strong>Student:</strong> {{ fee.student.user.get_full_name|default:fee.student.user.username }}</p>
+      <p><strong>Fee:</strong> {{ fee.fee_structure.fee_type.name }} - {{ fee.amount }}</p>
+      <p><strong>Status:</strong> {{ fee.status }}</p>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm" style="max-width: 400px;">
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="btn btn-primary">Record Payment</button>
+        <a href="{% url 'core:school_fee_collection' %}" class="btn btn-outline-secondary">Cancel</a>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -8,6 +8,7 @@ class User(AbstractUser):
         ADMIN = "ADMIN", "School admin"
         TEACHER = "TEACHER", "Teacher"
         STUDENT = "STUDENT", "Student"
+        PARENT = "PARENT", "Parent"
 
     role = models.CharField(
         max_length=20,
@@ -15,7 +16,7 @@ class User(AbstractUser):
         default=Roles.STUDENT,
     )
     school = models.ForeignKey(
-        "core.School",
+        "customers.School",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

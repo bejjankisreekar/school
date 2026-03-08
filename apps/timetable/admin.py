@@ -4,7 +4,7 @@ from .models import TimeSlot, Timetable
 
 @admin.register(TimeSlot)
 class TimeSlotAdmin(admin.ModelAdmin):
-    list_display = ("school", "start_time", "end_time", "is_break", "break_type", "order")
+    list_display = ("start_time", "end_time", "is_break", "break_type", "order")
 
 
 @admin.register(Timetable)

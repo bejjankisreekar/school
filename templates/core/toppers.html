@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Toppers | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Toppers</li>
+    </ol>
+  </nav>
+  <h1 class="h4 fw-bold mb-4">Academic Toppers</h1>
+
+  <div class="row">
+    <div class="col-lg-4 mb-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0">
+          <strong>Class Toppers</strong>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Class</th>
+                  <th>Student</th>
+                  <th>%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for ct in class_toppers %}
+                  {% for t in ct.toppers %}
+                  <tr>
+                    <td>{% if forloop.first %}{{ ct.class }}{% endif %}</td>
+                    <td>{{ t.student.user.get_full_name|default:t.student.user.username }}</td>
+                    <td>{{ t.pct }}%</td>
+                  </tr>
+                  {% endfor %}
+                  {% empty %}
+                  <tr><td colspan="3" class="text-muted text-center py-3">No data</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4 mb-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0">
+          <strong>School Toppers</strong>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>#</th>
+                  <th>Student</th>
+                  <th>Class</th>
+                  <th>%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for t in school_toppers %}
+                <tr>
+                  <td>{{ forloop.counter }}</td>
+                  <td>{{ t.student.user.get_full_name|default:t.student.user.username }}</td>
+                  <td>{{ t.student.classroom.name|default:"—" }}</td>
+                  <td>{{ t.pct }}%</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="text-muted text-center py-3">No data</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4 mb-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0">
+          <strong>Subject Toppers</strong>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Subject</th>
+                  <th>Student</th>
+                  <th>%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for st in subject_toppers %}
+                  {% for t in st.toppers %}
+                  <tr>
+                    <td>{% if forloop.first %}{{ st.subject }}{% endif %}</td>
+                    <td>{{ t.student.user.get_full_name|default:t.student.user.username }}</td>
+                    <td>{{ t.pct }}%</td>
+                  </tr>
+                  {% endfor %}
+                  {% empty %}
+                  <tr><td colspan="3" class="text-muted text-center py-3">No data</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

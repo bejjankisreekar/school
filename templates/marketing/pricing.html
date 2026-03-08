@@ -1,0 +1,88 @@
+{% extends "marketing/base.html" %}
+{% block title %}Pricing | School ERP{% endblock %}
+{% block extra_head %}
+<style>
+  .currency-toggle .btn { font-size: 0.875rem; padding: 0.35rem 0.75rem; }
+  .currency-toggle .btn.active { background: var(--erp-primary); color: white; }
+</style>
+{% endblock %}
+{% block content %}
+<section class="py-5 py-lg-6">
+  <div class="container">
+    <h1 class="text-center display-5 fw-bold mb-2">Simple, Transparent Pricing</h1>
+    <div class="d-flex justify-content-center align-items-center gap-2 mb-5">
+      <span class="text-muted small">Currency:</span>
+      <div class="btn-group currency-toggle" role="group">
+        <button type="button" class="btn btn-outline-primary active" data-currency="inr">INR</button>
+        <button type="button" class="btn btn-outline-primary" data-currency="usd">USD</button>
+      </div>
+    </div>
+    <div class="row g-4 justify-content-center">
+      <div class="col-lg-5 col-xl-4">
+        <div class="card h-100 border shadow-sm">
+          <div class="card-body p-4">
+            <h5 class="card-title fw-bold">Basic Plan</h5>
+            <div class="mb-3 price-inr"><span class="display-5 fw-bold">&#8377;5,350</span><span class="text-secondary"> / year</span></div>
+            <div class="mb-3 price-usd d-none"><span class="display-5 fw-bold">$64</span><span class="text-secondary"> / year</span></div>
+            <ul class="list-unstyled mb-4 small">
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Student Information System</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Fee & Billing Management</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Staff Records</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Academic Management</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Exams & Result Entry</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Parent Portal</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Student ID Cards</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Inventory Invoicing</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>AI Internal Reports</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Secure Cloud Hosting</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>24/7 Support</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>PDF Document Printing</li>
+            </ul>
+            <a href="{% url 'core:home' %}#trial" class="btn btn-cta btn-primary w-100">Start 15-Day Free Trial</a>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-5 col-xl-4">
+        <div class="card h-100 border-primary border-2 shadow position-relative">
+          <span class="position-absolute top-0 start-50 translate-middle badge bg-primary py-2 px-3">Recommended</span>
+          <div class="card-header bg-primary text-white py-3 pt-4"></div>
+          <div class="card-body p-4">
+            <h5 class="card-title fw-bold">Pro Plan</h5>
+            <div class="mb-3 price-inr"><span class="display-5 fw-bold">&#8377;9,999</span><span class="text-secondary">+ / year</span></div>
+            <div class="mb-3 price-usd d-none"><span class="display-5 fw-bold">$120</span><span class="text-secondary">+ / year</span></div>
+            <ul class="list-unstyled mb-4 small">
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>All Basic features</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Custom School Portal</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Online Admissions</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Online Results</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Topper List Generation</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Dedicated Hosting</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Custom Branding</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>AI Marksheet Summaries</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Library Management</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Hostel & Transport</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>API Access</li>
+              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Priority Support</li>
+            </ul>
+            <a href="{% url 'core:contact' %}?plan=pro" class="btn btn-outline-primary w-100">Contact Sales</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="text-center mt-5"><p class="text-muted small">All plans include a 15-day free trial. No credit card required.</p></div>
+  </div>
+</section>
+{% endblock %}
+{% block extra_js %}
+<script>
+document.querySelectorAll('.currency-toggle .btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.currency-toggle .btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    const isInr = this.dataset.currency === 'inr';
+    document.querySelectorAll('.price-inr').forEach(el => el.classList.toggle('d-none', !isInr));
+    document.querySelectorAll('.price-usd').forEach(el => el.classList.toggle('d-none', isInr));
+  });
+});
+</script>
+{% endblock %}
