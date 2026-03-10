@@ -1,4 +1,3 @@
-from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.contrib.auth.forms import AuthenticationForm
 from django.shortcuts import redirect, render
@@ -7,7 +6,6 @@ from django.urls import reverse
 
 def logout_view(request):
     logout(request)
-    messages.success(request, "You have been logged out.")
     return redirect("core:home")
 
 
@@ -39,7 +37,6 @@ def login_view(request, login_type: str = "portal"):
             else:
                 target = reverse("core:student_dashboard")
 
-            messages.success(request, "Welcome back!")
             return redirect(target)
     else:
         form = AuthenticationForm(request)

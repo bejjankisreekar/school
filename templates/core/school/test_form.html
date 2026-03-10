@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_tests_list' %}">Tests</a></li>
+      <li class="breadcrumb-item active">{{ title }}</li>
+    </ol>
+  </nav>
+
+  <div class="card border-0 shadow-sm rounded-3" style="max-width: 36rem;">
+    <div class="card-body">
+      <h2 class="h5 fw-bold mb-4">{{ title }}</h2>
+      {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label class="form-label">Test Name</label>
+          {{ form.name }}
+          {% if form.name.errors %}<div class="text-danger small">{{ form.name.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Subject</label>
+            {{ form.subject }}
+            {% if form.subject.errors %}<div class="text-danger small">{{ form.subject.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Class</label>
+            {{ form.classroom }}
+            {% if form.classroom.errors %}<div class="text-danger small">{{ form.classroom.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Section</label>
+            {{ form.section }}
+            {% if form.section.errors %}<div class="text-danger small">{{ form.section.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Test Date</label>
+            {{ form.test_date }}
+            {% if form.test_date.errors %}<div class="text-danger small">{{ form.test_date.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+        <div class="mb-4">
+          <label class="form-label">Maximum Marks</label>
+          {{ form.maximum_marks }}
+          {% if form.maximum_marks.errors %}<div class="text-danger small">{{ form.maximum_marks.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary">Save</button>
+          <a href="{% url 'core:school_tests_list' %}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

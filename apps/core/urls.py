@@ -63,12 +63,17 @@ urlpatterns = [
     path("school/classes/<int:class_id>/edit/", views.school_class_edit, name="school_class_edit"),
     path("school/classes/<int:class_id>/delete/", views.school_class_delete, name="school_class_delete"),
     path("school/sections/", views.school_sections, name="school_sections"),
+    path("school/sections/add/", views.school_section_add, name="school_section_add"),
     path("school/sections/<int:section_id>/edit/", views.school_section_edit, name="school_section_edit"),
     path("school/sections/<int:section_id>/delete/", views.school_section_delete, name="school_section_delete"),
     path("school/subjects/", views.school_subjects, name="school_subjects"),
     path("school/subjects/add/", views.school_subject_add, name="school_subject_add"),
     path("school/subjects/<int:subject_id>/edit/", views.school_subject_edit, name="school_subject_edit"),
     path("school/subjects/<int:subject_id>/delete/", views.school_subject_delete, name="school_subject_delete"),
+    path("school/tests/", views.school_tests_list, name="school_tests_list"),
+    path("school/tests/add/", views.school_test_add, name="school_test_add"),
+    path("school/tests/<int:test_id>/edit/", views.school_test_edit, name="school_test_edit"),
+    path("school/tests/<int:test_id>/delete/", views.school_test_delete, name="school_test_delete"),
     path("attendance/", views.attendance_list, name="attendance_list"),
     path("marks/", views.marks_list, name="marks_list"),
     path("homework/", views.homework_list, name="homework_list"),
@@ -101,6 +106,7 @@ urlpatterns = [
 
     # Staff Attendance
     path("school/staff-attendance/", views.school_staff_attendance, name="school_staff_attendance"),
+    path("school/staff-attendance/mark/", views.school_staff_attendance_mark, name="school_staff_attendance_mark"),
 
     # Inventory
     path("school/inventory/", views.school_inventory_index, name="school_inventory_index"),
@@ -121,6 +127,10 @@ urlpatterns = [
     path("school/admissions/", views.school_admissions_list, name="school_admissions_list"),
     path("school/admissions/<int:pk>/approve/", views.school_admission_approve, name="school_admission_approve"),
     path("school/admissions/<int:pk>/reject/", views.school_admission_reject, name="school_admission_reject"),
+
+    # Reports dashboard (school-level)
+    path("school/reports/", views.school_reports_dashboard, name="school_reports_dashboard"),
+    path("school/reports/toppers/", views.school_reports_toppers, name="school_reports_toppers"),
 
     # Pro Plan: Toppers, Library, Hostel, Transport, Branding
     path("school/toppers/", views.school_toppers, name="school_toppers"),

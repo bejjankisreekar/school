@@ -6,6 +6,35 @@ from django.db import models
 from django_tenants.models import TenantMixin, DomainMixin
 
 
+class SubscriptionPlan(models.Model):
+    """Trial, Basic, Pro - per-student pricing, no fixed monthly fees."""
+    PLAN_CHOICES = [
+        ("trial", "Trial"),
+        ("basic", "Basic"),
+        ("pro", "Pro"),
+    ]
+    name = models.CharField(max_length=50, choices=PLAN_CHOICES, unique=True)
+    price_per_student = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text="Price per student per year. Basic=39, Pro=59, Trial=0",
+    )
+    duration_days = models.IntegerField(
+        default=365,
+        help_text="Trial: 14, Basic/Pro: 365",
+    )
+    is_active = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        ordering = ["price_per_student"]
+        verbose_name = "Subscription Plan"
+        verbose_name_plural = "Subscription Plans"
+
+    def __str__(self) -> str:
+        if self.name == "trial":
+            return f"Trial ({self.duration_days} days)"
+        return f"{self.name.title()} (Rs.{self.price_per_student}/student/year)"
+
+
 class School(TenantMixin):
     """
     Tenant model: each school has its own schema (e.g. school_001).
@@ -13,13 +42,23 @@ class School(TenantMixin):
     """
     name = models.CharField(max_length=255)
     code = models.CharField(max_length=50, unique=True, help_text="Unique school code e.g. school_001")
+    plan = models.ForeignKey(
+        SubscriptionPlan,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="schools",
+        help_text="Trial, Basic, or Pro",
+    )
     subscription_plan = models.ForeignKey(
         "core.Plan",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="schools",
+        help_text="Legacy - use plan instead",
     )
+    trial_end_date = models.DateField(null=True, blank=True)
     created_on = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True, db_index=True)
     address = models.TextField(blank=True)
@@ -39,20 +78,29 @@ class School(TenantMixin):
     def __str__(self) -> str:
         return f"{self.name} ({self.code})"
 
+    def has_feature(self, feature: str) -> bool:
+        """Check if plan includes feature. Uses apps.customers.subscription.has_feature."""
+        from .subscription import has_feature as _has_feature
+        return _has_feature(self, feature)
+
     def has_plan_module(self, module: str) -> bool:
-        if not self.subscription_plan:
-            return True
-        return self.subscription_plan.has_module(module)
+        """Alias for has_feature (backward compat)."""
+        return self.has_feature(module)
 
     def is_pro_plan(self) -> bool:
-        if not self.subscription_plan:
-            return False
-        return self.subscription_plan.plan_type in ("PRO", "ENTERPRISE")
+        if self.plan:
+            return (self.plan.name or "").lower() == "pro"
+        if self.subscription_plan:
+            return self.subscription_plan.plan_type in ("PRO", "ENTERPRISE")
+        return False
 
     @property
     def is_pro_plan_property(self) -> bool:
-        """Property for Django templates ({% if school.is_pro_plan_property %})."""
         return self.is_pro_plan()
+
+    def is_trial_expired(self) -> bool:
+        from .subscription import is_trial_expired
+        return is_trial_expired(self)
 
 
 class Domain(DomainMixin):

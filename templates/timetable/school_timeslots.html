@@ -6,12 +6,6 @@
   <h1 class="h4 fw-bold mb-2">Time Slots</h1>
   <p class="text-muted mb-4">Define period and break times for your school.</p>
 
-  {% if messages %}
-  {% for m in messages %}
-  <div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-  {% endfor %}
-  {% endif %}
-
   <div class="card border-0 shadow-sm rounded-4 mb-4">
     <div class="card-header bg-white border-0 pt-4">
       <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i>Add Time Slot</h5>
@@ -53,21 +47,65 @@
           <thead class="table-light sticky-top">
             <tr>
               <th>Order</th>
-              <th>Start</th>
-              <th>End</th>
+              <th>Start Time</th>
+              <th>End Time</th>
               <th>Type</th>
+              <th class="text-end" style="width: 100px;">Actions</th>
             </tr>
           </thead>
           <tbody>
             {% for s in slots %}
-            <tr class="{% if s.is_break %}table-secondary{% endif %}">
-              <td>{{ s.order }}</td>
-              <td>{{ s.start_time|time:"H:i" }}</td>
-              <td>{{ s.end_time|time:"H:i" }}</td>
-              <td>{% if s.is_break %}<i class="bi bi-cup-hot me-1"></i>{{ s.get_break_type_display }}{% else %}Period{% endif %}</td>
+            <tr data-slot-id="{{ s.id }}" class="timeslot-row {% if s.is_break %}table-secondary{% endif %}">
+              <td class="view-cell order-cell">{{ s.order }}</td>
+              <td class="view-cell start-cell">{{ s.start_time|time:"H:i" }}</td>
+              <td class="view-cell end-cell">{{ s.end_time|time:"H:i" }}</td>
+              <td class="view-cell type-cell">{% if s.is_break %}<i class="bi bi-cup-hot me-1"></i>{{ s.get_break_type_display }}{% else %}Period{% endif %}</td>
+              <td class="actions-cell text-end">
+                <div class="d-inline-flex gap-1 align-items-center">
+                  <button type="button" class="btn btn-link btn-sm p-1 text-primary edit-btn" data-id="{{ s.id }}" title="Edit" aria-label="Edit">
+                    <i class="bi bi-pencil"></i>
+                  </button>
+                  <form method="post" action="{% url 'timetable:school_timeslot_delete' s.id %}" class="d-inline delete-form" data-confirm="Are you sure you want to delete this time slot?">
+                    {% csrf_token %}
+                    <button type="button" class="btn btn-link btn-sm p-1 text-danger delete-btn" title="Delete" aria-label="Delete">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            <tr data-slot-id="{{ s.id }}" class="edit-row d-none {% if s.is_break %}table-secondary{% endif %}">
+              <td>
+                <input type="number" class="form-control form-control-sm edit-order" value="{{ s.order }}" min="0" style="width: 70px;">
+              </td>
+              <td>
+                <input type="time" class="form-control form-control-sm edit-start" value="{{ s.start_time|time:'H:i' }}" style="width: 110px;">
+              </td>
+              <td>
+                <input type="time" class="form-control form-control-sm edit-end" value="{{ s.end_time|time:'H:i' }}" style="width: 110px;">
+              </td>
+              <td>
+                <select class="form-select form-select-sm edit-is-break" style="width: 90px;">
+                  <option value="0" {% if not s.is_break %}selected{% endif %}>Period</option>
+                  <option value="1" {% if s.is_break %}selected{% endif %}>Break</option>
+                </select>
+                <select class="form-select form-select-sm edit-break-type ms-1" style="width: 110px; {% if not s.is_break %}display:none;{% endif %}">
+                  <option value="NONE" {% if s.break_type == 'NONE' %}selected{% endif %}>None</option>
+                  <option value="SHORT_BREAK" {% if s.break_type == 'SHORT_BREAK' %}selected{% endif %}>Short Break</option>
+                  <option value="LUNCH_BREAK" {% if s.break_type == 'LUNCH_BREAK' %}selected{% endif %}>Lunch Break</option>
+                </select>
+              </td>
+              <td class="text-end">
+                <button type="button" class="btn btn-link btn-sm p-1 text-success save-btn" title="Save" aria-label="Save">
+                  <i class="bi bi-check"></i>
+                </button>
+                <button type="button" class="btn btn-link btn-sm p-1 text-secondary cancel-btn" title="Cancel" aria-label="Cancel">
+                  <i class="bi bi-x"></i>
+                </button>
+              </td>
             </tr>
             {% empty %}
-            <tr><td colspan="4" class="text-center text-muted py-4">No time slots. Add one above.</td></tr>
+            <tr><td colspan="5" class="text-center text-muted py-4">No time slots. Add one above.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -75,4 +113,88 @@
     </div>
   </div>
 </div>
+
+<form id="update-form" method="post" action="" class="d-none">
+  {% csrf_token %}
+  <input type="hidden" name="start_time" id="update-start">
+  <input type="hidden" name="end_time" id="update-end">
+  <input type="hidden" name="is_break" id="update-is-break">
+  <input type="hidden" name="break_type" id="update-break-type">
+  <input type="hidden" name="order" id="update-order">
+</form>
+
+<script>
+var updateUrl = "{% url 'timetable:school_timeslot_update' 0 %}";
+(function() {
+  document.querySelectorAll('.edit-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var slotId = this.getAttribute('data-id');
+      var row = document.querySelector('.timeslot-row[data-slot-id="' + slotId + '"]');
+      var editRow = document.querySelector('.edit-row[data-slot-id="' + slotId + '"]');
+      if (row && editRow) {
+        row.classList.add('d-none');
+        editRow.classList.remove('d-none');
+        editRow.querySelector('.edit-order').focus();
+      }
+    });
+  });
+
+  document.querySelectorAll('.cancel-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var row = btn.closest('tr');
+      var slotId = row.getAttribute('data-slot-id');
+      var viewRow = document.querySelector('.timeslot-row[data-slot-id="' + slotId + '"]');
+      var editRow = document.querySelector('.edit-row[data-slot-id="' + slotId + '"]');
+      if (viewRow && editRow) {
+        viewRow.classList.remove('d-none');
+        editRow.classList.add('d-none');
+      }
+    });
+  });
+
+  document.querySelectorAll('.edit-is-break').forEach(function(sel) {
+    sel.addEventListener('change', function() {
+      var breakTypeSel = this.closest('td').querySelector('.edit-break-type');
+      if (breakTypeSel) {
+        breakTypeSel.style.display = this.value === '1' ? 'inline-block' : 'none';
+      }
+    });
+  });
+
+  document.querySelectorAll('.save-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var row = btn.closest('tr');
+      var slotId = row.getAttribute('data-slot-id');
+      var editRow = document.querySelector('.edit-row[data-slot-id="' + slotId + '"]');
+      if (!editRow) return;
+
+      var order = editRow.querySelector('.edit-order').value;
+      var start = editRow.querySelector('.edit-start').value;
+      var end = editRow.querySelector('.edit-end').value;
+      var isBreak = editRow.querySelector('.edit-is-break').value;
+      var breakType = editRow.querySelector('.edit-break-type').value;
+
+      var form = document.getElementById('update-form');
+      form.action = updateUrl.replace(/\/0\//, '/' + slotId + '/');
+      document.getElementById('update-start').value = start;
+      document.getElementById('update-end').value = end;
+      document.getElementById('update-is-break').value = isBreak;
+      document.getElementById('update-break-type').value = breakType;
+      document.getElementById('update-order').value = order;
+      form.submit();
+    });
+  });
+
+  document.querySelectorAll('.delete-form').forEach(function(form) {
+    var btn = form.querySelector('.delete-btn');
+    if (btn) {
+      btn.addEventListener('click', function() {
+        if (confirm(form.getAttribute('data-confirm'))) {
+          form.submit();
+        }
+      });
+    }
+  });
+})();
+</script>
 {% endblock %}

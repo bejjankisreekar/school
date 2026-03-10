@@ -18,6 +18,11 @@
       <form method="post">
         {% csrf_token %}
         <div class="mb-3">
+          <label class="form-label">Plan</label>
+          {{ form.plan }}
+          {% if form.plan.errors %}<div class="text-danger small">{{ form.plan.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
           <label class="form-label">School Name</label>
           {{ form.name }}
           {% if form.name.errors %}<div class="text-danger small">{{ form.name.errors.0 }}</div>{% endif %}

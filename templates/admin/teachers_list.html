@@ -12,11 +12,6 @@
     <h1 class="h4 fw-bold mb-0">Teachers</h1>
     <a href="{% url 'admin_manage:teacher_create' %}" class="btn btn-primary btn-sm">Create Teacher</a>
   </div>
-  {% if messages %}
-    {% for m in messages %}
-      <div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}</div>
-    {% endfor %}
-  {% endif %}
   <div class="card border-0 shadow-sm rounded-3 mb-3">
     <div class="card-body">
       <form method="get" class="row g-2">

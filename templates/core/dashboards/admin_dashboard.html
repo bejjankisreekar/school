@@ -1,86 +1,378 @@
 {% extends "base.html" %}
-
 {% block title %}School Admin Dashboard | School ERP{% endblock %}
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
+<div class="max-w-7xl mx-auto space-y-8">
+  {# Header #}
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">School Admin Dashboard</h1>
+      <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Overview of your school operations and analytics</p>
+    </div>
+    {% if current_plan %}
+    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-2">
+      <span class="text-sm font-medium text-slate-700 dark:text-slate-300">Plan: {{ current_plan.name|title }}</span>
+      {% if current_plan.price_per_student > 0 %}
+      <span class="text-sm text-slate-500 dark:text-slate-400">(₹{{ current_plan.price_per_student }}/student/year)</span>
+      {% endif %}
+      {% if trial_expired %}<span class="badge bg-danger ms-2">Trial Expired</span>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  {# Statistics Cards - 4 per row on desktop, 2 on tablet, 1 on mobile #}
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <a href="{% url 'core:school_students_list' %}" class="group block rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition-all">
+      <div class="flex items-center gap-3">
+        <div class="rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 p-3">
+          <i class="bi bi-people-fill text-2xl"></i>
+        </div>
+        <div>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Students</p>
+          <p class="text-2xl font-bold text-slate-900 dark:text-slate-50">{{ total_students }}</p>
+        </div>
+      </div>
+    </a>
+    <a href="{% url 'core:school_teachers_list' %}" class="group block rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition-all">
+      <div class="flex items-center gap-3">
+        <div class="rounded-xl bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 p-3">
+          <i class="bi bi-person-badge-fill text-2xl"></i>
+        </div>
+        <div>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Teachers</p>
+          <p class="text-2xl font-bold text-slate-900 dark:text-slate-50">{{ total_teachers }}</p>
+        </div>
+      </div>
+    </a>
+    <a href="{% url 'core:school_classes' %}" class="group block rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition-all">
+      <div class="flex items-center gap-3">
+        <div class="rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 p-3">
+          <i class="bi bi-journal-bookmark-fill text-2xl"></i>
+        </div>
+        <div>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Classes</p>
+          <p class="text-2xl font-bold text-slate-900 dark:text-slate-50">{{ total_classes }}</p>
+        </div>
+      </div>
+    </a>
+    <a href="{% url 'core:school_sections' %}" class="group block rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition-all">
+      <div class="flex items-center gap-3">
+        <div class="rounded-xl bg-sky-100 dark:bg-sky-900/40 text-sky-600 dark:text-sky-400 p-3">
+          <i class="bi bi-diagram-3-fill text-2xl"></i>
+        </div>
+        <div>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Sections</p>
+          <p class="text-2xl font-bold text-slate-900 dark:text-slate-50">{{ total_sections }}</p>
+        </div>
+      </div>
+    </a>
+    <a href="{% url 'core:school_subjects' %}" class="group block rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition-all">
+      <div class="flex items-center gap-3">
+        <div class="rounded-xl bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 p-3">
+          <i class="bi bi-book-half text-2xl"></i>
+        </div>
+        <div>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Subjects</p>
+          <p class="text-2xl font-bold text-slate-900 dark:text-slate-50">{{ total_subjects }}</p>
+        </div>
+      </div>
+    </a>
+    <a href="{% url 'core:teacher_exams' %}" class="group block rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition-all">
+      <div class="flex items-center gap-3">
+        <div class="rounded-xl bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 p-3">
+          <i class="bi bi-clipboard-data-fill text-2xl"></i>
+        </div>
+        <div>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Tests</p>
+          <p class="text-2xl font-bold text-slate-900 dark:text-slate-50">{{ total_tests }}</p>
+        </div>
+      </div>
+    </a>
+    <a href="{% url 'core:attendance_list' %}" class="group block rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition-all">
+      <div class="flex items-center gap-3">
+        <div class="rounded-xl bg-teal-100 dark:bg-teal-900/40 text-teal-600 dark:text-teal-400 p-3">
+          <i class="bi bi-calendar-check-fill text-2xl"></i>
+        </div>
+        <div>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Attendance Today</p>
+          <p class="text-2xl font-bold text-slate-900 dark:text-slate-50">{{ attendance_today_count }}</p>
+        </div>
+      </div>
+    </a>
+    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
+      <div class="flex items-center gap-3">
+        <div class="rounded-xl bg-cyan-100 dark:bg-cyan-900/40 text-cyan-600 dark:text-cyan-400 p-3">
+          <i class="bi bi-calendar-range-fill text-2xl"></i>
+        </div>
+        <div>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Active Academic Year</p>
+          <p class="text-lg font-bold text-slate-900 dark:text-slate-50">{% if active_academic_year_html %}{{ active_academic_year_html|safe }}{% else %}—{% endif %}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Charts + Today's Timetable #}
+  <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    {# Left: Charts - 2 columns on xl #}
+    <div class="xl:col-span-2 space-y-6">
+      <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
+        <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-4">Student Growth (Last 6 Months)</h2>
+        <div class="h-48">
+          <canvas id="studentGrowthChart"></canvas>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
+          <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-4">Attendance Today</h2>
+          <div class="h-40">
+            <canvas id="attendanceChart"></canvas>
+          </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
+          <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-4">Students per Class</h2>
+          <div class="h-40">
+            <canvas id="classDistChart"></canvas>
+          </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
+          <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-4">Subjects per Class</h2>
+          <div class="h-40">
+            <canvas id="subjectDistChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    {# Right: Today's Timetable #}
+    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
+      <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-3">Today's Timetable</h2>
+      {% if today_timetable %}
+      <ul class="space-y-2">
+        {% for tt in today_timetable %}
+        <li class="rounded-lg bg-slate-50 dark:bg-slate-800/80 px-3 py-2 text-sm">
+          <span class="font-medium text-slate-900 dark:text-slate-100">{{ tt.time_slot.start_time|time:"g:i" }}–{{ tt.time_slot.end_time|time:"g:i" }}</span>
+          <span class="text-slate-600 dark:text-slate-300">{{ tt.subject.name|default:"Break" }}</span>
+          <span class="text-slate-500 dark:text-slate-400">{{ tt.classroom.name }}</span>
+          {% for t in tt.teachers.all %}
+          <span class="text-slate-500 dark:text-slate-400">• {{ t.user.get_full_name|default:t.user.username }}</span>
+          {% endfor %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-sm text-slate-500 dark:text-slate-400 py-4">No classes scheduled today</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Extra Widgets: Upcoming Exams, Birthdays, Pending Attendance, Top Students #}
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
+      <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-3">Upcoming Exams</h2>
+      {% if upcoming_exams %}
+      <ul class="space-y-2">
+        {% for exam in upcoming_exams %}
+        <li class="text-sm text-slate-700 dark:text-slate-200">{{ exam.name }} – {{ exam.classroom.name }} – {{ exam.start_date|date:"d M" }}</li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-sm text-slate-500 dark:text-slate-400">No upcoming exams scheduled</p>
+      {% endif %}
+    </div>
+    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
+      <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-3">Birthdays Today</h2>
+      {% if today_birthdays %}
+      <ul class="space-y-1">
+        {% for s in today_birthdays %}
+        <li class="text-sm">🎂 {{ s.user.get_full_name|default:s.user.username }} – {{ s.classroom.name|default:"—" }}{% if s.section %}-{{ s.section.name }}{% endif %}</li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-sm text-slate-500 dark:text-slate-400">No student birthdays today</p>
+      {% endif %}
+    </div>
+    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
+      <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-3">Pending Attendance</h2>
+      {% if pending_attendance %}
+      <ul class="space-y-1">
+        {% for cls in pending_attendance %}
+        <li class="text-sm text-amber-600 dark:text-amber-400">⚠ {{ cls.name }} – Attendance not marked</li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-sm text-slate-500 dark:text-slate-400">All attendance marked</p>
+      {% endif %}
+    </div>
+    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
+      <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-3">Top Performing Students</h2>
+      {% if top_students %}
+      <ul class="space-y-1">
+        {% for item in top_students %}
+        <li class="text-sm">{{ forloop.counter }}. {{ item.student.user.get_full_name|default:item.student.user.username }} – {{ item.student.classroom.name|default:"—" }}{% if item.student.section %}-{{ item.student.section.name }}{% endif %} – {{ item.percentage }}%</li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-sm text-slate-500 dark:text-slate-400">No marks recorded yet</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Quick Management Cards #}
   <div>
-    <h1 class="text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
-      School Admin Dashboard
-    </h1>
-    <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">
-      Overview of your school operations.
-    </p>
-  </div>
-
-  <div class="row g-3 mb-4">
-    <div class="col-sm-6 col-lg-4">
-      {% include "components/dashboard_card.html" with label="Total Schools" value=total_schools icon="bi-building" icon_color="primary" %}
-    </div>
-    <div class="col-sm-6 col-lg-4">
-      {% include "components/dashboard_card.html" with label="Total Teachers" value=total_teachers icon="bi-person-badge" icon_color="primary" %}
-    </div>
-    <div class="col-sm-6 col-lg-4">
-      {% include "components/dashboard_card.html" with label="Total Students" value=total_students icon="bi-people" icon_color="primary" %}
-    </div>
-    <div class="col-sm-6 col-lg-4">
-      {% include "components/dashboard_card.html" with label="Total Classes" value=total_classes icon="bi-journal-bookmark" icon_color="info" %}
-    </div>
-    <div class="col-sm-6 col-lg-4">
-      {% include "components/dashboard_card.html" with label="Total Sections" value=total_sections icon="bi-diagram-3" icon_color="info" %}
-    </div>
-    <div class="col-sm-6 col-lg-4">
-      {% include "components/dashboard_card.html" with label="Active Academic Year" raw_content=active_academic_year_html icon="bi-calendar-range" icon_color="success" %}
-    </div>
-    <div class="col-sm-6 col-lg-4">
-      {% include "components/dashboard_card.html" with label="Attendance Today" value=attendance_today_count icon="bi-calendar-check" icon_color="warning" %}
-    </div>
-  </div>
-
-  <div class="flex flex-wrap gap-3 mb-4">
-    <a href="{% url 'core:school_academic_years' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Academic Years</a>
-    <a href="{% url 'core:school_classes' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Classes</a>
-    <a href="{% url 'core:school_sections' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Sections</a>
-    <a href="{% url 'core:school_subjects' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Subjects</a>
-    <a href="{% url 'timetable:school_timeslots' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Time Slots</a>
-    <a href="{% url 'timetable:school_timetable_index' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Timetable</a>
-  </div>
-
-  <div class="grid gap-6 lg:grid-cols-2">
-    <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-      <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-3">
-        Recent Homework
-      </h2>
-      {% if recent_homework %}
-        <ul class="space-y-2">
-          {% for hw in recent_homework %}
-            <li class="flex justify-between text-sm">
-              <span class="text-slate-700 dark:text-slate-200 truncate">{{ hw.title }}</span>
-              <span class="text-slate-500 dark:text-slate-400 text-xs flex-shrink-0 ml-2">{{ hw.due_date }}</span>
-            </li>
-          {% endfor %}
+    <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-4">Quick Management</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
+        <h3 class="font-medium text-slate-900 dark:text-slate-50 flex items-center gap-2 mb-2"><i class="bi bi-mortarboard-fill text-indigo-500"></i> Academic Management</h3>
+        <ul class="space-y-1 text-sm">
+          <li><a href="{% url 'core:school_academic_years' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Academic Years</a></li>
+          <li><a href="{% url 'core:school_classes' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Classes</a></li>
+          <li><a href="{% url 'core:school_sections' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Sections</a></li>
+          <li><a href="{% url 'core:school_subjects' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Subjects</a></li>
         </ul>
-      {% else %}
-        <p class="text-sm text-slate-500 dark:text-slate-400">No homework yet.</p>
-      {% endif %}
-    </div>
-    <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-      <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-3">
-        Recent Marks
-      </h2>
-      {% if recent_marks %}
-        <ul class="space-y-2">
-          {% for m in recent_marks %}
-            <li class="flex justify-between text-sm">
-              <span class="text-slate-700 dark:text-slate-200 truncate">{{ m.student.user.get_full_name|default:m.student.user.username }} — {{ m.exam_name }}</span>
-              <span class="text-slate-600 dark:text-slate-300 flex-shrink-0 ml-2">{{ m.marks_obtained }}/{{ m.total_marks }}</span>
-            </li>
-          {% endfor %}
+      </div>
+      <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
+        <h3 class="font-medium text-slate-900 dark:text-slate-50 flex items-center gap-2 mb-2"><i class="bi bi-calendar2-week-fill text-emerald-500"></i> Timetable Management</h3>
+        <ul class="space-y-1 text-sm">
+          <li><a href="{% url 'timetable:school_timeslots' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Time Slots</a></li>
+          <li><a href="{% url 'timetable:school_timetable_index' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Timetable</a></li>
         </ul>
-      {% else %}
-        <p class="text-sm text-slate-500 dark:text-slate-400">No marks recorded yet.</p>
-      {% endif %}
+      </div>
+      <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
+        <h3 class="font-medium text-slate-900 dark:text-slate-50 flex items-center gap-2 mb-2"><i class="bi bi-clipboard-check-fill text-rose-500"></i> Examination Management</h3>
+        <ul class="space-y-1 text-sm">
+          <li><a href="{% url 'core:teacher_exams' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Tests</a></li>
+          <li><a href="{% url 'core:marks_list' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Results</a></li>
+        </ul>
+      </div>
+      <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
+        <h3 class="font-medium text-slate-900 dark:text-slate-50 flex items-center gap-2 mb-2"><i class="bi bi-person-video3-fill text-amber-500"></i> Student Management</h3>
+        <ul class="space-y-1 text-sm">
+          <li><a href="{% url 'core:school_students_list' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Students</a></li>
+          <li><a href="{% url 'core:attendance_list' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Attendance</a></li>
+        </ul>
+      </div>
     </div>
   </div>
 </div>
+
+{{ student_growth_data|json_script:"student-growth-data" }}
+{{ class_distribution|json_script:"class-distribution-data" }}
+{{ subject_distribution|json_script:"subject-distribution-data" }}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  const isDark = document.documentElement.classList.contains("dark");
+  const textColor = isDark ? "#94a3b8" : "#64748b";
+  const gridColor = isDark ? "rgba(100,116,139,0.2)" : "rgba(148,163,184,0.3)";
+
+  const growthData = JSON.parse(document.getElementById("student-growth-data")?.textContent || "[]");
+  const classData = JSON.parse(document.getElementById("class-distribution-data")?.textContent || "[]");
+  const subjectData = JSON.parse(document.getElementById("subject-distribution-data")?.textContent || "[]");
+
+  {# Student Growth Chart #}
+  const growthCtx = document.getElementById("studentGrowthChart");
+  if (growthCtx) {
+    new Chart(growthCtx, {
+      type: "line",
+      data: {
+        labels: growthData.map(d => d.month),
+        datasets: [{
+          label: "New Enrollments",
+          data: growthData.map(d => d.count),
+          borderColor: "#6366f1",
+          backgroundColor: "rgba(99,102,241,0.1)",
+          fill: true,
+          tension: 0.3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { color: textColor }, grid: { color: gridColor } },
+          x: { ticks: { color: textColor }, grid: { color: gridColor } }
+        }
+      }
+    });
+  }
+
+  {# Attendance Chart #}
+  const attCtx = document.getElementById("attendanceChart");
+  if (attCtx) {
+    new Chart(attCtx, {
+      type: "doughnut",
+      data: {
+        labels: ["Present", "Absent"],
+        datasets: [{
+          data: [{{ attendance_analytics.present }}, {{ attendance_analytics.absent }}],
+          backgroundColor: ["#10b981", "#ef4444"],
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: textColor } } }
+      }
+    });
+  }
+
+  {# Class Distribution Chart #}
+  const classCtx = document.getElementById("classDistChart");
+  if (classCtx) {
+    new Chart(classCtx, {
+      type: "bar",
+      data: {
+        labels: classData.map(d => d.label),
+        datasets: [{
+          label: "Students",
+          data: classData.map(d => d.count),
+          backgroundColor: "rgba(99,102,241,0.6)",
+          borderColor: "#6366f1",
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { color: textColor }, grid: { color: gridColor } },
+          x: { ticks: { color: textColor }, grid: { color: gridColor } }
+        }
+      }
+    });
+  }
+
+  {# Subject Distribution Chart #}
+  const subjectCtx = document.getElementById("subjectDistChart");
+  if (subjectCtx) {
+    new Chart(subjectCtx, {
+      type: "bar",
+      data: {
+        labels: subjectData.map(d => d.label),
+        datasets: [{
+          label: "Subjects",
+          data: subjectData.map(d => d.count),
+          backgroundColor: "rgba(168,85,247,0.6)",
+          borderColor: "#a855f7",
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { color: textColor }, grid: { color: gridColor } },
+          x: { ticks: { color: textColor }, grid: { color: gridColor } }
+        }
+      }
+    });
+  }
+});
+</script>
 {% endblock %}

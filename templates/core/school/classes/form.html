@@ -36,6 +36,12 @@
           {{ form.academic_year }}
           {% if form.academic_year.errors %}<div class="text-danger small">{{ form.academic_year.errors.0 }}</div>{% endif %}
         </div>
+        <div class="mb-3">
+          <label class="form-label">Sections</label>
+          {{ form.sections }}
+          <div class="form-text">Select sections for this class (e.g. A, B, C). Hold Ctrl/Cmd to select multiple.</div>
+          {% if form.sections.errors %}<div class="text-danger small">{{ form.sections.errors.0 }}</div>{% endif %}
+        </div>
         <div class="d-flex gap-2">
           <button type="submit" class="btn btn-primary">Save</button>
           <a href="{% url 'core:school_classes' %}" class="btn btn-outline-secondary">Cancel</a>

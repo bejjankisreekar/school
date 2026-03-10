@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Payroll | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Payroll</li>
+    </ol>
+  </nav>
+  <h1 class="h4 fw-bold mb-4">Payroll Dashboard</h1>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center gap-3">
+            <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-3">
+              <i class="bi bi-people fs-4"></i>
+            </div>
+            <div>
+              <p class="text-muted small text-uppercase mb-1">Total Employees</p>
+              <h2 class="h4 fw-bold mb-0">{{ total_employees }}</h2>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center gap-3">
+            <div class="rounded-3 bg-success bg-opacity-10 text-success p-3">
+              <i class="bi bi-currency-rupee fs-4"></i>
+            </div>
+            <div>
+              <p class="text-muted small text-uppercase mb-1">Total Monthly Payroll</p>
+              <h2 class="h4 fw-bold mb-0">₹{{ total_monthly_payroll|floatformat:0 }}</h2>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center gap-3">
+            <div class="rounded-3 bg-warning bg-opacity-10 text-warning p-3">
+              <i class="bi bi-hourglass-split fs-4"></i>
+            </div>
+            <div>
+              <p class="text-muted small text-uppercase mb-1">Pending / Processed</p>
+              <h2 class="h4 fw-bold mb-0">{{ pending_payroll }} / {{ processed_payroll }}</h2>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center gap-3">
+            <div class="rounded-3 bg-info bg-opacity-10 text-info p-3">
+              <i class="bi bi-bank fs-4"></i>
+            </div>
+            <div>
+              <p class="text-muted small text-uppercase mb-1">Total Advances Given</p>
+              <h2 class="h4 fw-bold mb-0">₹{{ total_advances|floatformat:0 }}</h2>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'payroll:payroll_generate' %}" class="btn btn-primary"><i class="bi bi-calculator me-2"></i>Generate Payroll</a>
+    <a href="{% url 'payroll:salary_components_list' %}" class="btn btn-outline-primary"><i class="bi bi-sliders me-2"></i>Salary Components</a>
+    <a href="{% url 'payroll:salary_structure_list' %}" class="btn btn-outline-primary"><i class="bi bi-building me-2"></i>Salary Structure</a>
+    <a href="{% url 'payroll:salary_advances_list' %}" class="btn btn-outline-primary"><i class="bi bi-cash-stack me-2"></i>Salary Advances</a>
+    <a href="{% url 'payroll:payslips_list' %}" class="btn btn-outline-primary"><i class="bi bi-receipt me-2"></i>Payslips</a>
+  </div>
+</div>
+{% endblock %}

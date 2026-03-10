@@ -3,12 +3,13 @@ BS_INPUT = "form-control form-select"  # for selects
 
 from django import forms
 from django.contrib.auth import get_user_model
-from apps.customers.models import School
+from apps.customers.models import School, SubscriptionPlan
 from apps.school_data.models import (
     Homework,
     Marks,
     Attendance,
     Exam,
+    Test,
     Student,
     Teacher,
     Section,
@@ -91,6 +92,27 @@ class ExamCreateForm(forms.ModelForm):
         }
 
 
+class TestForm(forms.ModelForm):
+    class Meta:
+        model = Test
+        fields = ["name", "subject", "classroom", "section", "test_date", "maximum_marks"]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. Unit Test 1"}),
+            "subject": forms.Select(attrs={"class": INPUT_CLASS}),
+            "classroom": forms.Select(attrs={"class": INPUT_CLASS}),
+            "section": forms.Select(attrs={"class": INPUT_CLASS}),
+            "test_date": forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
+            "maximum_marks": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 1}),
+        }
+
+    def __init__(self, school, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["subject"].queryset = Subject.objects.order_by("name")
+        self.fields["classroom"].queryset = ClassRoom.objects.select_related("academic_year").order_by("academic_year", "name")
+        self.fields["section"].queryset = Section.objects.order_by("name")
+        self.fields["section"].required = False
+
+
 class AttendanceForm(forms.ModelForm):
     class Meta:
         model = Attendance
@@ -119,8 +141,8 @@ class StudentAddForm(forms.Form):
     def __init__(self, school, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.school = school
-        self.fields["classroom"].queryset = ClassRoom.objects.order_by("name", "section")
-        self.fields["section"].queryset = Section.objects.order_by("classroom", "name")
+        self.fields["classroom"].queryset = ClassRoom.objects.select_related("academic_year").order_by("academic_year", "name")
+        self.fields["section"].queryset = Section.objects.order_by("name")
 
     def clean_username(self):
         username = self.cleaned_data.get("username")
@@ -139,14 +161,10 @@ class StudentAddForm(forms.Form):
         section = data.get("section")
         classroom = data.get("classroom")
         roll = data.get("roll_number")
-        if section and classroom and section.classroom_id != classroom.id:
-            raise forms.ValidationError("Section must belong to selected classroom.")
-        if section and roll and Student.objects.filter(section=section, roll_number=roll).exists():
-            raise forms.ValidationError("Roll number already exists in this section.")
-        if section and section.capacity is not None:
-            current = Student.objects.filter(section=section).count()
-            if current >= section.capacity:
-                raise forms.ValidationError("Section has reached its capacity (%s)." % section.capacity)
+        if section and classroom and section not in classroom.sections.all():
+            raise forms.ValidationError("Section must belong to selected class.")
+        if section and classroom and roll and Student.objects.filter(classroom=classroom, section=section, roll_number=roll).exists():
+            raise forms.ValidationError("Roll number already exists for this class-section.")
         return data
 
 
@@ -166,8 +184,8 @@ class StudentEditForm(forms.Form):
         super().__init__(data=data, initial=initial, **kwargs)
         self.school = school
         self.student = student
-        self.fields["classroom"].queryset = ClassRoom.objects.order_by("name", "section")
-        self.fields["section"].queryset = Section.objects.order_by("classroom", "name")
+        self.fields["classroom"].queryset = ClassRoom.objects.select_related("academic_year").order_by("academic_year", "name")
+        self.fields["section"].queryset = Section.objects.order_by("name")
 
     def clean_admission_number(self):
         adm = self.cleaned_data.get("admission_number")
@@ -185,15 +203,11 @@ class StudentEditForm(forms.Form):
         section = data.get("section")
         classroom = data.get("classroom")
         roll = data.get("roll_number")
-        if section and classroom and section.classroom_id != classroom.id:
-            raise forms.ValidationError("Section must belong to selected classroom.")
-        if section and roll and self.student:
-            if Student.objects.filter(section=section, roll_number=roll).exclude(pk=self.student.pk).exists():
-                raise forms.ValidationError("Roll number already exists in this section.")
-        if section and section.capacity is not None and self.student:
-            others = Student.objects.filter(section=section).exclude(pk=self.student.pk).count()
-            if others >= section.capacity:
-                raise forms.ValidationError("Section has reached its capacity.")
+        if section and classroom and section not in classroom.sections.all():
+            raise forms.ValidationError("Section must belong to selected class.")
+        if section and classroom and roll and self.student:
+            if Student.objects.filter(classroom=classroom, section=section, roll_number=roll).exclude(pk=self.student.pk).exists():
+                raise forms.ValidationError("Roll number already exists for this class-section.")
         return data
 
 
@@ -242,11 +256,10 @@ class TeacherEditForm(forms.Form):
         required=False,
         widget=forms.SelectMultiple(attrs={"class": BS_INPUT, "id": "id_edit_subjects"}),
     )
-    sections = forms.ModelMultipleChoiceField(
-        queryset=Section.objects.none(),
+    classrooms = forms.ModelMultipleChoiceField(
+        queryset=ClassRoom.objects.none(),
         required=False,
-        widget=forms.SelectMultiple(attrs={"class": BS_INPUT, "id": "id_edit_sections"}),
-        help_text="Sections where this teacher is class teacher.",
+        widget=forms.SelectMultiple(attrs={"class": BS_INPUT}),
     )
 
     def __init__(self, school, teacher=None, data=None, initial=None, **kwargs):
@@ -254,7 +267,7 @@ class TeacherEditForm(forms.Form):
         self.school = school
         self.teacher = teacher
         self.fields["subjects"].queryset = Subject.objects.order_by("name")
-        self.fields["sections"].queryset = Section.objects.select_related("classroom").order_by("classroom__name", "name")
+        self.fields["classrooms"].queryset = ClassRoom.objects.select_related("academic_year").order_by("academic_year", "name")
         if teacher:
             self.fields["role"].initial = teacher.user.role
 
@@ -311,59 +324,41 @@ class AcademicYearForm(forms.ModelForm):
 class ClassRoomForm(forms.ModelForm):
     class Meta:
         model = ClassRoom
-        fields = ["name", "description", "capacity", "academic_year"]
+        fields = ["name", "description", "capacity", "academic_year", "sections"]
         widgets = {
             "name": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. Grade 1, Grade 10"}),
             "description": forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 2, "placeholder": "Optional description"}),
             "capacity": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 1, "placeholder": "Optional"}),
             "academic_year": forms.Select(attrs={"class": BS_INPUT}),
+            "sections": forms.SelectMultiple(attrs={"class": INPUT_CLASS, "size": 8}),
         }
 
     def __init__(self, school, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.school = school
         self.fields["academic_year"].queryset = AcademicYear.objects.order_by("-start_date")
+        self.fields["sections"].queryset = Section.objects.order_by("name")
+        self.fields["sections"].required = False
 
     def clean(self):
         data = super().clean()
-        ay = data.get("academic_year")
         return data
 
 
 # ---- School Admin: Section CRUD ----
 class SectionForm(forms.ModelForm):
+    """Section is independent (A, B, C, etc.)."""
     class Meta:
         model = Section
-        fields = ["classroom", "name", "capacity", "class_teacher"]
+        fields = ["name", "description"]
         widgets = {
-            "classroom": forms.Select(attrs={"class": BS_INPUT}),
-            "name": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. Alpha, Beta"}),
-            "capacity": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 1, "placeholder": "Optional"}),
-            "class_teacher": forms.Select(attrs={"class": BS_INPUT}),
+            "name": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. A, B, C"}),
+            "description": forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 2, "placeholder": "Optional description"}),
         }
 
-    def __init__(self, school, *args, **kwargs):
+    def __init__(self, school=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.school = school
-        self.fields["classroom"].queryset = ClassRoom.objects.select_related("academic_year").order_by("academic_year", "name")
-        self.fields["class_teacher"].queryset = Teacher.objects.select_related("user").order_by("user__first_name")
-        self.fields["class_teacher"].required = False
-
-    def clean(self):
-        data = super().clean()
-        classroom = data.get("classroom")
-        capacity = data.get("capacity")
-        if classroom and capacity is not None and classroom.capacity is not None and capacity > classroom.capacity:
-            raise forms.ValidationError("Section capacity cannot exceed classroom capacity (%s)." % classroom.capacity)
-        # Optional: prevent same teacher as class teacher in multiple sections
-        teacher = data.get("class_teacher")
-        if teacher:
-            qs = Section.objects.filter(class_teacher=teacher)
-            if self.instance and self.instance.pk:
-                qs = qs.exclude(pk=self.instance.pk)
-            if qs.exists():
-                raise forms.ValidationError("This teacher is already assigned as class teacher to another section.")
-        return data
 
 
 # ---- School Admin: Subject ----
@@ -398,13 +393,18 @@ class AdminSchoolForm(forms.ModelForm):
     """School form for /admin/schools/ - SuperAdmin creates/edits schools."""
     class Meta:
         model = School
-        fields = ["name", "address", "contact_email", "phone"]
+        fields = ["name", "plan", "address", "contact_email", "phone"]
         widgets = {
             "name": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "School Name"}),
+            "plan": forms.Select(attrs={"class": BS_INPUT}),
             "address": forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 2, "placeholder": "Address"}),
             "contact_email": forms.EmailInput(attrs={"class": INPUT_CLASS, "placeholder": "contact@school.edu"}),
             "phone": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "+1234567890"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["plan"].queryset = SubscriptionPlan.objects.filter(is_active=True).order_by("price_per_student")
 
 
 class AdminTeacherForm(forms.Form):

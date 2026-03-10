@@ -8,6 +8,7 @@ from .models import (
     Teacher,
     Subject,
     Exam,
+    Test,
     Attendance,
     Marks,
     Grade,
@@ -47,9 +48,9 @@ class ClassRoomAdmin(admin.ModelAdmin):
 
 @admin.register(Section)
 class SectionAdmin(admin.ModelAdmin):
-    list_display = ("name", "classroom", "class_teacher", "capacity")
-    list_filter = ("classroom",)
+    list_display = ("id", "name", "description", "created_on")
     search_fields = ("name",)
+    ordering = ("name",)
 
 
 @admin.register(Subject)
@@ -76,6 +77,12 @@ class StudentAdmin(admin.ModelAdmin):
 class ExamAdmin(admin.ModelAdmin):
     list_display = ("name", "classroom", "start_date", "end_date")
     list_filter = ("classroom",)
+
+
+@admin.register(Test)
+class TestAdmin(admin.ModelAdmin):
+    list_display = ("name", "subject", "classroom", "section", "test_date", "maximum_marks")
+    list_filter = ("classroom", "subject", "test_date")
 
 
 @admin.register(Attendance)

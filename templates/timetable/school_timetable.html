@@ -35,12 +35,6 @@
     </div>
   </div>
 
-  {% if messages %}
-  {% for m in messages %}
-  <div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-  {% endfor %}
-  {% endif %}
-
   <form method="post" id="timetableForm">
     {% csrf_token %}
     <div class="card border-0 shadow-sm rounded-4 overflow-hidden">

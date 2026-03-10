@@ -31,6 +31,7 @@ urlpatterns = [
     path("api/admin/schools/by-id/<int:school_id>/classrooms/", api_views.api_admin_classrooms_by_id),
     path("api/admin/schools/by-id/<int:school_id>/sections/", api_views.api_admin_sections_by_id),
     path("", include(("apps.core.urls", "core"), namespace="core")),
+    path("", include(("apps.payroll.urls", "payroll"), namespace="payroll")),
     path("", include(("apps.timetable.urls", "timetable"), namespace="timetable")),
     path("accounts/", include(("apps.accounts.urls", "accounts"), namespace="accounts")),
     path("admin/", include(("apps.core.admin_urls", "admin_manage"))),

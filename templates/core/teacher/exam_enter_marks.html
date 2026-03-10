@@ -13,14 +13,6 @@
 
   <h1 class="h4 fw-bold mb-4">Enter Marks — {{ exam.name }}</h1>
 
-  {% if messages %}
-  <div class="mb-3">
-    {% for m in messages %}
-    <div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-    {% endfor %}
-  </div>
-  {% endif %}
-
   <!-- Step 1: Select Subject -->
   <div class="card border-0 shadow-sm rounded-4 mb-4">
     <div class="card-body">

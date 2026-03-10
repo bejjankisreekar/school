@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Staff Attendance | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Staff Attendance</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <h1 class="h4 fw-bold mb-0">Staff Attendance</h1>
+    <a href="{% url 'core:school_staff_attendance_mark' %}?date={{ end_date|date:'Y-m-d' }}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Mark Attendance</a>
+  </div>
+
+  <form method="get" class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-2">
+          <label class="form-label">Month</label>
+          <input type="month" name="month" class="form-control form-control-sm" value="{{ month_default }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Start Date</label>
+          <input type="date" name="start_date" class="form-control form-control-sm" value="{{ start_date|date:'Y-m-d' }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">End Date</label>
+          <input type="date" name="end_date" class="form-control form-control-sm" value="{{ end_date|date:'Y-m-d' }}">
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+        </div>
+      </div>
+      <p class="text-muted small mb-0 mt-2">Showing range: {{ start_date|date:"d M Y" }} - {{ end_date|date:"d M Y" }}</p>
+    </div>
+  </form>
+
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-4 col-xl-2">
+      {% include "components/dashboard_card.html" with label="Present" value=summary_counts.present icon="bi-check-circle" icon_color="success" %}
+    </div>
+    <div class="col-sm-6 col-lg-4 col-xl-2">
+      {% include "components/dashboard_card.html" with label="Absent" value=summary_counts.absent icon="bi-x-circle" icon_color="danger" %}
+    </div>
+    <div class="col-sm-6 col-lg-4 col-xl-2">
+      {% include "components/dashboard_card.html" with label="Leave" value=summary_counts.leave icon="bi-calendar-minus" icon_color="info" %}
+    </div>
+    <div class="col-sm-6 col-lg-4 col-xl-2">
+      {% include "components/dashboard_card.html" with label="Half Day" value=summary_counts.half_day icon="bi-clock" icon_color="warning" %}
+    </div>
+    <div class="col-sm-6 col-lg-4 col-xl-2">
+      {% include "components/dashboard_card.html" with label="Holiday" value=summary_counts.holiday icon="bi-umbrella" icon_color="primary" %}
+    </div>
+    <div class="col-sm-6 col-lg-4 col-xl-2">
+      {% include "components/dashboard_card.html" with label="Other" value=summary_counts.other icon="bi-dash-circle" icon_color="secondary" %}
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <strong>Staff Attendance Summary</strong>
+      <a href="{% url 'core:school_staff_attendance_mark' %}?date={{ end_date|date:'Y-m-d' }}" class="btn btn-outline-primary btn-sm">Mark Attendance</a>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Staff Name</th>
+            <th class="text-center">Present</th>
+            <th class="text-center">Absent</th>
+            <th class="text-center">Leave</th>
+            <th class="text-center">Half Day</th>
+            <th class="text-center">Holiday</th>
+            <th class="text-center">Other</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in page %}
+          <tr>
+            <td>{{ row.teacher.user.get_full_name|default:row.teacher.user.username }}</td>
+            <td class="text-center">{{ row.present }}</td>
+            <td class="text-center">{{ row.absent }}</td>
+            <td class="text-center">{{ row.leave }}</td>
+            <td class="text-center">{{ row.half_day }}</td>
+            <td class="text-center">{{ row.holiday }}</td>
+            <td class="text-center">{{ row.other }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="text-muted text-center py-4">No staff found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if page.paginator.num_pages > 1 %}
+    <div class="card-footer bg-white border-0">
+      <nav>
+        <ul class="pagination pagination-sm mb-0 justify-content-center">
+          {% if page.has_previous %}
+          <li class="page-item"><a class="page-link" href="?page={{ page.previous_page_number }}{% if request.GET.month %}&month={{ request.GET.month }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}">Previous</a></li>
+          {% endif %}
+          <li class="page-item disabled"><span class="page-link">Page {{ page.number }} of {{ page.paginator.num_pages }}</span></li>
+          {% if page.has_next %}
+          <li class="page-item"><a class="page-link" href="?page={{ page.next_page_number }}{% if request.GET.month %}&month={{ request.GET.month }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}">Next</a></li>
+          {% endif %}
+        </ul>
+      </nav>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

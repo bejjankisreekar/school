@@ -1,49 +1,293 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Timetable - {{ classroom }} | School ERP</title>
+  <title>Class Timetable - {{ classroom.name }} | {{ school.name }}</title>
   <style>
     * { box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; font-size: 12px; margin: 1rem; }
-    h1 { font-size: 1.25rem; margin-bottom: 0.5rem; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border: 1px solid #333; padding: 6px 8px; text-align: left; }
-    th { background: #f0f0f0; font-weight: 600; }
-    .break-cell { background: #e8e8e8; color: #555; }
-    .time-col { min-width: 80px; font-weight: 500; }
-    @media print { body { margin: 0; } .no-print { display: none !important; } }
+    body {
+      font-family: 'Segoe UI', 'Georgia', serif;
+      font-size: 11pt;
+      margin: 0;
+      padding: 20px;
+      color: #1a1a1a;
+      background: #fff;
+    }
+    .print-controls {
+      margin-bottom: 20px;
+      padding: 12px 16px;
+      background: #f8fafc;
+      border-radius: 8px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .print-controls button,
+    .print-controls a {
+      padding: 8px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      border-radius: 6px;
+      text-decoration: none;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #334155;
+    }
+    .print-controls button:hover,
+    .print-controls a:hover {
+      background: #f1f5f9;
+    }
+    .print-controls .btn-print {
+      background: #4f46e5;
+      color: #fff;
+      border-color: #4f46e5;
+    }
+    .print-controls .btn-print:hover { background: #4338ca; }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #1e293b;
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .header-left img {
+      max-height: 70px;
+      max-width: 80px;
+      object-fit: contain;
+    }
+    .header-center {
+      flex: 1;
+      text-align: center;
+      padding: 0 20px;
+    }
+    .school-name {
+      font-size: 22pt;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0 0 4px 0;
+      letter-spacing: 0.5px;
+    }
+    .school-address {
+      font-size: 10pt;
+      color: #64748b;
+      margin: 0;
+    }
+    .header-right {
+      min-width: 80px;
+      text-align: right;
+    }
+    .qr-code {
+      width: 70px;
+      height: 70px;
+      border: 1px solid #e2e8f0;
+      padding: 4px;
+      display: inline-block;
+    }
+    .qr-code img { width: 100%; height: 100%; object-fit: contain; }
+
+    .title-section {
+      text-align: center;
+      margin: 20px 0;
+    }
+    .doc-title {
+      font-size: 18pt;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0 0 16px 0;
+      letter-spacing: 1px;
+    }
+    .meta-row {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 24px 40px;
+      font-size: 11pt;
+      color: #475569;
+      margin-bottom: 8px;
+    }
+    .meta-row span { font-weight: 500; color: #334155; }
+    .printed-on { font-size: 10pt; color: #94a3b8; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 10px 12px;
+      text-align: center;
+      vertical-align: middle;
+    }
+    th {
+      background: #1e293b;
+      color: #fff;
+      font-weight: 600;
+      font-size: 10pt;
+    }
+    .day-col {
+      min-width: 90px;
+      font-weight: 600;
+      background: #f8fafc;
+    }
+    .time-header {
+      min-width: 100px;
+      background: #334155;
+    }
+    .subject-cell {
+      min-width: 100px;
+      font-size: 10pt;
+      line-height: 1.4;
+    }
+    .subject-cell .subj-name { font-weight: 600; display: block; }
+    .subject-cell .teacher-name { font-size: 9pt; color: #475569; }
+    .break-cell {
+      background: #e2e8f0;
+      color: #64748b;
+      font-size: 10pt;
+    }
+
+    .signature-section {
+      margin-top: 40px;
+      padding-top: 24px;
+      border-top: 2px solid #1e293b;
+    }
+    .signature-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 40px;
+      margin-top: 48px;
+    }
+    .signature-box {
+      flex: 1;
+      text-align: center;
+    }
+    .sig-line {
+      border-bottom: 1px solid #334155;
+      height: 40px;
+      margin-bottom: 8px;
+      max-width: 200px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .sig-label {
+      font-size: 10pt;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: 4px;
+    }
+    .sig-name { font-size: 10pt; color: #64748b; }
+    .sig-date { font-size: 9pt; color: #94a3b8; margin-top: 4px; }
+
+    @media print {
+      body { padding: 12px; margin: 0; }
+      .print-controls, .sidebar, .navbar, .btn, button, .no-print {
+        display: none !important;
+      }
+      .header { break-inside: avoid; }
+      table { break-inside: avoid; }
+      .signature-section { break-inside: avoid; }
+    }
   </style>
 </head>
 <body>
-  <div class="no-print" style="margin-bottom: 1rem;">
-    <button onclick="window.print()" style="padding: 8px 16px; cursor: pointer;">Print</button>
+  <div class="print-controls no-print">
+    <button onclick="window.print()" class="btn-print">Print</button>
     <a href="{% url 'timetable:school_timetable_pdf' classroom.id %}">Download PDF</a>
   </div>
-  <h1>Class {{ classroom }} - Weekly Timetable</h1>
+
+  <div class="header">
+    <div class="header-left">
+      {% if school.logo %}
+      <img src="{{ school.logo.url }}" alt="{{ school.name }}" />
+      {% endif %}
+    </div>
+    <div class="header-center">
+      <h1 class="school-name">{{ school.name }}</h1>
+      {% if school.address %}<p class="school-address">{{ school.address }}</p>{% endif %}
+    </div>
+    <div class="header-right">
+      {% if qr_data_uri %}
+      <div class="qr-code" title="Scan to verify">
+        <img src="{{ qr_data_uri }}" alt="QR Code" />
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="title-section">
+    <h2 class="doc-title">CLASS TIMETABLE</h2>
+    <div class="meta-row">
+      <span>Academic Year:</span> {{ academic_year_name }} &nbsp;|&nbsp;
+      <span>Class:</span> {{ classroom.name }} &nbsp;|&nbsp;
+      <span>Section:</span> {{ section_name }} &nbsp;|&nbsp;
+      <span>Class Teacher:</span> {{ class_teacher_name|default:"—" }}
+    </div>
+    <p class="printed-on">Printed On: {{ printed_date|date:"d F Y" }}</p>
+  </div>
+
   <table>
     <thead>
       <tr>
-        <th class="time-col">Time</th>
-        <th>Monday</th><th>Tuesday</th><th>Wednesday</th><th>Thursday</th><th>Friday</th><th>Saturday</th>
+        <th class="day-col">Day</th>
+        {% for slot in slots %}
+        <th class="time-header">{{ slot.start_time|time:"g:i" }}–{{ slot.end_time|time:"g:i" }}{% if slot.is_break %}<br><small>({% if slot.break_type == 'SHORT_BREAK' %}Short Break{% else %}Lunch{% endif %})</small>{% endif %}</th>
+        {% endfor %}
       </tr>
     </thead>
     <tbody>
-      {% for row in grid %}
+      {% for row in rows_by_day %}
       <tr>
-        <td class="time-col">{{ row.slot.start_time|time:"H:i" }}-{{ row.slot.end_time|time:"H:i" }}{% if row.slot.is_break %} ({% if row.slot.break_type == 'SHORT_BREAK' %}Short{% else %}Lunch{% endif %}){% endif %}</td>
-        {% for d in row.days %}
-        <td class="{% if row.slot.is_break %}break-cell{% endif %}">
-          {% if row.slot.is_break %}{% if row.slot.break_type == 'SHORT_BREAK' %}Short Break{% else %}Lunch Break{% endif %}
-          {% else %}{% if d.entry and d.entry.subject %}{{ d.entry.subject.name }}{% if d.entry.teachers.all %} - {% for t in d.entry.teachers.all %}{{ t.user.get_full_name|default:t.user.username }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}{% else %}-{% endif %}{% endif %}
+        <td class="day-col">{{ row.day_name }}</td>
+        {% for s in row.slots %}
+        <td class="{% if s.slot.is_break %}break-cell{% else %}subject-cell{% endif %}"
+            {% if not s.slot.is_break and s.bg_color %}style="background-color: {{ s.bg_color }};"{% endif %}>
+          {% if s.slot.is_break %}
+            {% if s.slot.break_type == 'SHORT_BREAK' %}Short Break{% else %}Lunch Break{% endif %}
+          {% else %}
+            {% if s.entry and s.entry.subject %}
+              <span class="subj-name">{{ s.entry.subject.name }}</span>
+              {% for t in s.entry.teachers.all %}
+              <span class="teacher-name">{{ t.user.get_full_name|default:t.user.username }}{% if not forloop.last %}, {% endif %}</span>
+              {% endfor %}
+            {% else %}
+              —
+            {% endif %}
+          {% endif %}
         </td>
         {% endfor %}
       </tr>
       {% empty %}
-      <tr><td colspan="7" style="text-align:center">No time slots.</td></tr>
+      <tr><td colspan="100" style="text-align:center">No timetable data.</td></tr>
       {% endfor %}
     </tbody>
   </table>
+
+  <div class="signature-section">
+    <div class="signature-row">
+      <div class="signature-box">
+        <div class="sig-label">Class Teacher Signature</div>
+        <div class="sig-line"></div>
+        <div class="sig-name">Name: {{ class_teacher_name|default:"_______________" }}</div>
+        <div class="sig-date">Date: _______________</div>
+      </div>
+      <div class="signature-box">
+        <div class="sig-label">Principal Signature</div>
+        <div class="sig-line"></div>
+        <div class="sig-name">Name: _______________</div>
+        <div class="sig-date">Date: _______________</div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

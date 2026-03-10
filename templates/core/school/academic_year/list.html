@@ -14,11 +14,6 @@
     <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addYearModal"><i class="bi bi-plus-lg"></i> Add Year</button>
   </div>
 
-  {% if messages %}
-    {% for m in messages %}
-      <div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-    {% endfor %}
-  {% endif %}
   {% if form.errors %}
     <div class="alert alert-danger alert-dismissible fade show">Please correct the errors below.<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
   {% endif %}

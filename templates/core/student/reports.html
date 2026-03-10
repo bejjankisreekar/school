@@ -6,12 +6,6 @@
   <h1 class="h4 fw-bold mb-3">My Reports</h1>
   <p class="text-muted mb-4">Overview of your exam performance and attendance.</p>
 
-  {% if messages %}
-    {% for m in messages %}
-      <div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-    {% endfor %}
-  {% endif %}
-
   <div class="row g-4">
     <!-- Exam Reports -->
     <div class="col-lg-6">

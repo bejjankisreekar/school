@@ -10,7 +10,7 @@ from apps.school_data.models import Student, Fee, Payment, Marks, Exam, ClassRoo
 def _get_school_pro(school_code: str) -> School | None:
     try:
         school = School.objects.get(code=school_code)
-        if not school.is_pro_plan():
+        if not school.has_feature("api_access"):
             return None
         return school
     except School.DoesNotExist:

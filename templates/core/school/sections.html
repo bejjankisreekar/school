@@ -11,32 +11,17 @@
 
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
     <h1 class="h4 fw-bold mb-0">Section Management</h1>
-    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addSectionModal"><i class="bi bi-plus-lg"></i> Add Section</button>
+    <a href="{% url 'core:school_section_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Section</a>
   </div>
-
-  {% if messages %}
-    {% for m in messages %}
-      <div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-    {% endfor %}
-  {% endif %}
 
   <div class="card border-0 shadow-sm rounded-3 mb-4">
     <div class="card-body">
       <form method="get" class="row g-3">
-        <div class="col-md-3">
-          <label class="form-label small">Academic Year</label>
-          <select name="academic_year" class="form-select form-select-sm">
-            <option value="">All</option>
-            {% for ay in academic_years %}
-              <option value="{{ ay.id }}" {% if filters.academic_year == ay.id|stringformat:"s" %}selected{% endif %}>{{ ay.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-md-3">
+        <div class="col-md-4">
           <label class="form-label small">Search</label>
-          <input type="text" name="q" class="form-control form-control-sm" placeholder="Section or class name" value="{{ filters.q }}">
+          <input type="text" name="q" class="form-control form-control-sm" placeholder="Section name" value="{{ filters.q }}">
         </div>
-        <div class="col-md-3 d-flex align-items-end gap-2">
+        <div class="col-md-2 d-flex align-items-end gap-2">
           <button type="submit" class="btn btn-outline-primary btn-sm">Filter</button>
           <a href="{% url 'core:school_sections' %}" class="btn btn-outline-secondary btn-sm">Clear</a>
         </div>
@@ -50,9 +35,8 @@
         <thead class="table-light">
           <tr>
             <th>Section Name</th>
-            <th>Class</th>
-            <th>Class Teacher</th>
-            <th>Capacity</th>
+            <th>Description</th>
+            <th>Classes</th>
             <th>Total Students</th>
             <th class="text-center" style="width: 140px;">Actions</th>
           </tr>
@@ -61,9 +45,8 @@
           {% for s in sections %}
           <tr>
             <td><span class="badge bg-info bg-opacity-25 text-info">{{ s.name }}</span></td>
-            <td>{{ s.classroom }}</td>
-            <td>{% if s.class_teacher and s.class_teacher.user %}{{ s.class_teacher.user.get_full_name|default:s.class_teacher.user.username }}{% else %}—{% endif %}</td>
-            <td>{{ s.capacity|default:"—" }}</td>
+            <td>{{ s.description|default:"—"|truncatewords:10 }}</td>
+            <td>{% for c in s.classrooms.all %}{{ c.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</td>
             <td>{{ s.student_count }}</td>
             <td class="text-center" style="width: 180px;">
               <a href="{% url 'core:school_section_edit' s.id %}" class="btn btn-sm btn-outline-secondary" title="View">View &#128065;</a>
@@ -78,7 +61,7 @@
                   <h5 class="modal-title">Delete Section</h5>
                   <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">Delete <strong>{{ s.name }}</strong> ({{ s.classroom }})? You cannot delete if students are assigned.</div>
+                <div class="modal-body">Delete section <strong>{{ s.name }}</strong>? You cannot delete if students are assigned.</div>
                 <div class="modal-footer">
                   <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                   <form method="post" action="{% url 'core:school_section_delete' s.id %}" class="d-inline">{% csrf_token %}<button type="submit" class="btn btn-danger">Delete</button></form>
@@ -87,7 +70,7 @@
             </div>
           </div>
           {% empty %}
-          <tr><td colspan="6" class="text-center text-muted py-4">No sections yet. Create classes first, then add sections.</td></tr>
+          <tr><td colspan="5" class="text-center text-muted py-4">No sections yet. Add sections to use with classes.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -96,68 +79,11 @@
     <div class="card-footer d-flex justify-content-between align-items-center">
       <span class="small text-muted">Page {{ sections.number }} of {{ sections.paginator.num_pages }}</span>
       <ul class="pagination pagination-sm mb-0">
-        {% if sections.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ sections.previous_page_number }}{% if filters.academic_year %}&academic_year={{ filters.academic_year }}{% endif %}{% if filters.q %}&q={{ filters.q }}{% endif %}">Previous</a></li>{% endif %}
-        {% if sections.has_next %}<li class="page-item"><a class="page-link" href="?page={{ sections.next_page_number }}{% if filters.academic_year %}&academic_year={{ filters.academic_year }}{% endif %}{% if filters.q %}&q={{ filters.q }}{% endif %}">Next</a></li>{% endif %}
+        {% if sections.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ sections.previous_page_number }}{% if filters.q %}&q={{ filters.q }}{% endif %}">Previous</a></li>{% endif %}
+        {% if sections.has_next %}<li class="page-item"><a class="page-link" href="?page={{ sections.next_page_number }}{% if filters.q %}&q={{ filters.q }}{% endif %}">Next</a></li>{% endif %}
       </ul>
     </div>
     {% endif %}
   </div>
 </div>
-{% endblock %}
-
-{% block modals %}
-<div class="modal fade" id="addSectionModal" tabindex="-1" aria-labelledby="addSectionModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="addSectionModalLabel">Add Section</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <form method="post" action="{% url 'core:school_sections' %}">
-        {% csrf_token %}
-        <div class="modal-body">
-          {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
-          {% if not form.fields.classroom.queryset %}
-          <div class="alert alert-warning mb-3">Create <a href="{% url 'core:school_classes' %}">Classes</a> first, then add sections.</div>
-          {% endif %}
-          <div class="mb-3">
-            <label class="form-label">Class</label>
-            {{ form.classroom }}
-            {% if form.classroom.errors %}<div class="text-danger small">{{ form.classroom.errors.0 }}</div>{% endif %}
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Section Name</label>
-            {{ form.name }}
-            {% if form.name.errors %}<div class="text-danger small">{{ form.name.errors.0 }}</div>{% endif %}
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Capacity</label>
-            {{ form.capacity }}
-            {% if form.capacity.errors %}<div class="text-danger small">{{ form.capacity.errors.0 }}</div>{% endif %}
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Class Teacher</label>
-            {{ form.class_teacher }}
-            {% if form.class_teacher.errors %}<div class="text-danger small">{{ form.class_teacher.errors.0 }}</div>{% endif %}
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary">Create</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-{% if form.errors %}
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-  var modalEl = document.getElementById("addSectionModal");
-  if (modalEl) {
-    var modal = new bootstrap.Modal(modalEl);
-    modal.show();
-  }
-});
-</script>
-{% endif %}
 {% endblock %}

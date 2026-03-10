@@ -2,8 +2,12 @@
 Ensures tenant schema is set when authenticated users with a school access localhost.
 Student/teacher/admin/parent views use school_data and timetable (tenant apps).
 When on public schema (localhost) with no subdomain, switch to user's school schema.
+
+Trial expiry: redirects school users (non-superadmin) to dashboard when trial expired.
 """
 from django.utils.deprecation import MiddlewareMixin
+from django.shortcuts import redirect
+from django.urls import reverse
 from django_tenants.utils import get_public_schema_name
 
 
@@ -44,3 +48,27 @@ class TenantSchemaFromUserMiddleware(MiddlewareMixin):
             if path.startswith(prefix):
                 connection.set_tenant(school)
                 break
+
+
+class TrialExpiryMiddleware(MiddlewareMixin):
+    """
+    When a school user's trial has expired, redirect to admin dashboard.
+    Admin dashboard renders trial_expired template for school admins.
+    Superadmin is never blocked.
+    """
+    def process_request(self, request):
+        if not hasattr(request, "user") or not request.user.is_authenticated:
+            return
+        if getattr(request.user, "role", None) == "superadmin":
+            return
+        school = getattr(request.user, "school", None)
+        if not school or not school.is_trial_expired():
+            return
+        # Allow access to admin dashboard (it will render trial_expired)
+        try:
+            dashboard_url = reverse("core:admin_dashboard")
+            if request.path == dashboard_url or request.path.rstrip("/") == dashboard_url.rstrip("/"):
+                return
+        except Exception:
+            pass
+        return redirect("core:admin_dashboard")

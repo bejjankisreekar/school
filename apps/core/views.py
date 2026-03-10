@@ -1,14 +1,13 @@
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import get_user_model
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib import messages
 from django.http import Http404
 from django.core.exceptions import PermissionDenied
 from datetime import date, timedelta
 from io import BytesIO
 
 from django.db import transaction
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, F, Q, Sum
 from apps.customers.models import School
 from apps.school_data.models import (
     Student,
@@ -19,6 +18,7 @@ from apps.school_data.models import (
     Subject,
     ClassRoom,
     Exam,
+    Test,
     Section,
     AcademicYear,
     FeeType,
@@ -72,9 +72,7 @@ def about(request):
 
 
 def contact(request):
-    from django.contrib import messages
     if request.method == "POST":
-        messages.success(request, "Thank you for your message. We will get back to you soon.")
         return redirect("core:contact")
     return render(request, "marketing/contact.html")
 
@@ -109,47 +107,178 @@ def super_admin_dashboard(request):
 
 @admin_required
 def admin_dashboard(request):
+    from django.db.models.functions import TruncMonth
+    from apps.timetable.models import Timetable
+
     school = request.user.school
-    if not school:
-        return render(request, "core/dashboards/admin_dashboard.html", {
-            "total_schools": 0,
-            "total_students": 0,
-            "total_teachers": 0,
-            "total_classes": 0,
-            "total_sections": 0,
+    empty_ctx = {
+        "current_plan": None,
+        "plan_name": "",
+        "plan_features": [],
+        "trial_expired": False,
+        "total_students": 0,
+        "total_teachers": 0,
+        "total_classes": 0,
+        "total_sections": 0,
+        "total_subjects": 0,
+        "total_tests": 0,
         "active_academic_year": None,
         "active_academic_year_html": "—",
-            "attendance_today": [],
-            "attendance_today_count": 0,
-            "recent_homework": [],
-            "recent_marks": [],
-        })
-    total_students = Student.objects.count()
-    total_teachers = Teacher.objects.count()
-    total_classes = ClassRoom.objects.count()
-    total_sections = Section.objects.count()
+        "attendance_today_count": 0,
+        "attendance_present": 0,
+        "attendance_absent": 0,
+        "recent_homework": [],
+        "recent_marks": [],
+        "upcoming_exams": [],
+        "today_birthdays": [],
+        "pending_attendance": [],
+        "top_students": [],
+        "today_timetable": [],
+        "student_growth_data": [],
+        "attendance_analytics": {"present": 0, "absent": 0},
+        "class_distribution": [],
+        "subject_distribution": [],
+    }
+    if not school:
+        return render(request, "core/dashboards/admin_dashboard.html", empty_ctx)
+    if school.is_trial_expired():
+        return render(request, "core/dashboards/trial_expired.html", {"school": school})
+
+    today = date.today()
     active_academic_year = AcademicYear.objects.filter(is_active=True).first()
     active_academic_year_html = (
         f'<span class="badge bg-success">{active_academic_year.name}</span>'
         if active_academic_year else "—"
     )
-    today = date.today()
-    attendance_today_qs = Attendance.objects.filter(date=today).select_related("student", "student__user")
-    attendance_today = list(attendance_today_qs)
+
+    # Statistics
+    total_students = Student.objects.count()
+    total_teachers = Teacher.objects.count()
+    total_classes = ClassRoom.objects.count()
+    total_sections = Section.objects.count()
+    total_subjects = Subject.objects.count()
+    total_tests = Exam.objects.count()
+
+    # Attendance today
+    attendance_today_qs = Attendance.objects.filter(date=today)
+    attendance_today_count = attendance_today_qs.count()
+    attendance_present = attendance_today_qs.filter(status=Attendance.Status.PRESENT).count()
+    attendance_absent = attendance_today_qs.filter(status=Attendance.Status.ABSENT).count()
+
+    # Today's timetable (1=Monday, 6=Saturday; Python: Monday=0)
+    day_of_week = today.weekday() + 1 if today.weekday() < 6 else None  # Sunday = no classes
+    today_timetable = []
+    if day_of_week:
+        today_timetable = list(
+            Timetable.objects.filter(day_of_week=day_of_week)
+            .select_related("classroom", "subject", "time_slot")
+            .prefetch_related("teachers__user")
+            .order_by("time_slot__order", "time_slot__start_time")
+        )
+
+    # Upcoming exams (start_date >= today)
+    upcoming_exams = list(
+        Exam.objects.filter(start_date__gte=today)
+        .select_related("classroom")
+        .order_by("start_date")[:10]
+    )
+
+    # Birthdays today
+    today_birthdays = list(
+        Student.objects.filter(date_of_birth__month=today.month, date_of_birth__day=today.day)
+        .select_related("user", "classroom", "section")
+    )
+
+    # Pending attendance: classrooms with students but no attendance record for today
+    pending_attendance = list(
+        ClassRoom.objects.filter(students__isnull=False)
+        .exclude(students__attendance_records__date=today)
+        .distinct()
+    )
+
+    # Top students by latest marks (percentage)
+    top_marks = (
+        Marks.objects.filter(total_marks__gt=0)
+        .annotate(pct=F("marks_obtained") * 100 / F("total_marks"))
+        .select_related("student__user", "student__classroom", "student__section")
+        .order_by("-pct")[:10]
+    )
+    seen_students = set()
+    top_students = []
+    for m in top_marks:
+        if m.student_id not in seen_students:
+            seen_students.add(m.student_id)
+            pct = round((m.marks_obtained * 100) / m.total_marks)
+            top_students.append({"student": m.student, "percentage": pct})
+            if len(top_students) >= 5:
+                break
+
+    # Chart data: Student growth (last 6 months by enrollment)
+    six_months_ago = today - timedelta(days=180)
+    student_growth = (
+        Student.objects.filter(created_on__gte=six_months_ago)
+        .annotate(month=TruncMonth("created_on"))
+        .values("month")
+        .annotate(count=Count("id"))
+        .order_by("month")
+    )
+    student_growth_data = [{"month": x["month"].strftime("%b %Y"), "count": x["count"]} for x in student_growth]
+
+    # Chart: Attendance analytics (today)
+    attendance_analytics = {"present": attendance_present, "absent": attendance_absent}
+
+    # Chart: Class distribution
+    class_dist_qs = (
+        ClassRoom.objects.annotate(cnt=Count("students"))
+        .values("name", "cnt")
+        .order_by("name")
+    )
+    class_distribution = [{"label": x["name"], "count": x["cnt"]} for x in class_dist_qs]
+
+    # Chart: Subject distribution (subjects per class)
+    subject_dist_qs = (
+        Subject.objects.filter(classroom__isnull=False)
+        .values("classroom__name")
+        .annotate(cnt=Count("id"))
+        .order_by("classroom__name")
+    )
+    subject_distribution = [{"label": x["classroom__name"], "count": x["cnt"]} for x in subject_dist_qs]
+
     recent_homework = list(Homework.objects.all().order_by("-id")[:10])
     recent_marks = list(Marks.objects.all().order_by("-id")[:10])
+
+    from apps.customers.subscription import PLAN_FEATURES
+    plan = school.plan
+    plan_name = (plan.name if plan else "").lower() or "basic"
+    plan_features = PLAN_FEATURES.get(plan_name, [])
+
     return render(request, "core/dashboards/admin_dashboard.html", {
-        "total_schools": 1,
         "total_students": total_students,
         "total_teachers": total_teachers,
         "total_classes": total_classes,
         "total_sections": total_sections,
+        "total_subjects": total_subjects,
+        "total_tests": total_tests,
         "active_academic_year": active_academic_year,
         "active_academic_year_html": active_academic_year_html,
-        "attendance_today": attendance_today,
-        "attendance_today_count": len(attendance_today),
+        "attendance_today_count": attendance_today_count,
+        "attendance_present": attendance_present,
+        "attendance_absent": attendance_absent,
         "recent_homework": recent_homework,
         "recent_marks": recent_marks,
+        "upcoming_exams": upcoming_exams,
+        "today_birthdays": today_birthdays,
+        "pending_attendance": pending_attendance,
+        "top_students": top_students,
+        "today_timetable": today_timetable,
+        "student_growth_data": student_growth_data,
+        "attendance_analytics": attendance_analytics,
+        "class_distribution": class_distribution,
+        "subject_distribution": subject_distribution,
+        "current_plan": plan,
+        "plan_name": plan_name,
+        "plan_features": plan_features,
+        "trial_expired": school.is_trial_expired(),
     })
 
 
@@ -663,7 +792,7 @@ def student_report_card_pdf(request, exam_id):
     academic_year = f"{exam.start_date.year}-{exam.start_date.year + 1}" if exam.start_date else ""
 
     ai_remarks = ""
-    if school and school.is_pro_plan() and rows:
+    if school and school.has_feature("ai_marksheet_summaries") and rows:
         sorted_rows = sorted(rows, key=lambda r: r["pct"])
         strongest = sorted_rows[-1]
         weakest = sorted_rows[0]
@@ -694,7 +823,6 @@ def student_report_card_pdf(request, exam_id):
 
     pdf = render_pdf_bytes("core/student/report_card_pdf.html", context)
     if pdf is None:
-        messages.error(request, "Unable to generate PDF report card. Please contact administrator.")
         return redirect("core:student_reports")
     filename = f"report-card-{exam.name.replace(' ', '-')}.pdf"
     return pdf_response(pdf, filename)
@@ -714,7 +842,6 @@ def student_attendance_report_pdf(request):
 
     att_qs = Attendance.objects.filter(student=student).order_by("date")
     if not att_qs.exists():
-        messages.warning(request, "No attendance records to generate report.")
         return redirect("core:student_reports")
 
     monthly = defaultdict(lambda: {"present": 0, "total": 0})
@@ -759,7 +886,6 @@ def student_attendance_report_pdf(request):
     }
     pdf = render_pdf_bytes("core/student/attendance_report_pdf.html", context)
     if pdf is None:
-        messages.error(request, "Unable to generate attendance PDF. Please contact administrator.")
         return redirect("core:student_reports")
     filename = "attendance-report.pdf"
     return pdf_response(pdf, filename)
@@ -795,8 +921,8 @@ def school_students_list(request):
     paginator = Paginator(qs.order_by("classroom", "section", "roll_number"), 25)
     page = request.GET.get("page", 1)
     students = paginator.get_page(page)
-    classrooms = ClassRoom.objects.all().order_by("name", "section")
-    sections = Section.objects.all().select_related("classroom").order_by("classroom", "name")
+    classrooms = ClassRoom.objects.select_related("academic_year").order_by("academic_year", "name")
+    sections = Section.objects.all().order_by("name")
     return render(request, "core/school/students_list.html", {
         "students": students,
         "classrooms": classrooms,
@@ -835,7 +961,6 @@ def school_student_add(request):
                 parent_phone=form.cleaned_data.get("parent_phone") or "",
             )
             student.save_with_audit(request.user)
-        messages.success(request, f"Student {user.get_full_name() or user.username} added successfully.")
         return redirect("core:school_students_list")
     return render(request, "core/school/student_add.html", {"form": form})
 
@@ -883,7 +1008,6 @@ def school_student_edit(request, student_id):
             student.parent_name = form.cleaned_data.get("parent_name") or ""
             student.parent_phone = form.cleaned_data.get("parent_phone") or ""
             student.save_with_audit(request.user)
-        messages.success(request, "Student updated successfully.")
         return redirect("core:school_students_list")
     return render(request, "core/school/student_edit.html", {"form": form, "student": student})
 
@@ -905,7 +1029,6 @@ def school_student_delete(request, student_id):
         user = student.user
         student.delete()
         user.delete()
-    messages.success(request, "Student deleted.")
     return redirect("core:school_students_list")
 
 
@@ -940,10 +1063,9 @@ def school_students_import(request):
                             errors.append(f"Row {i}: Missing required fields")
                             continue
                         classroom = ClassRoom.objects.filter(name=cls).first()
-                        if not classroom:
+                        section = Section.objects.filter(name__iexact=sec).first() if sec else None
+                        if section and classroom and section not in classroom.sections.all():
                             section = None
-                        else:
-                            section = Section.objects.filter(classroom=classroom, name__iexact=sec).first()
                         if User.objects.filter(username=username).exists():
                             errors.append(f"Row {i}: Username {username} exists")
                             continue
@@ -963,15 +1085,8 @@ def school_students_import(request):
                         created += 1
                     except Exception as e:
                         errors.append(f"Row {i}: {e}")
-            if created:
-                messages.success(request, f"{created} students imported.")
-            if errors:
-                for e in errors[:10]:
-                    messages.warning(request, e)
-                if len(errors) > 10:
-                    messages.warning(request, f"... and {len(errors) - 10} more errors")
-        except Exception as e:
-            messages.error(request, f"Invalid CSV: {e}")
+        except Exception:
+            pass
         return redirect("core:school_students_list")
     return render(request, "core/school/students_import.html", {"form": form})
 
@@ -1016,7 +1131,6 @@ def school_teacher_add(request):
             teacher.save_with_audit(request.user)
             teacher.subjects.set(form.cleaned_data.get("subjects") or [])
             teacher.classrooms.set(form.cleaned_data.get("classrooms") or [])
-        messages.success(request, f"Teacher {user.get_full_name() or user.username} added.")
         return redirect("core:school_teachers_list")
     return render(request, "core/school/teacher_add.html", {"form": form})
 
@@ -1048,7 +1162,7 @@ def school_teacher_edit(request, teacher_id):
         "experience": teacher.experience or "",
         "role": teacher.user.role,
         "subjects": list(teacher.subjects.all()),
-        "sections": list(teacher.class_teacher_sections.all()),
+        "classrooms": list(teacher.classrooms.all()),
     }
     form = TeacherEditForm(school, teacher=teacher, data=request.POST or None, initial=initial)
     if request.method == "POST" and form.is_valid():
@@ -1063,15 +1177,7 @@ def school_teacher_edit(request, teacher_id):
             teacher.experience = form.cleaned_data.get("experience") or ""
             teacher.save_with_audit(request.user)
             teacher.subjects.set(form.cleaned_data.get("subjects") or [])
-            new_sections = set(form.cleaned_data.get("sections") or [])
-            for sec in teacher.class_teacher_sections.all():
-                if sec not in new_sections:
-                    sec.class_teacher = None
-                    sec.save_with_audit(request.user)
-            for sec in new_sections:
-                sec.class_teacher = teacher
-                sec.save_with_audit(request.user)
-        messages.success(request, "Teacher updated successfully.")
+            teacher.classrooms.set(form.cleaned_data.get("classrooms") or [])
         return redirect("core:school_teachers_list")
     return render(request, "core/school/teacher_edit.html", {"form": form, "teacher": teacher})
 
@@ -1087,13 +1193,11 @@ def school_teacher_delete(request, teacher_id):
         return redirect("core:school_teachers_list")
     from apps.timetable.models import Timetable
     if Timetable.objects.filter(teachers=teacher).exists():
-        messages.error(request, "Cannot delete: teacher is assigned in timetable. Remove assignment first.")
         return redirect("core:school_teachers_list")
     with transaction.atomic():
         user = teacher.user
         teacher.delete()
         user.delete()
-    messages.success(request, "Teacher deleted.")
     return redirect("core:school_teachers_list")
 
 
@@ -1103,37 +1207,39 @@ def school_teacher_delete(request, teacher_id):
 
 @admin_required
 def school_sections(request):
-    """List + create Sections for classrooms with pagination, search, filter."""
+    """List Sections with pagination, search, filter."""
+    school = request.user.school
+    if not school:
+        return redirect("core:admin_dashboard")
+    from django.core.paginator import Paginator
+
+    qs = Section.objects.prefetch_related("classrooms").annotate(student_count=Count("students")).order_by("name")
+    search = request.GET.get("q", "").strip()
+    if search:
+        qs = qs.filter(Q(name__icontains=search) | Q(description__icontains=search))
+    paginator = Paginator(qs, 15)
+    page = request.GET.get("page", 1)
+    sections = paginator.get_page(page)
+    return render(request, "core/school/sections.html", {
+        "sections": sections,
+        "filters": {"q": search},
+    })
+
+
+@admin_required
+def school_section_add(request):
+    """Add new section form page."""
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
     from .forms import SectionForm
-    from django.core.paginator import Paginator
 
     form = SectionForm(school, request.POST or None)
     if request.method == "POST" and form.is_valid():
         section = form.save(commit=False)
         section.save_with_audit(request.user)
-        messages.success(request, "Section created.")
         return redirect("core:school_sections")
-
-    qs = Section.objects.all().select_related("classroom", "classroom__academic_year", "class_teacher", "class_teacher__user").annotate(student_count=Count("students")).order_by("classroom__name", "name")
-    academic_year_id = request.GET.get("academic_year")
-    if academic_year_id:
-        qs = qs.filter(classroom__academic_year_id=academic_year_id)
-    search = request.GET.get("q", "").strip()
-    if search:
-        qs = qs.filter(Q(name__icontains=search) | Q(classroom__name__icontains=search))
-    paginator = Paginator(qs, 15)
-    page = request.GET.get("page", 1)
-    sections = paginator.get_page(page)
-    academic_years = AcademicYear.objects.all().order_by("-start_date")
-    return render(request, "core/school/sections.html", {
-        "form": form,
-        "sections": sections,
-        "academic_years": academic_years,
-        "filters": {"academic_year": academic_year_id, "q": search},
-    })
+    return render(request, "core/school/section_add.html", {"form": form, "title": "Add Section"})
 
 
 @admin_required
@@ -1148,7 +1254,6 @@ def school_section_edit(request, section_id):
         obj = form.save(commit=False)
         obj.modified_by = request.user
         obj.save()
-        messages.success(request, "Section updated.")
         return redirect("core:school_sections")
     return render(request, "core/school/section_edit.html", {"form": form, "section": section})
 
@@ -1162,10 +1267,8 @@ def school_section_delete(request, section_id):
     if request.method != "POST":
         return redirect("core:school_sections")
     if section.students.exists():
-        messages.error(request, "Cannot delete: students are assigned to this section.")
         return redirect("core:school_sections")
     section.delete()
-    messages.success(request, "Section deleted.")
     return redirect("core:school_sections")
 
 
@@ -1185,7 +1288,6 @@ def school_academic_years(request):
     if request.method == "POST" and form.is_valid():
         obj = form.save(commit=False)
         obj.save_with_audit(request.user)
-        messages.success(request, f"Academic year {obj.name} created.")
         return redirect("core:school_academic_years")
 
     qs = AcademicYear.objects.all().order_by("-start_date")
@@ -1213,7 +1315,6 @@ def school_academic_year_set_active(request, year_id):
     ay.is_active = True
     ay.modified_by = request.user
     ay.save(update_fields=["is_active", "modified_by", "modified_on"])
-    messages.success(request, f"{ay.name} is now the active academic year.")
     return redirect("core:school_academic_years")
 
 
@@ -1229,7 +1330,6 @@ def school_academic_year_edit(request, year_id):
         obj = form.save(commit=False)
         obj.modified_by = request.user
         obj.save()
-        messages.success(request, "Academic year updated.")
         return redirect("core:school_academic_years")
     return render(request, "core/school/academic_year/form.html", {"form": form, "academic_year": ay, "title": "Edit Academic Year"})
 
@@ -1243,10 +1343,8 @@ def school_academic_year_delete(request, year_id):
         return redirect("core:school_academic_years")
     ay = get_object_or_404(AcademicYear, id=year_id)
     if ay.is_active:
-        messages.error(request, "Cannot delete the active academic year. Set another year as active first.")
         return redirect("core:school_academic_years")
     ay.delete()
-    messages.success(request, "Academic year deleted.")
     return redirect("core:school_academic_years")
 
 
@@ -1292,7 +1390,7 @@ def school_class_add(request):
     if request.method == "POST" and form.is_valid():
         obj = form.save(commit=False)
         obj.save_with_audit(request.user)
-        messages.success(request, f"Class {obj.name} created.")
+        form.save_m2m()
         return redirect("core:school_classes")
     return render(request, "core/school/classes/form.html", {"form": form, "title": "Add Class"})
 
@@ -1309,7 +1407,7 @@ def school_class_edit(request, class_id):
         obj = form.save(commit=False)
         obj.modified_by = request.user
         obj.save()
-        messages.success(request, "Class updated.")
+        form.save_m2m()
         return redirect("core:school_classes")
     return render(request, "core/school/classes/form.html", {"form": form, "classroom": classroom, "title": "Edit Class"})
 
@@ -1323,13 +1421,10 @@ def school_class_delete(request, class_id):
         return redirect("core:school_classes")
     classroom = get_object_or_404(ClassRoom, id=class_id)
     if classroom.sections.exists():
-        messages.error(request, "Cannot delete class: sections exist. Remove sections first.")
         return redirect("core:school_classes")
     if classroom.students.exists():
-        messages.error(request, "Cannot delete class: students are assigned. Reassign or remove them first.")
         return redirect("core:school_classes")
     classroom.delete()
-    messages.success(request, "Class deleted.")
     return redirect("core:school_classes")
 
 
@@ -1372,7 +1467,6 @@ def school_subject_add(request):
     if request.method == "POST" and form.is_valid():
         obj = form.save(commit=False)
         obj.save_with_audit(request.user)
-        messages.success(request, f"Subject {obj.name} created.")
         return redirect("core:school_subjects")
     return render(request, "core/school/subjects/form.html", {"form": form, "title": "Add Subject"})
 
@@ -1389,7 +1483,6 @@ def school_subject_edit(request, subject_id):
         obj = form.save(commit=False)
         obj.modified_by = request.user
         obj.save()
-        messages.success(request, "Subject updated.")
         return redirect("core:school_subjects")
     return render(request, "core/school/subjects/form.html", {"form": form, "subject": subject, "title": "Edit Subject"})
 
@@ -1403,8 +1496,87 @@ def school_subject_delete(request, subject_id):
         return redirect("core:school_subjects")
     subject = get_object_or_404(Subject, id=subject_id)
     subject.delete()
-    messages.success(request, "Subject deleted.")
     return redirect("core:school_subjects")
+
+
+# ======================
+# School Admin: Tests Management
+# ======================
+
+
+@admin_required
+def school_tests_list(request):
+    """List all tests with filters."""
+    school = request.user.school
+    if not school:
+        return redirect("core:admin_dashboard")
+
+    qs = Test.objects.select_related("subject", "classroom", "section").order_by("-test_date", "classroom__name", "subject__name")
+
+    class_filter = request.GET.get("class")
+    subject_filter = request.GET.get("subject")
+    date_filter = request.GET.get("date")
+
+    if class_filter:
+        qs = qs.filter(classroom_id=class_filter)
+    if subject_filter:
+        qs = qs.filter(subject_id=subject_filter)
+    if date_filter:
+        qs = qs.filter(test_date=date_filter)
+
+    classrooms = ClassRoom.objects.order_by("academic_year", "name")
+    subjects = Subject.objects.order_by("name")
+
+    return render(request, "core/school/tests_list.html", {
+        "tests": qs,
+        "classrooms": classrooms,
+        "subjects": subjects,
+        "filters": {
+            "class": class_filter,
+            "subject": subject_filter,
+            "date": date_filter,
+        },
+    })
+
+
+@admin_required
+def school_test_add(request):
+    """Add a new test."""
+    school = request.user.school
+    if not school:
+        return redirect("core:admin_dashboard")
+    from .forms import TestForm
+    form = TestForm(school, request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        return redirect("core:school_tests_list")
+    return render(request, "core/school/test_form.html", {"form": form, "title": "Add Test"})
+
+
+@admin_required
+def school_test_edit(request, test_id):
+    """Edit a test."""
+    school = request.user.school
+    if not school:
+        return redirect("core:admin_dashboard")
+    test = get_object_or_404(Test, id=test_id)
+    from .forms import TestForm
+    form = TestForm(school, request.POST or None, instance=test)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        return redirect("core:school_tests_list")
+    return render(request, "core/school/test_form.html", {"form": form, "test": test, "title": "Edit Test"})
+
+
+@admin_required
+def school_test_delete(request, test_id):
+    """Delete a test."""
+    if not request.user.school:
+        return redirect("core:admin_dashboard")
+    test = get_object_or_404(Test, id=test_id)
+    if request.method == "POST":
+        test.delete()
+    return redirect("core:school_tests_list")
 
 
 # ======================
@@ -1433,7 +1605,99 @@ def homework_list(request):
 
 @login_required
 def reports_list(request):
+    """Legacy reports entry (student/general)."""
     return render(request, "core/placeholders/coming_soon.html", {"title": "Reports"})
+
+
+@admin_required
+def school_reports_dashboard(request):
+    """
+    School Reports Dashboard: charts + report cards.
+    Uses Marks aggregates for analytics.
+    """
+    from apps.school_data.models import Marks
+    from django.db.models import Sum
+    import json
+
+    qs = Marks.objects.filter(exam__isnull=False)
+
+    # Top 10 students by percentage
+    agg = qs.values("student_id").annotate(
+        total_o=Sum("marks_obtained"), total_m=Sum("total_marks")
+    )
+    top_students = []
+    for row in agg:
+        if row["total_m"]:
+            pct = round(row["total_o"] / row["total_m"] * 100, 1)
+            top_students.append((row["student_id"], pct))
+    top_students.sort(key=lambda x: -x[1])
+    top_students = top_students[:10]
+    student_map = {
+        s.id: s
+        for s in Student.objects.filter(id__in=[sid for sid, _ in top_students]).select_related(
+            "user", "classroom"
+        )
+    }
+    chart_top_labels = [
+        (student_map[sid].user.get_full_name() or student_map[sid].user.username)
+        if sid in student_map
+        else str(sid)
+        for sid, _ in top_students
+    ]
+    chart_top_values = [pct for _, pct in top_students]
+
+    # Grade distribution (simple A/B/C/D buckets) based on top students
+    grade_buckets = {"A": 0, "B": 0, "C": 0, "D": 0}
+    for _, pct in top_students:
+        if pct >= 80:
+            grade_buckets["A"] += 1
+        elif pct >= 65:
+            grade_buckets["B"] += 1
+        elif pct >= 50:
+            grade_buckets["C"] += 1
+        else:
+            grade_buckets["D"] += 1
+
+    # Class-wise average percentage
+    class_agg = (
+        qs.values("student__classroom__name")
+        .annotate(total_o=Sum("marks_obtained"), total_m=Sum("total_marks"))
+        .order_by("student__classroom__name")
+    )
+    class_labels = []
+    class_values = []
+    for row in class_agg:
+        cname = row["student__classroom__name"] or "Unassigned"
+        if row["total_m"]:
+            pct = round(row["total_o"] / row["total_m"] * 100, 1)
+            class_labels.append(cname)
+            class_values.append(pct)
+
+    # Performance trend over exams (average percentage per exam)
+    exam_agg = (
+        qs.values("exam__name")
+        .annotate(total_o=Sum("marks_obtained"), total_m=Sum("total_marks"))
+        .order_by("exam__name")
+    )
+    trend_labels = []
+    trend_values = []
+    for row in exam_agg:
+        if row["total_m"]:
+            pct = round(row["total_o"] / row["total_m"] * 100, 1)
+            trend_labels.append(row["exam__name"] or "Exam")
+            trend_values.append(pct)
+
+    context = {
+        "chart_top_labels": json.dumps(chart_top_labels),
+        "chart_top_values": json.dumps(chart_top_values),
+        "grade_labels": json.dumps(list(grade_buckets.keys())),
+        "grade_values": json.dumps(list(grade_buckets.values())),
+        "class_labels": json.dumps(class_labels),
+        "class_values": json.dumps(class_values),
+        "trend_labels": json.dumps(trend_labels),
+        "trend_values": json.dumps(trend_values),
+    }
+    return render(request, "core/reports/dashboard.html", context)
 
 
 # ======================
@@ -1459,7 +1723,6 @@ def create_homework(request):
     if teacher:
         subject = teacher.subjects.first() or teacher.subject
     if not teacher or not subject:
-        messages.warning(request, "You must be assigned a subject before creating homework.")
         return redirect("core:teacher_dashboard")
 
     if request.method == "POST":
@@ -1469,7 +1732,6 @@ def create_homework(request):
             hw.teacher = teacher
             hw.subject = subject
             hw.save()
-            messages.success(request, "Homework created successfully.")
             return redirect("core:teacher_dashboard")
     else:
         form = TeacherHomeworkForm()
@@ -1491,7 +1753,6 @@ def enter_marks(request):
         form = MarksForm(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(request, "Marks recorded successfully.")
             return redirect("core:teacher_dashboard")
     else:
         form = MarksForm()
@@ -1542,7 +1803,6 @@ def teacher_exam_create(request):
         if form.is_valid():
             exam = form.save(commit=False)
             exam.save()
-            messages.success(request, "Exam created successfully.")
             return redirect("core:teacher_exam_summary", exam_id=exam.id)
     else:
         from .forms import ExamCreateForm
@@ -1560,10 +1820,10 @@ def teacher_exam_summary(request, exam_id):
     exam = get_object_or_404(Exam, id=exam_id)
     if not _teacher_exam_access(exam, school):
         raise PermissionDenied
-    # Get students in exam's classroom
+    # Get students in exam's classroom (all sections)
     students = list(
         Student.objects.filter(
-            Q(classroom=exam.classroom) | Q(grade=exam.classroom.name, section=exam.classroom.section),
+            classroom=exam.classroom,
             user__school=school,
         )
         .select_related("user")
@@ -1617,10 +1877,10 @@ def teacher_exam_enter_marks(request, exam_id):
         school=school,
     ).order_by("name")
 
-    # Students in exam's classroom
+    # Students in exam's classroom (all sections)
     students = list(
         Student.objects.filter(
-            Q(classroom=exam.classroom) | Q(grade=exam.classroom.name, section=exam.classroom.section),
+            classroom=exam.classroom,
             user__school=school,
         )
         .select_related("user")
@@ -1670,7 +1930,6 @@ def teacher_exam_enter_marks(request, exam_id):
                 Marks.objects.bulk_create(to_create)
             if to_update:
                 Marks.objects.bulk_update(to_update, ["marks_obtained", "total_marks", "entered_by"])
-        messages.success(request, "Marks saved successfully.")
         return redirect("core:teacher_exam_summary", exam_id=exam.id)
 
     # GET: show form
@@ -1772,18 +2031,21 @@ def teacher_class_analytics(request):
 
 
 def _get_class_section_choices(school):
-    """Get unique (class_name, section) from students and classrooms."""
+    """Get unique (class_name, section_name) from students and classrooms."""
     choices_class = set()
     choices_section = set()
-    # From students
-    for s in Student.objects.all().values_list("grade", "section"):
-        if s[0]:
-            choices_class.add((s[0], s[0]))
-            choices_section.add((s[1] or "A", s[1] or "A"))
-    # From classrooms
-    for c in ClassRoom.objects.all().values_list("name", "section"):
-        choices_class.add((c[0], c[0]))
-        choices_section.add((c[1], c[1]))
+    # From students: classroom name + section name
+    for row in Student.objects.filter(
+        classroom__isnull=False, section__isnull=False
+    ).values_list("classroom__name", "section__name"):
+        if row[0] and row[1]:
+            choices_class.add((row[0], row[0]))
+            choices_section.add((row[1], row[1]))
+    # From classrooms: name + each section in that class
+    for c in ClassRoom.objects.prefetch_related("sections"):
+        choices_class.add((c.name, c.name))
+        for sec in c.sections.all():
+            choices_section.add((sec.name, sec.name))
     return sorted(choices_class), sorted(choices_section)
 
 
@@ -1804,15 +2066,12 @@ def bulk_attendance(request):
         section_val = request.POST.get("section", "").strip()
         date_str = request.POST.get("attendance_date", "")
         if not class_name or not section_val or not date_str:
-            messages.error(request, "Class, Section, and Date are required.")
             return redirect("core:bulk_attendance")
         try:
             att_date = date.fromisoformat(date_str)
         except (ValueError, TypeError):
-            messages.error(request, "Invalid date.")
             return redirect("core:bulk_attendance")
         if att_date > today:
-            messages.error(request, "Cannot mark attendance for future dates.")
             return redirect("core:bulk_attendance")
 
         # Get students (by classroom or grade+section)
@@ -1826,7 +2085,6 @@ def bulk_attendance(request):
             .order_by("roll_number")
         )
         if not students:
-            messages.warning(request, "No students found for this class-section.")
             return redirect("core:bulk_attendance")
 
         # Collect attendance updates
@@ -1862,7 +2120,6 @@ def bulk_attendance(request):
             Attendance.objects.bulk_create(to_create)
         if to_update:
             Attendance.objects.bulk_update(to_update, ["status", "marked_by"])
-        messages.success(request, "Attendance saved successfully.")
         return redirect("core:bulk_attendance")
 
     # GET: Load students or show form
@@ -1879,10 +2136,9 @@ def bulk_attendance(request):
     existing_attendance = {}
     if class_name and section_val:
         students = list(
-            Student.objects.all()
-            .filter(
-                Q(classroom__name=class_name, classroom__section=section_val)
-                | Q(classroom__isnull=True, grade=class_name, section=section_val)
+            Student.objects.filter(
+                classroom__name=class_name,
+                section__name__iexact=section_val,
             )
             .select_related("user")
             .order_by("roll_number")
@@ -1927,7 +2183,6 @@ def mark_attendance(request):
         form = AttendanceForm(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(request, "Attendance marked successfully.")
             return redirect("core:teacher_dashboard")
     else:
         form = AttendanceForm(initial={"date": date.today()})
@@ -1942,9 +2197,18 @@ def mark_attendance(request):
 
 
 def _school_fee_check(request):
-    """Ensure school has fee module. Return school or None. Basic plan has all Basic features."""
+    """Ensure school has fee module. Return school or None."""
+    return _school_module_check(request, "fees")
+
+
+def _school_module_check(request, feature: str):
+    """Ensure school has access to feature. Return school or None."""
     school = request.user.school
     if not school:
+        return None
+    if school.is_trial_expired():
+        return None
+    if not school.has_feature(feature):
         return None
     return school
 
@@ -1978,7 +2242,6 @@ def school_fee_types(request):
         if form.is_valid():
             obj = form.save(commit=False)
             obj.save_with_audit(request.user)
-            messages.success(request, "Fee type added.")
             return redirect("core:school_fee_types")
     else:
         form = FeeTypeForm()
@@ -1997,7 +2260,6 @@ def school_fee_structure(request):
         if form.is_valid():
             obj = form.save(commit=False)
             obj.save_with_audit(request.user)
-            messages.success(request, "Fee structure added.")
             return redirect("core:school_fee_structure")
     else:
         form = FeeStructureForm(school)
@@ -2032,9 +2294,8 @@ def school_fee_add(request):
                     )
                     if created_flag:
                         created += 1
-                messages.success(request, f"Created {created} fee(s).")
             except (ValueError, FeeStructure.DoesNotExist):
-                messages.error(request, "Invalid inputs.")
+                pass
         return redirect("core:school_fee_collection")
     structures = FeeStructure.objects.all().select_related("fee_type", "classroom")
     classrooms = ClassRoom.objects.all()
@@ -2073,7 +2334,6 @@ def school_fee_collect(request, fee_id):
                 else:
                     fee.status = "PARTIAL"
                 fee.save(update_fields=["status"])
-            messages.success(request, "Payment recorded.")
             return redirect("core:school_fee_collection")
     else:
         form = PaymentForm(initial={"payment_date": date.today(), "amount": fee.amount})
@@ -2219,45 +2479,149 @@ def school_student_id_card_pdf(request, student_id):
 # Staff Attendance (Basic Plan)
 # ======================
 
+STATUS_CHOICES = [
+    ("PRESENT", "Present"),
+    ("ABSENT", "Absent"),
+    ("LEAVE", "Leave"),
+    ("HALF_DAY", "Half Day"),
+    ("HOLIDAY", "Holiday"),
+    ("OTHER", "Other"),
+]
+
+
+def _staff_attendance_date_range(request):
+    """Return (start_date, end_date) for staff attendance filter. Default: current month."""
+    today = date.today()
+    month_str = request.GET.get("month", "")
+    start_str = request.GET.get("start_date", "").strip()
+    end_str = request.GET.get("end_date", "").strip()
+    # Prefer explicit date range; fallback to month; fallback to current month
+    if start_str and end_str:
+        try:
+            first = date.fromisoformat(start_str)
+            last = date.fromisoformat(end_str)
+            if first > last:
+                first, last = last, first
+            return first, last
+        except (ValueError, TypeError):
+            pass
+    use_month = month_str or today.strftime("%Y-%m")
+    try:
+        year, month = map(int, use_month.split("-"))
+        first = date(year, month, 1)
+        last = date(year, 12, 31) if month == 12 else date(year, month + 1, 1) - timedelta(days=1)
+        return first, last
+    except (ValueError, TypeError):
+        first = date(today.year, today.month, 1)
+        last = today
+        return first, last
+
 
 @admin_required
 def school_staff_attendance(request):
+    """Staff attendance list: summary cards, date filters, staff table with counts."""
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
-    teachers = Teacher.objects.all()
+    teachers = Teacher.objects.filter(user__school=school).select_related("user").order_by("user__first_name", "user__last_name")
+    start_date, end_date = _staff_attendance_date_range(request)
+    today = date.today()
+    month_default = today.strftime("%Y-%m")
+    # Summary counts for date range
+    qs = StaffAttendance.objects.filter(
+        teacher__user__school=school,
+        date__gte=start_date,
+        date__lte=end_date,
+    )
+    summary = qs.values("status").annotate(cnt=Count("id")).values_list("status", "cnt")
+    summary_map = dict(summary)
+    summary_counts = {
+        "present": summary_map.get("PRESENT", 0),
+        "absent": summary_map.get("ABSENT", 0),
+        "leave": summary_map.get("LEAVE", 0),
+        "half_day": summary_map.get("HALF_DAY", 0),
+        "holiday": summary_map.get("HOLIDAY", 0),
+        "other": summary_map.get("OTHER", 0),
+    }
+    # Per-staff aggregates
+    staff_stats = (
+        qs.values("teacher_id", "status")
+        .annotate(cnt=Count("id"))
+        .order_by("teacher_id")
+    )
+    status_col_map = {"PRESENT": "present", "ABSENT": "absent", "LEAVE": "leave", "HALF_DAY": "half_day", "HOLIDAY": "holiday", "OTHER": "other"}
+    by_teacher = {}
+    for row in staff_stats:
+        tid = row["teacher_id"]
+        if tid not in by_teacher:
+            by_teacher[tid] = {"present": 0, "absent": 0, "leave": 0, "half_day": 0, "holiday": 0, "other": 0}
+        col = status_col_map.get(row["status"])
+        if col:
+            by_teacher[tid][col] = row["cnt"]
+    staff_rows = []
+    for t in teachers:
+        row = by_teacher.get(t.id, {"present": 0, "absent": 0, "leave": 0, "half_day": 0, "holiday": 0, "other": 0})
+        staff_rows.append({
+            "teacher": t,
+            "present": row.get("present", 0),
+            "absent": row.get("absent", 0),
+            "leave": row.get("leave", 0),
+            "half_day": row.get("half_day", 0),
+            "holiday": row.get("holiday", 0),
+            "other": row.get("other", 0),
+        })
+    from django.core.paginator import Paginator
+    paginator = Paginator(staff_rows, 25)
+    page = paginator.get_page(request.GET.get("page", 1))
+    return render(request, "core/staff_attendance/index.html", {
+        "page": page,
+        "summary_counts": summary_counts,
+        "start_date": start_date,
+        "end_date": end_date,
+        "month_default": month_default,
+        "status_choices": STATUS_CHOICES,
+    })
+
+
+@admin_required
+def school_staff_attendance_mark(request):
+    """Mark staff attendance for a single date."""
+    school = request.user.school
+    if not school:
+        return redirect("core:admin_dashboard")
+    teachers = Teacher.objects.filter(user__school=school).select_related("user").order_by("user__first_name", "user__last_name")
     att_date_str = request.POST.get("date") or request.GET.get("date", date.today().isoformat())
     try:
         att_date = date.fromisoformat(att_date_str)
     except (ValueError, TypeError):
         att_date = date.today()
+        att_date_str = att_date.isoformat()
     records = StaffAttendance.objects.filter(
         teacher__user__school=school,
         date=att_date,
     ).select_related("teacher")
     by_teacher = {r.teacher_id: r for r in records}
-    from types import SimpleNamespace
-    for t in teachers:
-        if t.id not in by_teacher:
-            by_teacher[t.id] = SimpleNamespace(status="PRESENT")
     if request.method == "POST":
+        valid_statuses = {s[0] for s in STATUS_CHOICES}
         for t in teachers:
             key = f"status_{t.id}"
             if key in request.POST:
                 status = request.POST[key]
-                if status in ["PRESENT", "ABSENT", "LEAVE", "HALF_DAY"]:
-                    obj, _ = StaffAttendance.objects.update_or_create(
+                if status in valid_statuses:
+                    StaffAttendance.objects.update_or_create(
                         teacher=t,
                         date=att_date,
                         defaults={"status": status, "marked_by": request.user},
                     )
-        messages.success(request, "Staff attendance saved.")
-        from django.urls import reverse
-        return redirect(reverse("core:school_staff_attendance") + f"?date={att_date_str}")
-    return render(request, "core/staff_attendance.html", {
-        "teachers": teachers,
+        return redirect("core:school_staff_attendance")
+    staff_rows = []
+    for t in teachers:
+        rec = by_teacher.get(t.id)
+        staff_rows.append({"teacher": t, "current_status": rec.status if rec else "PRESENT"})
+    return render(request, "core/staff_attendance/mark.html", {
+        "staff_rows": staff_rows,
         "att_date": att_date_str,
-        "by_teacher": by_teacher,
+        "status_choices": STATUS_CHOICES,
     })
 
 
@@ -2268,8 +2632,9 @@ def school_staff_attendance(request):
 
 @admin_required
 def school_inventory_index(request):
-    school = request.user.school
+    school = _school_module_check(request, "inventory")
     if not school:
+        add_warning_once(request, "inventory_not_available", "Inventory module not available in your plan.")
         return redirect("core:admin_dashboard")
     items = InventoryItem.objects.all()
     purchases = Purchase.objects.all().select_related("inventory_item").order_by("-purchase_date")[:15]
@@ -2278,7 +2643,7 @@ def school_inventory_index(request):
 
 @admin_required
 def school_inventory_item_add(request):
-    school = request.user.school
+    school = _school_module_check(request, "inventory")
     if not school:
         return redirect("core:admin_dashboard")
     from .forms import InventoryItemForm
@@ -2287,7 +2652,6 @@ def school_inventory_item_add(request):
         if form.is_valid():
             obj = form.save(commit=False)
             obj.save_with_audit(request.user)
-            messages.success(request, "Item added.")
             return redirect("core:school_inventory_index")
     else:
         form = InventoryItemForm()
@@ -2296,7 +2660,7 @@ def school_inventory_item_add(request):
 
 @admin_required
 def school_purchase_add(request):
-    school = request.user.school
+    school = _school_module_check(request, "inventory")
     if not school:
         return redirect("core:admin_dashboard")
     from .forms import PurchaseForm
@@ -2309,7 +2673,6 @@ def school_purchase_add(request):
             item = obj.inventory_item
             item.quantity = (item.quantity or 0) + obj.quantity
             item.save(update_fields=["quantity"])
-            messages.success(request, "Purchase recorded.")
             return redirect("core:school_inventory_index")
     else:
         form = PurchaseForm()
@@ -2319,7 +2682,7 @@ def school_purchase_add(request):
 
 @admin_required
 def school_invoices_list(request):
-    school = request.user.school
+    school = _school_module_check(request, "inventory")
     if not school:
         return redirect("core:admin_dashboard")
     invoices = Invoice.objects.all().order_by("-issue_date")
@@ -2333,8 +2696,9 @@ def school_invoices_list(request):
 
 @admin_required
 def school_ai_reports(request):
-    school = request.user.school
+    school = _school_module_check(request, "ai_reports")
     if not school:
+        add_warning_once(request, "ai_reports_not_available", "AI Reports module not available in your plan.")
         return redirect("core:admin_dashboard")
     # Student performance summary
     marks_qs = Marks.objects.filter(exam__isnull=False)
@@ -2392,7 +2756,7 @@ def school_support_create(request):
         return redirect("core:admin_dashboard")
     from .forms import SupportTicketForm
     initial = {}
-    if school.is_pro_plan():
+    if school.has_feature("priority_support"):
         initial["priority"] = "PRIORITY"
     if request.method == "POST":
         form = SupportTicketForm(request.POST)
@@ -2400,7 +2764,6 @@ def school_support_create(request):
             obj = form.save(commit=False)
             obj.submitted_by = request.user
             obj.save_with_audit(request.user)
-            messages.success(request, "Support ticket submitted. We will get back to you soon.")
             return redirect("core:school_support_create")
     else:
         form = SupportTicketForm(initial=initial)
@@ -2414,9 +2777,9 @@ def school_support_create(request):
 
 
 def online_admission_apply(request, school_code):
-    """Public admission form. School must have Pro plan."""
+    """Public admission form. School must have online_admission feature (Pro plan)."""
     school = get_object_or_404(School, code=school_code)
-    if not school.is_pro_plan():
+    if not school.has_feature("online_admission"):
         raise Http404("Online admissions not available for this school.")
     from .forms import OnlineAdmissionForm
     if request.method == "POST":
@@ -2438,7 +2801,6 @@ def online_admission_apply(request, school_code):
                     applied_class=data.get("applied_class"),
                     application_number=app_num,
                 )
-            messages.success(request, f"Application submitted. Your application number is {app_num}.")
             from django.urls import reverse
             return redirect(reverse("core:online_admission_status", kwargs={"school_code": school_code}) + f"?app_no={app_num}")
     else:
@@ -2449,7 +2811,7 @@ def online_admission_apply(request, school_code):
 def online_admission_status(request, school_code):
     """Check admission status by application number (public)."""
     school = get_object_or_404(School, code=school_code)
-    if not school.is_pro_plan():
+    if not school.has_feature("online_admission"):
         raise Http404
     application_number = request.GET.get("app_no", "").strip()
     application = None
@@ -2467,9 +2829,9 @@ def online_admission_status(request, school_code):
 @admin_required
 def school_admissions_list(request):
     """Admin: list and approve/reject online admissions."""
-    school = request.user.school
-    if not school or not school.is_pro_plan():
-        messages.warning(request, "Online admissions not available.")
+    school = _school_module_check(request, "online_admission")
+    if not school:
+        add_warning_once(request, "online_admission_not_available", "Online admissions not available in your plan.")
         return redirect("core:admin_dashboard")
     applications = OnlineAdmission.objects.all().select_related("applied_class").order_by("-created_on")
     return render(request, "core/admissions/admin_list.html", {"applications": applications})
@@ -2477,29 +2839,27 @@ def school_admissions_list(request):
 
 @admin_required
 def school_admission_approve(request, pk):
-    school = request.user.school
-    if not school or not school.is_pro_plan():
+    school = _school_module_check(request, "online_admission")
+    if not school:
         raise PermissionDenied
     app = get_object_or_404(OnlineAdmission, pk=pk)
     app.status = "APPROVED"
     app.approved_by = request.user
     app.remarks = request.POST.get("remarks", "")
     app.save()
-    messages.success(request, "Admission approved.")
     return redirect("core:school_admissions_list")
 
 
 @admin_required
 def school_admission_reject(request, pk):
-    school = request.user.school
-    if not school or not school.is_pro_plan():
+    school = _school_module_check(request, "online_admission")
+    if not school:
         raise PermissionDenied
     app = get_object_or_404(OnlineAdmission, pk=pk)
     app.status = "REJECTED"
     app.approved_by = request.user
     app.remarks = request.POST.get("remarks", "")
     app.save()
-    messages.success(request, "Admission rejected.")
     return redirect("core:school_admissions_list")
 
 
@@ -2511,7 +2871,7 @@ def school_admission_reject(request, pk):
 def online_results_view(request, school_code):
     """Public results: enter roll number + DOB to view."""
     school = get_object_or_404(School, code=school_code)
-    if not school.is_pro_plan():
+    if not school.has_feature("online_results"):
         raise Http404
     roll = request.GET.get("roll", "").strip()
     dob_str = request.GET.get("dob", "").strip()
@@ -2546,14 +2906,38 @@ def online_results_view(request, school_code):
 
 @admin_required
 def school_toppers(request):
-    school = request.user.school
-    if not school or not school.is_pro_plan():
-        messages.warning(request, "Topper list not available.")
+    """Backward-compatible redirect to new reports toppers view."""
+    return redirect("core:school_reports_toppers")
+
+
+@admin_required
+def school_reports_toppers(request):
+    """Toppers report under Reports module with filters."""
+    school = _school_module_check(request, "topper_list")
+    if not school:
+        add_warning_once(request, "topper_list_not_available", "Topper list not available in your plan.")
         return redirect("core:admin_dashboard")
-    from apps.school_data.models import Marks
+    from apps.school_data.models import Marks, Exam, ClassRoom, Section
     from django.db.models import Sum
+    import json
+
+    exam_id = request.GET.get("exam") or ""
+    classroom_id = request.GET.get("classroom") or ""
+    section_id = request.GET.get("section") or ""
+    top_n = int(request.GET.get("top", "10") or "10")
+    if top_n not in (3, 10):
+        top_n = 10
+
+    marks_qs = Marks.objects.filter(exam__isnull=False)
+    if exam_id.isdigit():
+        marks_qs = marks_qs.filter(exam_id=int(exam_id))
+    if classroom_id.isdigit():
+        marks_qs = marks_qs.filter(student__classroom_id=int(classroom_id))
+    if section_id.isdigit():
+        marks_qs = marks_qs.filter(student__section_id=int(section_id))
+
     # Class toppers
-    marks_by_class = Marks.objects.filter(exam__isnull=False).values("student__classroom__name", "student_id").annotate(
+    marks_by_class = marks_qs.values("student__classroom__name", "student_id").annotate(
         total_o=Sum("marks_obtained"), total_m=Sum("total_marks")
     )
     by_class = {}
@@ -2565,7 +2949,7 @@ def school_toppers(request):
         by_class[cname].append({"student_id": m["student_id"], "pct": pct})
     for c in by_class:
         by_class[c].sort(key=lambda x: -x["pct"])
-        by_class[c] = by_class[c][:5]
+        by_class[c] = by_class[c][:top_n]
     # Resolve student names
     student_ids = set()
     for v in by_class.values():
@@ -2578,21 +2962,24 @@ def school_toppers(request):
             "class": cname,
             "toppers": [{"student": students.get(r["student_id"]), "pct": r["pct"]} for r in rows],
         })
-    # School toppers (top 10 overall)
-    school_agg = Marks.objects.filter(exam__isnull=False).values(
-        "student_id"
-    ).annotate(total_o=Sum("marks_obtained"), total_m=Sum("total_marks"))
-    school_list = [(x["student_id"], round((x["total_o"] / x["total_m"] * 100) if x["total_m"] else 0, 1)) for x in school_agg]
+    # School toppers (top N overall)
+    school_agg = marks_qs.values("student_id").annotate(
+        total_o=Sum("marks_obtained"), total_m=Sum("total_marks")
+    )
+    school_list = [
+        (x["student_id"], round((x["total_o"] / x["total_m"] * 100) if x["total_m"] else 0, 1))
+        for x in school_agg
+    ]
     school_list.sort(key=lambda x: -x[1])
-    sid_set = {sid for sid, _ in school_list[:10]}
-    school_students = {s.id: s for s in Student.objects.filter(id__in=sid_set).select_related("user")}
+    sid_set = {sid for sid, _ in school_list[:top_n]}
+    school_students = {s.id: s for s in Student.objects.filter(id__in=sid_set).select_related("user", "classroom", "section")}
     school_toppers_list = [
         {"student": school_students.get(sid), "pct": pct}
-        for sid, pct in school_list[:10]
+        for sid, pct in school_list[:top_n]
         if school_students.get(sid)
     ]
-    # Subject toppers
-    subj_agg = Marks.objects.filter(exam__isnull=False).values(
+    # Subject toppers (top 3 per subject)
+    subj_agg = marks_qs.values(
         "subject_id", "subject__name", "student_id"
     ).annotate(total_o=Sum("marks_obtained"), total_m=Sum("total_marks"))
     by_subj = {}
@@ -2605,15 +2992,55 @@ def school_toppers(request):
     for s in by_subj:
         by_subj[s].sort(key=lambda x: -x[1])
         by_subj[s] = by_subj[s][:3]
-    subj_students = {s.id: s for s in Student.objects.filter(id__in={x[0] for v in by_subj.values() for x in v}).select_related("user")}
+    subj_students = {
+        s.id: s
+        for s in Student.objects.filter(
+            id__in={x[0] for v in by_subj.values() for x in v}
+        ).select_related("user")
+    }
     subject_toppers = [
-        {"subject": sname, "toppers": [{"student": subj_students.get(x[0]), "pct": x[1]} for x in v if subj_students.get(x[0])]}
+        {
+            "subject": sname,
+            "toppers": [
+                {"student": subj_students.get(x[0]), "pct": x[1]}
+                for x in v
+                if subj_students.get(x[0])
+            ],
+        }
         for sname, v in sorted(by_subj.items())
     ]
-    return render(request, "core/toppers.html", {
+
+    # Chart data for this report (top students + class comparison)
+    chart_labels = [
+        t["student"].user.get_full_name() or t["student"].user.username
+        for t in school_toppers_list
+    ]
+    chart_values = [t["pct"] for t in school_toppers_list]
+    class_chart_labels = [c["class"] for c in class_toppers]
+    class_chart_values = [
+        round(sum(x["pct"] for x in c["toppers"]) / len(c["toppers"]), 1) if c["toppers"] else 0
+        for c in class_toppers
+    ]
+
+    exams = Exam.objects.all().order_by("-start_date")
+    classes = ClassRoom.objects.all().order_by("name")
+    sections = Section.objects.all().order_by("name")
+
+    return render(request, "core/reports/toppers.html", {
         "class_toppers": class_toppers,
         "school_toppers": school_toppers_list,
         "subject_toppers": subject_toppers,
+        "exams": exams,
+        "classes": classes,
+        "sections": sections,
+        "selected_exam": exam_id,
+        "selected_classroom": classroom_id,
+        "selected_section": section_id,
+        "top_n": top_n,
+        "chart_labels": json.dumps(chart_labels),
+        "chart_values": json.dumps(chart_values),
+        "class_chart_labels": json.dumps(class_chart_labels),
+        "class_chart_values": json.dumps(class_chart_values),
     })
 
 
@@ -2624,8 +3051,9 @@ def school_toppers(request):
 
 @admin_required
 def school_library_index(request):
-    school = request.user.school
-    if not school or not school.is_pro_plan():
+    school = _school_module_check(request, "library")
+    if not school:
+        add_warning_once(request, "library_not_available", "Library module not available in your plan.")
         return redirect("core:admin_dashboard")
     books = Book.objects.all()
     issues = BookIssue.objects.all().select_related("book", "student__user").filter(return_date__isnull=True)
@@ -2634,8 +3062,8 @@ def school_library_index(request):
 
 @admin_required
 def school_library_book_add(request):
-    school = request.user.school
-    if not school or not school.is_pro_plan():
+    school = _school_module_check(request, "library")
+    if not school:
         return redirect("core:admin_dashboard")
     from .forms import BookForm
     if request.method == "POST":
@@ -2644,7 +3072,6 @@ def school_library_book_add(request):
             obj = form.save(commit=False)
             obj.available_copies = obj.total_copies
             obj.save_with_audit(request.user)
-            messages.success(request, "Book added.")
             return redirect("core:school_library_index")
     else:
         form = BookForm()
@@ -2653,8 +3080,8 @@ def school_library_book_add(request):
 
 @admin_required
 def school_library_issue(request):
-    school = request.user.school
-    if not school or not school.is_pro_plan():
+    school = _school_module_check(request, "library")
+    if not school:
         return redirect("core:admin_dashboard")
     from .forms import BookIssueForm
     if request.method == "POST":
@@ -2663,7 +3090,7 @@ def school_library_issue(request):
             data = form.cleaned_data
             book = data["book"]
             if book.available_copies < 1:
-                messages.error(request, "No copies available.")
+                pass
             else:
                 BookIssue.objects.create(
                     book=book,
@@ -2674,7 +3101,6 @@ def school_library_issue(request):
                 )
                 book.available_copies -= 1
                 book.save(update_fields=["available_copies"])
-                messages.success(request, "Book issued.")
             return redirect("core:school_library_index")
     else:
         form = BookIssueForm(school)
@@ -2683,8 +3109,8 @@ def school_library_issue(request):
 
 @admin_required
 def school_library_return(request, issue_id):
-    school = request.user.school
-    if not school or not school.is_pro_plan():
+    school = _school_module_check(request, "library")
+    if not school:
         raise PermissionDenied
     issue = get_object_or_404(BookIssue, id=issue_id)
     if request.method == "POST":
@@ -2697,7 +3123,6 @@ def school_library_return(request, issue_id):
         issue.save()
         issue.book.available_copies += 1
         issue.book.save(update_fields=["available_copies"])
-        messages.success(request, f"Book returned. Late fee: {issue.late_fee}")
         return redirect("core:school_library_index")
     return render(request, "core/library/return_confirm.html", {"issue": issue})
 
@@ -2709,8 +3134,9 @@ def school_library_return(request, issue_id):
 
 @admin_required
 def school_hostel_index(request):
-    school = request.user.school
-    if not school or not school.is_pro_plan():
+    school = _school_module_check(request, "hostel")
+    if not school:
+        add_warning_once(request, "hostel_not_available", "Hostel module not available in your plan.")
         return redirect("core:admin_dashboard")
     hostels = Hostel.objects.all()
     allocations = HostelAllocation.objects.all().select_related("student__user", "room__hostel").filter(end_date__isnull=True)
@@ -2719,8 +3145,8 @@ def school_hostel_index(request):
 
 @admin_required
 def school_hostel_add(request):
-    school = request.user.school
-    if not school or not school.is_pro_plan():
+    school = _school_module_check(request, "hostel")
+    if not school:
         return redirect("core:admin_dashboard")
     from .forms import HostelForm
     if request.method == "POST":
@@ -2728,7 +3154,6 @@ def school_hostel_add(request):
         if form.is_valid():
             obj = form.save(commit=False)
             obj.save_with_audit(request.user)
-            messages.success(request, "Hostel added.")
             return redirect("core:school_hostel_index")
     else:
         form = HostelForm()
@@ -2737,8 +3162,8 @@ def school_hostel_add(request):
 
 @admin_required
 def school_hostel_room_add(request, hostel_id):
-    school = request.user.school
-    if not school or not school.is_pro_plan():
+    school = _school_module_check(request, "hostel")
+    if not school:
         raise PermissionDenied
     hostel = get_object_or_404(Hostel, id=hostel_id)
     from .forms import HostelRoomForm
@@ -2748,7 +3173,6 @@ def school_hostel_room_add(request, hostel_id):
             obj = form.save(commit=False)
             obj.hostel = hostel
             obj.save_with_audit(request.user)
-            messages.success(request, "Room added.")
             return redirect("core:school_hostel_index")
     else:
         form = HostelRoomForm()
@@ -2757,8 +3181,8 @@ def school_hostel_room_add(request, hostel_id):
 
 @admin_required
 def school_hostel_allocate(request):
-    school = request.user.school
-    if not school or not school.is_pro_plan():
+    school = _school_module_check(request, "hostel")
+    if not school:
         return redirect("core:admin_dashboard")
     if request.method == "POST":
         room_id = request.POST.get("room_id")
@@ -2775,9 +3199,8 @@ def school_hostel_allocate(request):
                     start_date=start_date,
                     school=school,
                 )
-                messages.success(request, "Student allocated.")
             except (HostelRoom.DoesNotExist, Student.DoesNotExist, ValueError):
-                messages.error(request, "Invalid data.")
+                pass
         return redirect("core:school_hostel_index")
     rooms = HostelRoom.objects.all().select_related("hostel")
     students = Student.objects.all()
@@ -2791,8 +3214,9 @@ def school_hostel_allocate(request):
 
 @admin_required
 def school_transport_index(request):
-    school = request.user.school
-    if not school or not school.is_pro_plan():
+    school = _school_module_check(request, "transport")
+    if not school:
+        add_warning_once(request, "transport_not_available", "Transport module not available in your plan.")
         return redirect("core:admin_dashboard")
     routes = Route.objects.all()
     vehicles = Vehicle.objects.all().select_related("route")
@@ -2802,8 +3226,8 @@ def school_transport_index(request):
 
 @admin_required
 def school_transport_route_add(request):
-    school = request.user.school
-    if not school or not school.is_pro_plan():
+    school = _school_module_check(request, "transport")
+    if not school:
         return redirect("core:admin_dashboard")
     from .forms import RouteForm
     if request.method == "POST":
@@ -2811,7 +3235,6 @@ def school_transport_route_add(request):
         if form.is_valid():
             obj = form.save(commit=False)
             obj.save_with_audit(request.user)
-            messages.success(request, "Route added.")
             return redirect("core:school_transport_index")
     else:
         form = RouteForm()
@@ -2820,8 +3243,8 @@ def school_transport_route_add(request):
 
 @admin_required
 def school_transport_vehicle_add(request):
-    school = request.user.school
-    if not school or not school.is_pro_plan():
+    school = _school_module_check(request, "transport")
+    if not school:
         return redirect("core:admin_dashboard")
     from .forms import VehicleForm
     if request.method == "POST":
@@ -2829,7 +3252,6 @@ def school_transport_vehicle_add(request):
         if form.is_valid():
             obj = form.save(commit=False)
             obj.save_with_audit(request.user)
-            messages.success(request, "Vehicle added.")
             return redirect("core:school_transport_index")
     else:
         form = VehicleForm()
@@ -2839,8 +3261,8 @@ def school_transport_vehicle_add(request):
 
 @admin_required
 def school_transport_assign(request):
-    school = request.user.school
-    if not school or not school.is_pro_plan():
+    school = _school_module_check(request, "transport")
+    if not school:
         return redirect("core:admin_dashboard")
     if request.method == "POST":
         route_id = request.POST.get("route_id")
@@ -2857,9 +3279,8 @@ def school_transport_assign(request):
                     route=route,
                     defaults={"vehicle": vehicle, "pickup_point": pickup, "school": school},
                 )
-                messages.success(request, "Student assigned to route.")
             except (Route.DoesNotExist, Student.DoesNotExist):
-                messages.error(request, "Invalid data.")
+                pass
         return redirect("core:school_transport_index")
     routes = Route.objects.all()
     students = Student.objects.all()
@@ -2874,14 +3295,13 @@ def school_transport_assign(request):
 
 @admin_required
 def school_branding(request):
-    school = request.user.school
-    if not school or not school.is_pro_plan():
-        messages.warning(request, "Custom branding not available.")
+    school = _school_module_check(request, "custom_branding")
+    if not school:
         return redirect("core:admin_dashboard")
     if request.method == "POST":
         school.theme_color = request.POST.get("theme_color", school.theme_color or "#4F46E5")
         school.header_text = request.POST.get("header_text", "")
         school.save()
-        messages.success(request, "Branding updated.")
         return redirect("core:school_branding")
     return render(request, "core/branding.html", {"school": school})
+

@@ -93,16 +93,6 @@
       {% endif %}
             <main class="flex-1 overflow-auto">
               <div class="mx-auto max-w-6xl px-4 py-6 lg:py-8">
-                {% if messages %}
-                <div class="mb-4 space-y-2">
-                  {% for message in messages %}
-                  <div class="rounded-lg border px-4 py-2 text-sm alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                  </div>
-                  {% endfor %}
-                </div>
-                {% endif %}
                 <section class="rounded-2xl bg-white dark:bg-slate-900 shadow-sm shadow-slate-900/5 border border-slate-200 dark:border-slate-800 p-5 lg:p-6">
                   {% block content %}{% endblock %}
                 </section>

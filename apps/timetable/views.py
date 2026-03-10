@@ -1,11 +1,12 @@
+import base64
 from io import BytesIO
-from datetime import datetime, time
-from django.contrib import messages
+from datetime import datetime, time, date
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from django.db import transaction
 from django.db.models import Q
+from django.urls import reverse
 
 from apps.customers.models import School
 from apps.school_data.models import ClassRoom, Subject, Teacher
@@ -52,7 +53,7 @@ def school_timetable_index(request):
     if not school:
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:admin_dashboard")
-    classrooms = ClassRoom.objects.order_by("name", "section")
+    classrooms = ClassRoom.objects.order_by("academic_year", "name")
     return render(request, "timetable/school_timetable_index.html", {"classrooms": classrooms})
 
 
@@ -73,7 +74,6 @@ def school_timeslots(request):
             if not slot.order and slots.exists():
                 slot.order = slots.order_by("-order").first().order + 1
             slot.save()
-            messages.success(request, "Time slot added.")
             return redirect("timetable:school_timeslots")
     else:
         from .forms import TimeSlotForm
@@ -83,6 +83,32 @@ def school_timeslots(request):
         "slots": slots,
         "form": form,
     })
+
+
+@admin_required
+def school_timeslot_update(request, slot_id):
+    """Update a time slot. Expects POST with start_time, end_time, is_break, break_type, order."""
+    if not request.user.school:
+        return redirect("core:admin_dashboard")
+    slot = get_object_or_404(TimeSlot, id=slot_id)
+    if request.method != "POST":
+        return redirect("timetable:school_timeslots")
+    from .forms import TimeSlotForm
+    form = TimeSlotForm(request.POST, instance=slot)
+    if form.is_valid():
+        form.save()
+    return redirect("timetable:school_timeslots")
+
+
+@admin_required
+def school_timeslot_delete(request, slot_id):
+    """Delete a time slot. Expects POST."""
+    if not request.user.school:
+        return redirect("core:admin_dashboard")
+    slot = get_object_or_404(TimeSlot, id=slot_id)
+    if request.method == "POST":
+        slot.delete()
+    return redirect("timetable:school_timeslots")
 
 
 @admin_required
@@ -163,7 +189,6 @@ def school_timetable(request, classroom_id):
                         m2m_rows.append(through(timetable_id=t.id, teacher_id=teacher_id))
                 if m2m_rows:
                     through.objects.bulk_create(m2m_rows)
-        messages.success(request, "Timetable saved.")
         return redirect("timetable:school_timetable", classroom_id=classroom.id)
 
     grid = _build_timetable_grid(classroom, school)
@@ -174,19 +199,101 @@ def school_timetable(request, classroom_id):
         "days": DAYS,
         "subjects": subjects,
         "teachers": teachers,
-        "classrooms": list(ClassRoom.objects.exclude(id=classroom.id).order_by("name", "section")),
+        "classrooms": list(ClassRoom.objects.exclude(id=classroom.id).order_by("academic_year", "name")),
     })
+
+
+def _subject_color(subject_name):
+    """Return hex color for subject. Uses predefined palette with fallbacks."""
+    palette = {
+        "mathematics": "#3b82f6", "math": "#3b82f6", "maths": "#3b82f6",
+        "physics": "#a855f7", "physical": "#a855f7",
+        "english": "#22c55e", "eng": "#22c55e",
+        "chemistry": "#f97316", "chem": "#f97316",
+        "sports": "#ef4444", "pe": "#ef4444", "physical education": "#ef4444",
+        "biology": "#14b8a6", "bio": "#14b8a6",
+        "history": "#eab308", "geography": "#ec4899", "geog": "#ec4899",
+        "hindi": "#0ea5e9", "sanskrit": "#6366f1",
+    }
+    if subject_name:
+        key = subject_name.lower().strip()
+        return palette.get(key, "#e2e8f0")
+    return "#e2e8f0"
 
 
 @admin_required
 def school_timetable_print(request, classroom_id):
-    """Print-friendly timetable view."""
+    """Print-friendly timetable view with school branding, QR, and signatures."""
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
     classroom = get_object_or_404(ClassRoom, id=classroom_id)
     grid = _build_timetable_grid(classroom, school)
-    return render(request, "timetable/timetable_print.html", {"classroom": classroom, "grid": grid, "days": DAYS})
+
+    academic_year = classroom.academic_year
+    academic_year_name = academic_year.name if academic_year else "—"
+
+    class_teacher = classroom.assigned_teachers.select_related("user").first()
+    class_teacher_name = ""
+    if class_teacher:
+        class_teacher_name = class_teacher.user.get_full_name() or class_teacher.user.username
+
+    first_section = classroom.sections.first()
+    section_name = first_section.name if first_section else "—"
+
+    timetable_url = request.build_absolute_uri(
+        reverse("timetable:school_timetable", args=[classroom_id])
+    )
+
+    qr_data_uri = None
+    try:
+        import qrcode
+        qr = qrcode.QRCode(version=1, box_size=4, border=2)
+        qr.add_data(timetable_url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        buf = BytesIO()
+        img.save(buf, format="PNG")
+        qr_data_uri = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    except Exception:
+        pass
+
+    subject_colors = {}
+    for row in grid:
+        for d in row["days"]:
+            if d.get("entry") and d["entry"].subject:
+                subj = d["entry"].subject
+                subject_colors[subj.name] = _subject_color(subj.name)
+
+    rows_by_day = []
+    for day_val, day_name in DAYS:
+        slots_data = []
+        for row in grid:
+            d = next((x for x in row["days"] if x["day"] == day_val), None)
+            entry = d["entry"] if d else None
+            bg_color = ""
+            if entry and entry.subject:
+                bg_color = subject_colors.get(entry.subject.name, "#e2e8f0")
+            slots_data.append({"slot": row["slot"], "entry": entry, "bg_color": bg_color})
+        rows_by_day.append({"day_name": day_name, "day_val": day_val, "slots": slots_data})
+
+    slots = [row["slot"] for row in grid]
+
+    return render(request, "timetable/timetable_print.html", {
+        "classroom": classroom,
+        "grid": grid,
+        "days": DAYS,
+        "slots": slots,
+        "school": school,
+        "academic_year_name": academic_year_name,
+        "section_name": section_name,
+        "class_teacher_name": class_teacher_name,
+        "printed_date": date.today(),
+        "timetable_url": timetable_url,
+        "qr_data_uri": qr_data_uri,
+        "subject_colors": subject_colors,
+        "rows_by_day": rows_by_day,
+    })
 
 
 @admin_required
@@ -203,7 +310,6 @@ def school_timetable_pdf(request, classroom_id):
         result = BytesIO()
         pisa_status = pisa.CreatePDF(html, dest=result, encoding="utf-8")
         if pisa_status.err:
-            messages.error(request, "PDF generation failed.")
             return redirect("timetable:school_timetable", classroom_id=classroom.id)
         result.seek(0)
         filename = f"timetable-{classroom}-{datetime.now().strftime('%Y%m%d')}.pdf"
@@ -211,7 +317,6 @@ def school_timetable_pdf(request, classroom_id):
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
     except ImportError:
-        messages.warning(request, "PDF export requires xhtml2pdf. Use Print → Save as PDF instead.")
         return redirect("timetable:school_timetable_print", classroom_id=classroom.id)
 
 
@@ -244,7 +349,6 @@ def school_timetable_copy_monday(request, classroom_id):
                     },
                 )
                 rec.teachers.set(list(m_entry.teachers.all()))
-    messages.success(request, "Monday schedule copied to all weekdays.")
     return redirect("timetable:school_timetable", classroom_id=classroom.id)
 
 
@@ -257,11 +361,9 @@ def school_timetable_duplicate(request, classroom_id):
     classroom = get_object_or_404(ClassRoom, id=classroom_id)
     target_id = request.POST.get("target_classroom")
     if not target_id:
-        messages.warning(request, "Select a target class.")
         return redirect("timetable:school_timetable", classroom_id=classroom.id)
     target = ClassRoom.objects.filter(id=target_id).first()
     if not target:
-        messages.warning(request, "Invalid target class.")
         return redirect("timetable:school_timetable", classroom_id=classroom.id)
     source = list(
         Timetable.objects.filter(classroom=classroom)
@@ -277,7 +379,6 @@ def school_timetable_duplicate(request, classroom_id):
                 defaults={"subject": e.subject, "school": school},
             )
             rec.teachers.set(list(e.teachers.all()))
-    messages.success(request, f"Timetable duplicated to {target}.")
     return redirect("timetable:school_timetable", classroom_id=target.id)
 
 

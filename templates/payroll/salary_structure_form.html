@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'payroll:payroll_dashboard' %}">Payroll</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'payroll:salary_structure_list' %}">Salary Structure</a></li>
+      <li class="breadcrumb-item active">{{ title }}</li>
+    </ol>
+  </nav>
+
+  <h1 class="h4 fw-bold mb-4">{{ title }}</h1>
+
+  <div class="card border-0 shadow-sm rounded-3" style="max-width: 500px;">
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label class="form-label">Employee</label>
+          {{ form.teacher }}
+          {% if form.teacher.errors %}<div class="text-danger small">{{ form.teacher.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Designation</label>
+          {{ form.designation }}
+          {% if form.designation.errors %}<div class="text-danger small">{{ form.designation.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Department</label>
+          {{ form.department }}
+          {% if form.department.errors %}<div class="text-danger small">{{ form.department.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Basic Salary</label>
+          {{ form.basic_salary }}
+          {% if form.basic_salary.errors %}<div class="text-danger small">{{ form.basic_salary.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary">Save</button>
+          <a href="{% url 'payroll:salary_structure_list' %}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,6 +1,5 @@
 """Admin frontend management: Schools, Teachers, Students — SuperAdmin only."""
 import re
-from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.shortcuts import render, redirect, get_object_or_404
 from django.core.paginator import Paginator
@@ -41,10 +40,14 @@ def admin_school_create(request):
     """Create a new school."""
     form = AdminSchoolForm(request.POST or None)
     if form.is_valid():
+        from datetime import date, timedelta
+
         school = form.save(commit=False)
         school.code = _generate_school_code(school.name)
-        school.save_with_audit(request.user)
-        messages.success(request, "School created successfully.")
+        plan = school.plan
+        if plan and (plan.name or "").lower() == "trial":
+            school.trial_end_date = date.today() + timedelta(days=plan.duration_days)
+        school.save()
         return redirect("admin_manage:schools_list")
     return render(request, "admin/school_form.html", {"form": form, "title": "Create School"})
 
@@ -63,9 +66,6 @@ def admin_school_edit(request, school_code):
     form = AdminSchoolForm(request.POST or None, instance=school)
     if form.is_valid():
         form.save()
-        school.modified_by = request.user
-        school.save(update_fields=["modified_by", "modified_on"])
-        messages.success(request, "School updated successfully.")
         return redirect("admin_manage:schools_list")
     return render(request, "admin/school_form.html", {"form": form, "school": school, "title": "Edit School"})
 
@@ -138,7 +138,6 @@ def admin_teacher_create(request):
                 qualification=data.get("qualification") or "",
             )
             teacher.save_with_audit(request.user)
-        messages.success(request, "Teacher account created successfully.")
         return redirect("admin_manage:teachers_list")
     return render(request, "admin/teacher_form.html", {"form": form, "title": "Create Teacher"})
 
@@ -184,7 +183,6 @@ def admin_teacher_edit(request, school_code, teacher_id):
         teacher.phone_number = data.get("phone") or ""
         teacher.qualification = data.get("qualification") or ""
         teacher.save_with_audit(request.user)
-        messages.success(request, "Teacher updated successfully.")
         return redirect("admin_manage:teachers_list")
     return render(request, "admin/teacher_form.html", {"form": form, "teacher": teacher, "title": "Edit Teacher"})
 
@@ -262,7 +260,6 @@ def admin_student_create(request):
                 section=section,
             )
             student.save_with_audit(request.user)
-        messages.success(request, "Student account created successfully.")
         return redirect("admin_manage:students_list")
     return render(request, "admin/student_form.html", {"form": form, "title": "Create Student"})
 
@@ -310,6 +307,5 @@ def admin_student_edit(request, school_code, student_id):
         student.section = data.get("section")
         with tenant_context(school):
             student.save_with_audit(request.user)
-        messages.success(request, "Student updated successfully.")
         return redirect("admin_manage:students_list")
     return render(request, "admin/student_form.html", {"form": form, "student": student, "title": "Edit Student"})

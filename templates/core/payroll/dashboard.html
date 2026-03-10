@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Payroll | School ERP{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-8">
+  <div>
+    <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">Payroll</h1>
+    <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Manage salary components, structures, advances, and payslips</p>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
+      <div class="flex items-center gap-3">
+        <div class="rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 p-3">
+          <i class="bi bi-people-fill text-2xl"></i>
+        </div>
+        <div>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Employees</p>
+          <p class="text-2xl font-bold text-slate-900 dark:text-slate-50">{{ total_employees }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
+      <div class="flex items-center gap-3">
+        <div class="rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 p-3">
+          <i class="bi bi-currency-rupee text-2xl"></i>
+        </div>
+        <div>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Monthly Payroll</p>
+          <p class="text-2xl font-bold text-slate-900 dark:text-slate-50">₹{{ total_monthly_payroll|default:"0" }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
+      <div class="flex items-center gap-3">
+        <div class="rounded-xl bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 p-3">
+          <i class="bi bi-hourglass-split text-2xl"></i>
+        </div>
+        <div>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Pending Payroll</p>
+          <p class="text-2xl font-bold text-slate-900 dark:text-slate-50">{{ pending_payroll }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
+      <div class="flex items-center gap-3">
+        <div class="rounded-xl bg-teal-100 dark:bg-teal-900/40 text-teal-600 dark:text-teal-400 p-3">
+          <i class="bi bi-check2-circle text-2xl"></i>
+        </div>
+        <div>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Processed Payroll</p>
+          <p class="text-2xl font-bold text-slate-900 dark:text-slate-50">{{ processed_payroll }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
+      <div class="flex items-center gap-3">
+        <div class="rounded-xl bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 p-3">
+          <i class="bi bi-bank text-2xl"></i>
+        </div>
+        <div>
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Advances Given</p>
+          <p class="text-2xl font-bold text-slate-900 dark:text-slate-50">₹{{ total_advances|default:"0" }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex flex-wrap gap-3">
+    <a href="#" class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">
+      <i class="bi bi-plus-circle me-2"></i>Generate Payroll
+    </a>
+    <a href="#" class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">
+      <i class="bi bi-sliders me-2"></i>Salary Components
+    </a>
+    <a href="#" class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">
+      <i class="bi bi-table me-2"></i>Salary Structure
+    </a>
+    <a href="#" class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">
+      <i class="bi bi-cash-stack me-2"></i>Salary Advances
+    </a>
+    <a href="#" class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">
+      <i class="bi bi-receipt me-2"></i>Payslips
+    </a>
+  </div>
+
+  <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 p-6 text-center">
+    <p class="text-sm text-slate-600 dark:text-slate-400">
+      Full payroll module (Salary Components, Structure, Advances, Generate Payroll, Payslips) will be available once implemented.
+    </p>
+  </div>
+</div>
+{% endblock %}

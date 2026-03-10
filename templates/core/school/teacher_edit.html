@@ -64,9 +64,9 @@
             {% if form.subjects.errors %}<div class="text-danger small">{{ form.subjects.errors.0 }}</div>{% endif %}
           </div>
           <div class="col-12">
-            <label class="form-label">Assigned Sections (Class Teacher)</label>
-            {{ form.sections }}
-            {% if form.sections.errors %}<div class="text-danger small">{{ form.sections.errors.0 }}</div>{% endif %}
+            <label class="form-label">Assigned Classes</label>
+            {{ form.classrooms }}
+            {% if form.classrooms.errors %}<div class="text-danger small">{{ form.classrooms.errors.0 }}</div>{% endif %}
           </div>
         </div>
       </div>
@@ -80,6 +80,6 @@
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
-  $(function () { $("#id_edit_subjects, #id_edit_sections").select2({ width: "100%" }); });
+  $(function () { $("#id_edit_subjects, #id_classrooms").select2({ width: "100%" }); });
 </script>
 {% endblock %}

@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Tests | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Tests</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <h1 class="h4 fw-bold mb-0">Tests Management</h1>
+    <a href="{% url 'core:school_test_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Add Test</a>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body">
+      <form method="get" class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label small">Class</label>
+          <select name="class" class="form-select form-select-sm">
+            <option value="">All</option>
+            {% for c in classrooms %}
+            <option value="{{ c.id }}" {% if filters.class == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small">Subject</label>
+          <select name="subject" class="form-select form-select-sm">
+            <option value="">All</option>
+            {% for s in subjects %}
+            <option value="{{ s.id }}" {% if filters.subject == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small">Date</label>
+          <input type="date" name="date" class="form-control form-control-sm" value="{{ filters.date }}">
+        </div>
+        <div class="col-md-3 d-flex align-items-end gap-2">
+          <button type="submit" class="btn btn-outline-primary btn-sm">Filter</button>
+          <a href="{% url 'core:school_tests_list' %}" class="btn btn-outline-secondary btn-sm">Clear</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Test Name</th>
+            <th>Subject</th>
+            <th>Class</th>
+            <th>Section</th>
+            <th>Test Date</th>
+            <th>Maximum Marks</th>
+            <th class="text-end" style="width: 100px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tests %}
+          <tr>
+            <td>{{ t.name }}</td>
+            <td>{{ t.subject.name }}</td>
+            <td>{{ t.classroom.name }}</td>
+            <td>{{ t.section.name|default:"—" }}</td>
+            <td>{{ t.test_date|date:"d M Y" }}</td>
+            <td>{{ t.maximum_marks }}</td>
+            <td class="text-end">
+              <a href="{% url 'core:school_test_edit' t.id %}" class="btn btn-link btn-sm p-1 text-primary" title="Edit"><i class="bi bi-pencil"></i></a>
+              <button type="button" class="btn btn-link btn-sm p-1 text-danger" data-bs-toggle="modal" data-bs-target="#delTest{{ t.id }}" title="Delete"><i class="bi bi-trash"></i></button>
+            </td>
+          </tr>
+          <div class="modal fade" id="delTest{{ t.id }}" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title">Delete Test</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">Are you sure you want to delete <strong>{{ t.name }}</strong> ({{ t.subject.name }}, {{ t.classroom.name }})?</div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                  <form method="post" action="{% url 'core:school_test_delete' t.id %}" class="d-inline">{% csrf_token %}<button type="submit" class="btn btn-danger">Delete</button></form>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% empty %}
+          <tr><td colspan="7" class="text-center text-muted py-4">No tests. Add one above.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

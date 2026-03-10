@@ -52,6 +52,7 @@ SHARED_APPS = [
 TENANT_APPS = [
     "apps.school_data",
     "apps.timetable",
+    "apps.payroll",
 ]
 
 INSTALLED_APPS = list(SHARED_APPS) + [a for a in TENANT_APPS if a not in SHARED_APPS]
@@ -77,6 +78,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "apps.core.middleware.TenantSchemaFromUserMiddleware",
+    "apps.core.middleware.TrialExpiryMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]

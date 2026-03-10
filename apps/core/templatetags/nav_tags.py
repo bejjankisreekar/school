@@ -19,6 +19,15 @@ def nav_active(request, *path_prefixes):
     return ""
 
 
+@register.filter
+def school_has_feature(request, feature):
+    """Return True if user's school has the given plan feature. Use: request|school_has_feature:'fees'"""
+    school = getattr(request.user, "school", None)
+    if not school:
+        return False
+    return school.has_feature(feature)
+
+
 @register.simple_tag
 def nav_active_names(request, *url_names):
     """Return 'sidebar-nav-active' if current view's url_name matches any."""

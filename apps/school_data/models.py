@@ -36,10 +36,21 @@ class AcademicYear(BaseModel):
         super().save(*args, **kwargs)
 
 
+class Section(BaseModel):
+    """Independent section (A, B, C, D, E). Reusable across classes."""
+    name = models.CharField(max_length=50, unique=True)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class ClassRoom(BaseModel):
-    """Grade level (e.g. Grade 1, Grade 10)."""
+    """Grade level (e.g. Grade 1, Grade 10). References sections via M2M."""
     name = models.CharField(max_length=50, db_index=True)
-    section = models.CharField(max_length=10, blank=True)
     description = models.TextField(blank=True)
     capacity = models.PositiveIntegerField(null=True, blank=True)
     academic_year = models.ForeignKey(
@@ -47,6 +58,11 @@ class ClassRoom(BaseModel):
         on_delete=models.CASCADE,
         related_name="classrooms",
         null=True,
+        blank=True,
+    )
+    sections = models.ManyToManyField(
+        Section,
+        related_name="classrooms",
         blank=True,
     )
 
@@ -61,42 +77,7 @@ class ClassRoom(BaseModel):
         ordering = ["academic_year", "name"]
 
     def __str__(self) -> str:
-        if self.section:
-            return f"{self.name}-{self.section}"
         return self.name
-
-
-class Section(BaseModel):
-    """Section within a classroom (Alpha, Beta, etc.)."""
-    name = models.CharField(max_length=50)
-    classroom = models.ForeignKey(
-        ClassRoom,
-        on_delete=models.CASCADE,
-        related_name="sections",
-    )
-    class_teacher = models.ForeignKey(
-        "Teacher",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="class_teacher_sections",
-    )
-    capacity = models.PositiveIntegerField(null=True, blank=True)
-
-    class Meta:
-        unique_together = ("classroom", "name")
-        ordering = ["classroom", "name"]
-
-    def __str__(self) -> str:
-        return f"{self.classroom}-{self.name}"
-
-    def clean(self):
-        from django.core.exceptions import ValidationError
-        if self.capacity is not None and self.classroom_id and self.classroom.capacity is not None:
-            if self.capacity > self.classroom.capacity:
-                raise ValidationError(
-                    {"capacity": f"Section capacity cannot exceed classroom capacity ({self.classroom.capacity})."}
-                )
 
 
 class Subject(BaseModel):
@@ -210,9 +191,9 @@ class Student(BaseModel):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["section", "roll_number"],
+                fields=["classroom", "section", "roll_number"],
                 condition=Q(section__isnull=False),
-                name="unique_roll_per_section",
+                name="unique_roll_per_class_section",
             ),
             models.UniqueConstraint(
                 fields=["admission_number"],
@@ -266,6 +247,36 @@ class Exam(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name} ({self.classroom})"
+
+
+class Test(models.Model):
+    """Test for a subject, class and optional section."""
+    name = models.CharField(max_length=150)
+    subject = models.ForeignKey(
+        Subject,
+        on_delete=models.CASCADE,
+        related_name="tests",
+    )
+    classroom = models.ForeignKey(
+        ClassRoom,
+        on_delete=models.CASCADE,
+        related_name="tests",
+    )
+    section = models.ForeignKey(
+        Section,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="tests",
+    )
+    test_date = models.DateField()
+    maximum_marks = models.PositiveIntegerField(default=100)
+
+    class Meta:
+        ordering = ["-test_date", "classroom", "subject"]
+
+    def __str__(self) -> str:
+        return f"{self.name} - {self.subject} ({self.classroom})"
 
 
 class Attendance(models.Model):
@@ -547,12 +558,14 @@ class Announcement(models.Model):
 # ---------- Staff Attendance ----------
 
 class StaffAttendance(models.Model):
-    """Attendance records for teachers/staff."""
+    """Attendance records for teachers/staff. One record per staff per date."""
     class Status(models.TextChoices):
         PRESENT = "PRESENT", "Present"
         ABSENT = "ABSENT", "Absent"
         LEAVE = "LEAVE", "Leave"
         HALF_DAY = "HALF_DAY", "Half Day"
+        HOLIDAY = "HOLIDAY", "Holiday"
+        OTHER = "OTHER", "Other"
 
     teacher = models.ForeignKey(
         Teacher,

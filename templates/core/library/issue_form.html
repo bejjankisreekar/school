@@ -14,7 +14,6 @@
   <div class="card border-0 shadow-sm" style="max-width: 32rem;">
     <div class="card-body">
       {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
-      {% if messages %}{% for m in messages %}<div class="alert alert-{{ m.tags }}">{{ m }}</div>{% endfor %}{% endif %}
       <form method="post">
         {% csrf_token %}
         <div class="mb-3">

@@ -50,7 +50,7 @@
       <span class="sidebar-nav-text">Classes</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
-    <a href="{% url 'core:school_sections' %}" class="sidebar-nav-item {% nav_active_names request 'school_sections' 'school_section_edit' %}">
+    <a href="{% url 'core:school_sections' %}" class="sidebar-nav-item {% nav_active_names request 'school_sections' 'school_section_add' 'school_section_edit' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-diagram-3"></i></span>
       <span class="sidebar-nav-text">Sections</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
@@ -71,6 +71,13 @@
       <span class="sidebar-nav-text">Exams</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
+    {% if request.user.role == 'ADMIN' %}
+    <a href="{% url 'core:school_tests_list' %}" class="sidebar-nav-item {% nav_active_names request 'school_tests_list' 'school_test_add' 'school_test_edit' %}">
+      <span class="sidebar-nav-icon"><i class="bi bi-journal-check"></i></span>
+      <span class="sidebar-nav-text">Tests</span>
+      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+    </a>
+    {% endif %}
     <a href="{% if request.user.role == 'ADMIN' %}{% url 'timetable:school_timetable_index' %}{% elif request.user.role == 'TEACHER' %}{% url 'timetable:teacher_timetable' %}{% elif request.user.role == 'STUDENT' %}{% url 'timetable:student_timetable' %}{% else %}{% url 'timetable:school_timetable_index' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'school_timetable_index' 'school_timetable' 'school_timeslots' 'teacher_timetable' 'student_timetable' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-calendar3"></i></span>
       <span class="sidebar-nav-text">Timetable</span>
@@ -81,63 +88,86 @@
       <span class="sidebar-nav-text">Homework</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
+    {% if request|school_has_feature:'fees' %}
     <a href="{% if request.user.role == 'ADMIN' %}{% url 'core:school_fees_index' %}{% else %}#{% endif %}" class="sidebar-nav-item {% if request.user.role == 'ADMIN' %}{% nav_active_names request 'school_fees_index' 'school_fee_types' 'school_fee_structure' 'school_fee_collection' 'school_fee_collect' 'school_fee_add' %}{% endif %}">
       <span class="sidebar-nav-icon"><i class="bi bi-currency-dollar"></i></span>
       <span class="sidebar-nav-text">Fees</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
-    <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_reports' %}{% else %}{% url 'core:reports_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'student_reports' 'reports_list' 'student_report_card_pdf' 'student_attendance_report_pdf' %}">
+    {% endif %}
+    {% if request.user.role == 'ADMIN' %}
+    <a href="{% url 'payroll:payroll_dashboard' %}" class="sidebar-nav-item {% nav_active_names request 'payroll_dashboard' 'salary_components_list' 'salary_component_add' 'salary_component_edit' 'salary_structure_list' 'salary_structure_add' 'salary_structure_edit' 'salary_advances_list' 'salary_advance_add' 'salary_advance_edit' 'payroll_generate' 'payslips_list' 'payslip_view' %}">
+      <span class="sidebar-nav-icon"><i class="bi bi-wallet2"></i></span>
+      <span class="sidebar-nav-text">Payroll</span>
+      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+    </a>
+    {% endif %}
+    <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_reports' %}{% elif request.user.role == 'ADMIN' %}{% url 'core:school_reports_dashboard' %}{% else %}{% url 'core:reports_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'student_reports' 'reports_list' 'school_reports_dashboard' 'student_report_card_pdf' 'student_attendance_report_pdf' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-graph-up"></i></span>
       <span class="sidebar-nav-text">Reports</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
     {% if request.user.role == 'ADMIN' %}
-    <a href="{% url 'core:school_staff_attendance' %}" class="sidebar-nav-item {% nav_active_names request 'school_staff_attendance' %}">
+    <a href="{% url 'core:school_staff_attendance' %}" class="sidebar-nav-item {% nav_active_names request 'school_staff_attendance' 'school_staff_attendance_mark' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-person-check"></i></span>
       <span class="sidebar-nav-text">Staff Attendance</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
+    {% if request|school_has_feature:'inventory' %}
     <a href="{% url 'core:school_inventory_index' %}" class="sidebar-nav-item {% nav_active_names request 'school_inventory_index' 'school_inventory_item_add' 'school_purchase_add' 'school_invoices_list' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-box-seam"></i></span>
       <span class="sidebar-nav-text">Inventory</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
+    {% endif %}
+    {% if request|school_has_feature:'ai_reports' %}
     <a href="{% url 'core:school_ai_reports' %}" class="sidebar-nav-item {% nav_active_names request 'school_ai_reports' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-robot"></i></span>
       <span class="sidebar-nav-text">AI Reports</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
+    {% endif %}
     <a href="{% url 'core:school_support_create' %}" class="sidebar-nav-item {% nav_active_names request 'school_support_create' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-headset"></i></span>
       <span class="sidebar-nav-text">Support</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
-    {% if request.user.school and request.user.school.is_pro_plan_property %}
+    {% if request|school_has_feature:'online_admission' %}
     <a href="{% url 'core:school_admissions_list' %}" class="sidebar-nav-item {% nav_active_names request 'school_admissions_list' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-person-plus"></i></span>
       <span class="sidebar-nav-text">Admissions</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
-    <a href="{% url 'core:school_toppers' %}" class="sidebar-nav-item {% nav_active_names request 'school_toppers' %}">
+    {% endif %}
+    {% if request|school_has_feature:'topper_list' %}
+    <a href="{% url 'core:school_reports_toppers' %}" class="sidebar-nav-item {% nav_active_names request 'school_reports_toppers' 'school_toppers' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-trophy"></i></span>
       <span class="sidebar-nav-text">Toppers</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
+    {% endif %}
+    {% if request|school_has_feature:'library' %}
     <a href="{% url 'core:school_library_index' %}" class="sidebar-nav-item {% nav_active_names request 'school_library_index' 'school_library_book_add' 'school_library_issue' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-book"></i></span>
       <span class="sidebar-nav-text">Library</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
+    {% endif %}
+    {% if request|school_has_feature:'hostel' %}
     <a href="{% url 'core:school_hostel_index' %}" class="sidebar-nav-item {% nav_active_names request 'school_hostel_index' 'school_hostel_add' 'school_hostel_allocate' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-building"></i></span>
       <span class="sidebar-nav-text">Hostel</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
+    {% endif %}
+    {% if request|school_has_feature:'transport' %}
     <a href="{% url 'core:school_transport_index' %}" class="sidebar-nav-item {% nav_active_names request 'school_transport_index' 'school_transport_route_add' 'school_transport_vehicle_add' 'school_transport_assign' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-bus-front"></i></span>
       <span class="sidebar-nav-text">Transport</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
+    {% endif %}
+    {% if request|school_has_feature:'custom_branding' %}
     <a href="{% url 'core:school_branding' %}" class="sidebar-nav-item {% nav_active_names request 'school_branding' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-palette"></i></span>
       <span class="sidebar-nav-text">Branding</span>

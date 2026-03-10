@@ -14,12 +14,6 @@
     <a href="{% url 'core:school_class_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Class</a>
   </div>
 
-  {% if messages %}
-    {% for m in messages %}
-      <div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-    {% endfor %}
-  {% endif %}
-
   <div class="card border-0 shadow-sm rounded-3 mb-4">
     <div class="card-body">
       <form method="get" class="row g-3">
