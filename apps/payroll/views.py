@@ -12,7 +12,7 @@ from django.urls import reverse
 
 from apps.school_data.models import Teacher
 from apps.customers.models import School
-from apps.accounts.decorators import admin_required
+from apps.accounts.decorators import admin_required, feature_required
 from .models import SalaryComponent, SalaryStructure, SalaryAdvance, Payslip
 
 
@@ -25,6 +25,7 @@ def _school_required(view):
 
 
 @admin_required
+@feature_required("payroll")
 def payroll_dashboard(request):
     school = request.user.school
     if not school:
@@ -53,6 +54,7 @@ def payroll_dashboard(request):
 
 
 @admin_required
+@feature_required("payroll")
 def salary_components_list(request):
     if not request.user.school:
         return redirect("core:admin_dashboard")
@@ -72,6 +74,7 @@ def salary_components_list(request):
 
 
 @admin_required
+@feature_required("payroll")
 def salary_component_add(request):
     if not request.user.school:
         return redirect("core:admin_dashboard")
@@ -84,6 +87,7 @@ def salary_component_add(request):
 
 
 @admin_required
+@feature_required("payroll")
 def salary_component_edit(request, pk):
     if not request.user.school:
         return redirect("core:admin_dashboard")
@@ -97,6 +101,7 @@ def salary_component_edit(request, pk):
 
 
 @admin_required
+@feature_required("payroll")
 def salary_component_delete(request, pk):
     if not request.user.school:
         return redirect("core:admin_dashboard")
@@ -107,6 +112,7 @@ def salary_component_delete(request, pk):
 
 
 @admin_required
+@feature_required("payroll")
 def salary_structure_list(request):
     if not request.user.school:
         return redirect("core:admin_dashboard")
@@ -115,6 +121,7 @@ def salary_structure_list(request):
 
 
 @admin_required
+@feature_required("payroll")
 def salary_structure_add(request):
     if not request.user.school:
         return redirect("core:admin_dashboard")
@@ -127,6 +134,7 @@ def salary_structure_add(request):
 
 
 @admin_required
+@feature_required("payroll")
 def salary_structure_edit(request, pk):
     if not request.user.school:
         return redirect("core:admin_dashboard")
@@ -140,6 +148,7 @@ def salary_structure_edit(request, pk):
 
 
 @admin_required
+@feature_required("payroll")
 def salary_structure_delete(request, pk):
     if not request.user.school:
         return redirect("core:admin_dashboard")
@@ -150,6 +159,7 @@ def salary_structure_delete(request, pk):
 
 
 @admin_required
+@feature_required("payroll")
 def salary_advances_list(request):
     if not request.user.school:
         return redirect("core:admin_dashboard")
@@ -158,6 +168,7 @@ def salary_advances_list(request):
 
 
 @admin_required
+@feature_required("payroll")
 def salary_advance_add(request):
     if not request.user.school:
         return redirect("core:admin_dashboard")
@@ -172,6 +183,7 @@ def salary_advance_add(request):
 
 
 @admin_required
+@feature_required("payroll")
 def salary_advance_edit(request, pk):
     if not request.user.school:
         return redirect("core:admin_dashboard")
@@ -185,6 +197,7 @@ def salary_advance_edit(request, pk):
 
 
 @admin_required
+@feature_required("payroll")
 def salary_advance_delete(request, pk):
     if not request.user.school:
         return redirect("core:admin_dashboard")
@@ -195,6 +208,7 @@ def salary_advance_delete(request, pk):
 
 
 @admin_required
+@feature_required("payroll")
 def payroll_generate(request):
     if not request.user.school:
         return redirect("core:admin_dashboard")
@@ -279,6 +293,7 @@ def _deductions_breakdown(structure, advance_deduction):
 
 
 @admin_required
+@feature_required("payroll")
 def payslips_list(request):
     if not request.user.school:
         return redirect("core:admin_dashboard")
@@ -293,6 +308,7 @@ def payslips_list(request):
 
 
 @admin_required
+@feature_required("payroll")
 def payslip_view(request, pk):
     if not request.user.school:
         return redirect("core:admin_dashboard")
@@ -321,6 +337,7 @@ def payslip_view(request, pk):
 
 
 @admin_required
+@feature_required("payroll")
 def payslip_pdf(request, pk):
     if not request.user.school:
         return redirect("core:admin_dashboard")

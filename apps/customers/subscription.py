@@ -15,6 +15,7 @@ PLAN_FEATURES = {
         "academics",
         "exams",
         "parent_portal",
+        "reports",
     ],
     "basic": [
         "students",
@@ -26,6 +27,7 @@ PLAN_FEATURES = {
         "student_id_cards",
         "inventory",
         "ai_reports",
+        "reports",
         "pdf_print",
         "secure_hosting",
         "support_24_7",
@@ -40,6 +42,8 @@ PLAN_FEATURES = {
         "student_id_cards",
         "inventory",
         "ai_reports",
+        "reports",
+        "payroll",
         "pdf_print",
         "secure_hosting",
         "support_24_7",
@@ -68,6 +72,12 @@ MODULE_TO_FEATURE = {
     "api_access": "api_access",
     "custom_branding": "custom_branding",
     "fees": "fees",
+    "teachers": "staff",  # legacy uses "staff"
+    "attendance": "academics",  # legacy bundles in academics
+    "exams": "academics",
+    "students": "students",
+    "timetable": "academics",
+    "homework": "academics",
 }
 
 

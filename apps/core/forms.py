@@ -3,7 +3,7 @@ BS_INPUT = "form-control form-select"  # for selects
 
 from django import forms
 from django.contrib.auth import get_user_model
-from apps.customers.models import School, SubscriptionPlan
+from apps.customers.models import School, SubscriptionPlan, Plan
 from apps.school_data.models import (
     Homework,
     Marks,
@@ -393,9 +393,10 @@ class AdminSchoolForm(forms.ModelForm):
     """School form for /admin/schools/ - SuperAdmin creates/edits schools."""
     class Meta:
         model = School
-        fields = ["name", "plan", "address", "contact_email", "phone"]
+        fields = ["name", "saas_plan", "plan", "address", "contact_email", "phone"]
         widgets = {
             "name": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "School Name"}),
+            "saas_plan": forms.Select(attrs={"class": BS_INPUT}),
             "plan": forms.Select(attrs={"class": BS_INPUT}),
             "address": forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 2, "placeholder": "Address"}),
             "contact_email": forms.EmailInput(attrs={"class": INPUT_CLASS, "placeholder": "contact@school.edu"}),
@@ -404,6 +405,9 @@ class AdminSchoolForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["saas_plan"].queryset = Plan.objects.all().order_by("price_per_student")
+        self.fields["saas_plan"].required = False
+        self.fields["saas_plan"].label = "SaaS Plan (Starter/Growth/Enterprise)"
         self.fields["plan"].queryset = SubscriptionPlan.objects.filter(is_active=True).order_by("price_per_student")
 
 

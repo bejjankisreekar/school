@@ -4,11 +4,41 @@ Student/teacher/admin/parent views use school_data and timetable (tenant apps).
 When on public schema (localhost) with no subdomain, switch to user's school schema.
 
 Trial expiry: redirects school users (non-superadmin) to dashboard when trial expired.
+
+Feature middleware: loads school_features onto request for feature-based access control.
 """
 from django.utils.deprecation import MiddlewareMixin
 from django.shortcuts import redirect
 from django.urls import reverse
 from django_tenants.utils import get_public_schema_name
+
+
+def _get_school_features(request):
+    """Return set of feature codes for the user's school, or empty set if none."""
+    school = getattr(getattr(request, "user", None), "school", None)
+    if not school:
+        return frozenset()
+    codes = school.get_enabled_feature_codes()
+    if codes is not None:
+        return frozenset(codes)
+    # Legacy: build from has_feature checks for common codes
+    from apps.customers.subscription import has_feature
+    result = set()
+    for code in ("students", "teachers", "attendance", "exams", "fees", "payroll",
+                 "library", "transport", "hostel", "reports", "inventory", "ai_reports",
+                 "online_admission", "topper_list", "custom_branding"):
+        if has_feature(school, code):
+            result.add(code)
+    return frozenset(result)
+
+
+class SchoolFeaturesMiddleware(MiddlewareMixin):
+    """
+    Attach request.school_features (frozenset of feature codes) for the current user's school.
+    Use in views: if "payroll" not in request.school_features: return HttpResponseForbidden(...)
+    """
+    def process_request(self, request):
+        request.school_features = _get_school_features(request)
 
 
 TENANT_PATHS = (

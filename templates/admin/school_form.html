@@ -18,7 +18,13 @@
       <form method="post">
         {% csrf_token %}
         <div class="mb-3">
-          <label class="form-label">Plan</label>
+          <label class="form-label">SaaS Plan</label>
+          {{ form.saas_plan }}
+          {% if form.saas_plan.errors %}<div class="text-danger small">{{ form.saas_plan.errors.0 }}</div>{% endif %}
+          <small class="text-muted">Starter, Growth, or Enterprise — controls available modules</small>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Legacy Plan</label>
           {{ form.plan }}
           {% if form.plan.errors %}<div class="text-danger small">{{ form.plan.errors.0 }}</div>{% endif %}
         </div>

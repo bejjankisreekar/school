@@ -22,6 +22,11 @@ def nav_active(request, *path_prefixes):
 @register.filter
 def school_has_feature(request, feature):
     """Return True if user's school has the given plan feature. Use: request|school_has_feature:'fees'"""
+    if not request or not getattr(request, "user", None) or not request.user.is_authenticated:
+        return False
+    features = getattr(request, "school_features", None)
+    if features is not None:
+        return feature in features
     school = getattr(request.user, "school", None)
     if not school:
         return False

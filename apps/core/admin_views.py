@@ -4,9 +4,10 @@ from django.contrib.auth import get_user_model
 from django.shortcuts import render, redirect, get_object_or_404
 from django.core.paginator import Paginator
 from django.db.models import Q
+from django.contrib import messages
 
 from apps.accounts.decorators import superadmin_required
-from apps.customers.models import School
+from apps.customers.models import School, Plan, Feature
 from apps.school_data.models import Teacher, Student, ClassRoom, Section
 from .forms import AdminSchoolForm, AdminTeacherForm, AdminStudentForm
 
@@ -309,3 +310,69 @@ def admin_student_edit(request, school_code, student_id):
             student.save_with_audit(request.user)
         return redirect("admin_manage:students_list")
     return render(request, "admin/student_form.html", {"form": form, "student": student, "title": "Edit Student"})
+
+
+# ======================
+# School Plans (SaaS)
+# ======================
+
+
+@superadmin_required
+def admin_school_plans_list(request):
+    """School Plans section: list schools with current plan and enabled features."""
+    schools = School.objects.exclude(schema_name="public").select_related("saas_plan").order_by("name")
+    plans = Plan.objects.prefetch_related("features").order_by("price_per_student")
+    return render(request, "admin/school_plans_list.html", {
+        "schools": schools,
+        "plans": plans,
+    })
+
+
+@superadmin_required
+def admin_school_change_plan(request, school_code):
+    """Change a school's plan. Upgrade/downgrade applies immediately."""
+    school = get_object_or_404(School, code=school_code)
+    plans = Plan.objects.prefetch_related("features").order_by("price_per_student")
+    if request.method == "POST":
+        plan_id = request.POST.get("plan")
+        if plan_id:
+            plan = get_object_or_404(Plan, pk=plan_id)
+            school.saas_plan = plan
+            school.enabled_features_override = None  # Reset override when changing plan
+            school.save()
+            messages.success(request, f"Plan updated to {plan.name}. Changes apply immediately.")
+        else:
+            school.saas_plan = None
+            school.enabled_features_override = None
+            school.save()
+            messages.success(request, "Plan cleared. School will use legacy plan if any.")
+        return redirect("admin_manage:school_plans_list")
+    return render(request, "admin/school_change_plan.html", {
+        "school": school,
+        "plans": plans,
+    })
+
+
+@superadmin_required
+def admin_school_manage_features(request, school_code):
+    """Enable/disable features per school. Overrides plan defaults."""
+    school = get_object_or_404(School, code=school_code)
+    features = Feature.objects.all().order_by("name")
+    # Current enabled codes: override or plan defaults
+    if school.enabled_features_override is not None:
+        enabled_codes = set(school.enabled_features_override)
+    elif school.saas_plan:
+        enabled_codes = school.saas_plan.get_feature_codes()
+    else:
+        enabled_codes = set()
+    if request.method == "POST":
+        selected = request.POST.getlist("features")
+        school.enabled_features_override = selected
+        school.save()
+        messages.success(request, f"Features updated for {school.name}. Changes apply immediately.")
+        return redirect("admin_manage:school_plans_list")
+    return render(request, "admin/school_manage_features.html", {
+        "school": school,
+        "features": features,
+        "enabled_codes": enabled_codes,
+    })

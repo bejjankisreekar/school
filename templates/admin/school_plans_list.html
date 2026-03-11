@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}School Plans | Admin{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:super_admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">School Plans</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <h1 class="h4 fw-bold mb-0">School Plans</h1>
+    <a href="{% url 'core:super_admin_dashboard' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Dashboard</a>
+  </div>
+
+  <p class="text-muted small mb-4">Assign plans to schools and control which modules are available in each school's ERP.</p>
+
+  <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>School Name</th>
+            <th>Current Plan</th>
+            <th>Enabled Features</th>
+            <th class="text-center" style="width: 200px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for school in schools %}
+            <tr>
+              <td>
+                <span class="badge bg-primary me-2">{{ school.code }}</span>
+                {{ school.name }}
+              </td>
+              <td>
+                {% if school.saas_plan %}
+                  <span class="badge bg-success">{{ school.saas_plan.name }}</span>
+                {% else %}
+                  <span class="text-muted">Legacy / None</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if school.enabled_features_override is not None %}
+                  <span class="badge bg-info">Custom override</span>
+                  <span class="small text-muted">({{ school.enabled_features_override|length }} features)</span>
+                {% elif school.saas_plan %}
+                  {% for f in school.saas_plan.features.all %}
+                    <span class="badge bg-light text-dark border me-1">{{ f.code }}</span>
+                  {% empty %}
+                    —
+                  {% endfor %}
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td class="text-center">
+                <a href="{% url 'admin_manage:school_change_plan' school.code %}" class="btn btn-sm btn-outline-primary me-1" title="Change Plan">Change Plan</a>
+                <a href="{% url 'admin_manage:school_manage_features' school.code %}" class="btn btn-sm btn-outline-secondary" title="Manage Features">Manage Features</a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="text-center text-muted py-4">No schools found. Create schools first.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

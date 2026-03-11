@@ -6,6 +6,48 @@ from django.db import models
 from django_tenants.models import TenantMixin, DomainMixin
 
 
+class Feature(models.Model):
+    """SaaS feature/module that can be enabled per plan or per school."""
+    name = models.CharField(max_length=100)
+    code = models.CharField(max_length=50, unique=True, help_text="Unique code, e.g. students, fees, payroll")
+    description = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.code})"
+
+
+class Plan(models.Model):
+    """SaaS plan: Starter, Growth, Enterprise. Gates feature access per school."""
+    name = models.CharField(max_length=100)
+    price_per_student = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Price per student per year",
+    )
+    description = models.TextField(blank=True)
+    features = models.ManyToManyField(
+        Feature,
+        related_name="plans",
+        blank=True,
+        help_text="Features included in this plan",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["price_per_student"]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def get_feature_codes(self):
+        """Return set of feature codes for this plan."""
+        return set(self.features.values_list("code", flat=True))
+
+
 class SubscriptionPlan(models.Model):
     """Trial, Basic, Pro - per-student pricing, no fixed monthly fees."""
     PLAN_CHOICES = [
@@ -42,13 +84,27 @@ class School(TenantMixin):
     """
     name = models.CharField(max_length=255)
     code = models.CharField(max_length=50, unique=True, help_text="Unique school code e.g. school_001")
+    saas_plan = models.ForeignKey(
+        Plan,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="schools",
+        help_text="Starter, Growth, or Enterprise - controls available modules",
+    )
+    enabled_features_override = models.JSONField(
+        default=None,
+        null=True,
+        blank=True,
+        help_text="Optional: list of feature codes enabled for this school. If set, overrides plan defaults.",
+    )
     plan = models.ForeignKey(
         SubscriptionPlan,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="schools",
-        help_text="Trial, Basic, or Pro",
+        help_text="Trial, Basic, or Pro (legacy)",
     )
     subscription_plan = models.ForeignKey(
         "core.Plan",
@@ -78,8 +134,23 @@ class School(TenantMixin):
     def __str__(self) -> str:
         return f"{self.name} ({self.code})"
 
+    def get_enabled_feature_codes(self) -> set | None:
+        """
+        Return set of feature codes enabled for this school.
+        If enabled_features_override is set, use it. Otherwise use saas_plan features.
+        Returns None when using legacy plan (no saas_plan) - then has_feature uses subscription.
+        """
+        if self.enabled_features_override is not None:
+            return set(self.enabled_features_override)
+        if self.saas_plan:
+            return self.saas_plan.get_feature_codes()
+        return None
+
     def has_feature(self, feature: str) -> bool:
-        """Check if plan includes feature. Uses apps.customers.subscription.has_feature."""
+        """Check if school has access to feature. Uses saas_plan or legacy subscription."""
+        codes = self.get_enabled_feature_codes()
+        if codes is not None:
+            return feature in codes
         from .subscription import has_feature as _has_feature
         return _has_feature(self, feature)
 

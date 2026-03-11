@@ -53,6 +53,7 @@ from apps.accounts.decorators import (
     student_required,
     teacher_required,
     parent_required,
+    feature_required,
 )
 
 # ======================
@@ -84,7 +85,7 @@ def contact(request):
 @superadmin_required
 def super_admin_dashboard(request):
     from django_tenants.utils import tenant_context
-    from apps.customers.models import School
+    from apps.customers.models import School, Plan
     from apps.school_data.models import Teacher, Student, ClassRoom
     total_schools = School.objects.exclude(schema_name="public").count()
     total_teachers = total_students = total_classes = 0
@@ -93,11 +94,13 @@ def super_admin_dashboard(request):
             total_teachers += Teacher.objects.count()
             total_students += Student.objects.count()
             total_classes += ClassRoom.objects.count()
+    plans = Plan.objects.prefetch_related("features").order_by("price_per_student")
     return render(request, "core/dashboards/super_admin_dashboard.html", {
         "total_schools": total_schools,
         "total_teachers": total_teachers,
         "total_students": total_students,
         "total_classes": total_classes,
+        "plans": plans,
     })
 
 
@@ -896,6 +899,7 @@ def student_attendance_report_pdf(request):
 # ======================
 
 @admin_required
+@feature_required("students")
 def school_students_list(request):
     """List students with filters and pagination."""
     school = request.user.school
@@ -1096,6 +1100,7 @@ def school_students_import(request):
 # ======================
 
 @admin_required
+@feature_required("teachers")
 def school_teachers_list(request):
     """List teachers with actions."""
     school = request.user.school
@@ -1206,6 +1211,7 @@ def school_teacher_delete(request, teacher_id):
 # ======================
 
 @admin_required
+@feature_required("students")
 def school_sections(request):
     """List Sections with pagination, search, filter."""
     school = request.user.school
@@ -1353,6 +1359,7 @@ def school_academic_year_delete(request, year_id):
 # ======================
 
 @admin_required
+@feature_required("students")
 def school_classes(request):
     school = request.user.school
     if not school:
@@ -1433,6 +1440,7 @@ def school_class_delete(request, class_id):
 # ======================
 
 @admin_required
+@feature_required("students")
 def school_subjects(request):
     school = request.user.school
     if not school:
@@ -1505,6 +1513,7 @@ def school_subject_delete(request, subject_id):
 
 
 @admin_required
+@feature_required("exams")
 def school_tests_list(request):
     """List all tests with filters."""
     school = request.user.school
@@ -1774,6 +1783,7 @@ def _teacher_exam_access(exam, school):
 
 
 @teacher_required
+@feature_required("exams")
 def teacher_exams(request):
     school = request.user.school
     if not school:
@@ -2050,6 +2060,7 @@ def _get_class_section_choices(school):
 
 
 @teacher_required
+@feature_required("attendance")
 def bulk_attendance(request):
     """Bulk attendance by class-section. URL: /teacher/attendance/"""
     school = request.user.school
@@ -2170,6 +2181,7 @@ def bulk_attendance(request):
 
 
 @teacher_required
+@feature_required("attendance")
 def mark_attendance(request):
     """Legacy single-student attendance form."""
     from .forms import AttendanceForm

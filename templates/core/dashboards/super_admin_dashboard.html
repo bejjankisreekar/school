@@ -30,8 +30,36 @@
 
   <div class="flex flex-wrap gap-3 mb-4">
     <a href="{% url 'admin_manage:schools_list' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Schools</a>
+    <a href="{% url 'admin_manage:school_plans_list' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">School Plans</a>
     <a href="{% url 'admin_manage:teachers_list' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Teachers</a>
     <a href="{% url 'admin_manage:students_list' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Students</a>
   </div>
+
+  {% if plans %}
+  <div class="mt-6">
+    <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-3">Plans</h2>
+    <div class="row g-3">
+      {% for plan in plans %}
+      <div class="col-md-4">
+        <div class="card border-0 shadow-sm rounded-xl h-100">
+          <div class="card-body">
+            <h3 class="h5 fw-bold mb-2">{{ plan.name }}</h3>
+            <p class="text-muted small mb-3">₹{{ plan.price_per_student }}/student/year</p>
+            <p class="text-sm text-slate-600 dark:text-slate-300 mb-3">{{ plan.description|truncatewords:20 }}</p>
+            <p class="text-xs fw-semibold text-slate-500 dark:text-slate-400 mb-2">Features:</p>
+            <ul class="list-unstyled small mb-0">
+              {% for f in plan.features.all %}
+              <li class="text-slate-600 dark:text-slate-300">• {{ f.name }}</li>
+              {% empty %}
+              <li class="text-muted">No features</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}
