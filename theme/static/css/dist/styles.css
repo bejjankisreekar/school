@@ -1999,9 +1999,6 @@
   .mb-6 {
     margin-bottom: calc(var(--spacing) * 6);
   }
-  .ml-2 {
-    margin-left: calc(var(--spacing) * 2);
-  }
   @layer daisyui.l1.l2.l3 {
     .status {
       display: inline-block;
@@ -3128,11 +3125,6 @@
     }
   }
   @media (width >= 64rem) {
-    .lg\:grid-cols-2 {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-  @media (width >= 64rem) {
     .lg\:grid-cols-4 {
       grid-template-columns: repeat(4, minmax(0, 1fr));
     }
@@ -3350,6 +3342,16 @@
   @media (prefers-color-scheme: dark) {
     .dark\:bg-slate-800 {
       background-color: var(--color-slate-800);
+    }
+  }
+  @media (prefers-color-scheme: dark) {
+    .dark\:bg-slate-800\/30 {
+      background-color: color-mix(in srgb, oklch(27.9% 0.041 260.031) 30%, transparent);
+    }
+    @supports (color: color-mix(in lab, red, red)) {
+      .dark\:bg-slate-800\/30 {
+        background-color: color-mix(in oklab, var(--color-slate-800) 30%, transparent);
+      }
     }
   }
   @media (prefers-color-scheme: dark) {
