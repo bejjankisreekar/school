@@ -2,87 +2,148 @@
 {% block title %}Pricing | School ERP{% endblock %}
 {% block extra_head %}
 <style>
-  .currency-toggle .btn { font-size: 0.875rem; padding: 0.35rem 0.75rem; }
-  .currency-toggle .btn.active { background: var(--erp-primary); color: white; }
+  .pricing-card {
+    border-radius: 1rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .pricing-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px -15px rgba(0,0,0,0.1);
+  }
+  .pricing-card.recommended {
+    border: 2px solid #4f46e5;
+    box-shadow: 0 0 0 1px rgba(79,70,229,0.1), 0 20px 40px -15px rgba(79,70,229,0.2);
+  }
+  .pricing-selector {
+    border-radius: 1rem;
+    background: #f8fafc;
+  }
+  input[type="range"] { accent-color: #403ba0; }
 </style>
 {% endblock %}
 {% block content %}
 <section class="py-5 py-lg-6">
   <div class="container">
     <h1 class="text-center display-5 fw-bold mb-2">Simple, Transparent Pricing</h1>
-    <div class="d-flex justify-content-center align-items-center gap-2 mb-5">
-      <span class="text-muted small">Currency:</span>
-      <div class="btn-group currency-toggle" role="group">
-        <button type="button" class="btn btn-outline-primary active" data-currency="inr">INR</button>
-        <button type="button" class="btn btn-outline-primary" data-currency="usd">USD</button>
+    <p class="text-center text-secondary mb-5">Pay only for the students you have. Scale as you grow.</p>
+
+    <!-- Student Count Selector -->
+    <div class="mb-5 p-4 p-md-5 pricing-selector border shadow-sm">
+      <label for="studentCount" class="form-label fw-semibold">Number of Students</label>
+      <div class="d-flex flex-column flex-sm-row gap-3 align-items-start align-items-sm-center">
+        <input type="range" id="studentCount" class="form-range flex-grow-1" style="max-width: 320px;"
+          min="50" max="5000" value="200" step="50">
+        <input type="number" id="studentCountNum" class="form-control text-center fw-semibold" style="width: 7rem;"
+          min="50" max="5000" value="200" step="50">
       </div>
+      <small class="text-muted">Range: 50 to 5,000 students</small>
     </div>
+
+    <!-- Pricing Cards -->
     <div class="row g-4 justify-content-center">
-      <div class="col-lg-5 col-xl-4">
-        <div class="card h-100 border shadow-sm">
-          <div class="card-body p-4">
-            <h5 class="card-title fw-bold">Basic Plan</h5>
-            <div class="mb-3 price-inr"><span class="display-5 fw-bold">&#8377;5,350</span><span class="text-secondary"> / year</span></div>
-            <div class="mb-3 price-usd d-none"><span class="display-5 fw-bold">$64</span><span class="text-secondary"> / year</span></div>
-            <ul class="list-unstyled mb-4 small">
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Student Information System</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Fee & Billing Management</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Staff Records</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Academic Management</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Exams & Result Entry</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Parent Portal</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Student ID Cards</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Inventory Invoicing</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>AI Internal Reports</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Secure Cloud Hosting</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>24/7 Support</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>PDF Document Printing</li>
+      <!-- Core Plan -->
+      <div class="col-md-6 col-lg-5">
+        <div class="pricing-card card h-100 border shadow">
+          <div class="card-body p-4 p-md-5">
+            <h2 class="h5 fw-bold mb-1">Core Plan</h2>
+            <div class="my-3">
+              <span class="display-5 fw-bold">₹39</span>
+              <span class="text-secondary"> / student / month</span>
+            </div>
+            <p class="small text-muted mb-3">Billed monthly</p>
+            <div class="py-3 px-4 rounded-3 bg-light border mb-4">
+              <p class="mb-0 small text-muted">Students: <strong id="coreStudents" class="text-dark">200</strong></p>
+              <p class="mb-0 fw-bold fs-5">Total: <span id="coreTotal">₹7,800</span> / month</p>
+            </div>
+            <ul class="list-unstyled mb-4">
+              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Up to 500 Students</li>
+              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Student Management</li>
+              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Attendance Tracking</li>
+              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Exam Management</li>
+              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Basic Reports</li>
+              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Email Support</li>
             </ul>
-            <a href="{% url 'core:home' %}#trial" class="btn btn-cta btn-primary w-100">Start 15-Day Free Trial</a>
+            <a href="{% url 'core:home' %}#trial" class="btn btn-dark w-100 py-3 fw-semibold">Start Free Trial</a>
           </div>
         </div>
       </div>
-      <div class="col-lg-5 col-xl-4">
-        <div class="card h-100 border-primary border-2 shadow position-relative">
-          <span class="position-absolute top-0 start-50 translate-middle badge bg-primary py-2 px-3">Recommended</span>
-          <div class="card-header bg-primary text-white py-3 pt-4"></div>
-          <div class="card-body p-4">
-            <h5 class="card-title fw-bold">Pro Plan</h5>
-            <div class="mb-3 price-inr"><span class="display-5 fw-bold">&#8377;9,999</span><span class="text-secondary">+ / year</span></div>
-            <div class="mb-3 price-usd d-none"><span class="display-5 fw-bold">$120</span><span class="text-secondary">+ / year</span></div>
-            <ul class="list-unstyled mb-4 small">
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>All Basic features</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Custom School Portal</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Online Admissions</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Online Results</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Topper List Generation</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Dedicated Hosting</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Custom Branding</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>AI Marksheet Summaries</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Library Management</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Hostel & Transport</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>API Access</li>
-              <li class="mb-2"><i class="bi bi-check text-primary me-2"></i>Priority Support</li>
+
+      <!-- Advanced Plan (Recommended) -->
+      <div class="col-md-6 col-lg-5">
+        <div class="pricing-card recommended card h-100 shadow position-relative">
+          <span class="position-absolute top-0 start-50 translate-middle badge bg-primary py-2 px-3 rounded-pill">Recommended</span>
+          <div class="card-body p-4 p-md-5 pt-5">
+            <h2 class="h5 fw-bold mb-1">Advanced Plan</h2>
+            <div class="my-3">
+              <span class="display-5 fw-bold">₹59</span>
+              <span class="text-secondary"> / student / month</span>
+            </div>
+            <p class="small text-muted mb-3">Billed monthly</p>
+            <div class="py-3 px-4 rounded-3 border mb-4" style="background-color: rgba(79,70,229,0.08);">
+              <p class="mb-0 small text-muted">Students: <strong id="advStudents" class="text-dark">200</strong></p>
+              <p class="mb-0 fw-bold fs-5">Total: <span id="advTotal">₹11,800</span> / month</p>
+            </div>
+            <ul class="list-unstyled mb-4">
+              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Unlimited Students</li>
+              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Student + Teacher Management</li>
+              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Attendance + Exams + Payroll</li>
+              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Parent Mobile Access</li>
+              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Advanced Reports</li>
+              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Priority Support</li>
             </ul>
-            <a href="{% url 'core:contact' %}?plan=pro" class="btn btn-outline-primary w-100">Contact Sales</a>
+            <a href="{% url 'core:home' %}#trial" class="btn btn-cta btn-primary w-100 py-3 fw-semibold">Start Free Trial</a>
           </div>
         </div>
       </div>
     </div>
-    <div class="text-center mt-5"><p class="text-muted small">All plans include a 15-day free trial. No credit card required.</p></div>
+
+    <p class="text-center text-muted small mt-5">All plans include a 15-day free trial. No credit card required.</p>
   </div>
 </section>
 {% endblock %}
 {% block extra_js %}
 <script>
-document.querySelectorAll('.currency-toggle .btn').forEach(btn => {
-  btn.addEventListener('click', function() {
-    document.querySelectorAll('.currency-toggle .btn').forEach(b => b.classList.remove('active'));
-    this.classList.add('active');
-    const isInr = this.dataset.currency === 'inr';
-    document.querySelectorAll('.price-inr').forEach(el => el.classList.toggle('d-none', !isInr));
-    document.querySelectorAll('.price-usd').forEach(el => el.classList.toggle('d-none', isInr));
+(function() {
+  var CORE_PRICE = 39;
+  var ADV_PRICE = 59;
+  var range = document.getElementById('studentCount');
+  var numInput = document.getElementById('studentCountNum');
+  var coreStudents = document.getElementById('coreStudents');
+  var advStudents = document.getElementById('advStudents');
+  var coreTotal = document.getElementById('coreTotal');
+  var advTotal = document.getElementById('advTotal');
+
+  function formatINR(n) {
+    return '₹' + n.toLocaleString('en-IN');
+  }
+
+  function updatePricing(count) {
+    count = Math.max(50, Math.min(5000, Math.round(count / 50) * 50));
+    range.value = count;
+    numInput.value = count;
+    coreStudents.textContent = count;
+    advStudents.textContent = count;
+    coreTotal.textContent = formatINR(count * CORE_PRICE);
+    advTotal.textContent = formatINR(count * ADV_PRICE);
+  }
+
+  range.addEventListener('input', function() {
+    updatePricing(parseInt(this.value, 10));
   });
-});
+
+  numInput.addEventListener('input', function() {
+    updatePricing(parseInt(this.value, 10) || 200);
+  });
+
+  numInput.addEventListener('change', function() {
+    var v = parseInt(this.value, 10);
+    if (isNaN(v) || v < 50) this.value = 50;
+    else if (v > 5000) this.value = 5000;
+    else this.value = Math.round(v / 50) * 50;
+    updatePricing(parseInt(this.value, 10));
+  });
+
+  updatePricing(200);
+})();
 </script>
 {% endblock %}
