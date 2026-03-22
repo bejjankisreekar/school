@@ -21,22 +21,68 @@
           </div>
         </div>
         <div class="ratio ratio-16x9 rounded-3 overflow-hidden border">
-          <iframe src="<iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d60474.544147973014!2d78.06509460907687!3d18.679291588070928!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bcddb27a9a89045%3A0x9f38c4351a15bbf2!2sNizamabad%2C%20Telangana!5e0!3m2!1sen!2sin!4v1773157782961!5m2!1sen!2sin" width="600" height="450" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Office location"></iframe>
+          <iframe 
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d60474.544147973014!2d78.06509460907687!3d18.679291588070928!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bcddb27a9a89045%3A0x9f38c4351a15bbf2!2sNizamabad%2C%20Telangana!5e0!3m2!1sen!2sin!4v1773157782961!5m2!1sen!2sin"
+            width="100%"
+            height="100%"
+            style="border:0;"
+            allowfullscreen=""
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade"
+            title="Office Location">
+          </iframe>
         </div>
       </div>
       <div class="col-lg-7">
         <div class="card border-0 shadow-sm">
           <div class="card-body p-4 p-lg-5">
             <h5 class="fw-semibold mb-4">Send us a message</h5>
-            <form method="post" action="{% url 'core:contact' %}">
+            <form method="post" action="{% url 'core:contact' %}" id="contactForm">
               {% csrf_token %}
+              {% if form.errors %}
+                <div class="alert alert-danger mb-3">
+                  <div class="fw-semibold small mb-1">Please fix the following:</div>
+                  <ul class="mb-0 small">
+                    {% for field in form %}
+                      {% for error in field.errors %}
+                        <li>{{ error }}</li>
+                      {% endfor %}
+                    {% endfor %}
+                  </ul>
+                </div>
+              {% endif %}
               <div class="row g-3">
-                <div class="col-md-6"><label for="name" class="form-label">Name</label><input type="text" class="form-control" id="name" name="name" required placeholder="Your name"></div>
-                <div class="col-md-6"><label for="email" class="form-label">Email</label><input type="email" class="form-control" id="email" name="email" required placeholder="you@school.com"></div>
-                <div class="col-md-6"><label for="phone" class="form-label">Phone</label><input type="tel" class="form-control" id="phone" name="phone" placeholder="+91 98765 43210"></div>
-                <div class="col-md-6"><label for="school_name" class="form-label">School Name</label><input type="text" class="form-control" id="school_name" name="school_name" placeholder="Your school name"></div>
-                <div class="col-12"><label for="message" class="form-label">Message</label><textarea class="form-control" id="message" name="message" rows="4" required placeholder="Your message..."></textarea></div>
-                <div class="col-12"><button type="submit" class="btn btn-cta btn-primary w-100 py-2">Send Message</button></div>
+                <div class="col-md-6">
+                  <label for="name" class="form-label">Name</label>
+                  <input type="text" class="form-control" id="name" name="name" required placeholder="Your name" value="{{ form.name.value|default:'' }}">
+                  {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-6">
+                  <label for="email" class="form-label">Email</label>
+                  <input type="email" class="form-control" id="email" name="email" required placeholder="you@school.com" value="{{ form.email.value|default:'' }}">
+                  {% if form.email.errors %}<div class="text-danger small mt-1">{{ form.email.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-6">
+                  <label for="phone" class="form-label">Phone</label>
+                  <input type="tel" class="form-control" id="phone" name="phone" placeholder="+91 98765 43210" value="{{ form.phone.value|default:'' }}">
+                  {% if form.phone.errors %}<div class="text-danger small mt-1">{{ form.phone.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-6">
+                  <label for="school_name" class="form-label">School Name</label>
+                  <input type="text" class="form-control" id="school_name" name="school_name" placeholder="Your school name" value="{{ form.school_name.value|default:'' }}">
+                  {% if form.school_name.errors %}<div class="text-danger small mt-1">{{ form.school_name.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-12">
+                  <label for="message" class="form-label">Message</label>
+                  <textarea class="form-control" id="message" name="message" rows="4" required placeholder="Your message..." maxlength="1000">{{ form.message.value|default:'' }}</textarea>
+                  {% if form.message.errors %}<div class="text-danger small mt-1">{{ form.message.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-12">
+                  <button type="submit" id="contactSubmitBtn" class="btn btn-cta btn-primary w-100 py-2">
+                    <span id="contactSubmitSpinner" class="spinner-border spinner-border-sm d-none me-2" role="status" aria-hidden="true"></span>
+                    <span id="contactSubmitText">Send Message</span>
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -46,3 +92,59 @@
   </div>
 </section>
 {% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const form = document.getElementById("contactForm");
+    const btn = document.getElementById("contactSubmitBtn");
+    const spinner = document.getElementById("contactSubmitSpinner");
+    const text = document.getElementById("contactSubmitText");
+    if (!form || !btn) return;
+    form.addEventListener("submit", function () {
+      btn.disabled = true;
+      if (spinner) spinner.classList.remove("d-none");
+      if (text) text.textContent = "Sending...";
+    });
+  });
+</script>
+{% if success %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const modalEl = document.getElementById("successModal");
+    if (!modalEl) return;
+
+    const redirectToContact = function () {
+      window.location.href = "{% url 'core:contact' %}";
+    };
+
+    modalEl.addEventListener("hidden.bs.modal", function () {
+      redirectToContact();
+    });
+
+    const myModal = new bootstrap.Modal(modalEl);
+    myModal.show();
+  });
+</script>
+{% endif %}
+{% endblock %}
+
+{% if success %}
+<!-- Success popup modal (Bootstrap) -->
+<div class="modal fade" id="successModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="true" data-bs-keyboard="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Success</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body text-center">
+        <p class="mb-0">Thanks! We received your enquiry. We’ll contact you soon.</p>
+      </div>
+      <div class="modal-footer justify-content-center">
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}

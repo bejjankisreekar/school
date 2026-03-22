@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 {% block title %}My Reports | School ERP{% endblock %}
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid px-0">
@@ -37,7 +40,8 @@
                     <div class="btn-group btn-group-sm">
                       {% if exam.exam_id %}
                       <a href="{% url 'core:student_exam_detail_by_id' exam.exam_id %}" class="btn btn-outline-secondary">View Details</a>
-                      <a href="{% url 'core:student_report_card_pdf' exam.exam_id %}" class="btn btn-outline-primary"><i class="bi bi-file-earmark-pdf me-1"></i>Report PDF</a>
+                      <a href="{% url 'core:student_report_card_view' exam.exam_id %}" class="btn btn-outline-primary">Report View</a>
+                      <a href="{% url 'core:student_report_card_pdf' exam.exam_id %}" class="btn btn-outline-success"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
                       {% else %}
                       <a href="{% url 'core:student_exam_detail' exam.exam_name %}" class="btn btn-outline-secondary">View Details</a>
                       {% endif %}
@@ -60,9 +64,10 @@
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <h2 class="h5 fw-bold mb-0">Attendance Summary</h2>
-            <a href="{% url 'core:student_attendance_report_pdf' %}" class="btn btn-outline-primary btn-sm">
-              <i class="bi bi-file-earmark-pdf me-1"></i> Attendance PDF
-            </a>
+            <div class="d-flex gap-2">
+              <a href="{% url 'core:student_attendance_report_view' %}" class="btn btn-outline-secondary btn-sm">Report View</a>
+              <a href="{% url 'core:student_attendance_report_pdf' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-file-earmark-pdf me-1"></i>Attendance PDF</a>
+            </div>
           </div>
           <div class="row g-3">
             <div class="col-4">
@@ -84,7 +89,10 @@
       <!-- Performance Summary -->
       <div class="card border-0 shadow-sm rounded-4">
         <div class="card-body">
-          <h2 class="h5 fw-bold mb-3">Performance Summary</h2>
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h5 fw-bold mb-0">Performance Summary</h2>
+            <a href="{% url 'core:student_cumulative_report_view' %}" class="btn btn-outline-primary btn-sm">Cumulative Report</a>
+          </div>
           <div class="row g-3">
             <div class="col-md-6">
               <div class="border rounded-3 p-3 h-100">
@@ -123,6 +131,86 @@
       </div>
     </div>
   </div>
+
+  <div class="row g-4 mt-1">
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body">
+          <h2 class="h6 fw-bold mb-3">Marks Trend Across Exams</h2>
+          <div style="height: 260px;">
+            <canvas id="examTrendChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body">
+          <h2 class="h6 fw-bold mb-3">Subject-wise Marks</h2>
+          <div style="height: 260px;">
+            <canvas id="subjectMarksChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
+{{ exam_trend_labels|json_script:"exam-trend-labels" }}
+{{ exam_trend_values|json_script:"exam-trend-values" }}
+{{ subject_chart_labels|json_script:"subject-chart-labels" }}
+{{ subject_chart_values|json_script:"subject-chart-values" }}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const trendLabels = JSON.parse(document.getElementById("exam-trend-labels").textContent || "[]");
+  const trendValues = JSON.parse(document.getElementById("exam-trend-values").textContent || "[]");
+  const subjectLabels = JSON.parse(document.getElementById("subject-chart-labels").textContent || "[]");
+  const subjectValues = JSON.parse(document.getElementById("subject-chart-values").textContent || "[]");
+
+  const trendCanvas = document.getElementById("examTrendChart");
+  if (trendCanvas && trendLabels.length) {
+    new Chart(trendCanvas, {
+      type: "line",
+      data: {
+        labels: trendLabels,
+        datasets: [{
+          data: trendValues,
+          borderColor: "#0d6efd",
+          backgroundColor: "rgba(13, 110, 253, 0.15)",
+          fill: true,
+          tension: 0.3,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { min: 0, max: 100 } },
+      },
+    });
+  }
+
+  const subjectCanvas = document.getElementById("subjectMarksChart");
+  if (subjectCanvas && subjectLabels.length) {
+    new Chart(subjectCanvas, {
+      type: "bar",
+      data: {
+        labels: subjectLabels,
+        datasets: [{
+          data: subjectValues,
+          backgroundColor: "rgba(25, 135, 84, 0.75)",
+          borderColor: "#198754",
+          borderWidth: 1,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { min: 0, max: 100 } },
+      },
+    });
+  }
+});
+</script>
 {% endblock %}
 

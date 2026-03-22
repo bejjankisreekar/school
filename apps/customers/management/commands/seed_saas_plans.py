@@ -27,11 +27,17 @@ FEATURES = [
     ("Online Admission", "online_admission", "Public admission forms"),
     ("Topper List", "topper_list", "Exam toppers"),
     ("Custom Branding", "custom_branding", "Logo and theme customization"),
+    ("SMS Notifications", "sms", "Send SMS notifications to parents and students"),
+    ("Online Results", "online_results", "View exam results online"),
+    ("API Access", "api_access", "Allow public/internal API access"),
+    ("AI Marksheet Summaries", "ai_marksheet_summaries", "AI summaries for marksheets"),
+    ("Priority Support", "priority_support", "Faster support response"),
 ]
 
-STARTER_CODES = ["students", "teachers", "attendance", "exams", "timetable", "homework"]
-GROWTH_CODES = STARTER_CODES + ["fees", "reports", "inventory", "ai_reports"]
+STARTER_CODES = ["students", "teachers", "attendance", "exams", "timetable", "homework", "reports"]
+GROWTH_CODES = STARTER_CODES + ["fees", "inventory", "ai_reports", "sms"]
 ENTERPRISE_CODES = GROWTH_CODES + ["payroll", "library", "transport", "hostel", "online_admission", "topper_list", "custom_branding"]
+ENTERPRISE_CODES = ENTERPRISE_CODES + ["online_results", "api_access", "ai_marksheet_summaries", "priority_support"]
 
 
 class Command(BaseCommand):
@@ -56,7 +62,8 @@ class Command(BaseCommand):
                 "description": "Essential modules for small schools",
             },
         )
-        starter.features.set([feature_objs[c] for c in STARTER_CODES if c in feature_objs])
+        # Non-destructive seeding: only add missing features.
+        starter.features.add(*[feature_objs[c] for c in STARTER_CODES if c in feature_objs])
         self.stdout.write(self.style.SUCCESS(f"Plan: {starter}"))
 
         # Growth
@@ -67,7 +74,8 @@ class Command(BaseCommand):
                 "description": "Fee management and reporting",
             },
         )
-        growth.features.set([feature_objs[c] for c in GROWTH_CODES if c in feature_objs])
+        # Non-destructive seeding: only add missing features.
+        growth.features.add(*[feature_objs[c] for c in GROWTH_CODES if c in feature_objs])
         self.stdout.write(self.style.SUCCESS(f"Plan: {growth}"))
 
         # Enterprise
@@ -78,7 +86,8 @@ class Command(BaseCommand):
                 "description": "All modules enabled",
             },
         )
-        enterprise.features.set([feature_objs[c] for c in ENTERPRISE_CODES if c in feature_objs])
+        # Non-destructive seeding: only add missing features.
+        enterprise.features.add(*[feature_objs[c] for c in ENTERPRISE_CODES if c in feature_objs])
         self.stdout.write(self.style.SUCCESS(f"Plan: {enterprise}"))
 
         self.stdout.write(self.style.SUCCESS("SaaS plans and features seeded successfully."))

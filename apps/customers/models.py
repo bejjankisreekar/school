@@ -58,7 +58,7 @@ class SubscriptionPlan(models.Model):
     name = models.CharField(max_length=50, choices=PLAN_CHOICES, unique=True)
     price_per_student = models.DecimalField(
         max_digits=10, decimal_places=2, default=0,
-        help_text="Price per student per year. Basic=39, Pro=59, Trial=0",
+        help_text="Price per student per month. Basic=39, Pro=59, Trial=0",
     )
     duration_days = models.IntegerField(
         default=365,
@@ -74,7 +74,7 @@ class SubscriptionPlan(models.Model):
     def __str__(self) -> str:
         if self.name == "trial":
             return f"Trial ({self.duration_days} days)"
-        return f"{self.name.title()} (Rs.{self.price_per_student}/student/year)"
+        return f"{self.name.title()} (Rs.{self.price_per_student}/student/month)"
 
 
 class School(TenantMixin):
@@ -138,21 +138,21 @@ class School(TenantMixin):
         """
         Return set of feature codes enabled for this school.
         If enabled_features_override is set, use it. Otherwise use saas_plan features.
-        Returns None when using legacy plan (no saas_plan) - then has_feature uses subscription.
+        Always returns a set.
+        - Override takes precedence when `enabled_features_override` is set.
+        - Otherwise use `saas_plan` feature codes.
+        - If neither exists, return empty set (strict SaaS-only access).
         """
         if self.enabled_features_override is not None:
             return set(self.enabled_features_override)
         if self.saas_plan:
             return self.saas_plan.get_feature_codes()
-        return None
+        return set()
 
     def has_feature(self, feature: str) -> bool:
         """Check if school has access to feature. Uses saas_plan or legacy subscription."""
         codes = self.get_enabled_feature_codes()
-        if codes is not None:
-            return feature in codes
-        from .subscription import has_feature as _has_feature
-        return _has_feature(self, feature)
+        return feature in codes
 
     def has_plan_module(self, module: str) -> bool:
         """Alias for has_feature (backward compat)."""

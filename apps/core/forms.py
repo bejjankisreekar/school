@@ -9,7 +9,6 @@ from apps.school_data.models import (
     Marks,
     Attendance,
     Exam,
-    Test,
     Student,
     Teacher,
     Section,
@@ -38,6 +37,7 @@ from apps.school_data.models import (
     StudentRouteAssignment,
     OnlineAdmission,
 )
+from .models import ContactEnquiry
 
 User = get_user_model()
 
@@ -54,8 +54,46 @@ class HomeworkForm(forms.ModelForm):
         }
 
 
+class HomeworkCreateForm(forms.ModelForm):
+    """Create homework with class+section assignment. Role-based filtering in __init__."""
+    class Meta:
+        model = Homework
+        fields = ["title", "description", "classes", "sections", "due_date"]
+        widgets = {
+            "title": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Homework title"}),
+            "description": forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 4, "placeholder": "Description"}),
+            "classes": forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+            "sections": forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+            "due_date": forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
+        }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        from apps.school_data.models import ClassSectionSubjectTeacher
+        self.fields["classes"].required = True
+        self.fields["sections"].required = True
+
+        if user and getattr(user, "role", None) == "ADMIN":
+            self.fields["classes"].queryset = ClassRoom.objects.select_related("academic_year").order_by("academic_year__start_date", "name")
+            self.fields["sections"].queryset = Section.objects.order_by("name")
+        elif user and getattr(user, "role", None) == "TEACHER":
+            teacher = getattr(user, "teacher_profile", None)
+            if teacher:
+                mappings = ClassSectionSubjectTeacher.objects.filter(teacher=teacher).select_related("class_obj", "section")
+                class_ids = list(mappings.values_list("class_obj_id", flat=True).distinct())
+                section_ids = list(mappings.values_list("section_id", flat=True).distinct())
+                self.fields["classes"].queryset = ClassRoom.objects.filter(id__in=class_ids).order_by("name")
+                self.fields["sections"].queryset = Section.objects.filter(id__in=section_ids).order_by("name")
+            else:
+                self.fields["classes"].queryset = ClassRoom.objects.none()
+                self.fields["sections"].queryset = Section.objects.none()
+        else:
+            self.fields["classes"].queryset = ClassRoom.objects.order_by("name")
+            self.fields["sections"].queryset = Section.objects.order_by("name")
+
+
 class TeacherHomeworkForm(forms.ModelForm):
-    """Homework form for teachers - subject is set from teacher's assignment."""
+    """Legacy: homework with subject. Kept for backward compat."""
     class Meta:
         model = Homework
         fields = ["title", "description", "due_date"]
@@ -83,35 +121,73 @@ class MarksForm(forms.ModelForm):
 class ExamCreateForm(forms.ModelForm):
     class Meta:
         model = Exam
-        fields = ["name", "classroom", "start_date", "end_date"]
+        fields = ["name", "class_name", "section", "date"]
         widgets = {
             "name": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. Mid Term, Final Exam"}),
-            "classroom": forms.Select(attrs={"class": INPUT_CLASS}),
-            "start_date": forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
-            "end_date": forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
-        }
-
-
-class TestForm(forms.ModelForm):
-    class Meta:
-        model = Test
-        fields = ["name", "subject", "classroom", "section", "test_date", "maximum_marks"]
-        widgets = {
-            "name": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. Unit Test 1"}),
-            "subject": forms.Select(attrs={"class": INPUT_CLASS}),
-            "classroom": forms.Select(attrs={"class": INPUT_CLASS}),
+            "class_name": forms.Select(attrs={"class": INPUT_CLASS}),
             "section": forms.Select(attrs={"class": INPUT_CLASS}),
-            "test_date": forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
-            "maximum_marks": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 1}),
+            "date": forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
         }
+
+    def __init__(self, *args, allowed_pairs=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if allowed_pairs:
+            # Restrict to teacher's mapped class+section pairs.
+            class_names = sorted({c for c, _ in allowed_pairs if c})
+            section_names = sorted({s for _, s in allowed_pairs if s})
+            self.fields["class_name"].choices = [("", "---------")] + [(n, n) for n in class_names]
+            self.fields["section"].choices = [("", "---------")] + [(n, n) for n in section_names]
+        else:
+            self.fields["class_name"].choices = [(c.name, c.name) for c in ClassRoom.objects.order_by("name")]
+            self.fields["section"].choices = [(s.name, s.name) for s in Section.objects.order_by("name")]
+
+
+class ContactEnquiryForm(forms.ModelForm):
+    """
+    Validation for the public /contact/ form.
+    Enforces required fields and keeps message length under control.
+    """
+
+    message = forms.CharField(
+        widget=forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 4}),
+        max_length=1000,
+    )
+
+    class Meta:
+        model = ContactEnquiry
+        fields = ["name", "email", "phone", "school_name", "message"]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": INPUT_CLASS}),
+            "email": forms.EmailInput(attrs={"class": INPUT_CLASS}),
+            "phone": forms.TextInput(attrs={"class": INPUT_CLASS, "required": False}),
+            "school_name": forms.TextInput(attrs={"class": INPUT_CLASS, "required": False}),
+        }
+
+
+class SchoolExamCreateForm(forms.Form):
+    """Admin form to create exam(s): class + multi-section + optional teacher."""
+    name = forms.CharField(max_length=100, widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. Mid Term, Final Exam"}))
+    class_name = forms.ChoiceField(choices=[], widget=forms.Select(attrs={"class": BS_INPUT, "id": "id_exam_class"}))
+    sections = forms.MultipleChoiceField(choices=[], required=True, widget=forms.CheckboxSelectMultiple())
+    date = forms.DateField(widget=forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}))
+    teacher = forms.TypedChoiceField(choices=[], required=False, empty_value=None, widget=forms.Select(attrs={"class": BS_INPUT}))
 
     def __init__(self, school, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["subject"].queryset = Subject.objects.order_by("name")
-        self.fields["classroom"].queryset = ClassRoom.objects.select_related("academic_year").order_by("academic_year", "name")
-        self.fields["section"].queryset = Section.objects.order_by("name")
-        self.fields["section"].required = False
+        classrooms = ClassRoom.objects.select_related("academic_year").order_by("academic_year__start_date", "name")
+        self.fields["class_name"].choices = [("", "Select Class")] + [(c.name, c.name) for c in classrooms]
+        self.fields["sections"].choices = [(s.name, s.name) for s in Section.objects.order_by("name")]
+        teachers = Teacher.objects.filter(user__school=school).select_related("user").order_by("user__first_name", "user__last_name")
+        self.fields["teacher"].choices = [("", "No specific teacher")] + [(t.id, t.user.get_full_name() or t.user.username) for t in teachers]
 
+    def clean_teacher(self):
+        val = self.cleaned_data.get("teacher")
+        if val is None or val == "":
+            return None
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return None
 
 class AttendanceForm(forms.ModelForm):
     class Meta:
@@ -330,7 +406,8 @@ class ClassRoomForm(forms.ModelForm):
             "description": forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 2, "placeholder": "Optional description"}),
             "capacity": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 1, "placeholder": "Optional"}),
             "academic_year": forms.Select(attrs={"class": BS_INPUT}),
-            "sections": forms.SelectMultiple(attrs={"class": INPUT_CLASS, "size": 8}),
+            # CheckboxSelectMultiple renders one checkbox per section (we render them as "cards" in the template).
+            "sections": forms.CheckboxSelectMultiple(),
         }
 
     def __init__(self, school, *args, **kwargs):

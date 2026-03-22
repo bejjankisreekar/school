@@ -25,8 +25,8 @@
             <tr>
               <th>Exam Name</th>
               <th>Class</th>
-              <th>Start Date</th>
-              <th>End Date</th>
+              <th>Section</th>
+              <th>Exam Date</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -34,9 +34,9 @@
             {% for e in exams %}
             <tr>
               <td>{{ e.name }}</td>
-              <td>{{ e.classroom }}</td>
-              <td>{{ e.start_date }}</td>
-              <td>{{ e.end_date }}</td>
+              <td>{{ e.class_name }}</td>
+              <td>{{ e.section }}</td>
+              <td>{{ e.date }}</td>
               <td>
                 <a href="{% url 'core:teacher_exam_summary' e.id %}" class="btn btn-sm btn-outline-primary me-1">Summary</a>
                 <a href="{% url 'core:teacher_exam_enter_marks' e.id %}" class="btn btn-sm btn-outline-success">Enter Marks</a>

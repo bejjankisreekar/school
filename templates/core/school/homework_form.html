@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_homework_list' %}">Homework</a></li>
+      <li class="breadcrumb-item active">{{ title }}</li>
+    </ol>
+  </nav>
+  <div class="card border-0 shadow-sm rounded-4 p-4">
+    <h2 class="h5 fw-bold mb-4">{{ title }}</h2>
+    {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="row g-4">
+        <div class="col-12">
+          <label class="form-label fw-semibold">Title</label>
+          {{ form.title }}
+          {% if form.title.errors %}<div class="text-danger small mt-1">{{ form.title.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Description</label>
+          {{ form.description }}
+          {% if form.description.errors %}<div class="text-danger small mt-1">{{ form.description.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Due Date</label>
+          {{ form.due_date }}
+          {% if form.due_date.errors %}<div class="text-danger small mt-1">{{ form.due_date.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <label class="form-label fw-semibold mb-2">Classes</label>
+        {% if form.classes.errors %}<div class="text-danger small mb-2">{{ form.classes.errors.0 }}</div>{% endif %}
+        <div class="row g-2">
+          {% for cb in form.classes %}
+          <div class="col-6 col-md-4 col-lg-3">
+            <div class="form-check border rounded p-2">
+              {{ cb.tag }}
+              <label class="form-check-label" for="{{ cb.id_for_label }}">{{ cb.choice_label }}</label>
+            </div>
+          </div>
+          {% empty %}
+          <div class="col-12 text-muted">No classes available. Add classes first.</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <label class="form-label fw-semibold mb-2">Sections</label>
+        {% if form.sections.errors %}<div class="text-danger small mb-2">{{ form.sections.errors.0 }}</div>{% endif %}
+        <div class="row g-2">
+          {% for cb in form.sections %}
+          <div class="col-6 col-md-4 col-lg-3">
+            <div class="form-check border rounded p-2">
+              {{ cb.tag }}
+              <label class="form-check-label" for="{{ cb.id_for_label }}">{{ cb.choice_label }}</label>
+            </div>
+          </div>
+          {% empty %}
+          <div class="col-12 text-muted">No sections available. Add sections and assign to classes first.</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-end gap-2 mt-4">
+        <a href="{% url 'core:school_homework_list' %}" class="btn btn-light">Cancel</a>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -132,3 +132,28 @@ class SchoolSubscription(models.Model):
 
     def __str__(self) -> str:
         return f"{self.school.name} → {self.plan.name} ({self.start_date} to {self.end_date})"
+
+
+class ContactEnquiry(models.Model):
+    """
+    Public contact form enquiries (stored in the shared/public schema).
+
+    Used by:
+    - Marketing contact page: /contact/
+    - Super admin tracking: /superadmin/enquiries/
+    """
+
+    name = models.CharField(max_length=255)
+    email = models.EmailField()
+    phone = models.CharField(max_length=20, blank=True, null=True)
+    school_name = models.CharField(max_length=255, blank=True, null=True)
+    message = models.TextField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Enquiry from {self.name} ({self.email})"

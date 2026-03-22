@@ -10,9 +10,9 @@
         {% csrf_token %}
         <div class="row g-3">
           <div class="col-md-6"><label class="form-label">Exam Name</label>{{ form.name }}</div>
-          <div class="col-md-6"><label class="form-label">Class</label>{{ form.classroom }}</div>
-          <div class="col-md-6"><label class="form-label">Start Date</label>{{ form.start_date }}</div>
-          <div class="col-md-6"><label class="form-label">End Date</label>{{ form.end_date }}</div>
+          <div class="col-md-6"><label class="form-label">Class</label>{{ form.class_name }}</div>
+          <div class="col-md-6"><label class="form-label">Section</label>{{ form.section }}</div>
+          <div class="col-md-6"><label class="form-label">Exam Date</label>{{ form.date }}</div>
           <div class="col-12">
             <button type="submit" class="btn btn-primary">Save Exam</button>
             <a href="{% url 'core:teacher_exams' %}" class="btn btn-outline-secondary ms-2">Cancel</a>

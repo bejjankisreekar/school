@@ -37,11 +37,13 @@
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
     {% else %}
+    {% if request.user.role != 'STUDENT' %}
     <a href="{% if request.user.role == 'ADMIN' %}{% url 'core:school_students_list' %}{% else %}{% url 'core:students_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'school_students_list' 'students_list' 'school_student_add' 'school_student_edit' 'school_student_view' 'school_students_import' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-people"></i></span>
       <span class="sidebar-nav-text">Students</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
+    {% endif %}
     <a href="{% if request.user.role == 'ADMIN' %}{% url 'core:school_teachers_list' %}{% else %}{% url 'core:teachers_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'school_teachers_list' 'teachers_list' 'school_teacher_add' 'school_teacher_edit' 'school_teacher_view' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-person-badge"></i></span>
       <span class="sidebar-nav-text">Teachers</span>
@@ -63,45 +65,51 @@
       <span class="sidebar-nav-text">Subjects</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
+    <a href="{% url 'core:school_subject_teacher_mapping' %}" class="sidebar-nav-item {% nav_active_names request 'school_subject_teacher_mapping' %}">
+      <span class="sidebar-nav-icon"><i class="bi bi-diagram-3-fill"></i></span>
+      <span class="sidebar-nav-text">Teacher Mapping</span>
+      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+    </a>
     {% endif %}
     {% endif %}
     {% if request.user.role != 'PARENT' %}
+    {% if request.user.school|has_feature_access:"attendance" %}
     <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_attendance' %}{% elif request.user.role == 'TEACHER' %}{% url 'core:bulk_attendance' %}{% else %}{% url 'core:attendance_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'student_attendance' 'bulk_attendance' 'attendance_list' 'mark_attendance' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-calendar-check"></i></span>
       <span class="sidebar-nav-text">Attendance</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
-    <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_exams_list' %}{% elif request.user.role == 'TEACHER' %}{% url 'core:teacher_exams' %}{% else %}{% url 'core:marks_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'student_exams_list' 'teacher_exams' 'teacher_exam_create' 'teacher_exam_summary' 'teacher_exam_enter_marks' 'marks_list' 'student_exam_detail' 'student_exam_detail_by_id' %}">
+    {% endif %}
+
+    {% if request.user.school|has_feature_access:"exams" %}
+    <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_exams_list' %}{% elif request.user.role == 'TEACHER' %}{% url 'core:teacher_exams' %}{% else %}{% url 'core:school_exams_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'student_exams_list' 'teacher_exams' 'teacher_exam_create' 'teacher_exam_summary' 'teacher_exam_enter_marks' 'school_exams_list' 'school_exam_create' 'student_exam_detail' 'student_exam_detail_by_id' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-clipboard-check"></i></span>
       <span class="sidebar-nav-text">Exams</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
-    {% if request.user.role == 'ADMIN' %}
-    <a href="{% url 'core:school_tests_list' %}" class="sidebar-nav-item {% nav_active_names request 'school_tests_list' 'school_test_add' 'school_test_edit' %}">
-      <span class="sidebar-nav-icon"><i class="bi bi-journal-check"></i></span>
-      <span class="sidebar-nav-text">Tests</span>
-      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-    </a>
     {% endif %}
+    
+    {% if request.user.school|has_feature_access:"timetable" %}
     <a href="{% if request.user.role == 'ADMIN' %}{% url 'timetable:school_timetable_index' %}{% elif request.user.role == 'TEACHER' %}{% url 'timetable:teacher_timetable' %}{% elif request.user.role == 'STUDENT' %}{% url 'timetable:student_timetable' %}{% else %}{% url 'timetable:school_timetable_index' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'school_timetable_index' 'school_timetable' 'school_timeslots' 'teacher_timetable' 'student_timetable' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-calendar3"></i></span>
       <span class="sidebar-nav-text">Timetable</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
-    <a href="{% url 'core:homework_list' %}" class="sidebar-nav-item {% nav_active_names request 'homework_list' %}">
+    {% endif %}
+    <a href="{% url 'core:homework_list' %}" class="sidebar-nav-item {% nav_active_names request 'homework_list' 'school_homework_list' 'school_homework_create' 'create_homework' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-journal-text"></i></span>
       <span class="sidebar-nav-text">Homework</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
     {% if request|school_has_feature:'fees' %}
-    <a href="{% if request.user.role == 'ADMIN' %}{% url 'core:school_fees_index' %}{% else %}#{% endif %}" class="sidebar-nav-item {% if request.user.role == 'ADMIN' %}{% nav_active_names request 'school_fees_index' 'school_fee_types' 'school_fee_structure' 'school_fee_collection' 'school_fee_collect' 'school_fee_add' %}{% endif %}">
+    <a href="{% if request.user.role == 'ADMIN' %}{% url 'core:school_fees_index' %}{% elif request.user.role == 'STUDENT' %}{% url 'core:student_fees' %}{% else %}#{% endif %}" class="sidebar-nav-item {% if request.user.role == 'ADMIN' %}{% nav_active_names request 'school_fees_index' 'school_fee_types' 'school_fee_structure' 'school_fee_collection' 'school_fee_collect' 'school_fee_add' %}{% elif request.user.role == 'STUDENT' %}{% nav_active_names request 'student_fees' %}{% endif %}">
       <span class="sidebar-nav-icon"><i class="bi bi-currency-dollar"></i></span>
       <span class="sidebar-nav-text">Fees</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
     {% endif %}
     {% if request.user.role == 'ADMIN' %}
-    {% if request|school_has_feature:'payroll' %}
+    {% if request.user.school|has_feature_access:"payroll" %}
     <a href="{% url 'payroll:payroll_dashboard' %}" class="sidebar-nav-item {% nav_active_names request 'payroll_dashboard' 'salary_components_list' 'salary_component_add' 'salary_component_edit' 'salary_structure_list' 'salary_structure_add' 'salary_structure_edit' 'salary_advances_list' 'salary_advance_add' 'salary_advance_edit' 'payroll_generate' 'payslips_list' 'payslip_view' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-wallet2"></i></span>
       <span class="sidebar-nav-text">Payroll</span>
@@ -109,17 +117,33 @@
     </a>
     {% endif %}
     {% endif %}
+    {% if request.user.school|has_feature_access:"reports" %}
     <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_reports' %}{% elif request.user.role == 'ADMIN' %}{% url 'core:school_reports_dashboard' %}{% else %}{% url 'core:reports_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'student_reports' 'reports_list' 'school_reports_dashboard' 'student_report_card_pdf' 'student_attendance_report_pdf' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-graph-up"></i></span>
       <span class="sidebar-nav-text">Reports</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
+    {% endif %}
+    {% if request.user.role == 'STUDENT' %}
+    <a href="{% url 'notifications:student_notifications' %}" class="sidebar-nav-item {% nav_active_names request 'student_notifications' %}">
+      <span class="sidebar-nav-icon"><i class="bi bi-bell"></i></span>
+      <span class="sidebar-nav-text">Notifications</span>
+      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+    </a>
+    {% endif %}
     {% if request.user.role == 'ADMIN' %}
-    <a href="{% url 'core:school_staff_attendance' %}" class="sidebar-nav-item {% nav_active_names request 'school_staff_attendance' 'school_staff_attendance_mark' %}">
+    <a href="{% url 'core:school_staff_attendance' %}" class="sidebar-nav-item {% nav_active_names request 'school_staff_attendance' 'school_staff_attendance_detail' 'school_staff_attendance_mark' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-person-check"></i></span>
       <span class="sidebar-nav-text">Staff Attendance</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
+    {% if request.user.school|has_feature_access:"sms" %}
+    <a href="{% url 'notifications:school_notifications' %}" class="sidebar-nav-item {% nav_active_names request 'school_notifications' %}">
+      <span class="sidebar-nav-icon"><i class="bi bi-chat-dots"></i></span>
+      <span class="sidebar-nav-text">Communication</span>
+      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+    </a>
+    {% endif %}
     {% if request|school_has_feature:'inventory' %}
     <a href="{% url 'core:school_inventory_index' %}" class="sidebar-nav-item {% nav_active_names request 'school_inventory_index' 'school_inventory_item_add' 'school_purchase_add' 'school_invoices_list' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-box-seam"></i></span>

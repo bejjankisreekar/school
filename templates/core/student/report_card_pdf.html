@@ -42,7 +42,7 @@
         <h3 class="mt-1">Report Card</h3>
       </td>
       <td width="20%" class="text-right small">
-        <p>Date: {{ exam.start_date|default:today }}</p>
+        <p>Date: {{ exam.date|default:today }}</p>
       </td>
     </tr>
   </table>
@@ -69,7 +69,7 @@
   <table class="no-border" width="100%">
     <tr>
       <td><strong>Exam Name:</strong> {{ exam.name }}</td>
-      <td><strong>Exam Dates:</strong> {% if exam.start_date %}{{ exam.start_date }}{% endif %}{% if exam.end_date %} - {{ exam.end_date }}{% endif %}</td>
+      <td><strong>Exam Date:</strong> {{ exam.date }}</td>
     </tr>
   </table>
 

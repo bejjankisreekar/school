@@ -18,18 +18,8 @@ def _get_school_features(request):
     school = getattr(getattr(request, "user", None), "school", None)
     if not school:
         return frozenset()
-    codes = school.get_enabled_feature_codes()
-    if codes is not None:
-        return frozenset(codes)
-    # Legacy: build from has_feature checks for common codes
-    from apps.customers.subscription import has_feature
-    result = set()
-    for code in ("students", "teachers", "attendance", "exams", "fees", "payroll",
-                 "library", "transport", "hostel", "reports", "inventory", "ai_reports",
-                 "online_admission", "topper_list", "custom_branding"):
-        if has_feature(school, code):
-            result.add(code)
-    return frozenset(result)
+    # Strict SaaS-only access: rely on DB-driven feature codes.
+    return frozenset(school.get_enabled_feature_codes())
 
 
 class SchoolFeaturesMiddleware(MiddlewareMixin):

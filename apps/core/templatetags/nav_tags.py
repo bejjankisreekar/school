@@ -33,6 +33,13 @@ def school_has_feature(request, feature):
     return school.has_feature(feature)
 
 
+@register.filter
+def has_feature_access(school, feature_code: str):
+    """Return True if `school` has `feature_code` enabled (DB-driven)."""
+    from apps.core.utils import has_feature_access as _has_feature_access
+    return _has_feature_access(school, feature_code)
+
+
 @register.simple_tag
 def nav_active_names(request, *url_names):
     """Return 'sidebar-nav-active' if current view's url_name matches any."""

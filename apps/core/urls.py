@@ -12,22 +12,38 @@ urlpatterns = [
 
     # Role-based dashboard URLs (for login redirect)
     path("superadmin/dashboard/", views.super_admin_dashboard, name="super_admin_dashboard"),
+    path("superadmin/enquiries/", views.superadmin_enquiries, name="superadmin_enquiries"),
+    path(
+        "superadmin/enquiries/<int:enquiry_id>/mark-read/",
+        views.superadmin_enquiry_mark_read,
+        name="superadmin_enquiry_mark_read",
+    ),
     path("school/dashboard/", views.admin_dashboard, name="admin_dashboard"),
     path("teacher/dashboard/", views.teacher_dashboard, name="teacher_dashboard"),
     path("student/dashboard/", views.student_dashboard, name="student_dashboard"),
+
+    # Public APIs (super admin)
+    path("api/enquiries/unread-count/", views.enquiries_unread_count, name="enquiries_unread_count_api"),
 
     # Legacy/alias dashboard URLs
     path("super-admin/", views.super_admin_dashboard, name="super_admin_dashboard_legacy"),
     path("school-admin/", views.admin_dashboard, name="admin_dashboard_legacy"),
     path("student-dashboard/", views.student_dashboard, name="student_dashboard_legacy"),
     path("student-dashboard/profile/", views.student_profile, name="student_profile"),
+    path("student-dashboard/profile/edit/", views.edit_profile, name="edit_profile"),
+    path("student/edit-profile/", views.edit_profile, name="edit_profile_web"),
     path("student-dashboard/marks/", views.student_marks, name="student_marks"),
     path("student/attendance/", views.student_attendance, name="student_attendance"),
+    path("student/fees/", views.student_fees, name="student_fees"),
     path("student/exams/", views.student_exams_list, name="student_exams_list"),
     path("student/exam/<int:exam_id>/", views.student_exam_detail_by_id, name="student_exam_detail_by_id"),
     path("student/exam/legacy/<str:exam_name>/", views.student_exam_detail, name="student_exam_detail"),
     path("student/reports/", views.student_reports, name="student_reports"),
+    path("student/reports/report-card/<int:exam_id>/", views.student_report_card_view, name="student_report_card_view"),
+    path("student/reports/cumulative/", views.student_cumulative_report_view, name="student_cumulative_report_view"),
+    path("student/reports/attendance/", views.student_attendance_report_view, name="student_attendance_report_view"),
     path("student/report-card/<int:exam_id>/", views.student_report_card_pdf, name="student_report_card_pdf"),
+    path("student/cumulative-report/pdf/", views.student_cumulative_report_pdf, name="student_cumulative_report_pdf"),
     path("student/attendance-report/", views.student_attendance_report_pdf, name="student_attendance_report_pdf"),
 
     # Teacher Exam Management
@@ -36,6 +52,10 @@ urlpatterns = [
     path("teacher/exams/<int:exam_id>/", views.teacher_exam_summary, name="teacher_exam_summary"),
     path("teacher/exams/<int:exam_id>/enter-marks/", views.teacher_exam_enter_marks, name="teacher_exam_enter_marks"),
     path("teacher/class-analytics/", views.teacher_class_analytics, name="teacher_class_analytics"),
+
+    # School Admin: Exam list and create
+    path("school/exams/", views.school_exams_list, name="school_exams_list"),
+    path("school/exams/create/", views.school_exam_create, name="school_exam_create"),
 
     # Sidebar items (unified)
     path("students/", views.students_list, name="students_list"),
@@ -70,13 +90,13 @@ urlpatterns = [
     path("school/subjects/add/", views.school_subject_add, name="school_subject_add"),
     path("school/subjects/<int:subject_id>/edit/", views.school_subject_edit, name="school_subject_edit"),
     path("school/subjects/<int:subject_id>/delete/", views.school_subject_delete, name="school_subject_delete"),
-    path("school/tests/", views.school_tests_list, name="school_tests_list"),
-    path("school/tests/add/", views.school_test_add, name="school_test_add"),
-    path("school/tests/<int:test_id>/edit/", views.school_test_edit, name="school_test_edit"),
-    path("school/tests/<int:test_id>/delete/", views.school_test_delete, name="school_test_delete"),
+    path("school/subject-teacher-mapping/", views.school_subject_teacher_mapping, name="school_subject_teacher_mapping"),
     path("attendance/", views.attendance_list, name="attendance_list"),
     path("marks/", views.marks_list, name="marks_list"),
     path("homework/", views.homework_list, name="homework_list"),
+    path("school/homework/", views.school_homework_list, name="school_homework_list"),
+    path("school/homework/create/", views.school_homework_create, name="school_homework_create"),
+    path("student/homework/<int:homework_id>/submit/", views.student_homework_submit, name="student_homework_submit"),
     path("reports/", views.reports_list, name="reports_list"),
 
     # Teacher actions
@@ -106,6 +126,7 @@ urlpatterns = [
 
     # Staff Attendance
     path("school/staff-attendance/", views.school_staff_attendance, name="school_staff_attendance"),
+    path("school/staff-attendance/<int:teacher_id>/", views.school_staff_attendance_detail, name="school_staff_attendance_detail"),
     path("school/staff-attendance/mark/", views.school_staff_attendance_mark, name="school_staff_attendance_mark"),
 
     # Inventory

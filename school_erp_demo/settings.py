@@ -37,6 +37,7 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 SHARED_APPS = [
     "django_tenants",
     "apps.customers",
+    "channels",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -47,6 +48,7 @@ SHARED_APPS = [
     "theme",
     "apps.core",
     "apps.accounts",
+    "apps.notifications",
 ]
 
 TENANT_APPS = [
@@ -103,6 +105,13 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "school_erp_demo.wsgi.application"
+ASGI_APPLICATION = "school_erp_demo.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    }
+}
 
 
 # Database — PostgreSQL only (production config)

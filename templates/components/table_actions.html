@@ -6,12 +6,18 @@ All URLs and delete_modal_id are required for full display. Omit show_view=0 to 
 {% endcomment %}
 <div class="d-flex gap-1 justify-content-center flex-wrap">
   {% if view_url %}
-  <a href="{{ view_url }}" class="btn btn-sm btn-outline-secondary" title="View">View 👁️</a>
+  <a href="{{ view_url }}" class="btn btn-sm btn-outline-secondary" title="View" aria-label="View">
+    <i class="bi bi-eye"></i>
+  </a>
   {% endif %}
   {% if edit_url %}
-  <a href="{{ edit_url }}" class="btn btn-sm btn-outline-primary" title="Edit">Edit ✏️</a>
+  <a href="{{ edit_url }}" class="btn btn-sm btn-outline-primary" title="Edit" aria-label="Edit">
+    <i class="bi bi-pencil"></i>
+  </a>
   {% endif %}
   {% if show_delete != False and delete_url and delete_modal_id %}
-  <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#{{ delete_modal_id }}" title="Delete">Delete 🗑️</button>
+  <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#{{ delete_modal_id }}" title="Delete" aria-label="Delete">
+    <i class="bi bi-trash"></i>
+  </button>
   {% endif %}
 </div>

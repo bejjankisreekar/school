@@ -1,56 +1,162 @@
 {% extends "base.html" %}
 
-{% block title %}Student Dashboard | School ERP{% endblock %}
+{% block title %}Student Profile | School ERP{% endblock %}
 
 {% block content %}
-<h1 class="text-2xl font-semibold mb-6">Student Dashboard</h1>
+<div class="container py-4">
+  <div class="row g-4">
+    <!-- LEFT: PROFILE CARD -->
+    <div class="col-lg-4">
+      <div class="card shadow-sm border-0 rounded-4 text-center p-4">
+        <style>
+          .avatar-placeholder {
+            width: 120px;
+            height: 120px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 36px;
+            color: #0d6efd;
+            background: rgba(13, 110, 253, 0.12);
+            border: 1px dashed rgba(13, 110, 253, 0.35);
+          }
+        </style>
 
-<!-- Stats Cards -->
-<div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {% if student.profile_image %}
+          <img
+            src="{{ student.profile_image.url }}"
+            class="rounded-circle mb-3"
+            width="120"
+            height="120"
+            alt="Profile"
+          >
+        {% else %}
+          <div class="avatar-placeholder mb-3">
+            {{ request.user.first_name|slice:":1" }}{{ request.user.last_name|slice:":1" }}
+          </div>
+        {% endif %}
 
-  <!-- Attendance -->
-  <div class="card bg-indigo-600 text-white shadow-xl rounded-lg">
-    <div class="card-body p-5">
-      <p class="text-sm opacity-80">Attendance</p>
-      <h2 class="text-3xl font-bold">92%</h2>
+        <h5 class="fw-bold mb-1">{{ request.user.get_full_name|default:request.user.username }}</h5>
+
+        <p class="text-muted mb-3">
+          {% if student.classroom %}{{ student.classroom.name }}{% else %}-{% endif %}
+          -
+          {% if student.section %}{{ student.section.name }}{% else %}-{% endif %}
+        </p>
+
+        <span class="badge bg-primary">
+          Roll No: {{ student.roll_number }}
+        </span>
+      </div>
+    </div>
+
+    <!-- RIGHT: DETAILS -->
+    <div class="col-lg-8">
+      <div class="card shadow-sm border-0 rounded-4 p-4">
+        <div class="d-flex justify-content-between mb-3 flex-wrap gap-2">
+          <h6 class="mb-0">Personal Information</h6>
+          <a href="{% url 'core:edit_profile_web' %}" class="btn btn-sm btn-outline-primary">
+            Edit
+          </a>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <small class="text-muted">Email</small>
+            <p class="mb-0">{{ request.user.email }}</p>
+          </div>
+
+          <div class="col-md-6">
+            <small class="text-muted">Phone</small>
+            <p class="mb-0">{{ student.phone|default:"-" }}</p>
+          </div>
+
+          <div class="col-md-6">
+            <small class="text-muted">Date of Birth</small>
+            <p class="mb-0">{{ student.date_of_birth|default:"-" }}</p>
+          </div>
+
+          <div class="col-md-6">
+            <small class="text-muted">Address</small>
+            <p class="mb-0">{{ student.address|default:"-" }}</p>
+          </div>
+
+          <div class="col-md-6">
+            <small class="text-muted">Admission No</small>
+            <p class="mb-0">{{ student.admission_number|default:"-" }}</p>
+          </div>
+
+          <div class="col-md-6">
+            <small class="text-muted">Class / Section</small>
+            <p class="mb-0">
+              {% if student.classroom %}{{ student.classroom.name }}{% else %}-{% endif %}
+              -
+              {% if student.section %}{{ student.section.name }}{% else %}-{% endif %}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- PROFILE COMPLETION -->
+      <div class="card shadow-sm border-0 rounded-4 p-4 mt-3">
+        <div class="d-flex justify-content-between mb-2">
+          <h6 class="mb-0">Profile Completion</h6>
+          <span class="fw-semibold">{{ profile_completion }}%</span>
+        </div>
+        <div class="progress" style="height: 8px;">
+          <div class="progress-bar bg-success"
+               role="progressbar"
+               style="width: {{ profile_completion }}%">
+          </div>
+        </div>
+        {% if profile_completion < 100 %}
+          <small class="text-muted mt-2 d-block">
+            Complete your profile to unlock badges 🎯
+          </small>
+        {% endif %}
+      </div>
+
+      <!-- ACHIEVEMENTS / BADGES -->
+      <div class="card shadow-sm border-0 rounded-4 p-4 mt-3">
+        <h6 class="mb-3">Achievements</h6>
+        <div class="d-flex flex-wrap gap-2">
+          {% for badge in badges %}
+            <span class="badge bg-light text-dark border px-3 py-2 d-inline-flex align-items-center gap-2">
+              {% if badge.icon %}
+                <i class="{{ badge.icon }}"></i>
+              {% endif %}
+              <span>{{ badge.name }}</span>
+            </span>
+          {% empty %}
+            <p class="text-muted mb-0">No achievements yet</p>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- QUICK STATS -->
+      <div class="card shadow-sm border-0 rounded-4 p-4 mt-3">
+        <h6 class="mb-3">Quick Stats</h6>
+
+        <div class="row text-center g-3">
+          <div class="col-md-4">
+            <h5 class="fw-bold text-success mb-0">{{ attendance_percentage }}%</h5>
+            <small class="text-muted">Attendance</small>
+          </div>
+
+          <div class="col-md-4">
+            <h5 class="fw-bold text-primary mb-0">{{ total_exams }}</h5>
+            <small class="text-muted">Exams Taken</small>
+          </div>
+
+          <div class="col-md-4">
+            <h5 class="fw-bold text-warning mb-0">{{ avg_marks }}%</h5>
+            <small class="text-muted">Avg Marks</small>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
-
-  <!-- Average Marks -->
-  <div class="card bg-emerald-600 text-white shadow-xl rounded-lg">
-    <div class="card-body p-5">
-      <p class="text-sm opacity-80">Average Marks</p>
-      <h2 class="text-3xl font-bold">85%</h2>
-    </div>
-  </div>
-
-  <!-- Assignments -->
-  <div class="card bg-amber-500 text-white shadow-xl rounded-lg">
-    <div class="card-body p-5">
-      <p class="text-sm opacity-80">Assignments</p>
-      <h2 class="text-3xl font-bold">3 Pending</h2>
-    </div>
-  </div>
-
-  <!-- Notifications -->
-  <div class="card bg-rose-600 text-white shadow-xl rounded-lg">
-    <div class="card-body p-5">
-      <p class="text-sm opacity-80">Notifications</p>
-      <h2 class="text-3xl font-bold">2</h2>
-    </div>
-  </div>
-
 </div>
-
-<!-- Quick Access Buttons -->
-<div class="mt-10">
-  <h2 class="text-lg font-semibold mb-4">Quick Access</h2>
-  <div class="flex gap-3 flex-wrap">
-    <a href="{% url 'core:student_profile' %}" class="btn btn-primary btn-sm">Profile</a>
-    <a href="{% url 'core:student_attendance' %}" class="btn btn-secondary btn-sm">Attendance</a>
-    <a href="{% url 'core:student_marks' %}" class="btn btn-accent btn-sm">Marks</a>
-    <a href="#" class="btn btn-outline btn-sm">Assignments</a>
-  </div>
-</div>
-
 {% endblock %}

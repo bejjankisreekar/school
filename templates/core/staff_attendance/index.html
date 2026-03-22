@@ -37,7 +37,7 @@
     </div>
   </form>
 
-  <div class="row g-3 mb-4">
+  <!-- <div class="row g-3 mb-4">
     <div class="col-sm-6 col-lg-4 col-xl-2">
       {% include "components/dashboard_card.html" with label="Present" value=summary_counts.present icon="bi-check-circle" icon_color="success" %}
     </div>
@@ -56,7 +56,7 @@
     <div class="col-sm-6 col-lg-4 col-xl-2">
       {% include "components/dashboard_card.html" with label="Other" value=summary_counts.other icon="bi-dash-circle" icon_color="secondary" %}
     </div>
-  </div>
+  </div> -->
 
   <div class="card border-0 shadow-sm">
     <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -68,6 +68,8 @@
         <thead class="table-light">
           <tr>
             <th>Staff Name</th>
+            <th>Designation</th>
+            <th class="text-center">Total Days</th>
             <th class="text-center">Present</th>
             <th class="text-center">Absent</th>
             <th class="text-center">Leave</th>
@@ -78,8 +80,10 @@
         </thead>
         <tbody>
           {% for row in page %}
-          <tr>
-            <td>{{ row.teacher.user.get_full_name|default:row.teacher.user.username }}</td>
+          <tr class="staff-row-clickable" role="button" tabindex="0" data-href="{% url 'core:school_staff_attendance_detail' row.teacher.id %}?month={{ detail_month }}" title="Click to view attendance calendar">
+            <td><a href="{% url 'core:school_staff_attendance_detail' row.teacher.id %}?month={{ detail_month }}" class="text-decoration-none fw-semibold" onclick="event.stopPropagation()">{{ row.teacher.user.get_full_name|default:row.teacher.user.username }}</a></td>
+            <td><span class="text-muted small">Teacher</span></td>
+            <td class="text-center">{{ row.total_days }}</td>
             <td class="text-center">{{ row.present }}</td>
             <td class="text-center">{{ row.absent }}</td>
             <td class="text-center">{{ row.leave }}</td>
@@ -88,7 +92,7 @@
             <td class="text-center">{{ row.other }}</td>
           </tr>
           {% empty %}
-          <tr><td colspan="7" class="text-muted text-center py-4">No staff found.</td></tr>
+          <tr><td colspan="9" class="text-muted text-center py-4">No staff found.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -110,4 +114,26 @@
     {% endif %}
   </div>
 </div>
+
+<style>
+.staff-row-clickable { cursor: pointer; }
+.staff-row-clickable:hover { background-color: rgba(13, 110, 253, 0.06); }
+</style>
+<script>
+document.querySelectorAll('.staff-row-clickable').forEach(function(row) {
+  row.addEventListener('click', function(e) {
+    if (e.target.closest('a')) return;
+    var href = row.getAttribute('data-href');
+    if (href) window.location.href = href;
+  });
+  row.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (e.target.closest('a')) return;
+      var href = row.getAttribute('data-href');
+      if (href) window.location.href = href;
+    }
+  });
+});
+</script>
 {% endblock %}

@@ -1,6 +1,7 @@
 from functools import wraps
 
 from django.contrib.auth.decorators import login_required
+from django.http import HttpResponseForbidden
 from django.core.exceptions import PermissionDenied
 
 from .models import User
@@ -47,9 +48,7 @@ def feature_required(feature_code: str):
                 return view_func(request, *args, **kwargs)
             features = getattr(request, "school_features", frozenset())
             if feature_code not in features:
-                raise PermissionDenied(
-                    f"Feature '{feature_code}' is not available in your plan."
-                )
+                return HttpResponseForbidden("Upgrade your plan to access this feature")
             return view_func(request, *args, **kwargs)
 
         return _wrapped_view

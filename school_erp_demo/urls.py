@@ -33,6 +33,7 @@ urlpatterns = [
     path("", include(("apps.core.urls", "core"), namespace="core")),
     path("", include(("apps.payroll.urls", "payroll"), namespace="payroll")),
     path("", include(("apps.timetable.urls", "timetable"), namespace="timetable")),
+    path("", include(("apps.notifications.urls", "notifications"), namespace="notifications")),
     path("accounts/", include(("apps.accounts.urls", "accounts"), namespace="accounts")),
     path("admin/", include(("apps.core.admin_urls", "admin_manage"))),
     path("django-admin/", admin.site.urls),

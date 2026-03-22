@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}My Fees | School ERP{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h1 class="h4 fw-bold mb-0">My Fees</h1>
+    <div class="d-flex gap-2 flex-wrap">
+      <span class="badge bg-primary-subtle text-primary border">Total: ₹{{ summary.total }}</span>
+      <span class="badge bg-success-subtle text-success border">Paid: ₹{{ summary.paid }}</span>
+      <span class="badge bg-danger-subtle text-danger border">Pending: ₹{{ summary.pending }}</span>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body p-0">
+      {% if fee_rows %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Amount</th>
+              <th>Paid / Pending</th>
+              <th>Due Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in fee_rows %}
+            <tr class="{% if row.is_unpaid %}table-danger{% endif %}">
+              <td>₹{{ row.fee.amount }}</td>
+              <td>
+                <div class="small">Paid: ₹{{ row.paid_amount }}</div>
+                <div class="small {% if row.is_unpaid %}text-danger fw-semibold{% else %}text-success{% endif %}">
+                  Pending: ₹{{ row.pending_amount }}
+                </div>
+                <span class="badge {% if row.fee.status == 'PAID' %}bg-success{% elif row.fee.status == 'PARTIAL' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                  {{ row.fee.get_status_display }}
+                </span>
+              </td>
+              <td class="{% if row.is_overdue %}text-danger fw-semibold{% endif %}">
+                {{ row.fee.due_date }}
+                {% if row.is_overdue %}<div class="small">Overdue</div>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-5 text-center text-muted">No fee records available.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+

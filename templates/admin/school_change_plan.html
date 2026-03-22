@@ -28,7 +28,7 @@
           <select name="plan" class="form-select">
             <option value="">— No plan (use legacy) —</option>
             {% for plan in plans %}
-              <option value="{{ plan.pk }}" {% if school.saas_plan_id == plan.pk %}selected{% endif %}>{{ plan.name }} — ₹{{ plan.price_per_student }}/student/year</option>
+              <option value="{{ plan.pk }}" {% if school.saas_plan_id == plan.pk %}selected{% endif %}>{{ plan.name }} — ₹{{ plan.price_per_student }}/student/month</option>
             {% endfor %}
           </select>
         </div>

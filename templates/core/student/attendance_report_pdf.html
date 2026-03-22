@@ -58,6 +58,7 @@
         <th>Total Days</th>
         <th>Present</th>
         <th>Absent</th>
+        <th>Leave</th>
         <th>Attendance %</th>
       </tr>
     </thead>
@@ -68,6 +69,7 @@
         <td class="text-center">{{ row.total }}</td>
         <td class="text-center">{{ row.present }}</td>
         <td class="text-center">{{ row.absent }}</td>
+        <td class="text-center">{{ row.leave|default:0 }}</td>
         <td class="text-center">{{ row.pct }}%</td>
       </tr>
       {% endfor %}
@@ -80,6 +82,7 @@
       <td><strong>Total Working Days:</strong> {{ total_days }}</td>
       <td><strong>Total Present:</strong> {{ total_present }}</td>
       <td><strong>Total Absent:</strong> {{ total_absent }}</td>
+      <td><strong>Total Leave:</strong> {{ academic.leave|default:0 }}</td>
       <td><strong>Attendance %:</strong> {{ overall_pct }}%</td>
     </tr>
   </table>

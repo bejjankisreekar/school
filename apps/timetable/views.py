@@ -2,7 +2,7 @@ import base64
 from io import BytesIO
 from datetime import datetime, time, date
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseForbidden
 from django.template.loader import render_to_string
 from django.db import transaction
 from django.db.models import Q
@@ -10,7 +10,7 @@ from django.urls import reverse
 
 from apps.customers.models import School
 from apps.school_data.models import ClassRoom, Subject, Teacher
-from apps.core.utils import add_warning_once
+from apps.core.utils import add_warning_once, has_feature_access
 from apps.accounts.decorators import admin_required, teacher_required, student_required
 from .models import TimeSlot, Timetable
 
@@ -53,6 +53,8 @@ def school_timetable_index(request):
     if not school:
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:admin_dashboard")
+    if not has_feature_access(school, "timetable"):
+        return HttpResponseForbidden("Upgrade your plan to access this feature")
     classrooms = ClassRoom.objects.order_by("academic_year", "name")
     return render(request, "timetable/school_timetable_index.html", {"classrooms": classrooms})
 
@@ -63,6 +65,8 @@ def school_timeslots(request):
     if not school:
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:admin_dashboard")
+    if not has_feature_access(school, "timetable"):
+        return HttpResponseForbidden("Upgrade your plan to access this feature")
 
     slots = TimeSlot.objects.order_by("order", "start_time")
 
@@ -90,6 +94,8 @@ def school_timeslot_update(request, slot_id):
     """Update a time slot. Expects POST with start_time, end_time, is_break, break_type, order."""
     if not request.user.school:
         return redirect("core:admin_dashboard")
+    if not has_feature_access(request.user.school, "timetable"):
+        return HttpResponseForbidden("Upgrade your plan to access this feature")
     slot = get_object_or_404(TimeSlot, id=slot_id)
     if request.method != "POST":
         return redirect("timetable:school_timeslots")
@@ -105,6 +111,8 @@ def school_timeslot_delete(request, slot_id):
     """Delete a time slot. Expects POST."""
     if not request.user.school:
         return redirect("core:admin_dashboard")
+    if not has_feature_access(request.user.school, "timetable"):
+        return HttpResponseForbidden("Upgrade your plan to access this feature")
     slot = get_object_or_404(TimeSlot, id=slot_id)
     if request.method == "POST":
         slot.delete()
@@ -117,6 +125,8 @@ def school_timetable(request, classroom_id):
     if not school:
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:admin_dashboard")
+    if not has_feature_access(school, "timetable"):
+        return HttpResponseForbidden("Upgrade your plan to access this feature")
 
     classroom = get_object_or_404(ClassRoom, id=classroom_id)
     slots = list(TimeSlot.objects.order_by("order", "start_time"))
@@ -393,6 +403,8 @@ def student_timetable(request):
         return render(request, "timetable/student_timetable.html", {"classroom": None, "grid": [], "current_day": None, "current_slot_id": None})
 
     school = request.user.school
+    if not has_feature_access(school, "timetable"):
+        return HttpResponseForbidden("Upgrade your plan to access this feature")
     slots = list(TimeSlot.objects.order_by("order", "start_time"))
     existing = {
         (t.day_of_week, t.time_slot_id): t
@@ -431,6 +443,9 @@ def teacher_timetable(request):
     teacher = getattr(request.user, "teacher_profile", None)
     if not teacher:
         return render(request, "timetable/teacher_timetable.html", {"entries": []})
+    school = request.user.school
+    if not has_feature_access(school, "timetable"):
+        return HttpResponseForbidden("Upgrade your plan to access this feature")
 
     entries = (
         Timetable.objects.filter(teachers=teacher)

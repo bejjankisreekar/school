@@ -48,9 +48,15 @@
               </td>
               <td>{{ t.phone_number|default:"—" }}</td>
               <td class="text-center" style="width: 180px;">
-                <a href="{% url 'core:school_teacher_view' t.id %}" class="btn btn-sm btn-outline-secondary" title="View">View &#128065;</a>
-                <a href="{% url 'core:school_teacher_edit' t.id %}" class="btn btn-sm btn-outline-primary" title="Edit">Edit &#9998;</a>
-                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteTeacher{{ t.id }}" title="Delete">Delete &#128465;</button>
+                <a href="{% url 'core:school_teacher_view' t.id %}" class="btn btn-sm btn-outline-secondary" title="View" aria-label="View">
+                  <i class="bi bi-eye"></i>
+                </a>
+                <a href="{% url 'core:school_teacher_edit' t.id %}" class="btn btn-sm btn-outline-primary" title="Edit" aria-label="Edit">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteTeacher{{ t.id }}" title="Delete" aria-label="Delete">
+                  <i class="bi bi-trash"></i>
+                </button>
               </td>
             </tr>
             <div class="modal fade" id="deleteTeacher{{ t.id }}" tabindex="-1" aria-hidden="true">

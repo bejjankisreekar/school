@@ -161,6 +161,47 @@ class Teacher(BaseModel):
         return f"Teacher: {self.user.get_full_name() or self.user.username}"
 
 
+class ClassSectionSubjectTeacher(BaseModel):
+    """
+    Central mapping: which teacher teaches which subject in a given class+section.
+    Enforces exactly one teacher per (class, section, subject).
+    """
+
+    class_obj = models.ForeignKey(
+        ClassRoom,
+        on_delete=models.CASCADE,
+        related_name="class_section_subject_teacher_mappings",
+    )
+    section = models.ForeignKey(
+        Section,
+        on_delete=models.CASCADE,
+        related_name="class_section_subject_teacher_mappings",
+    )
+    subject = models.ForeignKey(
+        Subject,
+        on_delete=models.CASCADE,
+        related_name="class_section_subject_teacher_mappings",
+    )
+    teacher = models.ForeignKey(
+        Teacher,
+        on_delete=models.CASCADE,
+        related_name="class_section_subject_teacher_mappings",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["class_obj", "section", "subject"],
+                name="unique_class_section_subject_teacher",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        # Keep it readable in the admin + debug logs.
+        teacher_name = self.teacher.user.get_full_name() or self.teacher.user.username
+        return f"{self.class_obj.name}-{self.section.name} | {self.subject.name} -> {teacher_name}"
+
+
 class Student(BaseModel):
     """Student profile linked to User."""
     user = models.OneToOneField(
@@ -188,6 +229,12 @@ class Student(BaseModel):
     parent_name = models.CharField(max_length=150, blank=True)
     parent_phone = models.CharField(max_length=20, blank=True)
 
+    # Student contact & profile
+    # Note: We keep `classroom` and `section` as FKs (existing code relies on them).
+    phone = models.CharField(max_length=15, blank=True, null=True)
+    address = models.TextField(blank=True, null=True)
+    profile_image = models.ImageField(upload_to="profiles/", blank=True, null=True)
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -204,6 +251,46 @@ class Student(BaseModel):
 
     def __str__(self) -> str:
         return f"Student: {self.user.get_full_name() or self.user.username}"
+
+
+class Badge(models.Model):
+    """Gamified achievement badge definition (scoped per school tenant schema)."""
+
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True, default="")
+    # Store Bootstrap icon class (ASCII) e.g. "bi bi-star-fill"
+    icon = models.CharField(max_length=50, default="bi bi-star-fill")
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class StudentBadge(models.Model):
+    """Tracks which badges were awarded to which student."""
+
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name="badges",
+    )
+    badge = models.ForeignKey(
+        Badge,
+        on_delete=models.CASCADE,
+        related_name="awarded_students",
+    )
+    awarded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["student", "badge"], name="unique_student_badge"),
+        ]
+        ordering = ["-awarded_at"]
+
+    def __str__(self) -> str:
+        return f"{self.student_id} -> {self.badge_id}"
 
 
 class StudentDocument(models.Model):
@@ -235,54 +322,35 @@ class StudentDocument(models.Model):
 
 
 class Exam(models.Model):
-    """Exam for a classroom."""
+    """Exam assigned to a specific class+section (tenant-scoped)."""
     name = models.CharField(max_length=100)
-    classroom = models.ForeignKey(
-        ClassRoom,
+    date = models.DateField(db_index=True)
+    class_name = models.CharField(max_length=50, db_index=True)
+    section = models.CharField(max_length=10, db_index=True)
+    created_by = models.ForeignKey(
+        "accounts.User",
         on_delete=models.CASCADE,
-        related_name="exams",
+        related_name="exams_created",
+        db_index=True,
     )
-    start_date = models.DateField()
-    end_date = models.DateField()
-
-    def __str__(self) -> str:
-        return f"{self.name} ({self.classroom})"
-
-
-class Test(models.Model):
-    """Test for a subject, class and optional section."""
-    name = models.CharField(max_length=150)
-    subject = models.ForeignKey(
-        Subject,
-        on_delete=models.CASCADE,
-        related_name="tests",
-    )
-    classroom = models.ForeignKey(
-        ClassRoom,
-        on_delete=models.CASCADE,
-        related_name="tests",
-    )
-    section = models.ForeignKey(
-        Section,
+    teacher = models.ForeignKey(
+        "Teacher",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="tests",
+        related_name="assigned_exams",
+        help_text="Optional. When set, this teacher is assigned to the exam.",
     )
-    test_date = models.DateField()
-    maximum_marks = models.PositiveIntegerField(default=100)
-
-    class Meta:
-        ordering = ["-test_date", "classroom", "subject"]
 
     def __str__(self) -> str:
-        return f"{self.name} - {self.subject} ({self.classroom})"
+        return f"{self.name} ({self.class_name} - {self.section})"
 
 
 class Attendance(models.Model):
     class Status(models.TextChoices):
         PRESENT = "PRESENT", "Present"
         ABSENT = "ABSENT", "Absent"
+        LEAVE = "LEAVE", "Leave"
 
     student = models.ForeignKey(
         Student,
@@ -365,22 +433,82 @@ class Grade(models.Model):
 
 
 class Homework(models.Model):
+    """Homework assigned to class(es) and section(s). Legacy subject/teacher kept for backward compat."""
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    due_date = models.DateField(db_index=True)
+    assigned_by = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.CASCADE,
+        related_name="assigned_homework",
+        null=True,
+        blank=True,
+    )
+    classes = models.ManyToManyField(
+        ClassRoom,
+        related_name="homeworks",
+        blank=True,
+    )
+    sections = models.ManyToManyField(
+        Section,
+        related_name="homeworks",
+        blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    # Legacy fields - nullable for backward compat
     subject = models.ForeignKey(
         Subject,
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name="homeworks",
     )
     teacher = models.ForeignKey(
         Teacher,
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name="homeworks",
     )
-    title = models.CharField(max_length=200)
-    description = models.TextField()
-    due_date = models.DateField()
+
+    class Meta:
+        ordering = ["-due_date", "-created_at"]
 
     def __str__(self) -> str:
-        return f"Homework: {self.title} ({self.subject})"
+        return f"Homework: {self.title}"
+
+
+class HomeworkSubmission(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        COMPLETED = "COMPLETED", "Completed"
+
+    homework = models.ForeignKey(
+        Homework,
+        on_delete=models.CASCADE,
+        related_name="submissions",
+    )
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name="homework_submissions",
+    )
+    submission_file = models.FileField(upload_to="homework_submissions/%Y/%m/", null=True, blank=True)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING, db_index=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    remarks = models.TextField(blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["homework", "student"],
+                name="unique_homework_submission_per_student",
+            ),
+        ]
+        ordering = ["-submitted_at"]
+
+    def __str__(self) -> str:
+        return f"{self.student} - {self.homework} - {self.status}"
 
 
 class FeeType(BaseModel):

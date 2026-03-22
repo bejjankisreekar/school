@@ -51,8 +51,12 @@
                 {% if not s.contact_email and not s.phone %}—{% endif %}
               </td>
               <td class="text-center">
-                <a href="{% url 'admin_manage:school_view' s.code %}" class="btn btn-sm btn-outline-secondary" title="View">View &#128065;</a>
-                <a href="{% url 'admin_manage:school_edit' s.code %}" class="btn btn-sm btn-outline-primary" title="Edit">Edit &#9998;</a>
+                <a href="{% url 'admin_manage:school_view' s.code %}" class="btn btn-sm btn-outline-secondary" title="View" aria-label="View">
+                  <i class="bi bi-eye"></i>
+                </a>
+                <a href="{% url 'admin_manage:school_edit' s.code %}" class="btn btn-sm btn-outline-primary" title="Edit" aria-label="Edit">
+                  <i class="bi bi-pencil"></i>
+                </a>
               </td>
             </tr>
           {% empty %}

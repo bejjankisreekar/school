@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Notifications | School ERP{% endblock %}
+{% block content %}
+<div class="space-y-4">
+  <div>
+    <h1 class="text-lg font-semibold text-slate-900 dark:text-slate-50">Notifications</h1>
+    <p class="text-xs text-slate-500 dark:text-slate-400">
+      Send SMS / Email notifications to students and parents in your school.
+    </p>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-md-5">
+      <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-body">
+          <h2 class="h6 fw-bold mb-3">Send Notification</h2>
+          <form method="post" class="space-y-3">
+            {% csrf_token %}
+            <div class="mb-2">
+              <label class="form-label form-label-sm">Channel</label>
+              {{ form.channel }}
+            </div>
+            <div class="mb-2">
+              <label class="form-label form-label-sm">Target</label>
+              {{ form.target_type }}
+            </div>
+            <div class="mb-2">
+              <label class="form-label form-label-sm">Class (optional)</label>
+              {{ form.classroom }}
+            </div>
+            <div class="mb-2">
+              <label class="form-label form-label-sm">Section (optional)</label>
+              {{ form.section }}
+            </div>
+            <div class="mb-2">
+              <label class="form-label form-label-sm">Student (optional)</label>
+              {{ form.student }}
+            </div>
+            <div class="mb-2">
+              <label class="form-label form-label-sm">Subject (for email)</label>
+              {{ form.subject }}
+            </div>
+            <div class="mb-3">
+              <label class="form-label form-label-sm">Message</label>
+              {{ form.body }}
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Send</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-7">
+      <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-body">
+          <h2 class="h6 fw-bold mb-3">Recent Notifications</h2>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Time</th>
+                  <th>Channel</th>
+                  <th>Target</th>
+                  <th>Recipient</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for n in logs %}
+                  <tr>
+                    <td class="text-xs text-nowrap">{{ n.created_at|date:"Y-m-d H:i" }}</td>
+                    <td class="text-xs">{{ n.channel }}</td>
+                    <td class="text-xs">{{ n.get_target_type_display }}</td>
+                    <td class="text-xs">
+                      {{ n.recipient_name|default:"—" }}
+                      {% if n.recipient_phone %}<br><span class="text-muted">{{ n.recipient_phone }}</span>{% endif %}
+                      {% if n.recipient_email %}<br><span class="text-muted">{{ n.recipient_email }}</span>{% endif %}
+                    </td>
+                    <td class="text-xs">
+                      {% if n.status == "SENT" %}
+                        <span class="badge bg-success">Sent</span>
+                      {% elif n.status == "FAILED" %}
+                        <span class="badge bg-danger">Failed</span>
+                      {% else %}
+                        <span class="badge bg-secondary">Pending</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="5" class="text-center text-muted small py-3">No notifications yet.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

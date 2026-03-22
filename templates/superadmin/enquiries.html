@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Enquiries | School ERP{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+  <div>
+    <h1 class="h4 fw-bold mb-0">Enquiries</h1>
+    <div class="text-muted small">Track and manage public contact submissions.</div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm rounded-3 mb-4">
+  <div class="card-body">
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <a href="{% url 'core:superadmin_enquiries' %}?status=all" class="btn btn-sm {% if status == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">All</a>
+      <a href="{% url 'core:superadmin_enquiries' %}?status=unread" class="btn btn-sm {% if status == 'unread' %}btn-primary{% else %}btn-outline-primary{% endif %}">Unread</a>
+      <a href="{% url 'core:superadmin_enquiries' %}?status=read" class="btn btn-sm {% if status == 'read' %}btn-primary{% else %}btn-outline-primary{% endif %}">Read</a>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>School Name</th>
+            <th>Message</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th style="width: 160px;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in enquiries %}
+          <tr>
+            <td>{{ e.name }}</td>
+            <td>{{ e.email }}</td>
+            <td>{{ e.phone|default:"—" }}</td>
+            <td>{{ e.school_name|default:"—" }}</td>
+            <td class="small text-wrap" style="max-width: 260px;">
+              {{ e.message|truncatechars:50 }}
+              {% if e.message|length > 50 %}…{% endif %}
+            </td>
+            <td class="small text-muted">{{ e.created_at }}</td>
+            <td>
+              {% if e.is_read %}
+                <span class="badge bg-success">Read</span>
+              {% else %}
+                <span class="badge bg-warning text-dark">Unread</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if not e.is_read %}
+                <form method="post" action="{% url 'core:superadmin_enquiry_mark_read' e.id %}">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-primary">Mark as Read</button>
+                </form>
+              {% else %}
+                <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="8" class="text-center text-muted py-4">No enquiries found.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

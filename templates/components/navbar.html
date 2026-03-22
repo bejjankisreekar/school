@@ -1,9 +1,33 @@
+{% load static %}
 <header class="erp-navbar flex-shrink-0 border-b border-slate-200/70 dark:border-slate-700/70 bg-white dark:bg-slate-900/95 backdrop-blur">
   <div class="d-flex align-items-center justify-content-between px-4 lg:px-6" style="height: 56px; margin-left: 0;">
     <h1 class="text-base font-semibold tracking-tight text-slate-900 dark:text-slate-50 truncate mb-0">
       {% if request.user.school %}{{ request.user.school.name }}{% else %}EduSaaS{% endif %}
     </h1>
     <div class="d-flex align-items-center gap-2">
+      {% if request.user.role == "SUPERADMIN" %}
+        <a href="{% url 'core:superadmin_enquiries' %}" class="text-decoration-none position-relative text-slate-900 dark:text-slate-50" aria-label="Enquiries">
+          <i class="bi bi-bell fs-5"></i>
+          <span
+            id="enquiriesBadge"
+            data-url="{% url 'core:enquiries_unread_count_api' %}"
+            class="badge bg-primary position-absolute top-0 start-100 translate-middle rounded-pill"
+            style="display: none; min-width: 18px; height: 18px; padding: 0; font-size: 11px;"
+          >0</span>
+        </a>
+        <script src="{% static 'js/enquiry.js' %}" defer></script>
+      {% endif %}
+      {% if request.user.role == "STUDENT" %}
+        <a href="{% url 'notifications:student_notifications' %}" class="text-decoration-none position-relative text-slate-900 dark:text-slate-50" aria-label="Notifications">
+          <i class="bi bi-bell fs-5"></i>
+          <span
+            id="notif-count"
+            data-url="{% url 'notifications:student_notifications_unread_count' %}"
+            class="badge bg-danger position-absolute top-0 start-100 translate-middle rounded-pill"
+            style="display: none; min-width: 18px; height: 18px; padding: 0; font-size: 11px;"
+          >0</span>
+        </a>
+      {% endif %}
       <button type="button" id="themeToggle" class="btn btn-link rounded-lg p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border-0 text-decoration-none" title="Toggle theme" aria-label="Toggle theme">
         <i id="themeIcon" class="bi bi-moon-stars fs-5"></i>
       </button>

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Cumulative Report</title>
+  <style>
+    body { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; }
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    .small { font-size: 8pt; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #444; padding: 4px 6px; }
+    th { background: #f0f0f0; }
+    .no-border td, .no-border th { border: none; }
+  </style>
+</head>
+<body>
+  <table class="no-border" width="100%">
+    <tr>
+      <td width="20%" class="text-center">
+        {% if school and school.logo %}
+          <img src="{{ school.logo.url }}" alt="Logo" style="max-width:80px; max-height:80px;">
+        {% else %}
+          <strong>{{ school.name }}</strong>
+        {% endif %}
+      </td>
+      <td width="60%" class="text-center">
+        <h2>{{ school.name }}</h2>
+        {% if school.address %}<p class="small">{{ school.address }}</p>{% endif %}
+        <h3>Cumulative Report</h3>
+      </td>
+      <td width="20%" class="text-right small">Date: {{ generated_on }}</td>
+    </tr>
+  </table>
+
+  <table class="no-border" width="100%">
+    <tr>
+      <td><strong>Student:</strong> {{ student.user.get_full_name|default:student.user.username }}</td>
+      <td><strong>Class:</strong> {{ student.classroom.name|default:"-" }}</td>
+      <td><strong>Total Exams:</strong> {{ total_exams }}</td>
+    </tr>
+  </table>
+
+  <h4>Subject-wise Averages</h4>
+  <table>
+    <thead>
+      <tr><th>Subject</th><th>Attempts</th><th>Average %</th><th>Grade</th></tr>
+    </thead>
+    <tbody>
+      {% for row in subject_rows %}
+      <tr>
+        <td>{{ row.subject }}</td>
+        <td class="text-center">{{ row.attempts }}</td>
+        <td class="text-center">{{ row.avg_pct }}%</td>
+        <td class="text-center">{{ row.grade }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <table class="no-border" width="100%">
+    <tr>
+      <td><strong>Total:</strong> {{ total_obtained }} / {{ total_max }}</td>
+      <td><strong>Overall Percentage:</strong> {{ overall_pct }}%</td>
+      <td><strong>Final Grade:</strong> {{ overall_grade }}</td>
+    </tr>
+  </table>
+
+  <table class="no-border" width="100%" style="margin-top: 30px;">
+    <tr>
+      <td class="text-center">Teacher Signature</td>
+      <td class="text-center">Principal Signature</td>
+    </tr>
+  </table>
+</body>
+</html>
+

@@ -81,9 +81,15 @@
               </td>
               <td>{{ s.parent_phone|default:"—" }}</td>
               <td class="text-center" style="width: 180px;">
-                <a href="{% url 'core:school_student_view' s.id %}" class="btn btn-sm btn-outline-secondary" title="View">View &#128065;</a>
-                <a href="{% url 'core:school_student_edit' s.id %}" class="btn btn-sm btn-outline-primary" title="Edit">Edit &#9998;</a>
-                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ s.id }}" title="Delete">Delete &#128465;</button>
+                <a href="{% url 'core:school_student_view' s.id %}" class="btn btn-sm btn-outline-secondary" title="View" aria-label="View">
+                  <i class="bi bi-eye"></i>
+                </a>
+                <a href="{% url 'core:school_student_edit' s.id %}" class="btn btn-sm btn-outline-primary" title="Edit" aria-label="Edit">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ s.id }}" title="Delete" aria-label="Delete">
+                  <i class="bi bi-trash"></i>
+                </button>
               </td>
             </tr>
 

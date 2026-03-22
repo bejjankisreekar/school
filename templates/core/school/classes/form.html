@@ -10,44 +10,155 @@
     </ol>
   </nav>
 
-  <div class="card border-0 shadow-sm rounded-3" style="max-width: 32rem;">
-    <div class="card-body">
-      <h2 class="h5 fw-bold mb-4">{{ title }}</h2>
-      {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
-      <form method="post">
-        {% csrf_token %}
-        <div class="mb-3">
-          <label class="form-label">Name</label>
+  <div class="card border-0 shadow-sm rounded-4 p-4">
+    <h2 class="h5 fw-bold mb-4">{{ title }}</h2>
+    {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+
+      <!-- Row layout - side-by-side fields -->
+      <div class="row g-4">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Class Name</label>
           {{ form.name }}
-          {% if form.name.errors %}<div class="text-danger small">{{ form.name.errors.0 }}</div>{% endif %}
+          {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>{% endif %}
         </div>
-        <div class="mb-3">
-          <label class="form-label">Description</label>
-          {{ form.description }}
-          {% if form.description.errors %}<div class="text-danger small">{{ form.description.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Capacity</label>
-          {{ form.capacity }}
-          {% if form.capacity.errors %}<div class="text-danger small">{{ form.capacity.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Academic Year</label>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Academic Year</label>
           {{ form.academic_year }}
-          {% if form.academic_year.errors %}<div class="text-danger small">{{ form.academic_year.errors.0 }}</div>{% endif %}
+          {% if form.academic_year.errors %}<div class="text-danger small mt-1">{{ form.academic_year.errors.0 }}</div>{% endif %}
         </div>
-        <div class="mb-3">
-          <label class="form-label">Sections</label>
-          {{ form.sections }}
-          <div class="form-text">Select sections for this class (e.g. A, B, C). Hold Ctrl/Cmd to select multiple.</div>
-          {% if form.sections.errors %}<div class="text-danger small">{{ form.sections.errors.0 }}</div>{% endif %}
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Description</label>
+          {{ form.description }}
+          {% if form.description.errors %}<div class="text-danger small mt-1">{{ form.description.errors.0 }}</div>{% endif %}
         </div>
-        <div class="d-flex gap-2">
-          <button type="submit" class="btn btn-primary">Save</button>
-          <a href="{% url 'core:school_classes' %}" class="btn btn-outline-secondary">Cancel</a>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Capacity</label>
+          {{ form.capacity }}
+          {% if form.capacity.errors %}<div class="text-danger small mt-1">{{ form.capacity.errors.0 }}</div>{% endif %}
         </div>
-      </form>
-    </div>
+      </div>
+
+      <!-- Sections - checkbox cards -->
+      <div class="mt-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+          <label class="form-label fw-semibold mb-0">Select Sections</label>
+          <span class="text-muted small" id="selectedCount">0 section(s) selected</span>
+        </div>
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" value="" id="selectAllSections">
+          <label class="form-check-label" for="selectAllSections">Select All</label>
+        </div>
+        {% if form.sections.errors %}<div class="text-danger small mb-2">{{ form.sections.errors.0 }}</div>{% endif %}
+
+        <div class="row g-2" id="sectionsGrid">
+          {% for checkbox in form.sections %}
+          <div class="col-6 col-md-4 col-lg-3 col-xl-2">
+            <div class="section-card p-2 rounded text-center" role="button" tabindex="0" aria-label="Toggle section {{ checkbox.choice_label }}">
+              {{ checkbox.tag }}
+              <label class="ms-1 mb-0" for="{{ checkbox.id_for_label }}">{{ checkbox.choice_label }}</label>
+            </div>
+          </div>
+          {% empty %}
+          <div class="col-12">
+            <div class="text-muted py-4 text-center border rounded">
+              No sections available. <a href="{% url 'core:school_sections' %}">Add sections</a> first.
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Buttons -->
+      <div class="d-flex justify-content-end gap-2 mt-4">
+        <a href="{% url 'core:school_classes' %}" class="btn btn-light">Cancel</a>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
   </div>
 </div>
+
+<style>
+.section-card {
+  border: 1px solid #dee2e6;
+  cursor: pointer;
+  transition: 0.2s;
+  user-select: none;
+}
+.section-card:hover {
+  background-color: #f8f9fa;
+  border-color: #0d6efd;
+}
+.section-card.selected {
+  background-color: #e7f1ff;
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.12);
+}
+.section-card input {
+  margin-right: 5px;
+}
+</style>
+
+<script>
+(function () {
+  var cards = document.querySelectorAll(".section-card");
+  var checkboxes = [];
+  cards.forEach(function (c) {
+    var cb = c.querySelector("input[type='checkbox']");
+    if (cb) checkboxes.push(cb);
+  });
+  var selectAll = document.getElementById("selectAllSections");
+  var countEl = document.getElementById("selectedCount");
+
+  function updateUI() {
+    var selected = checkboxes.filter(function (cb) { return cb.checked; }).length;
+    if (countEl) countEl.textContent = selected + " section(s) selected";
+    cards.forEach(function (card) {
+      var cb = card.querySelector("input[type='checkbox']");
+      if (!cb) return;
+      card.classList.toggle("selected", cb.checked);
+    });
+    if (selectAll) {
+      if (checkboxes.length === 0) {
+        selectAll.checked = false;
+        selectAll.indeterminate = false;
+        return;
+      }
+      selectAll.checked = selected === checkboxes.length;
+      selectAll.indeterminate = selected > 0 && selected < checkboxes.length;
+    }
+  }
+
+  cards.forEach(function (card) {
+    card.addEventListener("click", function (e) {
+      var cb = card.querySelector("input[type='checkbox']");
+      if (!cb) return;
+      var target = e.target;
+      if (target && (target.tagName === "INPUT" || target.tagName === "LABEL")) return;
+      cb.checked = !cb.checked;
+      cb.dispatchEvent(new Event("change", { bubbles: true }));
+      updateUI();
+    });
+    card.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      var cb = card.querySelector("input[type='checkbox']");
+      if (!cb) return;
+      cb.checked = !cb.checked;
+      cb.dispatchEvent(new Event("change", { bubbles: true }));
+      updateUI();
+    });
+  });
+  checkboxes.forEach(function (cb) { cb.addEventListener("change", updateUI); });
+  if (selectAll) {
+    selectAll.addEventListener("change", function () {
+      checkboxes.forEach(function (cb) { cb.checked = selectAll.checked; });
+      updateUI();
+    });
+  }
+  updateUI();
+})();
+</script>
 {% endblock %}

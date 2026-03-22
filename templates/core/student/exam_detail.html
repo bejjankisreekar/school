@@ -50,9 +50,7 @@
           <thead class="table-light">
             <tr>
               <th class="rounded-start">Subject</th>
-              <th>Marks Obtained</th>
-              <th>Total Marks</th>
-              <th>Percentage</th>
+              <th>Marks</th>
               <th class="rounded-end">Grade</th>
             </tr>
           </thead>
@@ -60,14 +58,16 @@
             {% for row in marks_rows %}
             <tr>
               <td>{{ row.subject }}</td>
-              <td>{{ row.marks_obtained }}</td>
-              <td>{{ row.total_marks }}</td>
               <td>
-                <span class="badge {% if row.pct >= 90 %}bg-success{% elif row.pct >= 60 %}bg-primary{% elif row.pct >= 50 %}bg-warning text-dark{% else %}bg-danger{% endif %} rounded-pill">
-                  {{ row.pct }}%
+                <span class="badge {% if row.pct >= 75 %}bg-success{% elif row.pct >= 50 %}bg-warning text-dark{% else %}bg-danger{% endif %} rounded-pill">
+                  {{ row.marks_obtained }}/{{ row.total_marks }}
                 </span>
               </td>
-              <td><strong>{{ row.grade }}</strong></td>
+              <td>
+                <span class="badge {% if row.pct >= 75 %}bg-success{% elif row.pct >= 50 %}bg-warning text-dark{% else %}bg-danger{% endif %} rounded-pill">
+                  {{ row.grade }}
+                </span>
+              </td>
             </tr>
             {% endfor %}
           </tbody>

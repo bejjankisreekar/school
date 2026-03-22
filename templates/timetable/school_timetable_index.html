@@ -10,7 +10,9 @@
   <div class="row g-3">
     {% for c in classrooms %}
     <div class="col-md-4">
-      <a href="{% url 'timetable:school_timetable' c.id %}" class="card border-0 shadow-sm rounded-4 text-decoration-none text-dark h-100">
+      <a href="{% url 'timetable:school_timetable' c.id %}" 
+        class="card shadow-sm rounded-4 text-decoration-none text-dark h-100"
+        style="background-color:#f3f4f6; border:2px solid #4b5563;">
         <div class="card-body">
           <h5 class="card-title">{{ c }}</h5>
           <p class="text-muted small mb-0">Edit timetable</p>

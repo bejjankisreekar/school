@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}{{ teacher.user.get_full_name|default:teacher.user.username }} - Attendance | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_staff_attendance' %}">Staff Attendance</a></li>
+      <li class="breadcrumb-item active">{{ teacher.user.get_full_name|default:teacher.user.username }}</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <h1 class="h4 fw-bold mb-0">Staff Attendance — {{ teacher.user.get_full_name|default:teacher.user.username }}</h1>
+    <a href="{% url 'core:school_staff_attendance' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Back to Summary</a>
+  </div>
+
+  <!-- Summary counts -->
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body py-3">
+      <div class="row g-2 g-md-3 text-center">
+        <div class="col-4 col-md-2">
+          <div class="border rounded-3 p-2">
+            <div class="small text-muted">Present</div>
+            <div class="h5 mb-0 text-success">{{ summary.present }}</div>
+          </div>
+        </div>
+        <div class="col-4 col-md-2">
+          <div class="border rounded-3 p-2">
+            <div class="small text-muted">Absent</div>
+            <div class="h5 mb-0 text-danger">{{ summary.absent }}</div>
+          </div>
+        </div>
+        <div class="col-4 col-md-2">
+          <div class="border rounded-3 p-2">
+            <div class="small text-muted">Leave</div>
+            <div class="h5 mb-0 text-warning">{{ summary.leave }}</div>
+          </div>
+        </div>
+        <div class="col-4 col-md-2">
+          <div class="border rounded-3 p-2">
+            <div class="small text-muted">Half Day</div>
+            <div class="h5 mb-0" style="color: #ea580c;">{{ summary.half_day }}</div>
+          </div>
+        </div>
+        <div class="col-4 col-md-2">
+          <div class="border rounded-3 p-2">
+            <div class="small text-muted">Holiday</div>
+            <div class="h5 mb-0 text-secondary">{{ summary.holiday }}</div>
+          </div>
+        </div>
+        <div class="col-4 col-md-2">
+          <div class="border rounded-3 p-2">
+            <div class="small text-muted">Working Days</div>
+            <div class="h5 mb-0">{{ working_days }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Month navigation + calendar -->
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h6 class="fw-semibold mb-0">Attendance Calendar</h6>
+        <div class="d-flex align-items-center gap-2">
+          <a class="btn btn-sm btn-light" href="?month={{ prev_month }}">◀ Prev</a>
+          <span class="fw-semibold px-2">{{ calendar_month_label }}</span>
+          <a class="btn btn-sm btn-light" href="?month={{ next_month }}">Next ▶</a>
+        </div>
+      </div>
+
+      <div class="staff-calendar-grid">
+        <div class="staff-cal-day staff-cal-header">Sun</div>
+        <div class="staff-cal-day staff-cal-header">Mon</div>
+        <div class="staff-cal-day staff-cal-header">Tue</div>
+        <div class="staff-cal-day staff-cal-header">Wed</div>
+        <div class="staff-cal-day staff-cal-header">Thu</div>
+        <div class="staff-cal-day staff-cal-header">Fri</div>
+        <div class="staff-cal-day staff-cal-header">Sat</div>
+
+        {% for cell in calendar_cells %}
+          {% if cell.is_blank %}
+            <div class="staff-cal-day staff-cal-blank"></div>
+          {% else %}
+            <div class="staff-cal-day staff-cal-{{ cell.css }}" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ cell.title }}">
+              {{ cell.day }}
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+
+      <div class="d-flex flex-wrap gap-3 small text-muted mt-3">
+        <span class="d-flex align-items-center gap-2"><span class="staff-legend present"></span> Present</span>
+        <span class="d-flex align-items-center gap-2"><span class="staff-legend absent"></span> Absent</span>
+        <span class="d-flex align-items-center gap-2"><span class="staff-legend leave"></span> Leave</span>
+        <span class="d-flex align-items-center gap-2"><span class="staff-legend half-day"></span> Half Day</span>
+        <span class="d-flex align-items-center gap-2"><span class="staff-legend holiday"></span> Holiday</span>
+        <span class="d-flex align-items-center gap-2"><span class="staff-legend weekend"></span> Weekend</span>
+        <span class="d-flex align-items-center gap-2"><span class="staff-legend no-data"></span> Not Marked</span>
+        <span class="d-flex align-items-center gap-2"><span class="staff-legend future"></span> Future</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.staff-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.staff-cal-day {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: default;
+}
+.staff-cal-header {
+  font-weight: 600;
+  color: #6b7280;
+  font-size: 0.75rem;
+}
+.staff-cal-blank { background: transparent; }
+.staff-cal-present { background-color: #dcfce7; color: #166534; }
+.staff-cal-absent { background-color: #fee2e2; color: #991b1b; }
+.staff-cal-leave { background-color: #fef9c3; color: #854d0e; }
+.staff-cal-half-day { background-color: #ffedd5; color: #9a3412; }
+.staff-cal-holiday { background-color: #e5e7eb; color: #4b5563; }
+.staff-cal-weekend { background-color: #f3f4f6; color: #9ca3af; }
+.staff-cal-no-data { background-color: #f9fafb; color: #9ca3af; border: 1px dashed #d1d5db; }
+.staff-cal-future { background-color: #eff6ff; color: #3b82f6; }
+.staff-cal-other { background-color: #f3e8ff; color: #6b21a8; }
+.staff-legend {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  display: inline-block;
+}
+.staff-legend.present { background: #dcfce7; border: 1px solid #166534; }
+.staff-legend.absent { background: #fee2e2; border: 1px solid #991b1b; }
+.staff-legend.leave { background: #fef9c3; border: 1px solid #854d0e; }
+.staff-legend.half-day { background: #ffedd5; border: 1px solid #9a3412; }
+.staff-legend.holiday { background: #e5e7eb; border: 1px solid #4b5563; }
+.staff-legend.weekend { background: #f3f4f6; border: 1px solid #9ca3af; }
+.staff-legend.no-data { background: #f9fafb; border: 1px dashed #d1d5db; }
+.staff-legend.future { background: #eff6ff; border: 1px solid #3b82f6; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+  tooltipTriggerList.map(function (el) { return new bootstrap.Tooltip(el); });
+});
+</script>
+{% endblock %}

@@ -20,6 +20,7 @@
             <h6 class="mb-1">{{ item.title }}</h6>
             <p class="text-muted small mb-0">{{ item.description|truncatewords:20 }}</p>
             {% if item.subject %}<span class="badge bg-secondary mt-1">{{ item.subject.name }}</span>{% endif %}
+            {% if item.classes.exists or item.sections.exists %}<span class="badge bg-secondary mt-1">{{ item.classes.all|join:", " }} - {{ item.sections.all|join:", " }}</span>{% endif %}
           </div>
           {% if item.due_date %}<span class="badge bg-primary rounded-pill">{{ item.due_date }}</span>{% endif %}
         </div>

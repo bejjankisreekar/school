@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}My Notifications | School ERP{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h1 class="h4 fw-bold mb-0">My Notifications</h1>
+    <span class="badge bg-primary rounded-pill">Unread: {{ unread_count }}</span>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body p-0">
+      {% if page_obj %}
+      <div class="list-group list-group-flush">
+        {% for row in page_obj %}
+        <div class="list-group-item py-3 {% if not row.is_read %}bg-light{% endif %}">
+          <div class="d-flex justify-content-between align-items-start gap-3">
+            <div>
+              <h6 class="mb-1">
+                {{ row.obj.subject|default:"School Notification" }}
+                {% if not row.is_read %}
+                  <span class="badge bg-warning text-dark ms-1">Unread</span>
+                {% endif %}
+              </h6>
+              <p class="mb-1 text-muted small">{{ row.obj.body }}</p>
+              <small class="text-muted">{{ row.obj.created_at|date:"M d, Y h:i A" }}</small>
+            </div>
+            {% if not row.is_read %}
+            <form method="post" action="{% url 'notifications:student_notification_mark_read' row.obj.id %}">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline-primary" type="submit">Mark as read</button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="p-4 text-center text-muted">No notifications available.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if page_obj and page_obj.paginator.num_pages > 1 %}
+  <div class="d-flex justify-content-between align-items-center mt-3">
+    <small class="text-muted">Showing {{ page_obj.start_index }} - {{ page_obj.end_index }} of {{ page_obj.paginator.count }}</small>
+    <div class="d-flex gap-2">
+      {% if page_obj.has_previous %}
+      <a class="btn btn-sm btn-light" href="?page={{ page_obj.previous_page_number }}">Prev</a>
+      {% endif %}
+      {% if page_obj.has_next %}
+      <a class="btn btn-sm btn-light" href="?page={{ page_obj.next_page_number }}">Next</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+

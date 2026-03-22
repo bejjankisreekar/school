@@ -3,85 +3,372 @@
 
 {% block content %}
 <div class="container-fluid px-0">
-  <h1 class="h4 fw-bold mb-4">My Attendance</h1>
-
-  <!-- Date Range Filter -->
-  <form method="get" action="{% url 'core:student_attendance' %}" class="row g-3 mb-4">
-    <div class="col-auto">
-      <label for="from_date" class="form-label">From Date</label>
-      <input type="date" id="from_date" name="from_date" value="{{ from_date|default:'' }}" class="form-control" required>
-    </div>
-    <div class="col-auto">
-      <label for="to_date" class="form-label">To Date</label>
-      <input type="date" id="to_date" name="to_date" value="{{ to_date|default:'' }}" class="form-control" required>
-    </div>
-    <div class="col-auto d-flex align-items-end">
-      <button type="submit" class="btn btn-primary">
-        <i class="bi bi-funnel me-1"></i> Filter
-      </button>
-    </div>
-  </form>
-
-  <!-- Summary Cards -->
-  <div class="row g-3 mb-4">
-    <div class="col-sm-6 col-lg-4">
-      <div class="card border-0 shadow-sm rounded-4 h-100">
-        <div class="card-body">
-          <p class="text-muted small text-uppercase mb-1">Total Days</p>
-          <h2 class="h3 fw-bold mb-0">{{ total_days }}</h2>
-        </div>
-      </div>
-    </div>
-    <div class="col-sm-6 col-lg-4">
-      <div class="card border-0 shadow-sm rounded-4 h-100">
-        <div class="card-body">
-          <p class="text-muted small text-uppercase mb-1">Present Days</p>
-          <h2 class="h3 fw-bold mb-0 text-success">{{ present_days }}</h2>
-        </div>
-      </div>
-    </div>
-    <div class="col-sm-6 col-lg-4">
-      <div class="card border-0 shadow-sm rounded-4 h-100">
-        <div class="card-body">
-          <p class="text-muted small text-uppercase mb-1">Attendance %</p>
-          <h2 class="h3 fw-bold mb-0 text-primary">{{ percentage }}%</h2>
-        </div>
-      </div>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h1 class="h4 fw-bold mb-0">My Attendance</h1>
+    <div class="d-flex align-items-center gap-2">
+      <span class="text-muted small mb-0">Insights 📊</span>
+      <span class="badge bg-{{ insight_level }} px-3 py-2 text-wrap">{{ insight_message }}</span>
     </div>
   </div>
 
-  <!-- Attendance Table -->
-  <div class="card border-0 shadow-sm rounded-4">
-    <div class="card-body p-0">
-      {% if records %}
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
-              <tr>
-                <th class="rounded-start">Date</th>
-                <th>Status</th>
-                <th class="rounded-end">Day of Week</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for rec in records %}
-              <tr>
-                <td>{{ rec.date }}</td>
-                <td>
-                  <span class="badge {% if rec.status == 'PRESENT' %}bg-success{% else %}bg-danger{% endif %} rounded-pill">
-                    {{ rec.get_status_display }}
-                  </span>
-                </td>
-                <td>{{ rec.date|date:"l" }}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+  <!-- View + Filter -->
+  <div class="card border-0 shadow-sm rounded-4 mb-3">
+    <div class="card-body py-2">
+    <form method="get" action="{% url 'core:student_attendance' %}" class="d-flex flex-wrap align-items-end gap-3">
+    <div>
+      <label for="view_type" class="form-label small mb-1">View</label>
+      <select id="view_type" name="view_type" class="form-select form-select-sm">
+        <option value="monthly" {% if view_type == "monthly" %}selected{% endif %}>Monthly</option>
+        <option value="academic" {% if view_type == "academic" %}selected{% endif %}>Academic Year</option>
+      </select>
+    </div>
+    <div class="monthly-filter">
+      <label for="month" class="form-label small mb-1">Month</label>
+      <select id="month" name="month" class="form-select form-select-sm">
+        {% for val, label in month_choices %}
+          <option value="{{ val }}" {% if selected_month == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="monthly-filter">
+      <label for="year" class="form-label small mb-1">Year</label>
+      <select id="year" name="year" class="form-select form-select-sm">
+        {% for y in year_choices %}
+          <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="academic-filter">
+      <label for="academic_year" class="form-label small mb-1">Academic Year</label>
+      <select id="academic_year" name="academic_year" class="form-select form-select-sm">
+        {% for ay in academic_year_choices %}
+          <option value="{{ ay }}" {% if selected_academic_year == ay %}selected{% endif %}>{{ ay }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <button type="submit" class="btn btn-primary btn-sm">
+        <i class="bi bi-funnel me-1"></i> Apply
+      </button>
+    </div>
+    </form>
+    </div>
+  </div>
+
+  <div class="card border-0 rounded-4 mb-4 summary-card">
+    <div class="card-body py-3 px-3 px-md-4">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div style="flex: 1; min-width: 230px;">
+          <p class="text-muted small text-uppercase mb-1">Attendance</p>
+          <h3 class="h4 fw-bold mb-1 {% if percentage > 75 %}text-success{% elif percentage >= 50 %}text-warning{% else %}text-danger{% endif %}">{{ percentage }}%</h3>
+          <p class="text-muted small mb-0">Present: {{ present_days }} / {{ total_days }} days</p>
         </div>
-      {% else %}
-        <p class="text-muted text-center py-5 mb-0">No attendance records for the selected date range.</p>
+        <div class="vr d-none d-lg-block"></div>
+        <div style="flex: 1; min-width: 230px;" class="text-md-end">
+          <p class="text-muted small text-uppercase mb-1">Selected Month</p>
+          <h6 class="fw-semibold mb-1">{{ calendar_month_label }}</h6>
+          <div class="d-flex flex-row align-items-md-end gap-2 flex-wrap justify-content-md-end">
+            <div class="streak-pill">
+              <span class="text-muted small d-block">Current Streak</span>
+              <span class="fw-bold text-success">{{ current_streak }} 🔥</span>
+            </div>
+            <div class="streak-pill">
+              <span class="text-muted small d-block">Best Streak</span>
+              <span class="fw-bold text-primary">{{ best_streak }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="progress mt-2 mb-2" style="height: 7px;">
+        <div class="progress-bar {% if percentage > 75 %}bg-success{% elif percentage >= 50 %}bg-warning{% else %}bg-danger{% endif %}" style="width: {{ percentage }}%"></div>
+      </div>
+      {% if view_type == "monthly" %}
+      <div id="monthlyAttendanceDots" class="attendance-grid mb-2"></div>
+      <div class="d-flex flex-wrap gap-3 small text-muted">
+        <div class="d-flex align-items-center gap-2"><span class="attendance-day present"></span> Present</div>
+        <div class="d-flex align-items-center gap-2"><span class="attendance-day absent"></span> Absent</div>
+        <div class="d-flex align-items-center gap-2"><span class="attendance-day leave"></span> Leave</div>
+        <div class="d-flex align-items-center gap-2"><span class="attendance-day holiday"></span> No Data</div>
+        <div class="d-flex align-items-center gap-2"><span class="attendance-day future"></span> Future</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Calendar View (Monthly) -->
+  {% if view_type == "monthly" %}
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h6 class="fw-semibold mb-0">Attendance Calendar</h6>
+        <div class="d-flex align-items-center gap-2">
+          <a class="btn btn-sm btn-light" href="{% url 'core:student_attendance' %}?view_type=monthly&month={{ prev_month }}&year={{ prev_year }}">◀</a>
+          <span class="fw-semibold">{{ calendar_month_label }}</span>
+          <a class="btn btn-sm btn-light" href="{% url 'core:student_attendance' %}?view_type=monthly&month={{ next_month }}&year={{ next_year }}">▶</a>
+        </div>
+      </div>
+      <div class="calendar-grid">
+        <div class="day-header">Sun</div>
+        <div class="day-header">Mon</div>
+        <div class="day-header">Tue</div>
+        <div class="day-header">Wed</div>
+        <div class="day-header">Thu</div>
+        <div class="day-header">Fri</div>
+        <div class="day-header">Sat</div>
+
+        {% for day in calendar_cells %}
+          {% if day.is_blank %}
+            <div class="calendar-day blank"></div>
+          {% else %}
+            <div class="calendar-day {{ day.css }}" data-bs-toggle="tooltip" title="{{ day.title }}">{{ day.day }}</div>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if view_type == "academic" %}
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="mb-0">Academic Year Heatmap</h6>
+        <small class="text-muted">{{ selected_academic_year }}</small>
+      </div>
+      <div class="academic-heatmap-container">
+        {% for month in academic_monthly_attendance %}
+        <div class="month-block">
+          <p class="text-muted small mb-2 text-center">{{ month.month_label }}</p>
+          <div class="attendance-grid mb-1">
+            {% for day in month.days %}
+            <div
+              class="attendance-day {{ day.css }}"
+              data-bs-toggle="tooltip"
+              data-bs-placement="top"
+              title="{{ day.title }}"
+            ></div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="d-flex flex-wrap gap-3 small text-muted">
+        <div class="d-flex align-items-center gap-2"><span class="attendance-day present"></span> Present</div>
+        <div class="d-flex align-items-center gap-2"><span class="attendance-day absent"></span> Absent</div>
+        <div class="d-flex align-items-center gap-2"><span class="attendance-day leave"></span> Leave</div>
+        <div class="d-flex align-items-center gap-2"><span class="attendance-day holiday"></span> Holiday/No Record</div>
+        <div class="d-flex align-items-center gap-2"><span class="attendance-day future"></span> Future</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+    <!-- Attendance Table -->
+    <form method="get" class="row g-2 mb-3">
+    <input type="hidden" name="view_type" value="{{ view_type }}">
+    <input type="hidden" name="month" value="{{ selected_month }}">
+    <input type="hidden" name="year" value="{{ selected_year }}">
+    <input type="hidden" name="academic_year" value="{{ selected_academic_year }}">
+
+    <div class="col-12 col-md-4">
+      <input type="date" name="from_date" class="form-control form-control-sm" value="{{ filter_from_date }}">
+    </div>
+
+    <div class="col-12 col-md-4">
+      <input type="date" name="to_date" class="form-control form-control-sm" value="{{ filter_to_date }}">
+    </div>
+
+    <div class="col-12 col-md-4">
+      <select name="status" class="form-select form-select-sm">
+        <option value="" {% if not filter_status %}selected{% endif %}>All Status</option>
+        <option value="PRESENT" {% if filter_status == "PRESENT" %}selected{% endif %}>Present</option>
+        <option value="ABSENT" {% if filter_status == "ABSENT" %}selected{% endif %}>Absent</option>
+        <option value="LEAVE" {% if filter_status == "LEAVE" %}selected{% endif %}>Leave</option>
+      </select>
+    </div>
+
+    <div class="col-6 col-md-2">
+      <select name="limit" class="form-select form-select-sm">
+        {% for n in limit_choices %}
+          <option value="{{ n }}" {% if per_page == n %}selected{% endif %}>{{ n }}/page</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-6 col-md-2">
+      <button class="btn btn-primary btn-sm w-100">Apply</button>
+    </div>
+  </form>
+
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Date</th>
+              <th>Status</th>
+              <th>Day</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for rec in attendance_page %}
+            <tr>
+              <td>{{ rec.date|date:"M d, Y" }}</td>
+              <td>
+                <span class="badge {% if rec.status == 'PRESENT' %}bg-success{% elif rec.status == 'LEAVE' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                  {{ rec.get_status_display }}
+                </span>
+              </td>
+              <td class="text-muted">{{ rec.date|date:"l" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="3" class="text-center text-muted py-4">No records found.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if attendance_page %}
+      <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+        <small class="text-muted">
+          {% if attendance_page.paginator.count %}
+            Showing {{ attendance_page.start_index }} - {{ attendance_page.end_index }} of {{ attendance_page.paginator.count }}
+          {% endif %}
+        </small>
+        <div class="d-flex gap-2">
+          {% if attendance_page.has_previous %}
+            <a class="btn btn-sm btn-light" href="?page={{ attendance_page.previous_page_number }}{% if pagination_qs %}&{{ pagination_qs }}{% endif %}">Prev</a>
+          {% endif %}
+          {% if attendance_page.has_next %}
+            <a class="btn btn-sm btn-light" href="?page={{ attendance_page.next_page_number }}{% if pagination_qs %}&{{ pagination_qs }}{% endif %}">Next</a>
+          {% endif %}
+        </div>
+      </div>
       {% endif %}
     </div>
   </div>
 </div>
+{% if view_type == "monthly" %}
+{{ monthly_attendance_data|json_script:"attendance-dot-data" }}
+{% endif %}
+<style>
+  .attendance-grid {
+    display: grid;
+    grid-template-columns: repeat(14, 12px);
+    gap: 6px;
+  }
+  .attendance-day {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    display: inline-block;
+    cursor: pointer;
+  }
+  .attendance-day.present { background-color: #16a34a; }
+  .attendance-day.absent { background-color: #dc2626; }
+  .attendance-day.leave { background-color: #facc15; }
+  .attendance-day.holiday { background-color: #d1d5db; }
+  .attendance-day.future { background-color: #cbd5e1; }
+  .streak-pill {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 6px 10px;
+    min-width: 120px;
+  }
+  .summary-card {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  }
+  .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .day-header {
+    text-align: center;
+    font-size: 12px;
+    color: #6b7280;
+    font-weight: 600;
+  }
+  .calendar-day {
+    height: 50px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .calendar-day.present { background-color: #dcfce7; color: #166534; }
+  .calendar-day.absent { background-color: #fee2e2; color: #991b1b; }
+  .calendar-day.leave { background-color: #fef9c3; color: #854d0e; }
+  .calendar-day.holiday { background-color: #f3f4f6; color: #6b7280; }
+  .calendar-day.blank { background: transparent; cursor: default; }
+  .academic-heatmap-container {
+    display: flex;
+    gap: 20px;
+    overflow-x: auto;
+    padding-bottom: 10px;
+    scroll-behavior: smooth;
+  }
+  .month-block {
+    padding: 10px;
+    border-radius: 10px;
+    background: #f9fafb;
+    min-width: 140px;
+    flex-shrink: 0;
+  }
+  .academic-heatmap-container .attendance-grid {
+    grid-template-columns: repeat(7, 12px);
+    gap: 4px;
+  }
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  function getDaysInMonth(year, month) {
+    return new Date(year, month + 1, 0).getDate();
+  }
+
+  function renderDots(attendanceData) {
+    const container = document.getElementById('monthlyAttendanceDots');
+    if (!container) return;
+    container.innerHTML = '';
+    attendanceData.forEach(function(day) {
+      const dot = document.createElement('div');
+      dot.className = 'attendance-day ' + day.css;
+      dot.setAttribute('data-bs-toggle', 'tooltip');
+      dot.setAttribute('data-bs-placement', 'top');
+      dot.setAttribute('title', day.title);
+      container.appendChild(dot);
+    });
+  }
+
+  const viewType = document.getElementById('view_type');
+  const monthlyFields = document.querySelectorAll('.monthly-filter');
+  const academicFields = document.querySelectorAll('.academic-filter');
+
+  function toggleFilterGroups() {
+    const mode = (viewType && viewType.value) || 'monthly';
+    monthlyFields.forEach(function(el) { el.style.display = mode === 'monthly' ? '' : 'none'; });
+    academicFields.forEach(function(el) { el.style.display = mode === 'academic' ? '' : 'none'; });
+  }
+  if (viewType) {
+    viewType.addEventListener('change', toggleFilterGroups);
+  }
+  toggleFilterGroups();
+
+  {% if view_type == "monthly" %}
+  const attendanceData = JSON.parse(document.getElementById('attendance-dot-data').textContent || '[]');
+  const selectedYear = Number('{{ year_int }}');
+  const selectedMonthIndex = Number('{{ month_int }}') - 1;
+  const expectedDays = getDaysInMonth(selectedYear, selectedMonthIndex);
+  renderDots(attendanceData.slice(0, expectedDays));
+  {% endif %}
+
+  document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el) {
+    new bootstrap.Tooltip(el);
+  });
+});
+</script>
 {% endblock %}

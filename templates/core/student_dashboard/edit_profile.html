@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Profile | School ERP{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <div class="card shadow-sm border-0 rounded-4">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <h1 class="h4 fw-bold mb-0">Edit Profile</h1>
+            <a href="{% url 'core:student_profile' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+          </div>
+
+          <form method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <div class="row g-4">
+              <div class="col-md-4">
+                <div class="text-center">
+                  <div class="mb-3">
+                    {% if student.profile_image %}
+                      <img id="profilePreview" src="{{ student.profile_image.url }}" class="rounded-circle" width="120" height="120" alt="Preview">
+                    {% else %}
+                      <div id="profilePreview" class="avatar-placeholder rounded-circle" style="width:120px;height:120px;margin:0 auto;">
+                        {{ request.user.first_name|slice:":1" }}{{ request.user.last_name|slice:":1" }}
+                      </div>
+                    {% endif %}
+                  </div>
+
+                  <label class="form-label small text-muted mb-2">Profile Image</label>
+                  <input
+                    id="profileImageInput"
+                    class="form-control form-control-sm"
+                    type="file"
+                    name="profile_image"
+                    accept="image/*"
+                  >
+                  <div class="form-text mt-2">Upload a JPG/PNG image.</div>
+                </div>
+              </div>
+
+              <div class="col-md-8">
+                <div class="mb-3">
+                  <label class="form-label small text-muted">Phone</label>
+                  <input type="text" name="phone" class="form-control" value="{{ student.phone|default:'' }}" maxlength="15">
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label small text-muted">Address</label>
+                  <textarea name="address" class="form-control" rows="4">{{ student.address|default:'' }}</textarea>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label small text-muted">Date of Birth</label>
+                  <input type="text" class="form-control bg-light" value="{{ student.date_of_birth|default:'' }}" disabled>
+                  <div class="form-text">DOB is not editable from this screen.</div>
+                </div>
+
+                <div class="d-flex gap-2 flex-wrap">
+                  <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save me-1"></i> Save
+                  </button>
+                  <a href="{% url 'core:student_profile' %}" class="btn btn-outline-secondary">
+                    Cancel
+                  </a>
+                </div>
+
+              </div>
+            </div>
+
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .avatar-placeholder {
+    width: 120px;
+    height: 120px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 36px;
+    color: #0d6efd;
+    background: rgba(13, 110, 253, 0.12);
+    border: 1px dashed rgba(13, 110, 253, 0.35);
+  }
+</style>
+
+<script>
+  (function () {
+    const input = document.getElementById("profileImageInput");
+    const preview = document.getElementById("profilePreview");
+    if (!input || !preview) return;
+
+    input.addEventListener("change", function () {
+      const file = input.files && input.files[0];
+      if (!file) return;
+
+      if (!file.type || !file.type.startsWith("image/")) return;
+
+      const url = URL.createObjectURL(file);
+      const img = document.createElement("img");
+      img.src = url;
+      img.className = "rounded-circle";
+      img.width = 120;
+      img.height = 120;
+      img.alt = "Preview";
+
+      preview.replaceWith(img);
+    });
+  })();
+</script>
+{% endblock %}
+

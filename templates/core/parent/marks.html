@@ -57,7 +57,7 @@
           {% for m in marks %}
           <tr>
             <td>{{ m.subject.name|default:"—" }}</td>
-            <td>{{ m.exam_name|default:m.exam.name|default:"—" }}</td>
+            <td>{{ m.exam.name|default:"—" }}</td>
             <td>{{ m.marks_obtained }}</td>
             <td>{{ m.total_marks }}</td>
           </tr>

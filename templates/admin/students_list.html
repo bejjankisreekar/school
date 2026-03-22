@@ -59,8 +59,12 @@
               <td>{{ s.classroom|default:"—" }}</td>
               <td>{% if s.section %}{{ s.section.name }}{% else %}—{% endif %}</td>
               <td class="text-center">
-                <a href="{% url 'admin_manage:student_view' s.user.school.code s.id %}" class="btn btn-sm btn-outline-secondary" title="View">View &#128065;</a>
-                <a href="{% url 'admin_manage:student_edit' s.user.school.code s.id %}" class="btn btn-sm btn-outline-primary" title="Edit">Edit &#9998;</a>
+                <a href="{% url 'admin_manage:student_view' s.user.school.code s.id %}" class="btn btn-sm btn-outline-secondary" title="View" aria-label="View">
+                  <i class="bi bi-eye"></i>
+                </a>
+                <a href="{% url 'admin_manage:student_edit' s.user.school.code s.id %}" class="btn btn-sm btn-outline-primary" title="Edit" aria-label="Edit">
+                  <i class="bi bi-pencil"></i>
+                </a>
               </td>
             </tr>
           {% empty %}

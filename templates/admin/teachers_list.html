@@ -33,8 +33,12 @@
           <td>{{ t.user.school.name|default:"-" }}</td>
           <td>{{ t.qualification|default:"-" }}</td>
           <td>
-            <a href="{% url 'admin_manage:teacher_view' t.user.school.code t.id %}" class="btn btn-sm btn-outline-secondary" title="View">View &#128065;</a>
-            <a href="{% url 'admin_manage:teacher_edit' t.user.school.code t.id %}" class="btn btn-sm btn-outline-primary" title="Edit">Edit &#9998;</a>
+            <a href="{% url 'admin_manage:teacher_view' t.user.school.code t.id %}" class="btn btn-sm btn-outline-secondary" title="View" aria-label="View">
+              <i class="bi bi-eye"></i>
+            </a>
+            <a href="{% url 'admin_manage:teacher_edit' t.user.school.code t.id %}" class="btn btn-sm btn-outline-primary" title="Edit" aria-label="Edit">
+              <i class="bi bi-pencil"></i>
+            </a>
           </td>
         </tr>
         {% empty %}

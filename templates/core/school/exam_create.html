@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}Create Exam | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_exams_list' %}">Exams</a></li>
+      <li class="breadcrumb-item active">Create Exam</li>
+    </ol>
+  </nav>
+  <h1 class="h4 fw-bold mb-2">Create Exam</h1>
+  <p class="text-muted mb-4">Add a new exam. Select a class, then pick one or more sections. Optionally assign a teacher. One exam will be created per section.</p>
+
+  <div class="card border-0 shadow-sm rounded-4 p-4">
+    {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+    <form method="post">
+      {% csrf_token %}
+
+      <div class="row g-4">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Exam Name</label>
+          {{ form.name }}
+          {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Exam Date</label>
+          {{ form.date }}
+          {% if form.date.errors %}<div class="text-danger small mt-1">{{ form.date.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Class</label>
+          {{ form.class_name }}
+          {% if form.class_name.errors %}<div class="text-danger small mt-1">{{ form.class_name.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Assign to Teacher <span class="text-muted">(optional)</span></label>
+          {{ form.teacher }}
+          {% if form.teacher.errors %}<div class="text-danger small mt-1">{{ form.teacher.errors.0 }}</div>{% endif %}
+          <div class="form-text">Teachers mapped to the selected class+section will see the exam. Assign a teacher to make it primary.</div>
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+          <label class="form-label fw-semibold mb-0">Sections</label>
+          <span class="text-muted small" id="sectionCount">Select a class first</span>
+        </div>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="selectAllSections">
+          <label class="form-check-label" for="selectAllSections">Select All</label>
+        </div>
+        {% if form.sections.errors %}<div class="text-danger small mb-2">{{ form.sections.errors.0 }}</div>{% endif %}
+
+        <div id="sectionsPlaceholder" class="text-muted py-3 text-center border rounded bg-light">
+          Select a class above to choose sections.
+        </div>
+        <div id="sectionsGrid" class="row g-2" style="display: none;">
+          {% for value, label in form.fields.sections.choices %}
+          <div class="col-6 col-md-4 col-lg-3 col-xl-2 section-card-wrap" data-section="{{ value }}" style="display: none;">
+            <div class="section-card p-2 rounded text-center border" role="button" tabindex="0">
+              <input type="checkbox" name="sections" value="{{ value }}" id="id_section_{{ forloop.counter }}" class="form-check-input">
+              <label class="ms-1 mb-0" for="id_section_{{ forloop.counter }}">{{ label }}</label>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-end gap-2 mt-4">
+        <a href="{% url 'core:school_exams_list' %}" class="btn btn-light">Cancel</a>
+        <button type="submit" class="btn btn-primary">Create Exam(s)</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+.section-card { cursor: pointer; transition: 0.2s; user-select: none; }
+.section-card:hover { background-color: #f8f9fa; border-color: #0d6efd !important; }
+.section-card.selected { background-color: #e7f1ff; border-color: #0d6efd !important; box-shadow: 0 0 0 0.2rem rgba(13,110,253,.12); }
+.section-card input { margin-right: 5px; }
+</style>
+
+<script>
+(function() {
+  var classSelect = document.getElementById("id_exam_class");
+  var classSections = {{ class_sections_json|safe }};
+  var placeholder = document.getElementById("sectionsPlaceholder");
+  var grid = document.getElementById("sectionsGrid");
+  var sectionWraps = document.querySelectorAll(".section-card-wrap");
+  var countEl = document.getElementById("sectionCount");
+  var selectAll = document.getElementById("selectAllSections");
+
+  function getVisibleCheckboxes() {
+    return Array.from(sectionWraps)
+      .filter(function(w) { return w.style.display !== "none"; })
+      .map(function(w) { return w.querySelector("input[type='checkbox']"); })
+      .filter(Boolean);
+  }
+
+  function getVisibleWraps() {
+    return Array.from(sectionWraps).filter(function(w) { return w.style.display !== "none"; });
+  }
+
+  function updateUI() {
+    var cbs = getVisibleCheckboxes();
+    var n = cbs.filter(function(c) { return c.checked; }).length;
+    if (countEl) countEl.textContent = n + " section(s) selected";
+    getVisibleWraps().forEach(function(w) {
+      var card = w.querySelector(".section-card");
+      var cb = w.querySelector("input");
+      if (card && cb) card.classList.toggle("selected", cb.checked);
+    });
+    if (selectAll && cbs.length) {
+      selectAll.checked = n === cbs.length;
+      selectAll.indeterminate = n > 0 && n < cbs.length;
+    }
+  }
+
+  function onClassChange() {
+    var val = classSelect ? classSelect.value : "";
+    if (!val) {
+      placeholder.style.display = "block";
+      grid.style.display = "none";
+      sectionWraps.forEach(function(w) { w.style.display = "none"; });
+      if (countEl) countEl.textContent = "Select a class first";
+      return;
+    }
+    var sections = classSections[val];
+    if (!sections || sections.length === 0) {
+      sections = Array.from(sectionWraps).map(function(w) { return w.getAttribute("data-section"); }).filter(Boolean);
+    }
+    placeholder.style.display = "none";
+    grid.style.display = "flex";
+    sectionWraps.forEach(function(w) {
+      var s = w.getAttribute("data-section");
+      w.style.display = (sections.indexOf(s) >= 0) ? "" : "none";
+      var cb = w.querySelector("input");
+      if (cb) cb.checked = false;
+    });
+    if (selectAll) selectAll.checked = false;
+    updateUI();
+  }
+
+  if (classSelect) {
+    classSelect.addEventListener("change", onClassChange);
+    if (classSelect.value) onClassChange();
+  }
+
+  sectionWraps.forEach(function(wrap) {
+    var card = wrap.querySelector(".section-card");
+    if (!card) return;
+    card.addEventListener("click", function(e) {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "LABEL") return;
+      var cb = wrap.querySelector("input");
+      if (cb) { cb.checked = !cb.checked; updateUI(); }
+    });
+    card.addEventListener("keydown", function(e) {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      var cb = wrap.querySelector("input");
+      if (cb) { cb.checked = !cb.checked; updateUI(); }
+    });
+    var cb = wrap.querySelector("input");
+    if (cb) cb.addEventListener("change", updateUI);
+  });
+
+  if (selectAll) {
+    selectAll.addEventListener("change", function() {
+      getVisibleCheckboxes().forEach(function(c) { c.checked = selectAll.checked; });
+      updateUI();
+    });
+  }
+})();
+</script>
+{% endblock %}
