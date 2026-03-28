@@ -65,11 +65,6 @@
       <span class="sidebar-nav-text">Subjects</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
-    <a href="{% url 'core:school_subject_teacher_mapping' %}" class="sidebar-nav-item {% nav_active_names request 'school_subject_teacher_mapping' %}">
-      <span class="sidebar-nav-icon"><i class="bi bi-diagram-3-fill"></i></span>
-      <span class="sidebar-nav-text">Teacher Mapping</span>
-      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-    </a>
     {% endif %}
     {% endif %}
     {% if request.user.role != 'PARENT' %}
@@ -117,9 +112,9 @@
     </a>
     {% endif %}
     {% endif %}
-    {% if request.user.school|has_feature_access:"reports" %}
-    <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_reports' %}{% elif request.user.role == 'ADMIN' %}{% url 'core:school_reports_dashboard' %}{% else %}{% url 'core:reports_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'student_reports' 'reports_list' 'school_reports_dashboard' 'student_report_card_pdf' 'student_attendance_report_pdf' %}">
-      <span class="sidebar-nav-icon"><i class="bi bi-graph-up"></i></span>
+    {% if request.user.role == 'ADMIN' or request.user.school|has_feature_access:"reports" %}
+    <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_reports' %}{% elif request.user.role == 'ADMIN' %}{% url 'reports:dashboard' %}{% else %}{% url 'core:reports_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'student_reports' 'reports_list' 'dashboard' 'students_by_class' 'attendance_trend' 'toppers' 'student_report_card_pdf' 'student_attendance_report_pdf' %}">
+      <span class="sidebar-nav-icon"><i class="bi bi-bar-chart-line-fill"></i></span>
       <span class="sidebar-nav-text">Reports</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
@@ -171,7 +166,7 @@
     </a>
     {% endif %}
     {% if request|school_has_feature:'topper_list' %}
-    <a href="{% url 'core:school_reports_toppers' %}" class="sidebar-nav-item {% nav_active_names request 'school_reports_toppers' 'school_toppers' %}">
+    <a href="{% url 'reports:toppers' %}" class="sidebar-nav-item {% nav_active_names request 'toppers' 'school_toppers' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-trophy"></i></span>
       <span class="sidebar-nav-text">Toppers</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>

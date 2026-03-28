@@ -1,100 +1,306 @@
-{% extends "base.html" %}
+{% extends "accounts/base_saas_auth.html" %}
+{% load static %}
 
-{% block title %}Login | School ERP Demo{% endblock %}
+{% block title %}Login | School ERP{% endblock %}
 
-{% block content %}
-  <div class="min-h-[60vh] flex items-center justify-center">
-    <div class="w-full max-w-md rounded-2xl border border-slate-200/70 dark:border-slate-800/80 bg-card dark:bg-card-dark shadow-xl shadow-slate-900/10 px-6 py-7">
-      <div class="flex flex-col items-center gap-3 mb-6">
-        <div class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-600 text-white font-semibold shadow-md shadow-indigo-500/40">
-          SE
-        </div>
-        <div class="text-center">
-          <h1 class="text-base font-semibold tracking-tight text-slate-900 dark:text-slate-50">
-            Sign in to School ERP
-          </h1>
-          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Use your account to access the dashboard.
-          </p>
+{% block body %}
+<!--
+  Login — split-screen SaaS layout
+  Left: brand / welcome (gradient + pattern)
+  Right: form card (glass-friendly white surface, shadows)
+-->
+<div class="flex min-h-screen flex-col lg:flex-row">
+  <!-- ========== Left: branding panel ========== -->
+  <aside class="relative flex min-h-[220px] flex-col justify-center overflow-hidden px-8 py-12 text-white sm:px-12 lg:min-h-screen lg:w-[46%] lg:max-w-none lg:px-14 xl:px-16">
+    <!-- Gradient background -->
+    <div
+      class="absolute inset-0 bg-gradient-to-br from-slate-950 via-blue-950 to-blue-600"
+      aria-hidden="true"
+    ></div>
+    <!-- Soft blue glow -->
+    <div
+      class="absolute -left-20 top-1/4 h-72 w-72 rounded-full bg-blue-500/30 blur-[100px]"
+      aria-hidden="true"
+    ></div>
+    <div
+      class="absolute -right-10 bottom-0 h-64 w-64 rounded-full bg-sky-400/20 blur-[80px]"
+      aria-hidden="true"
+    ></div>
+    <!-- Diagonal line pattern -->
+    <div class="absolute inset-0 opacity-[0.12]" aria-hidden="true">
+      <svg class="h-full w-full" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+        <defs>
+          <pattern id="login-diag" width="24" height="24" patternUnits="userSpaceOnUse" patternTransform="rotate(-35)">
+            <line x1="0" y1="0" x2="0" y2="24" stroke="white" stroke-width="1" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#login-diag)" />
+      </svg>
+    </div>
+    <!-- Grid overlay -->
+    <div
+      class="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:48px_48px]"
+      aria-hidden="true"
+    ></div>
+
+    <div class="relative z-10 mx-auto w-full max-w-md animate-fade-in">
+      <!-- Logo -->
+      <a href="{% url 'core:home' %}" class="mb-8 inline-flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-2.5 ring-1 ring-white/20 backdrop-blur-sm transition hover:bg-white/15">
+        <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-lg font-bold text-blue-700 shadow-lg">SE</span>
+        <span class="text-lg font-semibold tracking-tight">School ERP</span>
+      </a>
+      <h1 class="text-3xl font-bold leading-tight tracking-tight sm:text-4xl">Hello, Welcome!</h1>
+      <p class="mt-4 max-w-sm text-sm leading-relaxed text-blue-100/90 sm:text-base">
+        Sign in to manage classes, attendance, fees, and academics in one secure place—built for modern schools.
+      </p>
+      <a
+        href="{% url 'core:about' %}"
+        class="mt-8 inline-flex items-center justify-center rounded-2xl bg-white/15 px-6 py-3 text-sm font-semibold text-white ring-1 ring-white/25 backdrop-blur-md transition duration-300 hover:bg-white/25 hover:ring-white/40"
+      >
+        View More
+        <i class="bi bi-arrow-right ms-2 text-base"></i>
+      </a>
+    </div>
+  </aside>
+
+  <!-- ========== Right: login form ========== -->
+  <div class="flex flex-1 items-center justify-center px-4 py-10 sm:px-8 lg:py-12">
+    <div class="w-full max-w-[440px] animate-fade-in" style="animation-delay: 80ms">
+      <!-- Top links (mobile-friendly escape hatch) -->
+      <div class="mb-6 flex flex-wrap items-center justify-between gap-3 text-sm">
+        <a href="{% url 'core:home' %}" class="inline-flex items-center gap-1.5 font-medium text-slate-500 transition hover:text-blue-600">
+          <i class="bi bi-arrow-left"></i> Back to Home
+        </a>
+        <div class="flex gap-4 text-slate-500">
+          <a href="{% url 'core:pricing' %}" class="font-medium hover:text-blue-600">Pricing</a>
+          <a href="{% url 'core:contact' %}" class="font-medium hover:text-blue-600">Contact</a>
         </div>
       </div>
 
-      {% if form.non_field_errors %}
-        <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/60 dark:bg-red-950/60 dark:text-red-200">
-          {% for error in form.non_field_errors %}
-            <p>{{ error }}</p>
+      <div
+        class="rounded-2xl border border-slate-200/80 bg-white/90 p-8 shadow-[0_25px_50px_-12px_rgba(15,23,42,0.12),0_0_0_1px_rgba(15,23,42,0.04)] ring-1 ring-slate-900/5 backdrop-blur-sm sm:p-10"
+      >
+        <div class="mb-8 text-center lg:text-left">
+          <h2 class="text-2xl font-bold tracking-tight text-slate-900">
+            {% if login_type == "school" %}School admin login{% else %}Sign in{% endif %}
+          </h2>
+          <p class="mt-1.5 text-sm text-slate-500">Enter your credentials to access your dashboard.</p>
+        </div>
+
+        {% if messages %}
+        <div class="mb-6 space-y-2" role="alert">
+          {% for message in messages %}
+          <div
+            class="rounded-xl border px-4 py-3 text-sm {% if message.tags == 'error' %}border-red-200 bg-red-50 text-red-800{% elif message.tags == 'success' %}border-emerald-200 bg-emerald-50 text-emerald-800{% elif message.tags == 'warning' %}border-amber-200 bg-amber-50 text-amber-900{% else %}border-blue-200 bg-blue-50 text-blue-900{% endif %}"
+          >
+            {{ message }}
+          </div>
           {% endfor %}
         </div>
-      {% endif %}
-
-      <form method="post" class="space-y-4">
-        {% csrf_token %}
-        {% if next %}
-          <input type="hidden" name="next" value="{{ next }}">
         {% endif %}
 
-        <div class="space-y-1.5">
-          <label for="id_username" class="block text-xs font-medium text-slate-600 dark:text-slate-300">
-            Username
-          </label>
-          <input
-            type="text"
-            name="username"
-            id="id_username"
-            autocomplete="username"
-            required
-            class="block w-full rounded-lg border border-slate-200/80 bg-white/90 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-50"
-            placeholder="Your username"
-            value="{{ form.data.username|default_if_none:'' }}"
-          />
-          {% if form.username.errors %}
-            <p class="text-[11px] text-red-600 dark:text-red-400 mt-1">
-              {{ form.username.errors|striptags }}
-            </p>
-          {% endif %}
+        {% if form.non_field_errors %}
+        <div class="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+          {% for error in form.non_field_errors %}
+          <p>{{ error }}</p>
+          {% endfor %}
         </div>
+        {% endif %}
 
-        <div class="space-y-1.5">
-          <label for="id_password" class="block text-xs font-medium text-slate-600 dark:text-slate-300">
-            Password
-          </label>
-          <input
-            type="password"
-            name="password"
-            id="id_password"
-            autocomplete="current-password"
-            required
-            class="block w-full rounded-lg border border-slate-200/80 bg-white/90 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-50"
-            placeholder="••••••••"
-          />
-          {% if form.password.errors %}
-            <p class="text-[11px] text-red-600 dark:text-red-400 mt-1">
-              {{ form.password.errors|striptags }}
-            </p>
+        <!-- Client-side validation messages -->
+        <div id="login-client-errors" class="mb-4 hidden rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status" aria-live="polite"></div>
+
+        <form id="login-form" method="post" class="space-y-5" novalidate>
+          {% csrf_token %}
+          {% if next %}
+          <input type="hidden" name="next" value="{{ next }}" />
           {% endif %}
-        </div>
 
-        <div class="flex items-center justify-between pt-1">
-          <label class="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-            <input
-              id="id_remember_me"
-              name="remember_me"
-              type="checkbox"
-              class="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 shadow-sm focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-900"
-              checked
-            />
-            <span>Remember me</span>
-          </label>
+          <!-- Email / username (Django AuthenticationForm uses `username`) -->
+          <div>
+            <label for="id_username" class="mb-1.5 block text-sm font-medium text-slate-700">Email address</label>
+            <p class="mb-2 text-xs text-slate-400">Use your email if it is your login, or your username.</p>
+            <div class="relative">
+              <span class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                <i class="bi bi-envelope text-lg"></i>
+              </span>
+              <input
+                type="text"
+                name="username"
+                id="id_username"
+                autocomplete="username"
+                required
+                minlength="1"
+                maxlength="150"
+                placeholder="you@school.edu"
+                value="{{ form.data.username|default_if_none:'' }}"
+                class="w-full rounded-xl border border-slate-200 bg-slate-50/80 py-3 pl-11 pr-4 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/15"
+              />
+            </div>
+            {% if form.username.errors %}
+            <p class="mt-1.5 text-xs text-red-600">{{ form.username.errors|striptags }}</p>
+            {% endif %}
+          </div>
+
+          <!-- Password + toggle -->
+          <div>
+            <label for="id_password" class="mb-1.5 block text-sm font-medium text-slate-700">Password</label>
+            <div class="relative">
+              <span class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                <i class="bi bi-lock text-lg"></i>
+              </span>
+              <input
+                type="password"
+                name="password"
+                id="id_password"
+                autocomplete="current-password"
+                required
+                minlength="1"
+                placeholder="••••••••"
+                class="w-full rounded-xl border border-slate-200 bg-slate-50/80 py-3 pl-11 pr-12 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/15"
+              />
+              <button
+                type="button"
+                id="toggle-password"
+                class="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Show password"
+                tabindex="0"
+              >
+                <i class="bi bi-eye text-lg" id="toggle-password-icon"></i>
+              </button>
+            </div>
+            {% if form.password.errors %}
+            <p class="mt-1.5 text-xs text-red-600">{{ form.password.errors|striptags }}</p>
+            {% endif %}
+          </div>
+
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <label class="flex cursor-pointer items-center gap-2.5 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                name="remember_me"
+                id="id_remember_me"
+                checked
+                class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/30"
+              />
+              Remember me
+            </label>
+            <a href="{% url 'accounts:password_reset' %}" class="text-sm font-semibold text-blue-600 transition hover:text-blue-700"> Forgot password? </a>
+          </div>
 
           <button
             type="submit"
-            class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white shadow-sm shadow-indigo-500/40 hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background dark:focus-visible:ring-offset-background-dark transition"
+            id="login-submit-btn"
+            class="relative w-full overflow-hidden rounded-xl bg-gradient-to-r from-blue-700 via-blue-600 to-sky-500 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition duration-300 hover:shadow-xl hover:shadow-blue-500/35 hover:brightness-110 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-70 disabled:shadow-md"
           >
-            Login
+            <span id="login-submit-label" class="inline-flex items-center justify-center gap-2">
+              Login
+            </span>
+            <span id="login-submit-loading" class="hidden items-center justify-center gap-2">
+              <svg class="h-5 w-5 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Signing in…
+            </span>
           </button>
+        </form>
+
+        <!-- Sign up CTA -->
+        <div class="mt-8 border-t border-slate-100 pt-8 text-center">
+          <p class="text-sm text-slate-500">Not a member yet?</p>
+          <a
+            href="{% url 'core:home' %}#trial"
+            class="mt-3 inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 py-3 text-sm font-semibold text-white shadow-md shadow-indigo-500/20 transition duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/30"
+          >
+            Sign Up
+          </a>
         </div>
-      </form>
+      </div>
+
+      <p class="mt-8 text-center text-xs text-slate-400">© {% now "Y" %} School ERP · Secure access</p>
     </div>
   </div>
+</div>
 {% endblock %}
 
+{% block extra_js %}
+<script>
+  (function () {
+    /* --- Password visibility toggle --- */
+    var pwd = document.getElementById("id_password");
+    var toggle = document.getElementById("toggle-password");
+    var icon = document.getElementById("toggle-password-icon");
+    if (toggle && pwd && icon) {
+      toggle.addEventListener("click", function () {
+        var show = pwd.type === "password";
+        pwd.type = show ? "text" : "password";
+        icon.className = show ? "bi bi-eye-slash text-lg" : "bi bi-eye text-lg";
+        toggle.setAttribute("aria-label", show ? "Hide password" : "Show password");
+      });
+    }
+
+    /* --- Client validation + loading state --- */
+    var form = document.getElementById("login-form");
+    var errBox = document.getElementById("login-client-errors");
+    var userEl = document.getElementById("id_username");
+    var passEl = document.getElementById("id_password");
+    var btn = document.getElementById("login-submit-btn");
+    var label = document.getElementById("login-submit-label");
+    var loading = document.getElementById("login-submit-loading");
+
+    var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    function showClientError(msg) {
+      if (!errBox) return;
+      errBox.textContent = msg;
+      errBox.classList.remove("hidden");
+    }
+    function clearClientError() {
+      if (!errBox) return;
+      errBox.textContent = "";
+      errBox.classList.add("hidden");
+    }
+
+    if (form && userEl && passEl && btn) {
+      form.addEventListener("submit", function (e) {
+        clearClientError();
+        var u = (userEl.value || "").trim();
+        var p = passEl.value || "";
+
+        if (!u) {
+          e.preventDefault();
+          showClientError("Please enter your email address or username.");
+          userEl.focus();
+          return;
+        }
+        if (u.indexOf("@") !== -1 && !emailRe.test(u)) {
+          e.preventDefault();
+          showClientError("Please enter a valid email address.");
+          userEl.focus();
+          return;
+        }
+        if (!p) {
+          e.preventDefault();
+          showClientError("Please enter your password.");
+          passEl.focus();
+          return;
+        }
+        if (p.length < 1) {
+          e.preventDefault();
+          showClientError("Password cannot be empty.");
+          return;
+        }
+
+        btn.disabled = true;
+        btn.setAttribute("aria-busy", "true");
+        if (label) label.classList.add("hidden");
+        if (loading) {
+          loading.classList.remove("hidden");
+          loading.classList.add("inline-flex");
+        }
+      });
+    }
+  })();
+</script>
+{% endblock %}

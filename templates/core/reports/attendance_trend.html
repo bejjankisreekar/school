@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Attendance Trend (Last 7 Days) | Reports | School ERP{% endblock %}
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  .report-attendance-chart-wrap {
+    position: relative;
+    width: 100%;
+    min-height: 280px;
+    height: 38vh;
+    max-height: 400px;
+  }
+  @media (min-width: 768px) {
+    .report-attendance-chart-wrap {
+      min-height: 300px;
+      height: 340px;
+    }
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'reports:dashboard' %}">Reports</a></li>
+      <li class="breadcrumb-item active">Attendance trend</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h1 class="h4 fw-bold text-body mb-1">Attendance Trend (Last 7 Days)</h1>
+      <p class="text-muted small mb-0">Line chart — weekday on the horizontal axis; share of enrolled students present each day.</p>
+    </div>
+    <a href="{% url 'reports:dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill">← All reports</a>
+  </div>
+
+  {% if error_msg %}
+  <div class="alert alert-warning rounded-4 mb-4">{{ error_msg }}</div>
+  {% endif %}
+
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-4">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h2 class="h6 fw-semibold mb-0">Last 7 days</h2>
+        {% if total_students %}
+        <span class="small text-muted">{{ total_students }} enrolled students</span>
+        {% endif %}
+      </div>
+      <p class="small text-muted mb-3">Hover points for exact % and present count (e.g. Mon → 92%).</p>
+      <div class="report-attendance-chart-wrap">
+        <canvas id="chartAttendanceTrend" aria-label="Attendance trend line chart, last 7 days"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-4">Date</th>
+              <th class="text-end">Present count</th>
+              <th class="text-end pe-4">Attendance %</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in trend %}
+            <tr>
+              <td class="ps-4">
+                <span class="fw-medium">{{ row.short }}</span>
+                <span class="text-muted small ms-1">· {{ row.label }}</span>
+              </td>
+              <td class="text-end">{{ row.present }}</td>
+              <td class="text-end pe-4 fw-medium">{{ row.pct }}%</td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="3" class="text-muted text-center py-4">No data.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{ chart_short_labels|json_script:"attendance-trend-short" }}
+{{ chart_full_labels|json_script:"attendance-trend-full" }}
+{{ chart_pcts|json_script:"attendance-trend-pcts" }}
+{{ chart_presents|json_script:"attendance-trend-presents" }}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  function readJson(id) {
+    var el = document.getElementById(id);
+    if (!el) return [];
+    try { return JSON.parse(el.textContent || "[]"); } catch (e) { return []; }
+  }
+
+  var shortL = readJson("attendance-trend-short");
+  var fullL = readJson("attendance-trend-full");
+  var pcts = readJson("attendance-trend-pcts");
+  var presents = readJson("attendance-trend-presents");
+  var ctx = document.getElementById("chartAttendanceTrend");
+  if (!ctx || !shortL.length || !window.Chart) return;
+
+  var isDark = document.documentElement.classList.contains("dark");
+  var tick = isDark ? "#94a3b8" : "#64748b";
+  var grid = isDark ? "rgba(148,163,184,0.12)" : "rgba(148,163,184,0.22)";
+
+  new Chart(ctx.getContext("2d"), {
+    type: "line",
+    data: {
+      labels: shortL,
+      datasets: [{
+        label: "Attendance %",
+        data: pcts,
+        tension: 0.45,
+        fill: true,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        pointBackgroundColor: "#198754",
+        pointBorderColor: "#fff",
+        pointBorderWidth: 2,
+        borderColor: "#198754",
+        backgroundColor: "rgba(25, 135, 84, 0.14)",
+        borderWidth: 2.5,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 1000 },
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "rgba(15, 23, 42, 0.92)",
+          titleColor: "#f8fafc",
+          bodyColor: "#e2e8f0",
+          padding: 12,
+          cornerRadius: 10,
+          displayColors: false,
+          callbacks: {
+            title: function (items) {
+              var i = items.length ? items[0].dataIndex : 0;
+              return fullL[i] || (items.length ? items[0].label : "");
+            },
+            label: function (c) {
+              var i = c.dataIndex;
+              var pct = c.parsed.y;
+              var pr = presents[i] != null ? presents[i] : "—";
+              return [
+                shortL[i] + " → " + pct + "%",
+                "Present: " + pr + " students"
+              ];
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: "Date", color: tick, font: { size: 12, weight: "600" } },
+          ticks: { color: tick },
+          grid: { color: grid }
+        },
+        y: {
+          title: { display: true, text: "Attendance %", color: tick, font: { size: 12, weight: "600" } },
+          min: 0,
+          max: 100,
+          ticks: {
+            color: tick,
+            callback: function (v) { return v + "%"; }
+          },
+          grid: { color: grid }
+        }
+      }
+    }
+  });
+});
+</script>
+{% endblock %}

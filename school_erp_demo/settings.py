@@ -47,6 +47,7 @@ SHARED_APPS = [
     "tailwind",
     "theme",
     "apps.core",
+    "apps.reports",
     "apps.accounts",
     "apps.notifications",
 ]

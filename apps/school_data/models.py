@@ -81,39 +81,23 @@ class ClassRoom(BaseModel):
 
 
 class Subject(BaseModel):
-    """Subject taught in a class."""
+    """
+    School-wide subject master (tenant-scoped). Not tied to class or teacher.
+    Tenant = one school (PostgreSQL schema); no School FK on this model.
+
+    Class + section + teacher mapping: ClassSectionSubjectTeacher (subject assignment).
+    """
+
     name = models.CharField(max_length=100, db_index=True)
-    code = models.CharField(max_length=50, blank=True, db_index=True)
-    classroom = models.ForeignKey(
-        ClassRoom,
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name="subjects",
-    )
-    teacher = models.ForeignKey(
-        "Teacher",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="assigned_subjects",
-    )
-    academic_year = models.ForeignKey(
-        AcademicYear,
-        on_delete=models.CASCADE,
-        related_name="subjects",
-        null=True,
-        blank=True,
+    code = models.CharField(
+        max_length=20,
+        unique=True,
+        db_index=True,
+        help_text="Short unique code, e.g. MATH01.",
     )
 
     class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["code", "classroom", "academic_year"],
-                condition=Q(code__gt="", academic_year__isnull=False),
-                name="unique_subject_code_per_class_year",
-            ),
-        ]
+        ordering = ["name"]
 
     def __str__(self) -> str:
         return self.name
@@ -163,8 +147,8 @@ class Teacher(BaseModel):
 
 class ClassSectionSubjectTeacher(BaseModel):
     """
-    Central mapping: which teacher teaches which subject in a given class+section.
-    Enforces exactly one teacher per (class, section, subject).
+    Subject assignment: which teacher teaches which master subject for a class+section.
+    (ERP “subject assignment” table.) One teacher per (class, section, subject).
     """
 
     class_obj = models.ForeignKey(
@@ -204,6 +188,12 @@ class ClassSectionSubjectTeacher(BaseModel):
 
 class Student(BaseModel):
     """Student profile linked to User."""
+
+    class Gender(models.TextChoices):
+        MALE = "M", "Male"
+        FEMALE = "F", "Female"
+        OTHER = "O", "Other"
+
     user = models.OneToOneField(
         "accounts.User",
         on_delete=models.CASCADE,
@@ -223,9 +213,24 @@ class Student(BaseModel):
         blank=True,
         related_name="students",
     )
+    academic_year = models.ForeignKey(
+        AcademicYear,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="students",
+    )
     roll_number = models.CharField(max_length=50)
     admission_number = models.CharField(max_length=50, null=True, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)
+    gender = models.CharField(
+        max_length=1,
+        choices=Gender.choices,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Used for reports and demographics (optional).",
+    )
     parent_name = models.CharField(max_length=150, blank=True)
     parent_phone = models.CharField(max_length=20, blank=True)
 
@@ -321,12 +326,81 @@ class StudentDocument(models.Model):
         return f"{self.student} - {self.get_doc_type_display()}"
 
 
+class ExamSession(models.Model):
+    """Logical multi-subject exam; each paper is an `Exam` with `session` set."""
+
+    name = models.CharField(max_length=100)
+    class_name = models.CharField(max_length=50, db_index=True)
+    section = models.CharField(max_length=10, db_index=True)
+    classroom = models.ForeignKey(
+        "ClassRoom",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="exam_sessions",
+    )
+    created_by = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.CASCADE,
+        related_name="exam_sessions_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.class_name} · {self.section})"
+
+
 class Exam(models.Model):
     """Exam assigned to a specific class+section (tenant-scoped)."""
     name = models.CharField(max_length=100)
-    date = models.DateField(db_index=True)
+    # DB column is still `start_date` from initial migrations; ORM field name stays `date`.
+    date = models.DateField(db_index=True, db_column="start_date")
+    # Legacy `end_date` (NOT NULL in old DB); kept in sync with `date` for single-day exams.
+    end_date = models.DateField(
+        null=True,
+        blank=True,
+        db_column="end_date",
+        help_text="Legacy column; defaults to the exam date on save.",
+    )
+    start_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Optional start time for calendar / timetable display.",
+    )
+    end_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Optional end time for calendar / timetable display.",
+    )
+    # Legacy NOT NULL FK; denormalized class_name/section remain the source for filters/UI.
+    classroom = models.ForeignKey(
+        "ClassRoom",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="exams",
+        db_column="classroom_id",
+        help_text="Legacy column; set from class when saving if missing.",
+    )
     class_name = models.CharField(max_length=50, db_index=True)
     section = models.CharField(max_length=10, db_index=True)
+    subject = models.ForeignKey(
+        "Subject",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="exams",
+        help_text="When set, this exam is for one subject (single / scheduled exams).",
+    )
+    total_marks = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        default=100,
+        help_text="Default max marks when teachers enter scores.",
+    )
     created_by = models.ForeignKey(
         "accounts.User",
         on_delete=models.CASCADE,
@@ -341,6 +415,35 @@ class Exam(models.Model):
         related_name="assigned_exams",
         help_text="Optional. When set, this teacher is assigned to the exam.",
     )
+    session = models.ForeignKey(
+        "ExamSession",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="papers",
+        help_text="When set, this row is a subject paper under a multi-subject exam session.",
+    )
+    academic_year = models.ForeignKey(
+        AcademicYear,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="exams",
+    )
+
+    def save(self, *args, **kwargs):
+        if self.date is not None and self.end_date is None:
+            self.end_date = self.date
+        if self.classroom_id is None and self.class_name:
+            c = (
+                ClassRoom.objects.filter(name__iexact=self.class_name.strip())
+                .select_related("academic_year")
+                .order_by("-academic_year__start_date", "id")
+                .first()
+            )
+            if c:
+                self.classroom = c
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return f"{self.name} ({self.class_name} - {self.section})"
@@ -358,6 +461,13 @@ class Attendance(models.Model):
         related_name="attendance_records",
     )
     date = models.DateField()
+    academic_year = models.ForeignKey(
+        AcademicYear,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="attendance_records",
+    )
     status = models.CharField(max_length=10, choices=Status.choices)
     marked_by = models.ForeignKey(
         "accounts.User",
@@ -560,6 +670,13 @@ class Fee(BaseModel):
     )
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     due_date = models.DateField()
+    academic_year = models.ForeignKey(
+        AcademicYear,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="fees",
+    )
     status = models.CharField(
         max_length=20,
         choices=[
@@ -575,6 +692,107 @@ class Fee(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.student} - {self.fee_structure} - {self.amount}"
+
+
+class StudentEnrollment(models.Model):
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE", "Active"
+        PROMOTED = "PROMOTED", "Promoted"
+        DEMOTED = "DEMOTED", "Demoted"
+        TRANSFERRED = "TRANSFERRED", "Transferred"
+        DETAINED = "DETAINED", "Detained"
+
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="enrollments")
+    academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE, related_name="enrollments")
+    classroom = models.ForeignKey(
+        ClassRoom,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="enrollments",
+    )
+    section = models.ForeignKey(
+        Section,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="enrollments",
+    )
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
+    is_current = models.BooleanField(default=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student", "academic_year"],
+                name="unique_student_enrollment_per_year",
+            ),
+            models.UniqueConstraint(
+                fields=["student"],
+                condition=Q(is_current=True),
+                name="unique_current_enrollment_per_student",
+            ),
+        ]
+        ordering = ["-created_at"]
+
+
+class StudentPromotion(models.Model):
+    class Action(models.TextChoices):
+        PROMOTE = "PROMOTE", "Promote"
+        DEMOTE = "DEMOTE", "Demote"
+        TRANSFER = "TRANSFER", "Transfer"
+        DETAIN = "DETAIN", "Detain"
+
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="promotions")
+    from_class = models.ForeignKey(
+        ClassRoom,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="promotions_from",
+    )
+    to_class = models.ForeignKey(
+        ClassRoom,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="promotions_to",
+    )
+    from_section = models.ForeignKey(
+        Section,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="promotions_from_section",
+    )
+    to_section = models.ForeignKey(
+        Section,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="promotions_to_section",
+    )
+    from_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE, related_name="promotions_from_year")
+    to_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE, related_name="promotions_to_year")
+    action = models.CharField(max_length=20, choices=Action.choices)
+    created_by = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="student_promotions_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student", "from_year", "to_year"],
+                name="unique_student_promotion_year_pair",
+            )
+        ]
+        ordering = ["-created_at"]
 
 
 class Payment(BaseModel):

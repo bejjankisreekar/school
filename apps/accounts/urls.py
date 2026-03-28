@@ -15,6 +15,8 @@ urlpatterns = [
     path("portal-login/", views.login_view, {"login_type": "portal"}, name="portal_login"),
     # Logout
     path("logout/", views.logout_view, name="logout"),
+    # First-login: force change password
+    path("change-password/", views.change_password_first, name="change_password_first"),
     # Password reset
     path("password_reset/", auth_views.PasswordResetView.as_view(
         template_name="accounts/password_reset.html",

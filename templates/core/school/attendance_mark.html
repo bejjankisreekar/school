@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block title %}Student Attendance | School ERP{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Attendance</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <div>
+      <h1 class="h4 fw-bold mb-1">Student Attendance</h1>
+      <p class="text-muted small mb-0">Filter by class and section, then mark or update attendance for the selected date.</p>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body">
+      <h5 class="card-title mb-3"><i class="bi bi-funnel me-2"></i>Filters</h5>
+      <form method="get" action="{% url 'core:attendance_list' %}" id="loadForm" class="row g-3 align-items-end">
+        <div class="col-lg-2 col-md-4">
+          <label for="classroom_id" class="form-label">Class</label>
+          <select name="classroom_id" id="classroom_id" class="form-select" required>
+            <option value="">— Select —</option>
+            {% for c in class_sections_data %}
+            <option value="{{ c.id }}" {% if classroom_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-lg-2 col-md-4">
+          <label for="section_id" class="form-label">Section</label>
+          <select name="section_id" id="section_id" class="form-select" required>
+            <option value="">— Select —</option>
+          </select>
+        </div>
+        <div class="col-lg-2 col-md-4">
+          <label for="attendance_date" class="form-label">Date</label>
+          <input type="date" name="attendance_date" id="attendance_date" class="form-control" value="{{ attendance_date }}" required>
+          {% if future_date %}
+          <p class="text-danger small mb-0 mt-1">Attendance cannot be recorded for future dates.</p>
+          {% endif %}
+        </div>
+        <div class="col-lg-3 col-md-6">
+          <label for="q" class="form-label">Search <span class="text-muted fw-normal">(optional)</span></label>
+          <input type="search" name="q" id="q" class="form-control" placeholder="Name or admission / roll no." value="{{ search_q }}" autocomplete="off">
+        </div>
+        <div class="col-lg-3 col-md-6 d-flex gap-2 flex-wrap">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-people me-1"></i> Load Students
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if classroom_id and section_id and not section_valid_for_class %}
+  <div class="alert alert-warning">The selected section does not belong to this class. Choose a valid class and section.</div>
+  {% elif classroom_id and section_id and section_valid_for_class and not students_with_status %}
+  <div class="alert alert-info">No students found for this class, section, and search. Adjust filters or add students.</div>
+  {% elif students_with_status %}
+  {% if future_date %}
+  <div class="alert alert-warning">Cannot mark attendance for future dates. Pick today or an earlier date.</div>
+  {% endif %}
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-header bg-white border-0 pt-4 pb-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <h5 class="mb-0">Students</h5>
+      <div class="d-flex flex-wrap gap-2">
+        <button type="button" class="btn btn-outline-success btn-sm" id="markAllPresent" {% if future_date %}disabled{% endif %}>
+          <i class="bi bi-check-all me-1"></i> Mark all present
+        </button>
+        <button type="button" class="btn btn-primary btn-sm" id="saveAttendanceBtn" {% if future_date %}disabled{% endif %}>
+          <i class="bi bi-save me-1"></i> Save attendance
+        </button>
+      </div>
+    </div>
+    <form method="post" action="{% url 'core:attendance_list' %}" id="attendanceForm">
+      {% csrf_token %}
+      <input type="hidden" name="classroom_id" value="{{ classroom_id }}">
+      <input type="hidden" name="section_id" value="{{ section_id }}">
+      <input type="hidden" name="attendance_date" value="{{ attendance_date }}">
+      {% if search_q %}<input type="hidden" name="q" value="{{ search_q }}">{% endif %}
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th style="width: 48px;" class="text-muted small">#</th>
+                <th>Admission no.</th>
+                <th>Name</th>
+                <th style="min-width: 180px;">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in students_with_status %}
+              <tr class="attendance-row" data-student-id="{{ item.student.id }}">
+                <td class="text-muted small">{{ forloop.counter }}</td>
+                <td class="font-monospace">{{ item.student.admission_number|default:item.student.roll_number }}</td>
+                <td>{{ item.student.user.get_full_name|default:item.student.user.username }}</td>
+                <td>
+                  <select name="status_{{ item.student.id }}" class="form-select form-select-sm status-select" {% if future_date %}disabled{% endif %}>
+                    {% for val, label in status_choices %}
+                    <option value="{{ val }}" {% if item.status == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </form>
+  </div>
+  {% else %}
+  <div class="alert alert-secondary border-0 shadow-sm rounded-4">Select <strong>Class</strong>, <strong>Section</strong>, and <strong>Date</strong>, then click <strong>Load Students</strong>.</div>
+  {% endif %}
+</div>
+
+{{ class_sections_data|json_script:"class-sections-data" }}
+<script>
+(function() {
+  const dataEl = document.getElementById('class-sections-data');
+  if (!dataEl) return;
+  const classSections = JSON.parse(dataEl.textContent);
+  const classSel = document.getElementById('classroom_id');
+  const sectionSel = document.getElementById('section_id');
+  const selectedClassId = {% if classroom_id %}{{ classroom_id }}{% else %}null{% endif %};
+  const selectedSectionId = {% if section_id %}{{ section_id }}{% else %}null{% endif %};
+
+  function fillSections(preserveSectionId) {
+    const cid = classSel.value;
+    sectionSel.innerHTML = '<option value="">— Select —</option>';
+    if (!cid) return;
+    const row = classSections.find(function(c) { return String(c.id) === String(cid); });
+    if (!row || !row.sections) return;
+    row.sections.forEach(function(sec) {
+      const opt = document.createElement('option');
+      opt.value = sec.id;
+      opt.textContent = sec.name;
+      if (preserveSectionId != null && String(sec.id) === String(preserveSectionId)) {
+        opt.selected = true;
+      }
+      sectionSel.appendChild(opt);
+    });
+  }
+
+  classSel.addEventListener('change', function() {
+    fillSections(null);
+  });
+
+  function initSections() {
+    if (selectedClassId != null) {
+      fillSections(selectedSectionId);
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSections);
+  } else {
+    initSections();
+  }
+})();
+</script>
+
+{% if students_with_status and not future_date %}
+<script>
+(function() {
+  function bindAttendanceActions() {
+    const form = document.getElementById('attendanceForm');
+    const saveBtn = document.getElementById('saveAttendanceBtn');
+    const markAllPresent = document.getElementById('markAllPresent');
+    const rows = document.querySelectorAll('.attendance-row');
+    if (!form || !saveBtn || !markAllPresent) return;
+
+    function rowStyle(row) {
+      const sel = row.querySelector('.status-select');
+      if (!sel) return;
+      row.classList.remove('table-danger', 'table-warning');
+      if (sel.value === 'ABSENT') row.classList.add('table-danger');
+      else if (sel.value === 'LEAVE') row.classList.add('table-warning');
+    }
+    rows.forEach(function(row) {
+      const sel = row.querySelector('.status-select');
+      if (sel) {
+        sel.addEventListener('change', function() { rowStyle(row); });
+        rowStyle(row);
+      }
+    });
+
+    markAllPresent.addEventListener('click', function() {
+      document.querySelectorAll('.status-select').forEach(function(s) {
+        s.value = 'PRESENT';
+        const row = s.closest('.attendance-row');
+        if (row) rowStyle(row);
+      });
+    });
+
+    saveBtn.addEventListener('click', function() {
+      if (confirm('Save attendance for all students shown? Existing records for this date will be updated.')) {
+        form.submit();
+      }
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bindAttendanceActions);
+  } else {
+    bindAttendanceActions();
+  }
+})();
+</script>
+{% endif %}
+{% endblock %}

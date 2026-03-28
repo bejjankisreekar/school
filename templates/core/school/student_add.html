@@ -1,109 +1,208 @@
 {% extends "base.html" %}
 {% block title %}Add Student | School ERP{% endblock %}
+
 {% block content %}
-<div class="container-fluid px-0" style="max-width: 720px;">
-  <nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb">
-      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'core:school_students_list' %}">Students</a></li>
-      <li class="breadcrumb-item active">Add Student</li>
+<div class="max-w-[1100px] mx-auto px-4">
+  <nav aria-label="breadcrumb" class="mb-6">
+    <ol class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+      <li><a href="{% url 'core:admin_dashboard' %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">Dashboard</a></li>
+      <li>/</li>
+      <li><a href="{% url 'core:school_students_list' %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">Students</a></li>
+      <li>/</li>
+      <li class="font-medium text-slate-900 dark:text-slate-50">Add Student</li>
     </ol>
   </nav>
 
-  <h1 class="h4 fw-bold mb-4">Add Student</h1>
+  <h1 class="text-xl font-bold text-slate-900 dark:text-slate-50 mb-6">Add Student</h1>
 
   {% if form.non_field_errors %}
-    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    <div class="mb-6 rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-200">
+      {% for err in form.non_field_errors %}<p>{{ err }}</p>{% endfor %}
+    </div>
   {% endif %}
 
-  <form method="post" class="card border-0 shadow-sm rounded-3">
+  <form method="post" class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 shadow-lg overflow-hidden">
     {% csrf_token %}
-    <div class="card-body">
-      <div class="row g-3">
-        <div class="col-md-6">
-          <label class="form-label">First Name</label>
+
+    {# Section 1: Student Basic Info #}
+    <div class="px-6 py-5 border-b border-slate-200 dark:border-slate-700">
+      <div class="flex items-center gap-2 mb-5">
+        <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400">
+          <i class="bi bi-person-fill"></i>
+        </div>
+        <h2 class="font-semibold text-slate-900 dark:text-slate-50">Student Basic Info</h2>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="form-group">
+          <label for="id_first_name" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">First Name <span class="text-red-500">*</span></label>
           {{ form.first_name }}
-          {% if form.first_name.errors %}<div class="text-danger small">{{ form.first_name.errors.0 }}</div>{% endif %}
+          {% if form.first_name.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.first_name.errors.0 }}</p>{% endif %}
         </div>
-        <div class="col-md-6">
-          <label class="form-label">Last Name</label>
+        <div class="form-group">
+          <label for="id_last_name" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Last Name</label>
           {{ form.last_name }}
-          {% if form.last_name.errors %}<div class="text-danger small">{{ form.last_name.errors.0 }}</div>{% endif %}
+          {% if form.last_name.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.last_name.errors.0 }}</p>{% endif %}
         </div>
-        <div class="col-md-6">
-          <label class="form-label">Username</label>
-          {{ form.username }}
-          {% if form.username.errors %}<div class="text-danger small">{{ form.username.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Password</label>
-          {{ form.password }}
-          {% if form.password.errors %}<div class="text-danger small">{{ form.password.errors.0 }}</div>{% endif %}
-        </div>
-
-        <div class="col-md-6">
-          <label class="form-label">Classroom</label>
-          {{ form.classroom }}
-          {% if form.classroom.errors %}<div class="text-danger small">{{ form.classroom.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Section</label>
-          <select name="section" id="id_section" class="form-select">
-            <option value="">Select section</option>
-            {% for s in form.fields.section.queryset %}
-              <option value="{{ s.id }}" data-classroom="{{ s.classroom_id }}" {% if form.section.value == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
-            {% endfor %}
-          </select>
-          {% if form.section.errors %}<div class="text-danger small">{{ form.section.errors.0 }}</div>{% endif %}
-        </div>
-
-        <div class="col-md-6">
-          <label class="form-label">Roll Number</label>
-          {{ form.roll_number }}
-          {% if form.roll_number.errors %}<div class="text-danger small">{{ form.roll_number.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Admission Number</label>
-          {{ form.admission_number }}
-          {% if form.admission_number.errors %}<div class="text-danger small">{{ form.admission_number.errors.0 }}</div>{% endif %}
-        </div>
-
-        <div class="col-md-6">
-          <label class="form-label">Date of Birth</label>
+        <div class="form-group">
+          <label for="id_date_of_birth" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date of Birth</label>
           {{ form.date_of_birth }}
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Parent Name</label>
-          {{ form.parent_name }}
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Parent Phone</label>
-          {{ form.parent_phone }}
+          {% if form.date_of_birth.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.date_of_birth.errors.0 }}</p>{% endif %}
         </div>
       </div>
     </div>
-    <div class="card-footer bg-transparent d-flex gap-2">
-      <button type="submit" class="btn btn-primary">Add Student</button>
-      <a href="{% url 'core:school_students_list' %}" class="btn btn-outline-secondary">Cancel</a>
+
+    {# Section 2: Academic Details #}
+    <div class="px-6 py-5 border-b border-slate-200 dark:border-slate-700">
+      <div class="flex items-center gap-2 mb-5">
+        <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400">
+          <i class="bi bi-mortarboard-fill"></i>
+        </div>
+        <h2 class="font-semibold text-slate-900 dark:text-slate-50">Academic Details</h2>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="form-group">
+          <label for="id_classroom" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Classroom <span class="text-red-500">*</span></label>
+          {{ form.classroom }}
+          {% if form.classroom.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.classroom.errors.0 }}</p>{% endif %}
+        </div>
+        <div class="form-group">
+          <label for="id_section" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Section <span class="text-red-500">*</span></label>
+          <select name="section" id="id_section" class="form-select" required>
+            <option value="">— Select section —</option>
+            {% for s in form.fields.section.queryset %}
+              <option value="{{ s.id }}" data-classrooms="{% for c in s.classrooms.all %}{{ c.id }}{% if not forloop.last %},{% endif %}{% endfor %}" {% if form.section.value|stringformat:"s" == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+          </select>
+          {% if form.section.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.section.errors.0 }}</p>{% endif %}
+        </div>
+        <div class="form-group">
+          <label for="id_roll_number" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Roll Number <span class="text-red-500">*</span></label>
+          {{ form.roll_number }}
+          {% if form.roll_number.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.roll_number.errors.0 }}</p>{% endif %}
+        </div>
+        <div class="form-group">
+          <label for="id_admission_number" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Admission Number <span class="text-red-500">*</span></label>
+          {{ form.admission_number }}
+          {% if form.admission_number.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.admission_number.errors.0 }}</p>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# Section 3: Parent Details #}
+    <div class="px-6 py-5 border-b border-slate-200 dark:border-slate-700">
+      <div class="flex items-center gap-2 mb-5">
+        <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400">
+          <i class="bi bi-people-fill"></i>
+        </div>
+        <h2 class="font-semibold text-slate-900 dark:text-slate-50">Parent Details</h2>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="form-group">
+          <label for="id_parent_name" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Parent Name</label>
+          {{ form.parent_name }}
+          {% if form.parent_name.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.parent_name.errors.0 }}</p>{% endif %}
+        </div>
+        <div class="form-group">
+          <label for="id_parent_phone" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Parent Phone <span class="text-slate-400 font-normal">(10 digits)</span></label>
+          {{ form.parent_phone }}
+          {% if form.parent_phone.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.parent_phone.errors.0 }}</p>{% endif %}
+        </div>
+        <div class="form-group md:col-span-2">
+          <label for="id_email" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Email <span class="text-red-500">*</span> <span class="text-slate-400 font-normal">(for login &amp; password reset)</span></label>
+          {{ form.email }}
+          {% if form.email.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.email.errors.0 }}</p>{% endif %}
+          {% if form.fields.email.help_text %}<p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ form.fields.email.help_text }}</p>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# Section 4: Account Details #}
+    <div class="px-6 py-5">
+      <div class="flex items-center gap-2 mb-5">
+        <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400">
+          <i class="bi bi-key-fill"></i>
+        </div>
+        <h2 class="font-semibold text-slate-900 dark:text-slate-50">Account Details</h2>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="form-group">
+          <label for="id_password" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Password <span class="text-slate-400 font-normal">(optional – system generates)</span></label>
+          {{ form.password }}
+          {% if form.password.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.password.errors.0 }}</p>{% endif %}
+        </div>
+      </div>
+      <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">Login username = Admission Number. Students log in with their Admission Number.</p>
+    </div>
+
+    <div class="px-6 py-5 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex flex-wrap gap-3">
+      <button type="submit" class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition">
+        <i class="bi bi-check-lg"></i> Add Student
+      </button>
+      <a href="{% url 'core:school_students_list' %}" class="inline-flex items-center gap-2 rounded-xl border border-slate-300 dark:border-slate-600 px-5 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition">
+        Cancel
+      </a>
     </div>
   </form>
 </div>
 
+<style>
+  .form-group input,
+  .form-group select {
+    height: 46px;
+    width: 100%;
+    padding: 0 14px;
+    font-size: 0.9375rem;
+    border-radius: 10px;
+    border: 1px solid #cbd5e1;
+    background: white;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .dark .form-group input,
+  .dark .form-group select {
+    border-color: #475569;
+    background: rgba(30, 41, 59, 0.5);
+    color: #f1f5f9;
+  }
+  .form-group input:focus,
+  .form-group select:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+  }
+  .dark .form-group input:focus,
+  .dark .form-group select:focus {
+    border-color: #818cf8;
+    box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.25);
+  }
+  .form-group input::placeholder {
+    color: #94a3b8;
+  }
+  .dark .form-group input::placeholder {
+    color: #64748b;
+  }
+</style>
+
 <script>
+(function() {
   function filterSections() {
     const classroom = document.getElementById("id_classroom");
     const section = document.getElementById("id_section");
     if (!classroom || !section) return;
-    const cId = classroom.value;
-    Array.from(section.options).forEach(opt => {
-      if (!opt.dataset.classroom) return;
-      opt.hidden = opt.dataset.classroom !== cId;
+    const cId = String(classroom.value);
+    Array.from(section.options).forEach(function(opt) {
+      if (opt.value === "") { opt.hidden = false; return; }
+      const ids = (opt.dataset.classrooms || "").split(",").filter(Boolean);
+      opt.hidden = !cId || !ids.includes(cId);
     });
-    if (section.selectedOptions.length && section.selectedOptions[0].hidden) {
-      section.value = "";
-    }
+    const selected = section.options[section.selectedIndex];
+    if (selected && selected.hidden) section.value = "";
   }
-  document.getElementById("id_classroom")?.addEventListener("change", filterSections);
-  filterSections();
+  const classroom = document.getElementById("id_classroom");
+  if (classroom) {
+    classroom.addEventListener("change", filterSections);
+    filterSections();
+  }
+
+})();
 </script>
 {% endblock %}

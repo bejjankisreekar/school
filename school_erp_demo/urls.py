@@ -22,6 +22,8 @@ from django.urls import include, path
 from apps.core import api_views
 
 urlpatterns = [
+    # Before core's "" catch-all so `reports:dashboard` resolves (namespace `reports`).
+    path("school/reports/", include(("apps.reports.urls", "reports"), namespace="reports")),
     path("api/<str:school_code>/students/", api_views.api_students),
     path("api/<str:school_code>/fees/", api_views.api_fees),
     path("api/<str:school_code>/results/", api_views.api_results),

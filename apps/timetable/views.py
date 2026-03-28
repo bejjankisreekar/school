@@ -130,7 +130,7 @@ def school_timetable(request, classroom_id):
 
     classroom = get_object_or_404(ClassRoom, id=classroom_id)
     slots = list(TimeSlot.objects.order_by("order", "start_time"))
-    subjects = Subject.objects.filter(Q(classroom=classroom) | Q(classroom__isnull=True)).order_by("name")
+    subjects = Subject.objects.all().order_by("name")
     teachers = Teacher.objects.select_related("user")
 
     existing = {
@@ -156,7 +156,7 @@ def school_timetable(request, classroom_id):
                         teacher_ids = request.POST.getlist(f"teach_{day_val}_{slot.id}")
                         if subj_id:
                             subj = Subject.objects.filter(id=subj_id).first()
-                            if subj and (subj.classroom_id == classroom.id or subj.classroom_id is None):
+                            if subj:
                                 subj_id = int(subj_id)
                             else:
                                 subj_id = None

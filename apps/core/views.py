@@ -11,12 +11,13 @@ from datetime import date, timedelta
 from calendar import monthrange
 from io import BytesIO
 import json
+from urllib.parse import urlencode
 from django.utils import timezone
 
-from django.db import transaction
-from django.db.models import Count, F, Q, Sum
+from django.db import connection, transaction
+from django.db.models import Count, F, Max, Min, Prefetch, Q, Sum
 from django.core.paginator import Paginator
-from django.db.utils import OperationalError, ProgrammingError
+from django.db.utils import DatabaseError, InternalError, OperationalError, ProgrammingError
 from apps.customers.models import School
 from apps.school_data.models import (
     Student,
@@ -28,6 +29,7 @@ from apps.school_data.models import (
     Subject,
     ClassRoom,
     Exam,
+    ExamSession,
     Section,
     ClassSectionSubjectTeacher,
     AcademicYear,
@@ -56,6 +58,8 @@ from apps.school_data.models import (
     Vehicle,
     Driver,
     StudentRouteAssignment,
+    StudentPromotion,
+    StudentEnrollment,
 )
 User = get_user_model()
 from .utils import (
@@ -63,6 +67,9 @@ from .utils import (
     has_feature_access,
     get_current_academic_year,
     get_current_academic_year_bounds,
+    get_active_academic_year_obj,
+    apply_active_year_filter,
+    tenant_migrate_cli_hint,
 )
 from .forms import ContactEnquiryForm
 from .models import ContactEnquiry
@@ -198,9 +205,6 @@ def super_admin_dashboard(request):
 
 @admin_required
 def admin_dashboard(request):
-    from django.db.models.functions import TruncMonth
-    from apps.timetable.models import Timetable
-
     school = request.user.school
     empty_ctx = {
         "current_plan": None,
@@ -209,26 +213,31 @@ def admin_dashboard(request):
         "trial_expired": False,
         "total_students": 0,
         "total_teachers": 0,
+        "today_attendance_pct": 0,
+        "staff_attendance_pct": 0,
+        "fee_today_amt": 0,
+        "fee_month_amt": 0,
+        "pending_fees": 0,
+        "has_fees": False,
+        "has_attendance": False,
+        "has_exams": False,
+        "fees_enabled": False,
+        "attendance_enabled": False,
+        "exams_enabled": False,
         "total_classes": 0,
         "total_sections": 0,
         "total_subjects": 0,
-        "total_tests": 0,
-        "active_academic_year": None,
-        "active_academic_year_html": "—",
-        "attendance_today_count": 0,
-        "attendance_present": 0,
-        "attendance_absent": 0,
-        "recent_homework": [],
-        "recent_marks": [],
+        "active_academic_year_label": "",
+        "upcoming_exams_count": 0,
         "upcoming_exams": [],
         "today_birthdays": [],
         "pending_attendance": [],
         "top_students": [],
-        "today_timetable": [],
-        "student_growth_data": [],
-        "attendance_analytics": {"present": 0, "absent": 0},
         "class_distribution": [],
-        "subject_distribution": [],
+        "attendance_trend": [],
+        "show_class_chart": False,
+        "show_attendance_trend": False,
+        "today_iso": date.today().isoformat(),
     }
     if not school:
         return render(request, "core/dashboards/admin_dashboard.html", empty_ctx)
@@ -236,253 +245,235 @@ def admin_dashboard(request):
         return render(request, "core/dashboards/trial_expired.html", {"school": school})
 
     today = date.today()
-    active_academic_year = AcademicYear.objects.filter(is_active=True).first()
-    active_academic_year_html = (
-        f'<span class="badge bg-success">{active_academic_year.name}</span>'
-        if active_academic_year else "—"
+    month_start = today.replace(day=1)
+    week_end = today + timedelta(days=7)
+
+    has_fees = has_feature_access(school, "fees")
+    has_attendance = has_feature_access(school, "attendance")
+    has_exams = has_feature_access(school, "exams")
+
+    total_students = Student.objects.filter(user__school=school).count()
+    total_teachers = Teacher.objects.filter(user__school=school).count()
+
+    attendance_present = 0
+    staff_today_present = 0
+    if has_attendance:
+        attendance_present = Attendance.objects.filter(
+            date=today,
+            status=Attendance.Status.PRESENT,
+            student__user__school=school,
+        ).count()
+        staff_att_today = StaffAttendance.objects.filter(teacher__user__school=school, date=today)
+        staff_today_present = staff_att_today.filter(status=StaffAttendance.Status.PRESENT).count()
+
+    today_attendance_pct = (
+        round((attendance_present / total_students * 100), 1) if total_students else 0
+    )
+    staff_attendance_pct = (
+        round((staff_today_present / total_teachers * 100), 1) if total_teachers else 0
     )
 
-    # Statistics
-    total_students = Student.objects.count()
-    total_teachers = Teacher.objects.count()
+    fee_today_amt = 0.0
+    fee_month_amt = 0.0
+    pending_fees = 0.0
+    if has_fees:
+        try:
+            fee_today_amt = float(
+                Payment.objects.filter(
+                    payment_date=today,
+                    fee__student__user__school=school,
+                ).aggregate(s=Sum("amount"))["s"]
+                or 0
+            )
+            fee_month_amt = float(
+                Payment.objects.filter(
+                    payment_date__gte=month_start,
+                    payment_date__lte=today,
+                    fee__student__user__school=school,
+                ).aggregate(s=Sum("amount"))["s"]
+                or 0
+            )
+            for fee in Fee.objects.filter(
+                status__in=["PENDING", "PARTIAL"],
+                student__user__school=school,
+            ).prefetch_related("payments"):
+                paid = sum(float(p.amount) for p in fee.payments.all())
+                pending_fees += float(fee.amount) - paid
+        except Exception:
+            pass
+
+    upcoming_exams = []
+    if has_exams:
+        upcoming_exams = list(
+            _exam_read_qs()
+            .filter(date__gte=today, date__lte=week_end)
+            .order_by("date", "id")[:20]
+        )
+    upcoming_exams_count = len(upcoming_exams)
+
     total_classes = ClassRoom.objects.count()
     total_sections = Section.objects.count()
     total_subjects = Subject.objects.count()
-    total_tests = Exam.objects.count()
-
-    # Attendance today
-    attendance_today_qs = Attendance.objects.filter(date=today)
-    attendance_today_count = attendance_today_qs.count()
-    attendance_present = attendance_today_qs.filter(status=Attendance.Status.PRESENT).count()
-    attendance_absent = attendance_today_qs.filter(status=Attendance.Status.ABSENT).count()
-
-    # Today's timetable (1=Monday, 6=Saturday; Python: Monday=0)
-    day_of_week = today.weekday() + 1 if today.weekday() < 6 else None  # Sunday = no classes
-    today_timetable = []
-    if day_of_week:
-        today_timetable = list(
-            Timetable.objects.filter(day_of_week=day_of_week)
-            .select_related("classroom", "subject", "time_slot")
-            .prefetch_related("teachers__user")
-            .order_by("time_slot__order", "time_slot__start_time")
-        )
-
-    # Upcoming exams (date >= today)
-    upcoming_exams = list(
-        Exam.objects.filter(date__gte=today)
-        .order_by("date")[:10]
+    active_ay = get_active_academic_year_obj()
+    active_academic_year_label = (
+        active_ay.name.strip()
+        if active_ay and getattr(active_ay, "name", None)
+        else get_current_academic_year()
     )
 
-    # Birthdays today
     today_birthdays = list(
-        Student.objects.filter(date_of_birth__month=today.month, date_of_birth__day=today.day)
+        Student.objects.filter(
+            user__school=school,
+            date_of_birth__isnull=False,
+            date_of_birth__month=today.month,
+            date_of_birth__day=today.day,
+        )
         .select_related("user", "classroom", "section")
+        .defer("academic_year")
     )
 
-    # Pending attendance: classrooms with students but no attendance record for today
-    pending_attendance = list(
-        ClassRoom.objects.filter(students__isnull=False)
-        .exclude(students__attendance_records__date=today)
-        .distinct()
-    )
+    pending_attendance = []
+    if has_attendance and total_students:
+        pair_rows = (
+            Student.objects.filter(
+                user__school=school,
+                classroom__isnull=False,
+                section__isnull=False,
+            )
+            .values("classroom_id", "section_id")
+            .annotate(student_count=Count("id"))
+        )
+        for row in pair_rows:
+            cid, sid = row["classroom_id"], row["section_id"]
+            n = row["student_count"]
+            marked = Attendance.objects.filter(
+                date=today,
+                student__classroom_id=cid,
+                student__section_id=sid,
+                student__user__school=school,
+            ).count()
+            if marked < n:
+                pending_attendance.append(
+                    {
+                        "classroom_id": cid,
+                        "section_id": sid,
+                        "class_name": "",
+                        "section_name": "",
+                        "marked": marked,
+                        "total": n,
+                        "missing": n - marked,
+                    }
+                )
+        if pending_attendance:
+            cids = {p["classroom_id"] for p in pending_attendance}
+            sids = {p["section_id"] for p in pending_attendance}
+            cnames = dict(ClassRoom.objects.filter(pk__in=cids).values_list("id", "name"))
+            snames = dict(Section.objects.filter(pk__in=sids).values_list("id", "name"))
+            for p in pending_attendance:
+                p["class_name"] = cnames.get(p["classroom_id"], "—")
+                p["section_name"] = snames.get(p["section_id"], "—")
+            pending_attendance.sort(
+                key=lambda x: (-x["missing"], x["class_name"], x["section_name"])
+            )
 
-    # Top students by latest marks (percentage)
-    top_marks = (
-        Marks.objects.filter(total_marks__gt=0)
-        .annotate(pct=F("marks_obtained") * 100 / F("total_marks"))
-        .select_related("student__user", "student__classroom", "student__section")
-        .order_by("-pct")[:10]
-    )
-    seen_students = set()
     top_students = []
-    for m in top_marks:
-        if m.student_id not in seen_students:
+    marks_exist = Marks.objects.filter(
+        total_marks__gt=0,
+        student__user__school=school,
+    ).exists()
+    if marks_exist:
+        top_marks = (
+            Marks.objects.filter(total_marks__gt=0, student__user__school=school)
+            .annotate(pct=F("marks_obtained") * 100 / F("total_marks"))
+            .select_related("student__user", "student__classroom", "student__section")
+            .defer("student__academic_year")
+            .order_by("-pct")[:15]
+        )
+        seen_students = set()
+        for m in top_marks:
+            if m.student_id in seen_students:
+                continue
             seen_students.add(m.student_id)
             pct = round((m.marks_obtained * 100) / m.total_marks)
             top_students.append({"student": m.student, "percentage": pct})
             if len(top_students) >= 5:
                 break
 
-    # Chart data: Student growth (last 6 months by enrollment)
-    six_months_ago = today - timedelta(days=180)
-    student_growth = (
-        Student.objects.filter(created_on__gte=six_months_ago)
-        .annotate(month=TruncMonth("created_on"))
-        .values("month")
-        .annotate(count=Count("id"))
-        .order_by("month")
-    )
-    student_growth_data = [{"month": x["month"].strftime("%b %Y"), "count": x["count"]} for x in student_growth]
-
-    # Chart: Attendance analytics (today)
-    attendance_analytics = {"present": attendance_present, "absent": attendance_absent}
-
-    # Chart: Class distribution
     class_dist_qs = (
-        ClassRoom.objects.annotate(cnt=Count("students"))
+        ClassRoom.objects.annotate(
+            cnt=Count("students", filter=Q(students__user__school=school))
+        )
         .values("name", "cnt")
         .order_by("name")
     )
-    class_distribution = [{"label": x["name"], "count": x["cnt"]} for x in class_dist_qs]
+    class_distribution = [{"label": x["name"], "count": x["cnt"]} for x in class_dist_qs if x["cnt"]]
+    show_class_chart = bool(class_distribution)
 
-    # Chart: Subject distribution (subjects per class)
-    subject_dist_qs = (
-        Subject.objects.filter(classroom__isnull=False)
-        .values("classroom__name")
-        .annotate(cnt=Count("id"))
-        .order_by("classroom__name")
-    )
-    subject_distribution = [{"label": x["classroom__name"], "count": x["cnt"]} for x in subject_dist_qs]
-
-    total_employees = total_teachers
-
-    employees_distribution = [{"label": "Teachers", "count": total_teachers}]
-
-    salary_overview = []
-    fee_collection = []
-    transport_usage = []
-    hostel_occupancy = []
-    has_payroll = school and has_feature_access(school, "payroll")
-    has_fees = school and has_feature_access(school, "fees")
-    has_transport = school and has_feature_access(school, "transport")
-    has_hostel = school and has_feature_access(school, "hostel")
-
-    if has_payroll:
-        try:
-            from apps.payroll.models import Payslip
-            salary_today = sum(
-                float(p.net_salary) for p in Payslip.objects.filter(
-                    payment_date=today, status__in=("PROCESSED", "PAID")
-                )
+    attendance_trend = []
+    if has_attendance and total_students:
+        for i in range(6, -1, -1):
+            d = today - timedelta(days=i)
+            pres = Attendance.objects.filter(
+                date=d,
+                status=Attendance.Status.PRESENT,
+                student__user__school=school,
+            ).count()
+            pct = round((pres / total_students * 100), 1) if total_students else 0
+            attendance_trend.append(
+                {
+                    "label": d.strftime("%d %b"),
+                    "short": d.strftime("%a"),
+                    "iso": d.isoformat(),
+                    "pct": pct,
+                    "present": pres,
+                }
             )
-            week_start = today - timedelta(days=today.weekday())
-            salary_week = sum(
-                float(p.net_salary) for p in Payslip.objects.filter(
-                    payment_date__gte=week_start, payment_date__lte=today,
-                    status__in=("PROCESSED", "PAID")
-                )
-            )
-            month_start = today.replace(day=1)
-            salary_month = sum(
-                float(p.net_salary) for p in Payslip.objects.filter(
-                    payment_date__gte=month_start, payment_date__lte=today,
-                    status__in=("PROCESSED", "PAID")
-                )
-            )
-            year_start = today.replace(month=1, day=1)
-            salary_year = sum(
-                float(p.net_salary) for p in Payslip.objects.filter(
-                    payment_date__gte=year_start, payment_date__lte=today,
-                    status__in=("PROCESSED", "PAID")
-                )
-            )
-            salary_overview = [
-                {"label": "Today", "amount": salary_today},
-                {"label": "Week", "amount": salary_week},
-                {"label": "Month", "amount": salary_month},
-                {"label": "Year", "amount": salary_year},
-            ]
-        except Exception:
-            pass
-
-    if has_fees:
-        try:
-            fee_today = Payment.objects.filter(payment_date=today).aggregate(s=Sum("amount"))["s"] or 0
-            week_start = today - timedelta(days=today.weekday())
-            fee_week = Payment.objects.filter(
-                payment_date__gte=week_start, payment_date__lte=today
-            ).aggregate(s=Sum("amount"))["s"] or 0
-            month_start = today.replace(day=1)
-            fee_month = Payment.objects.filter(
-                payment_date__gte=month_start, payment_date__lte=today
-            ).aggregate(s=Sum("amount"))["s"] or 0
-            year_start = today.replace(month=1, day=1)
-            fee_year = Payment.objects.filter(
-                payment_date__gte=year_start, payment_date__lte=today
-            ).aggregate(s=Sum("amount"))["s"] or 0
-            fee_collection = [
-                {"label": "Today", "amount": float(fee_today)},
-                {"label": "Week", "amount": float(fee_week)},
-                {"label": "Month", "amount": float(fee_month)},
-                {"label": "Year", "amount": float(fee_year)},
-            ]
-        except Exception:
-            pass
-
-    if has_transport:
-        try:
-            vehicles_cnt = Vehicle.objects.count()
-            drivers_cnt = Driver.objects.count()
-            routes_cnt = Route.objects.count()
-            bus_students = StudentRouteAssignment.objects.count()
-            transport_usage = [
-                {"label": "Vehicles", "value": vehicles_cnt},
-                {"label": "Drivers", "value": drivers_cnt},
-                {"label": "Routes", "value": routes_cnt},
-                {"label": "Bus Students", "value": bus_students},
-            ]
-        except Exception:
-            pass
-
-    if has_hostel:
-        try:
-            rooms_cnt = HostelRoom.objects.count()
-            beds_cnt = HostelRoom.objects.aggregate(s=Sum("capacity"))["s"] or 0
-            hostel_students = HostelAllocation.objects.filter(end_date__isnull=True).count()
-            hostel_occupancy = [
-                {"label": "Rooms", "value": rooms_cnt},
-                {"label": "Beds", "value": int(beds_cnt)},
-                {"label": "Occupied", "value": hostel_students},
-            ]
-        except Exception:
-            pass
-
-    recent_homework = list(Homework.objects.all().order_by("-id")[:10])
-    recent_marks = list(Marks.objects.all().order_by("-id")[:10])
+        show_attendance_trend = any(x["present"] or x["pct"] for x in attendance_trend)
+    else:
+        show_attendance_trend = False
 
     from apps.customers.subscription import PLAN_FEATURES
     plan = school.plan
     plan_name = (plan.name if plan else "").lower() or "basic"
     plan_features = PLAN_FEATURES.get(plan_name, [])
 
-    return render(request, "core/dashboards/admin_dashboard.html", {
-        "total_students": total_students,
-        "total_teachers": total_teachers,
-        "total_classes": total_classes,
-        "total_sections": total_sections,
-        "total_subjects": total_subjects,
-        "total_tests": total_tests,
-        "active_academic_year": active_academic_year,
-        "active_academic_year_html": active_academic_year_html,
-        "attendance_today_count": attendance_today_count,
-        "attendance_present": attendance_present,
-        "attendance_absent": attendance_absent,
-        "recent_homework": recent_homework,
-        "recent_marks": recent_marks,
-        "upcoming_exams": upcoming_exams,
-        "today_birthdays": today_birthdays,
-        "pending_attendance": pending_attendance,
-        "top_students": top_students,
-        "today_timetable": today_timetable,
-        "student_growth_data": student_growth_data,
-        "attendance_analytics": attendance_analytics,
-        "class_distribution": class_distribution,
-        "subject_distribution": subject_distribution,
-        "total_employees": total_employees,
-        "employees_distribution": employees_distribution,
-        "salary_overview": salary_overview,
-        "fee_collection": fee_collection,
-        "transport_usage": transport_usage,
-        "hostel_occupancy": hostel_occupancy,
-        "has_payroll": has_payroll,
-        "has_fees": has_fees,
-        "has_transport": has_transport,
-        "has_hostel": has_hostel,
-        "current_plan": plan,
-        "plan_name": plan_name,
-        "plan_features": plan_features,
-        "trial_expired": school.is_trial_expired(),
-    })
+    return render(
+        request,
+        "core/dashboards/admin_dashboard.html",
+        {
+            "total_students": total_students,
+            "total_teachers": total_teachers,
+            "today_attendance_pct": today_attendance_pct,
+            "staff_attendance_pct": staff_attendance_pct,
+            "fee_today_amt": fee_today_amt,
+            "fee_month_amt": fee_month_amt,
+            "pending_fees": pending_fees,
+            "has_fees": has_fees,
+            "has_attendance": has_attendance,
+            "has_exams": has_exams,
+            "fees_enabled": has_fees,
+            "attendance_enabled": has_attendance,
+            "exams_enabled": has_exams,
+            "total_classes": total_classes,
+            "total_sections": total_sections,
+            "total_subjects": total_subjects,
+            "active_academic_year_label": active_academic_year_label,
+            "upcoming_exams_count": upcoming_exams_count,
+            "upcoming_exams": upcoming_exams,
+            "today_birthdays": today_birthdays,
+            "pending_attendance": pending_attendance,
+            "top_students": top_students,
+            "class_distribution": class_distribution,
+            "attendance_trend": attendance_trend,
+            "show_class_chart": show_class_chart,
+            "show_attendance_trend": show_attendance_trend,
+            "today_iso": today.isoformat(),
+            "current_plan": plan,
+            "plan_name": plan_name,
+            "plan_features": plan_features,
+            "trial_expired": school.is_trial_expired(),
+        },
+    )
 
 
 # ======================
@@ -1323,7 +1314,54 @@ def _student_exam_summaries(student):
 
 @student_required
 def student_marks(request):
-    return render(request, "core/student_dashboard/marks.html")
+    """
+    Flat results table: Exam | Subject | Marks | Total | % — only for logged-in student.
+    """
+    school = getattr(request.user, "school", None)
+    if not has_feature_access(school, "exams"):
+        return HttpResponseForbidden("Upgrade your plan to access this feature")
+    student = getattr(request.user, "student_profile", None)
+    if not student:
+        return render(
+            request,
+            "core/student_dashboard/marks.html",
+            {"mark_rows": [], "exam_summaries": []},
+        )
+    marks_qs = (
+        Marks.objects.filter(student=student)
+        .select_related("exam", "subject")
+        .order_by("-exam__date", "-exam__id", "subject__name")
+    )
+    mark_rows = []
+    for m in marks_qs:
+        total = m.total_marks or 0
+        obtained = m.marks_obtained or 0
+        pct = round((obtained / total * 100) if total else 0, 1)
+        exam_name = m.exam.name if m.exam else (m.exam_name or "—")
+        exam_date = m.exam.date if m.exam else m.exam_date
+        mark_rows.append({
+            "exam_id": m.exam_id,
+            "exam_name": exam_name,
+            "exam_date": exam_date,
+            "subject": m.subject.name if m.subject else "—",
+            "marks_obtained": obtained,
+            "total_marks": total,
+            "pct": pct,
+            "grade": _grade_from_pct(pct),
+            "detail_url": (
+                reverse("core:student_exam_detail_by_id", args=[m.exam_id])
+                if m.exam_id
+                else None
+            ),
+        })
+    return render(
+        request,
+        "core/student_dashboard/marks.html",
+        {
+            "mark_rows": mark_rows,
+            "exam_summaries": _student_exam_summaries(student),
+        },
+    )
 
 
 @student_required
@@ -1345,7 +1383,7 @@ def student_exam_detail_by_id(request, exam_id):
     student = getattr(request.user, "student_profile", None)
     if not student:
         raise PermissionDenied
-    exam = get_object_or_404(Exam, id=exam_id)
+    exam = get_object_or_404(_exam_read_qs(), pk=exam_id)
     # Student must be in the exam's class+section
     if not student.classroom or not student.section:
         raise PermissionDenied
@@ -1708,7 +1746,7 @@ def student_report_card_view(request, exam_id):
     student = getattr(request.user, "student_profile", None)
     if not student:
         raise PermissionDenied
-    exam = get_object_or_404(Exam, id=exam_id)
+    exam = get_object_or_404(_exam_read_qs(), pk=exam_id)
     if not student.classroom or not student.section:
         raise PermissionDenied
     if student.classroom.name != exam.class_name or student.section.name != exam.section:
@@ -1755,7 +1793,7 @@ def student_report_card_pdf(request, exam_id):
     student = getattr(request.user, "student_profile", None)
     if not student:
         raise PermissionDenied
-    exam = get_object_or_404(Exam, id=exam_id)
+    exam = get_object_or_404(_exam_read_qs(), pk=exam_id)
     if not student.classroom or not student.section:
         raise PermissionDenied
     if student.classroom.name != exam.class_name or student.section.name != exam.section:
@@ -1827,7 +1865,11 @@ def school_students_list(request):
     if not school:
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:admin_dashboard")
-    qs = Student.objects.all().select_related("user", "classroom", "section")
+    qs = (
+        Student.objects.all()
+        .select_related("user", "classroom", "section")
+        .defer("academic_year")
+    )
     # Filters
     classroom_id = request.GET.get("classroom")
     if classroom_id:
@@ -1858,7 +1900,7 @@ def school_students_list(request):
 
 @admin_required
 def school_student_add(request):
-    """Add new student."""
+    """Add new student. Username = Admission Number. No auto-generation."""
     school = request.user.school
     if not school:
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
@@ -1866,26 +1908,64 @@ def school_student_add(request):
     from .forms import StudentAddForm
     form = StudentAddForm(school, request.POST or None)
     if request.method == "POST" and form.is_valid():
+        data = form.cleaned_data
+        first_name = data["first_name"]
+        roll_number = data["roll_number"]
+        admission_number = data["admission_number"].strip().upper()
+        password = data.get("password") or f"{first_name.capitalize()}@123"
+
         with transaction.atomic():
             user = User.objects.create_user(
-                username=form.cleaned_data["username"],
-                password=form.cleaned_data["password"],
-                first_name=form.cleaned_data["first_name"],
-                last_name=form.cleaned_data["last_name"],
+                username=admission_number,
+                password=password,
+                first_name=first_name,
+                last_name=data.get("last_name") or "",
+                email=data.get("email") or "",
                 role=User.Roles.STUDENT,
                 school=school,
+                is_first_login=True,
             )
             student = Student(
                 user=user,
-                classroom=form.cleaned_data.get("classroom"),
-                section=form.cleaned_data.get("section"),
-                roll_number=form.cleaned_data["roll_number"],
-                admission_number=form.cleaned_data.get("admission_number") or None,
-                date_of_birth=form.cleaned_data.get("date_of_birth"),
-                parent_name=form.cleaned_data.get("parent_name") or "",
-                parent_phone=form.cleaned_data.get("parent_phone") or "",
+                classroom=data.get("classroom"),
+                section=data.get("section"),
+                roll_number=roll_number,
+                admission_number=admission_number,
+                date_of_birth=data.get("date_of_birth"),
+                gender=data.get("gender") or "",
+                parent_name=data.get("parent_name") or "",
+                parent_phone=data.get("parent_phone") or "",
             )
             student.save_with_audit(request.user)
+
+        # Send credentials email (best-effort)
+        email_sent = False
+        if data.get("email"):
+            try:
+                from django.core.mail import send_mail
+                from django.conf import settings
+
+                from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@schoolerp.local")
+                subject = "Your School Login Credentials"
+                body = (
+                    f"Hello {first_name},\n\n"
+                    f"Your student account has been created.\n\n"
+                    f"Username: Your Admission Number ({admission_number})\n"
+                    f"Password: {password}\n\n"
+                    "Please change your password after first login.\n\n"
+                    "— School Admin"
+                )
+                send_mail(subject, body, from_email, [data["email"]], fail_silently=True)
+                email_sent = True
+            except Exception:
+                pass
+
+        msg = "Student created successfully."
+        if email_sent:
+            msg += " Login credentials sent to email."
+        else:
+            msg += f" Username (Admission Number): {admission_number} | Password: {password}"
+        messages.success(request, msg)
         return redirect("core:school_students_list")
     return render(request, "core/school/student_add.html", {"form": form})
 
@@ -1938,22 +2018,30 @@ def school_student_edit(request, student_id):
 
 
 @admin_required
+@feature_required("students")
+@require_POST
 def school_student_delete(request, student_id):
-    """Delete student (full delete: profile + user + related)."""
+    """Delete student: remove profile first, then linked user (no orphan accounts)."""
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
     student = get_object_or_404(Student, id=student_id)
-    if request.method != "POST":
+    if student.user.school_id != school.code:
+        messages.error(request, "You cannot delete this student.")
         return redirect("core:school_students_list")
-    # Placeholder: fees pending check (extend when fee module exists)
-    # if has_fees_pending(student):
-    #     messages.error(request, "Cannot delete: fees pending.")
-    #     return redirect("core:school_students_list")
-    with transaction.atomic():
-        user = student.user
-        student.delete()
-        user.delete()
+    user = student.user
+    display = user.get_full_name() or user.username
+    try:
+        with transaction.atomic():
+            student.delete()
+            user.delete()
+    except Exception:
+        messages.error(
+            request,
+            "Could not delete student. They may still be linked to fees, attendance, or other records.",
+        )
+        return redirect("core:school_students_list")
+    messages.success(request, f"Student “{display}” deleted successfully.")
     return redirect("core:school_students_list")
 
 
@@ -2211,11 +2299,35 @@ def school_academic_years(request):
     from .forms import AcademicYearForm
     from django.core.paginator import Paginator
 
+    # PostgreSQL: clear aborted transaction state before running list queries.
+    try:
+        if getattr(connection, "needs_rollback", False):
+            connection.rollback()
+    except Exception:
+        pass
+
     form = AcademicYearForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         obj = form.save(commit=False)
         obj.save_with_audit(request.user)
         return redirect("core:school_academic_years")
+
+    # Resolve active year + optional promotion stats first; rollback if promotion
+    # schema is missing so paginator/template queries are not run in a bad txn.
+    active_year = AcademicYear.objects.filter(is_active=True).order_by("-start_date").first()
+    promo_counts = {}
+    if active_year:
+        try:
+            for action, _label in StudentPromotion.Action.choices:
+                promo_counts[action] = StudentPromotion.objects.filter(
+                    from_year=active_year, action=action
+                ).count()
+        except (ProgrammingError, InternalError, OperationalError, DatabaseError):
+            promo_counts = {}
+            try:
+                connection.rollback()
+            except Exception:
+                pass
 
     qs = AcademicYear.objects.all().order_by("-start_date")
     search = request.GET.get("q", "").strip()
@@ -2224,10 +2336,18 @@ def school_academic_years(request):
     paginator = Paginator(qs, 15)
     page = request.GET.get("page", 1)
     academic_years = paginator.get_page(page)
+    next_year_candidates = (
+        AcademicYear.objects.exclude(id=active_year.id).order_by("start_date")
+        if active_year
+        else AcademicYear.objects.order_by("start_date")
+    )
     return render(request, "core/school/academic_year/list.html", {
         "form": form,
         "academic_years": academic_years,
         "filters": {"q": search},
+        "active_year": active_year,
+        "next_year_candidates": next_year_candidates,
+        "promo_counts": promo_counts,
     })
 
 
@@ -2271,7 +2391,298 @@ def school_academic_year_delete(request, year_id):
     ay = get_object_or_404(AcademicYear, id=year_id)
     if ay.is_active:
         return redirect("core:school_academic_years")
+    # Keep history safe: block delete if year is referenced.
+    try:
+        has_related = (
+            Student.objects.filter(academic_year=ay).exists()
+            or Exam.objects.filter(academic_year=ay).exists()
+            or Attendance.objects.filter(academic_year=ay).exists()
+            or Fee.objects.filter(academic_year=ay).exists()
+            or StudentEnrollment.objects.filter(academic_year=ay).exists()
+            or StudentPromotion.objects.filter(Q(from_year=ay) | Q(to_year=ay)).exists()
+        )
+    except ProgrammingError:
+        # If new tables/columns are not migrated yet, fall back to conservative checks.
+        has_related = False
+        try:
+            connection.rollback()
+        except Exception:
+            pass
+        try:
+            has_related = Student.objects.filter(classroom__academic_year=ay).exists()
+        except ProgrammingError:
+            try:
+                connection.rollback()
+            except Exception:
+                pass
+        try:
+            has_related = has_related or Exam.objects.filter(classroom__academic_year=ay).exists()
+        except ProgrammingError:
+            try:
+                connection.rollback()
+            except Exception:
+                pass
+        try:
+            has_related = has_related or Fee.objects.filter(fee_structure__academic_year=ay).exists()
+        except ProgrammingError:
+            try:
+                connection.rollback()
+            except Exception:
+                pass
+
+    if has_related:
+        messages.error(request, "Cannot delete academic year because related student/exam/attendance/fee/promotion data exists.")
+        return redirect("core:school_academic_years")
     ay.delete()
+    return redirect("core:school_academic_years")
+
+
+def _extract_grade_num(class_name: str):
+    import re
+
+    m = re.search(r"(\d+)", class_name or "")
+    return int(m.group(1)) if m else None
+
+
+def _suggest_promoted_class(current_classroom, target_year):
+    if not current_classroom:
+        return None
+    cur_no = _extract_grade_num(current_classroom.name)
+    if cur_no is None:
+        return None
+    target_no = cur_no + 1
+    for c in ClassRoom.objects.filter(academic_year=target_year).order_by("name"):
+        if _extract_grade_num(c.name) == target_no:
+            return c
+    return None
+
+
+@admin_required
+@feature_required("students")
+def school_promote_students(request):
+    school = request.user.school
+    if not school:
+        return redirect("core:admin_dashboard")
+    from .forms import PromoteStudentsFilterForm, PromoteStudentsActionForm
+
+    filter_form = PromoteStudentsFilterForm(school, request.GET or None)
+    action_form = PromoteStudentsActionForm(school, request.POST or None)
+    students = []
+    preview_rows = []
+    from_year = None
+    to_year = None
+
+    if filter_form.is_valid():
+        from_year = filter_form.cleaned_data["from_year"]
+        to_year = filter_form.cleaned_data["to_year"]
+        classroom = filter_form.cleaned_data.get("classroom")
+        section = filter_form.cleaned_data.get("section")
+        qs = Student.objects.select_related("user", "classroom", "section", "academic_year")
+        qs = qs.filter(academic_year=from_year)
+        if classroom:
+            qs = qs.filter(classroom=classroom)
+        if section:
+            qs = qs.filter(section=section)
+        students = list(qs.order_by("classroom__name", "section__name", "roll_number"))
+        for s in students:
+            suggested_class = _suggest_promoted_class(s.classroom, to_year)
+            is_final = suggested_class is None
+            preview_rows.append(
+                {
+                    "student": s,
+                    "suggested_class": suggested_class,
+                    "suggested_section": s.section,
+                    "is_final_class": is_final,
+                }
+            )
+
+    if request.method == "POST":
+        selected_ids = [int(x) for x in request.POST.getlist("student_ids") if str(x).isdigit()]
+        from_year_id = request.POST.get("from_year")
+        to_year_id = request.POST.get("to_year")
+        if not from_year_id or not to_year_id:
+            messages.error(request, "Select both source and target academic years.")
+            return redirect("core:school_promote_students")
+        from_year = AcademicYear.objects.filter(id=from_year_id).first()
+        to_year = AcademicYear.objects.filter(id=to_year_id).first()
+        if not from_year or not to_year:
+            messages.error(request, "Invalid academic year selection.")
+            return redirect("core:school_promote_students")
+        if not selected_ids:
+            messages.error(request, "Select at least one student.")
+            return redirect(f"{reverse('core:school_promote_students')}?from_year={from_year.id}&to_year={to_year.id}")
+        action = request.POST.get("action") or StudentPromotion.Action.PROMOTE
+        target_class_id = request.POST.get("target_classroom")
+        target_section_id = request.POST.get("target_section")
+        target_class = ClassRoom.objects.filter(id=target_class_id).first() if target_class_id else None
+        target_section = Section.objects.filter(id=target_section_id).first() if target_section_id else None
+        if target_section and target_class and not target_class.sections.filter(id=target_section.id).exists():
+            messages.error(request, "Target section must belong to selected target class.")
+            return redirect(f"{reverse('core:school_promote_students')}?from_year={from_year.id}&to_year={to_year.id}")
+
+        to_process = list(Student.objects.filter(id__in=selected_ids).select_related("classroom", "section", "academic_year"))
+        applied = 0
+        skipped = 0
+        with transaction.atomic():
+            for student in to_process:
+                if student.academic_year_id == to_year.id:
+                    skipped += 1
+                    continue
+                if StudentPromotion.objects.filter(student=student, from_year=from_year, to_year=to_year).exists():
+                    skipped += 1
+                    continue
+
+                from_class = student.classroom
+                from_section = student.section
+                new_class = student.classroom
+                new_section = student.section
+                final_class = False
+                if action == StudentPromotion.Action.PROMOTE:
+                    suggested = _suggest_promoted_class(student.classroom, to_year)
+                    if suggested is None:
+                        final_class = True
+                        skipped += 1
+                        continue
+                    new_class = suggested
+                elif action == StudentPromotion.Action.DEMOTE:
+                    cur_no = _extract_grade_num(student.classroom.name if student.classroom else "")
+                    wanted = (cur_no - 1) if cur_no else None
+                    fallback = None
+                    if wanted:
+                        for c in ClassRoom.objects.filter(academic_year=to_year).order_by("name"):
+                            if _extract_grade_num(c.name) == wanted:
+                                fallback = c
+                                break
+                    if fallback:
+                        new_class = fallback
+                elif action == StudentPromotion.Action.TRANSFER:
+                    if target_class:
+                        new_class = target_class
+                    if target_section:
+                        new_section = target_section
+                elif action == StudentPromotion.Action.DETAIN:
+                    # same class/section but move to next year
+                    pass
+
+                if action != StudentPromotion.Action.TRANSFER and new_class and new_section:
+                    if not new_class.sections.filter(id=new_section.id).exists():
+                        new_section = new_class.sections.order_by("name").first()
+
+                student.classroom = new_class
+                student.section = new_section
+                student.academic_year = to_year
+                student.save(update_fields=["classroom", "section", "academic_year"])
+
+                StudentEnrollment.objects.filter(student=student, is_current=True).update(is_current=False)
+                StudentEnrollment.objects.update_or_create(
+                    student=student,
+                    academic_year=to_year,
+                    defaults={
+                        "classroom": new_class,
+                        "section": new_section,
+                        "status": action,
+                        "is_current": True,
+                    },
+                )
+                StudentPromotion.objects.create(
+                    student=student,
+                    from_class=from_class,
+                    to_class=new_class,
+                    from_section=from_section,
+                    to_section=new_section,
+                    from_year=from_year,
+                    to_year=to_year,
+                    action=action,
+                    created_by=request.user,
+                )
+                applied += 1
+
+        if applied:
+            messages.success(request, f"Processed {applied} students successfully.")
+        if skipped:
+            messages.warning(request, f"Skipped {skipped} students (already promoted / invalid mapping / final class).")
+        return redirect(f"{reverse('core:school_promote_students')}?from_year={from_year.id}&to_year={to_year.id}")
+
+    return render(
+        request,
+        "core/school/promotions/index.html",
+        {
+            "filter_form": filter_form,
+            "action_form": action_form,
+            "students": students,
+            "preview_rows": preview_rows,
+            "from_year": from_year,
+            "to_year": to_year,
+        },
+    )
+
+
+@admin_required
+@feature_required("students")
+@require_POST
+def school_year_end_promote(request):
+    school = request.user.school
+    if not school:
+        return redirect("core:admin_dashboard")
+    active_year = get_active_academic_year_obj()
+    to_year_id = request.POST.get("to_year")
+    to_year = AcademicYear.objects.filter(id=to_year_id).first() if to_year_id else None
+    if not active_year or not to_year:
+        messages.error(request, "Please select valid active and target academic years.")
+        return redirect("core:school_academic_years")
+
+    students = list(Student.objects.filter(academic_year=active_year).select_related("classroom", "section"))
+    applied = 0
+    skipped = 0
+    with transaction.atomic():
+        for s in students:
+            if s.academic_year_id == to_year.id:
+                skipped += 1
+                continue
+            if StudentPromotion.objects.filter(student=s, from_year=active_year, to_year=to_year).exists():
+                skipped += 1
+                continue
+            next_class = _suggest_promoted_class(s.classroom, to_year)
+            if not next_class:
+                # final class: detain in same class-name if available in target year
+                same_named = ClassRoom.objects.filter(academic_year=to_year, name__iexact=(s.classroom.name if s.classroom else "")).first()
+                if not same_named:
+                    skipped += 1
+                    continue
+                next_class = same_named
+                action = StudentPromotion.Action.DETAIN
+            else:
+                action = StudentPromotion.Action.PROMOTE
+
+            next_section = s.section
+            if next_section and not next_class.sections.filter(id=next_section.id).exists():
+                next_section = next_class.sections.order_by("name").first()
+
+            old_class = s.classroom
+            old_section = s.section
+            s.classroom = next_class
+            s.section = next_section
+            s.academic_year = to_year
+            s.save(update_fields=["classroom", "section", "academic_year"])
+            StudentEnrollment.objects.filter(student=s, is_current=True).update(is_current=False)
+            StudentEnrollment.objects.update_or_create(
+                student=s,
+                academic_year=to_year,
+                defaults={"classroom": next_class, "section": next_section, "status": action, "is_current": True},
+            )
+            StudentPromotion.objects.create(
+                student=s,
+                from_class=old_class,
+                to_class=next_class,
+                from_section=old_section,
+                to_section=next_section,
+                from_year=active_year,
+                to_year=to_year,
+                action=action,
+                created_by=request.user,
+            )
+            applied += 1
+    messages.success(request, f"Year-end process completed. Applied: {applied}, skipped: {skipped}.")
     return redirect("core:school_academic_years")
 
 
@@ -2368,21 +2779,16 @@ def school_subjects(request):
         return redirect("core:admin_dashboard")
     from django.core.paginator import Paginator
 
-    qs = Subject.objects.all().select_related("classroom", "classroom__academic_year", "teacher", "teacher__user", "academic_year").order_by("academic_year", "classroom__name", "name")
-    academic_year_id = request.GET.get("academic_year")
-    if academic_year_id:
-        qs = qs.filter(academic_year_id=academic_year_id)
+    qs = Subject.objects.all().order_by("name")
     search = request.GET.get("q", "").strip()
     if search:
         qs = qs.filter(Q(name__icontains=search) | Q(code__icontains=search))
     paginator = Paginator(qs, 15)
     page = request.GET.get("page", 1)
     subjects = paginator.get_page(page)
-    academic_years = AcademicYear.objects.all().order_by("-start_date")
     return render(request, "core/school/subjects/list.html", {
         "subjects": subjects,
-        "academic_years": academic_years,
-        "filters": {"academic_year": academic_year_id, "q": search},
+        "filters": {"q": search},
     })
 
 
@@ -2429,161 +2835,6 @@ def school_subject_delete(request, subject_id):
 
 
 # ======================
-# School Admin: Subject -> Teacher Mappings
-# ======================
-
-@admin_required
-@feature_required("students")
-def school_subject_teacher_mapping(request):
-    school = request.user.school
-    if not school:
-        return redirect("core:admin_dashboard")
-
-    class_id = request.GET.get("class_id") or request.POST.get("class_id") or ""
-    section_id = request.GET.get("section_id") or request.POST.get("section_id") or ""
-
-    selected_class = None
-    selected_section = None
-    if class_id and section_id:
-        selected_class = get_object_or_404(ClassRoom, id=int(class_id))
-        selected_section = get_object_or_404(Section, id=int(section_id))
-        # Ensure section is part of this class.
-        if not selected_class.sections.filter(id=selected_section.id).exists():
-            messages.error(request, "Selected section does not belong to the selected class.")
-            selected_class = None
-            selected_section = None
-
-    # For bulk mapping, we edit mappings for the current class+section selection.
-    teachers = (
-        Teacher.objects.filter(user__school=school)
-        .select_related("user")
-        .order_by("user__first_name", "user__last_name")
-    )
-
-    subjects = Subject.objects.none()
-    mappings_by_subject = {}
-    subject_rows = []
-    if selected_class and selected_section:
-        subjects = Subject.objects.filter(
-            Q(classroom=selected_class) | Q(classroom__isnull=True)
-        ).order_by("name")
-        existing = (
-            ClassSectionSubjectTeacher.objects.filter(
-                class_obj=selected_class,
-                section=selected_section,
-            )
-            .select_related("teacher__user", "subject")
-        )
-        mappings_by_subject = {m.subject_id: m for m in existing}
-        subject_rows = [
-            {
-                "subject": subj,
-                "mapped_teacher": mappings_by_subject.get(subj.id).teacher if mappings_by_subject.get(subj.id) else None,
-            }
-            for subj in subjects
-        ]
-
-    # Handle single-assignment form (add one mapping).
-    if request.method == "POST" and request.POST.get("assign_single"):
-        single_class_id = request.POST.get("class_obj")
-        single_section_id = request.POST.get("section")
-        single_subject_id = request.POST.get("subject")
-        single_teacher_id = request.POST.get("teacher")
-        if all([single_class_id, single_section_id, single_subject_id, single_teacher_id]):
-            try:
-                c = get_object_or_404(ClassRoom, id=int(single_class_id))
-                s = get_object_or_404(Section, id=int(single_section_id))
-                if not c.sections.filter(id=s.id).exists():
-                    messages.error(request, "Section does not belong to the selected class.")
-                else:
-                    subj = get_object_or_404(Subject, id=int(single_subject_id))
-                    t = get_object_or_404(Teacher, id=int(single_teacher_id), user__school=school)
-                    ClassSectionSubjectTeacher.objects.update_or_create(
-                        class_obj=c,
-                        section=s,
-                        subject=subj,
-                        defaults={"teacher": t},
-                    )
-                    messages.success(request, "Mapping assigned successfully.")
-            except (ValueError, TypeError):
-                messages.error(request, "Invalid selection. Please try again.")
-        else:
-            messages.error(request, "Please select Class, Section, Subject, and Teacher.")
-        return redirect("core:school_subject_teacher_mapping")
-
-    if request.method == "POST" and selected_class and selected_section:
-        # Bulk mapping: restrict updates to the subject list shown on the UI.
-        subject_ids = list(subjects.values_list("id", flat=True))
-        teachers_by_id = {t.id: t for t in teachers}
-
-        for sid in subject_ids:
-            subject = subjects.filter(id=sid).first()
-            if not subject:
-                continue
-
-            teacher_id_raw = (request.POST.get(f"subject_{sid}", "") or "").strip()
-            if not teacher_id_raw:
-                # Remove mapping if cleared.
-                ClassSectionSubjectTeacher.objects.filter(
-                    class_obj=selected_class,
-                    section=selected_section,
-                    subject_id=sid,
-                ).delete()
-                continue
-
-            if not teacher_id_raw.isdigit():
-                continue
-
-            teacher_id = int(teacher_id_raw)
-            teacher = teachers_by_id.get(teacher_id)
-            if not teacher:
-                continue
-
-            # Upsert mapping (unique constraint prevents duplicates).
-            ClassSectionSubjectTeacher.objects.update_or_create(
-                class_obj=selected_class,
-                section=selected_section,
-                subject=subject,
-                defaults={"teacher": teacher},
-            )
-
-        messages.success(request, "Subject-to-Teacher mappings saved successfully.")
-        return redirect(
-            "{}?class_id={}&section_id={}".format(
-                reverse("core:school_subject_teacher_mapping"),
-                selected_class.id,
-                selected_section.id,
-            )
-        )
-
-    # All mappings for the view table (filter by class/section if selected).
-    mappings_qs = (
-        ClassSectionSubjectTeacher.objects.all()
-        .select_related("class_obj", "section", "subject", "teacher__user")
-        .order_by("class_obj__name", "section__name", "subject__name")
-    )
-    if selected_class:
-        mappings_qs = mappings_qs.filter(class_obj=selected_class)
-    if selected_section:
-        mappings_qs = mappings_qs.filter(section=selected_section)
-
-    context = {
-        "title": "Subject-Teacher Mapping",
-        "classrooms": ClassRoom.objects.all().order_by("academic_year__start_date", "name"),
-        "sections": selected_class.sections.all().order_by("name") if selected_class else Section.objects.all().order_by("name"),
-        "selected_class": selected_class,
-        "selected_section": selected_section,
-        "teachers": teachers,
-        "subjects": subjects,
-        "subject_rows": subject_rows,
-        "mappings": mappings_qs,
-        "subjects_all": Subject.objects.all().order_by("name"),
-        "sections_all": Section.objects.all().order_by("name"),
-    }
-    return render(request, "core/school/subject_teacher_mapping.html", context)
-
-
-# ======================
 # Placeholder / Coming Soon
 # ======================
 
@@ -2599,52 +2850,28 @@ def teachers_list(request):
         if not student or not student.classroom:
             return render(request, "core/student/teachers_list.html", {"assignments": []})
 
-        subject_qs = (
-            Subject.objects.filter(
-                Q(classroom=student.classroom) | Q(classroom__isnull=True)
-            )
-            .select_related("teacher", "teacher__user")
-            .prefetch_related("teachers__user")
-            .order_by("name")
-        )
-
-        seen = set()
-        assignments = []
         section_name = student.section.name if student.section else "N/A"
         class_name = student.classroom.name
-
-        for subj in subject_qs:
-            if subj.teacher:
-                key = (subj.teacher_id, subj.id)
-                if key not in seen:
-                    seen.add(key)
-                    assignments.append(
-                        {
-                            "teacher": subj.teacher,
-                            "subject": subj.name,
-                            "class_name": class_name,
-                            "section_name": section_name,
-                        }
-                    )
-            for t in subj.teachers.all():
-                key = (t.id, subj.id)
-                if key not in seen:
-                    seen.add(key)
-                    assignments.append(
-                        {
-                            "teacher": t,
-                            "subject": subj.name,
-                            "class_name": class_name,
-                            "section_name": section_name,
-                        }
-                    )
-
-        assignments.sort(
-            key=lambda x: (
-                (x["teacher"].user.get_full_name() or x["teacher"].user.username).lower(),
-                x["subject"].lower(),
+        if not student.section:
+            assignments = []
+        else:
+            mappings = (
+                ClassSectionSubjectTeacher.objects.filter(
+                    class_obj=student.classroom,
+                    section=student.section,
+                )
+                .select_related("subject", "teacher__user")
+                .order_by("subject__name", "teacher__user__first_name")
             )
-        )
+            assignments = [
+                {
+                    "teacher": m.teacher,
+                    "subject": m.subject.name,
+                    "class_name": class_name,
+                    "section_name": section_name,
+                }
+                for m in mappings
+            ]
         return render(
             request,
             "core/student/teachers_list.html",
@@ -2654,10 +2881,255 @@ def teachers_list(request):
     return render(request, "core/placeholders/coming_soon.html", {"title": "Teachers"})
 
 @login_required
+@feature_required("attendance")
 def attendance_list(request):
-    if not has_feature_access(getattr(request.user, "school", None), "attendance"):
+    """School admin: mark and view student attendance by class, section, and date."""
+    if getattr(request.user, "role", None) != User.Roles.ADMIN:
+        return HttpResponseForbidden("School admin access required.")
+    school = request.user.school
+    if not school:
+        add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
+        return redirect("core:admin_dashboard")
+    if not has_feature_access(school, "attendance"):
         return HttpResponseForbidden("Upgrade your plan to access this feature")
-    return render(request, "core/placeholders/coming_soon.html", {"title": "Attendance"})
+
+    # Recover from a poisoned connection (e.g. prior query error in same request/thread).
+    try:
+        if getattr(connection, "needs_rollback", False):
+            connection.rollback()
+    except Exception:
+        pass
+
+    today = date.today()
+    classrooms = list(
+        ClassRoom.objects.prefetch_related("sections").order_by("academic_year", "name")
+    )
+    class_sections_data = [
+        {
+            "id": c.id,
+            "name": c.name,
+            "sections": [{"id": s.id, "name": s.name} for s in c.sections.all().order_by("name")],
+        }
+        for c in classrooms
+    ]
+
+    def _parse_int(val):
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return None
+
+    def _redirect_with_params(cid, sid, d_str, q_str):
+        params = {"attendance_date": d_str}
+        if cid:
+            params["classroom_id"] = cid
+        if sid:
+            params["section_id"] = sid
+        if q_str:
+            params["q"] = q_str
+        return redirect(reverse("core:attendance_list") + "?" + urlencode(params))
+
+    if request.method == "POST":
+        classroom_id = _parse_int(request.POST.get("classroom_id"))
+        section_id = _parse_int(request.POST.get("section_id"))
+        date_str = request.POST.get("attendance_date", "").strip()
+        search_q = request.POST.get("q", "").strip()
+
+        if not classroom_id or not section_id or not date_str:
+            messages.error(request, "Please select class, section, and date before saving.")
+            return redirect("core:attendance_list")
+
+        try:
+            att_date = date.fromisoformat(date_str)
+        except (ValueError, TypeError):
+            messages.error(request, "Invalid attendance date.")
+            return redirect("core:attendance_list")
+
+        if att_date > today:
+            messages.error(request, "Cannot mark attendance for a future date.")
+            return _redirect_with_params(classroom_id, section_id, date_str, search_q)
+
+        classroom = ClassRoom.objects.filter(pk=classroom_id).first()
+        if not classroom or not classroom.sections.filter(pk=section_id).exists():
+            messages.error(request, "Invalid class or section combination.")
+            return redirect("core:attendance_list")
+
+        try:
+            stud_qs = (
+                Student.objects.filter(classroom_id=classroom_id, section_id=section_id)
+                .select_related("user")
+                .defer("academic_year")
+                .order_by("roll_number")
+            )
+        except (ProgrammingError, InternalError, DatabaseError):
+            try:
+                connection.rollback()
+            except Exception:
+                pass
+            messages.error(
+                request,
+                "Student list could not be loaded (database schema may be outdated). Run "
+                f"{tenant_migrate_cli_hint(school)} then refresh.",
+            )
+            return _redirect_with_params(classroom_id, section_id, date_str, search_q)
+        if search_q:
+            sq = search_q.strip()
+            stud_qs = stud_qs.filter(
+                Q(user__first_name__icontains=sq)
+                | Q(user__last_name__icontains=sq)
+                | Q(user__username__icontains=sq)
+                | Q(admission_number__icontains=sq)
+                | Q(roll_number__icontains=sq)
+            )
+        students = list(stud_qs)
+
+        if not students:
+            messages.error(request, "No students match the current filters.")
+            return _redirect_with_params(classroom_id, section_id, date_str, search_q)
+
+        valid_status = set(Attendance.Status.values)
+        active_ay = get_active_academic_year_obj()
+
+        try:
+            with transaction.atomic():
+                for student in students:
+                    status = request.POST.get(f"status_{student.id}", Attendance.Status.PRESENT)
+                    if status not in valid_status:
+                        status = Attendance.Status.PRESENT
+                    defaults = {
+                        "status": status,
+                        "marked_by": request.user,
+                    }
+                    if active_ay is not None:
+                        defaults["academic_year"] = active_ay
+                    Attendance.objects.update_or_create(
+                        student=student,
+                        date=att_date,
+                        defaults=defaults,
+                    )
+        except ProgrammingError as exc:
+            try:
+                connection.rollback()
+            except Exception:
+                pass
+            err = (str(exc) or "").lower()
+            if "academic_year" in err or "column" in err or "does not exist" in err:
+                messages.error(
+                    request,
+                    "Attendance could not be saved: this school’s database schema is missing newer columns "
+                    "(for example attendance.academic_year). From the project root, run: "
+                    f"{tenant_migrate_cli_hint(school)}",
+                )
+            else:
+                messages.error(
+                    request,
+                    "Attendance could not be saved due to a database error. If this persists, run "
+                    f"{tenant_migrate_cli_hint(school)} and try again.",
+                )
+            return _redirect_with_params(classroom_id, section_id, date_str, search_q)
+        except (InternalError, DatabaseError):
+            # Do not call rollback() inside atomic(); outer handler after block exit.
+            try:
+                connection.rollback()
+            except Exception:
+                pass
+            messages.error(
+                request,
+                "Attendance could not be saved (database error—often a failed transaction or outdated schema). "
+                f"Run {tenant_migrate_cli_hint(school)} then try again.",
+            )
+            return _redirect_with_params(classroom_id, section_id, date_str, search_q)
+
+        messages.success(
+            request,
+            f"Attendance saved for {len(students)} student(s) on {att_date}.",
+        )
+        return _redirect_with_params(classroom_id, section_id, date_str, search_q)
+
+    # GET
+    classroom_id = _parse_int(request.GET.get("classroom_id"))
+    section_id = _parse_int(request.GET.get("section_id"))
+    date_str = request.GET.get("attendance_date", today.isoformat()).strip()
+    search_q = request.GET.get("q", "").strip()
+
+    try:
+        att_date = date.fromisoformat(date_str)
+    except (ValueError, TypeError):
+        att_date = today
+        date_str = today.isoformat()
+
+    future_date = att_date > today
+
+    students_with_status = []
+    section_valid_for_class = True
+    if classroom_id and section_id:
+        classroom = ClassRoom.objects.filter(pk=classroom_id).first()
+        if not classroom:
+            section_valid_for_class = False
+        elif not classroom.sections.filter(pk=section_id).exists():
+            section_valid_for_class = False
+        else:
+            try:
+                stud_qs = (
+                    Student.objects.filter(classroom_id=classroom_id, section_id=section_id)
+                    .select_related("user")
+                    .defer("academic_year")
+                    .order_by("roll_number")
+                )
+            except (ProgrammingError, InternalError, DatabaseError):
+                try:
+                    connection.rollback()
+                except Exception:
+                    pass
+                stud_qs = Student.objects.none()
+            if search_q:
+                sq = search_q.strip()
+                stud_qs = stud_qs.filter(
+                    Q(user__first_name__icontains=sq)
+                    | Q(user__last_name__icontains=sq)
+                    | Q(user__username__icontains=sq)
+                    | Q(admission_number__icontains=sq)
+                    | Q(roll_number__icontains=sq)
+                )
+            students = list(stud_qs)
+            if students:
+                try:
+                    att_map = {
+                        a.student_id: a.status
+                        for a in Attendance.objects.filter(
+                            student__in=students,
+                            date=att_date,
+                        ).defer("academic_year")
+                    }
+                except (ProgrammingError, InternalError, DatabaseError):
+                    try:
+                        connection.rollback()
+                    except Exception:
+                        pass
+                    att_map = {}
+                students_with_status = [
+                    {
+                        "student": s,
+                        "status": att_map.get(s.id, Attendance.Status.PRESENT),
+                    }
+                    for s in students
+                ]
+
+    return render(
+        request,
+        "core/school/attendance_mark.html",
+        {
+            "class_sections_data": class_sections_data,
+            "classroom_id": classroom_id,
+            "section_id": section_id,
+            "attendance_date": date_str,
+            "search_q": search_q,
+            "students_with_status": students_with_status,
+            "future_date": future_date,
+            "section_valid_for_class": section_valid_for_class,
+            "status_choices": Attendance.Status.choices,
+        },
+    )
 
 @login_required
 def marks_list(request):
@@ -2743,19 +3215,22 @@ def homework_list(request):
                     sections=student.section,
                 ).prefetch_related("classes", "sections", "assigned_by")
             )
-        # Legacy: homework with subject matching student's class
+        mapped_subject_ids = list(
+            ClassSectionSubjectTeacher.objects.filter(
+                class_obj=student.classroom,
+                section=student.section,
+            ).values_list("subject_id", flat=True)
+        )
+        # Legacy: homework tied to a subject assigned to this class+section
         hw_legacy = Homework.objects.filter(
-            subject__isnull=False,
-            subject__classroom=student.classroom,
+            subject_id__in=mapped_subject_ids,
         ).select_related("subject", "teacher", "teacher__user")
         hw_ids_legacy = set(hw_legacy.values_list("id", flat=True))
         hw_new = [h for h in hw_class_section if h.id not in hw_ids_legacy]
         assignments_raw = list(hw_legacy) + hw_new
         assignments_raw.sort(key=lambda h: (h.due_date, -h.id))
 
-        subject_qs = Subject.objects.filter(
-            Q(classroom=student.classroom) | Q(classroom__isnull=True)
-        ).order_by("name")
+        subject_qs = Subject.objects.filter(id__in=mapped_subject_ids).order_by("name")
         subject_id = (request.GET.get("subject") or "").strip()
         status_filter = (request.GET.get("status") or "").strip().upper()
 
@@ -2831,7 +3306,14 @@ def student_homework_submit(request, homework_id):
         if not student.section_id or not homework.classes.filter(id=student.classroom_id).exists() or not homework.sections.filter(id=student.section_id).exists():
             raise PermissionDenied
     elif homework.subject:
-        if homework.subject.classroom_id and homework.subject.classroom_id != student.classroom_id:
+        if not student.section_id:
+            raise PermissionDenied
+        allowed = ClassSectionSubjectTeacher.objects.filter(
+            class_obj_id=student.classroom_id,
+            section_id=student.section_id,
+            subject_id=homework.subject_id,
+        ).exists()
+        if not allowed:
             raise PermissionDenied
     else:
         raise PermissionDenied
@@ -2911,99 +3393,6 @@ def reports_list(request):
     if not has_feature_access(getattr(request.user, "school", None), "reports"):
         return HttpResponseForbidden("Upgrade your plan to access this feature")
     return render(request, "core/placeholders/coming_soon.html", {"title": "Reports"})
-
-
-@admin_required
-def school_reports_dashboard(request):
-    """
-    School Reports Dashboard: charts + report cards.
-    Uses Marks aggregates for analytics.
-    """
-    if not has_feature_access(getattr(request.user, "school", None), "reports"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
-    from apps.school_data.models import Marks
-    from django.db.models import Sum
-    import json
-
-    qs = Marks.objects.filter(exam__isnull=False)
-
-    # Top 10 students by percentage
-    agg = qs.values("student_id").annotate(
-        total_o=Sum("marks_obtained"), total_m=Sum("total_marks")
-    )
-    top_students = []
-    for row in agg:
-        if row["total_m"]:
-            pct = round(row["total_o"] / row["total_m"] * 100, 1)
-            top_students.append((row["student_id"], pct))
-    top_students.sort(key=lambda x: -x[1])
-    top_students = top_students[:10]
-    student_map = {
-        s.id: s
-        for s in Student.objects.filter(id__in=[sid for sid, _ in top_students]).select_related(
-            "user", "classroom"
-        )
-    }
-    chart_top_labels = [
-        (student_map[sid].user.get_full_name() or student_map[sid].user.username)
-        if sid in student_map
-        else str(sid)
-        for sid, _ in top_students
-    ]
-    chart_top_values = [pct for _, pct in top_students]
-
-    # Grade distribution (simple A/B/C/D buckets) based on top students
-    grade_buckets = {"A": 0, "B": 0, "C": 0, "D": 0}
-    for _, pct in top_students:
-        if pct >= 80:
-            grade_buckets["A"] += 1
-        elif pct >= 65:
-            grade_buckets["B"] += 1
-        elif pct >= 50:
-            grade_buckets["C"] += 1
-        else:
-            grade_buckets["D"] += 1
-
-    # Class-wise average percentage
-    class_agg = (
-        qs.values("student__classroom__name")
-        .annotate(total_o=Sum("marks_obtained"), total_m=Sum("total_marks"))
-        .order_by("student__classroom__name")
-    )
-    class_labels = []
-    class_values = []
-    for row in class_agg:
-        cname = row["student__classroom__name"] or "Unassigned"
-        if row["total_m"]:
-            pct = round(row["total_o"] / row["total_m"] * 100, 1)
-            class_labels.append(cname)
-            class_values.append(pct)
-
-    # Performance trend over exams (average percentage per exam)
-    exam_agg = (
-        qs.values("exam_id", "exam__name")
-        .annotate(total_o=Sum("marks_obtained"), total_m=Sum("total_marks"))
-        .order_by("exam__date")
-    )
-    trend_labels = []
-    trend_values = []
-    for row in exam_agg:
-        if row["total_m"]:
-            pct = round(row["total_o"] / row["total_m"] * 100, 1)
-            trend_labels.append(row["exam__name"] or "Exam")
-            trend_values.append(pct)
-
-    context = {
-        "chart_top_labels": json.dumps(chart_top_labels),
-        "chart_top_values": json.dumps(chart_top_values),
-        "grade_labels": json.dumps(list(grade_buckets.keys())),
-        "grade_values": json.dumps(list(grade_buckets.values())),
-        "class_labels": json.dumps(class_labels),
-        "class_values": json.dumps(class_values),
-        "trend_labels": json.dumps(trend_labels),
-        "trend_values": json.dumps(trend_values),
-    }
-    return render(request, "core/reports/dashboard.html", context)
 
 
 # ======================
@@ -3116,7 +3505,12 @@ def _teacher_allowed_class_section_pairs(teacher):
 
 
 def _teacher_exam_access(exam, school, teacher):
-    """Teacher can access an exam if assigned to them, or if (class_name, section) is in their scope."""
+    """
+    Teacher may access an exam only if:
+    - exam.teacher is set and matches this teacher, OR
+    - exam.teacher is unset and (class_name, section) is in their ClassSectionSubjectTeacher scope.
+    Other teachers' assigned exams are never accessible.
+    """
     if exam is None or not teacher:
         return False
     if getattr(exam, "teacher_id", None) and exam.teacher_id:
@@ -3142,7 +3536,11 @@ def teacher_exams(request):
         scope_q = Q()
         for class_name, section_name in allowed_pairs:
             scope_q |= Q(class_name__iexact=class_name, section__iexact=section_name)
-        qs = Exam.objects.filter(assigned_q | (Q(teacher__isnull=True) & scope_q))
+        qs = (
+            _exam_read_qs()
+            .filter(assigned_q | (Q(teacher__isnull=True) & scope_q))
+            .select_related("subject")
+        )
     else:
         qs = Exam.objects.none()
     exam_objs = list(qs.order_by("-date"))
@@ -3155,88 +3553,716 @@ def teacher_exams(request):
 @feature_required("exams")
 def school_exams_list(request):
     """
-    School Admin: view all exams in the current school (tenant schema).
-    Includes exams created by teachers and admins.
-    """
-    from apps.school_data.models import ClassRoom
-
-    qs = Exam.objects.filter(date__isnull=False, section__isnull=False).order_by("-date")
-
-    class_id = request.GET.get("classroom") or ""
-    if class_id:
-        try:
-            classroom_obj = ClassRoom.objects.get(id=class_id)
-            qs = qs.filter(class_name=classroom_obj.name)
-        except ClassRoom.DoesNotExist:
-            qs = qs.none()
-
-    exams = qs
-    classrooms = ClassRoom.objects.all().order_by("name")
-
-    return render(
-        request,
-        "core/school/exams_list.html",
-        {
-            "exams": exams,
-            "classrooms": classrooms,
-            "filters": {"classroom": class_id},
-        },
-    )
-
-
-@admin_required
-@feature_required("exams")
-def school_exam_create(request):
-    """
-    School Admin: create exam(s) for class + section(s), optionally assign teacher.
-    Creates one exam per selected section. Assigned teacher sees it in their list.
+    School Admin: exam sessions (multi-subject) + legacy single papers without a session.
+    Filter by class, section, teacher, subject, search.
     """
     school = request.user.school
     if not school:
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:admin_dashboard")
 
-    from .forms import SchoolExamCreateForm
-    from apps.school_data.models import Teacher
+    class_id = request.GET.get("classroom") or ""
+    section_id = request.GET.get("section") or ""
+    teacher_id = request.GET.get("teacher") or ""
+    subject_id = request.GET.get("subject") or ""
+    q = (request.GET.get("q") or "").strip()
+
+    # Recover if a previous DB error left the connection in aborted state.
+    try:
+        if getattr(connection, "needs_rollback", False):
+            connection.rollback()
+    except Exception:
+        pass
+
+    exam_sessions_enabled = True
+    try:
+        session_qs = (
+            ExamSession.objects.select_related("created_by", "classroom")
+            .annotate(
+                paper_count=Count("papers", distinct=True),
+                date_min=Min("papers__date"),
+                date_max=Max("papers__date"),
+            )
+            .order_by("-created_at", "-id")
+        )
+
+        if class_id:
+            try:
+                classroom_obj = ClassRoom.objects.get(id=class_id)
+                session_qs = session_qs.filter(class_name=classroom_obj.name)
+            except ClassRoom.DoesNotExist:
+                session_qs = ExamSession.objects.none()
+
+        if section_id:
+            try:
+                sec = Section.objects.get(id=section_id)
+                session_qs = session_qs.filter(section__iexact=sec.name)
+            except Section.DoesNotExist:
+                session_qs = ExamSession.objects.none()
+
+        if teacher_id.isdigit():
+            session_qs = session_qs.filter(papers__teacher_id=int(teacher_id)).distinct()
+
+        if subject_id.isdigit():
+            session_qs = session_qs.filter(papers__subject_id=int(subject_id)).distinct()
+
+        if q:
+            session_qs = session_qs.filter(name__icontains=q)
+
+        exam_sessions = list(session_qs)
+    except (ProgrammingError, InternalError, DatabaseError):
+        # Tenant schema has not run the ExamSession/session_id migration yet.
+        exam_sessions_enabled = False
+        exam_sessions = []
+        try:
+            connection.rollback()
+        except Exception:
+            pass
+
+    legacy_qs = (
+        _exam_read_qs()
+        .filter(date__isnull=False)
+        .exclude(section="")
+        .select_related("teacher__user", "created_by", "subject")
+        .order_by("-date", "-id")
+    )
+    if exam_sessions_enabled:
+        legacy_qs = legacy_qs.filter(session__isnull=True)
+
+    if class_id:
+        try:
+            classroom_obj = ClassRoom.objects.get(id=class_id)
+            legacy_qs = legacy_qs.filter(class_name=classroom_obj.name)
+        except ClassRoom.DoesNotExist:
+            legacy_qs = legacy_qs.none()
+
+    if section_id:
+        try:
+            sec = Section.objects.get(id=section_id)
+            legacy_qs = legacy_qs.filter(section__iexact=sec.name)
+        except Section.DoesNotExist:
+            legacy_qs = legacy_qs.none()
+
+    if teacher_id.isdigit():
+        legacy_qs = legacy_qs.filter(teacher_id=int(teacher_id))
+
+    if subject_id.isdigit():
+        legacy_qs = legacy_qs.filter(marks__subject_id=int(subject_id)).distinct()
+
+    if q:
+        legacy_qs = legacy_qs.filter(name__icontains=q)
+
+    try:
+        legacy_exams = list(legacy_qs)
+    except (ProgrammingError, InternalError, DatabaseError):
+        legacy_exams = []
+        try:
+            connection.rollback()
+        except Exception:
+            pass
+
+    try:
+        if getattr(connection, "needs_rollback", False):
+            connection.rollback()
+    except Exception:
+        pass
+
+    try:
+        classrooms = ClassRoom.objects.all().order_by("name")
+        sections = Section.objects.all().order_by("name")
+        teachers = (
+            Teacher.objects.filter(user__school=school).select_related("user").order_by(
+                "user__first_name", "user__last_name"
+            )
+            if school
+            else Teacher.objects.none()
+        )
+        subjects = Subject.objects.all().order_by("name")
+    except (ProgrammingError, InternalError, DatabaseError):
+        try:
+            connection.rollback()
+        except Exception:
+            pass
+        classrooms = ClassRoom.objects.none()
+        sections = Section.objects.none()
+        teachers = Teacher.objects.none()
+        subjects = Subject.objects.none()
+
+    return render(
+        request,
+        "core/school/exams_list.html",
+        {
+            "exam_sessions": exam_sessions,
+            "exam_sessions_enabled": exam_sessions_enabled,
+            "legacy_exams": legacy_exams,
+            "classrooms": classrooms,
+            "sections": sections,
+            "teachers": teachers,
+            "subjects": subjects,
+            "filters": {
+                "classroom": class_id,
+                "section": section_id,
+                "teacher": teacher_id,
+                "subject": subject_id,
+                "q": q,
+            },
+        },
+    )
+
+
+@admin_required
+@feature_required("exams")
+def school_exam_session_detail(request, session_id):
+    """Admin: papers (subjects + dates) under one exam session."""
+    school = request.user.school
+    if not school:
+        add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
+        return redirect("core:admin_dashboard")
+
+    session_obj = get_object_or_404(
+        ExamSession.objects.select_related("created_by", "classroom"),
+        pk=session_id,
+    )
+    papers = list(
+        _exam_read_qs()
+        .filter(session=session_obj)
+        .select_related("subject", "teacher__user", "created_by")
+        .order_by("date", "subject__name")
+    )
+    return render(
+        request,
+        "core/school/exam_session_detail.html",
+        {
+            "session": session_obj,
+            "papers": papers,
+        },
+    )
+
+
+def _exam_teacher_for_school(school, teacher_id):
+    if not teacher_id:
+        return None
+    return Teacher.objects.filter(id=teacher_id, user__school=school).first()
+
+
+def _exam_duplicate(class_name, section_name, dt, subject, exclude_pk=None):
+    """Block duplicate (class, section, date, subject) when subject is set."""
+    qs = Exam.objects.filter(class_name=class_name, section=section_name, date=dt)
+    if exclude_pk:
+        qs = qs.exclude(pk=exclude_pk)
+    if subject is not None:
+        qs = qs.filter(subject_id=subject.id)
+    else:
+        qs = qs.filter(subject__isnull=True)
+    return qs.exists()
+
+
+def _exam_class_section_date_conflict(class_name, section_name, dt, exclude_pk=None):
+    """True if another exam exists for the same class, section, and date (any subject)."""
+    qs = Exam.objects.filter(class_name=class_name, section__iexact=section_name, date=dt)
+    if exclude_pk:
+        qs = qs.exclude(pk=exclude_pk)
+    return qs.exists()
+
+
+def _exam_teacher_date_conflict(teacher_id, dt, exclude_pk=None):
+    if not teacher_id:
+        return False
+    qs = Exam.objects.filter(teacher_id=teacher_id, date=dt)
+    if exclude_pk:
+        qs = qs.exclude(pk=exclude_pk)
+    return qs.exists()
+
+
+def _exam_read_qs():
+    """
+    Exam rows without loading start_time/end_time (omits columns from SELECT).
+    Use until migration 0017_exam_start_end_time is applied on the schema.
+    """
+    # Defer newly added columns for tenant schemas that may lag migrations,
+    # preventing SELECT on missing columns (e.g., session_id, academic_year_id).
+    return Exam.objects.defer("start_time", "end_time", "session", "academic_year")
+
+
+def _parse_exam_calendar_date(value):
+    """Parse FullCalendar startStr / API payload to a date."""
+    from datetime import datetime as _dt
+
+    if not value:
+        raise ValueError("missing date")
+    s = str(value).strip()
+    if "T" in s:
+        s = s.split("T", 1)[0]
+    return _dt.strptime(s[:10], "%Y-%m-%d").date()
+
+
+def _exam_events_queryset(request):
+    """
+    Exams visible to the current user for the calendar API.
+    Admin: all (optional filters). Teacher: assigned or in mapped class+section. Student: own class+section.
+    """
+    role = getattr(request.user, "role", None)
+    qs = (
+        _exam_read_qs()
+        .filter(date__isnull=False)
+        .exclude(section="")
+        .select_related("subject", "teacher__user")
+    )
+
+    if role == "ADMIN":
+        pass
+    elif role == "TEACHER":
+        teacher = getattr(request.user, "teacher_profile", None)
+        if teacher:
+            assigned_q = Q(teacher=teacher)
+            scope_q = Q()
+            for class_name, section_name in _teacher_allowed_class_section_pairs(teacher):
+                scope_q |= Q(class_name__iexact=class_name, section__iexact=section_name)
+            qs = qs.filter(assigned_q | (Q(teacher__isnull=True) & scope_q))
+        else:
+            qs = Exam.objects.none()
+    elif role == "STUDENT":
+        st = getattr(request.user, "student_profile", None)
+        if st and st.classroom:
+            sn = st.section.name if st.section else ""
+            qs = qs.filter(class_name=st.classroom.name, section__iexact=sn)
+        else:
+            qs = Exam.objects.none()
+    else:
+        qs = Exam.objects.none()
+
+    class_id = request.GET.get("classroom") or ""
+    if class_id.isdigit():
+        try:
+            classroom_obj = ClassRoom.objects.get(id=int(class_id))
+            qs = qs.filter(class_name=classroom_obj.name)
+        except ClassRoom.DoesNotExist:
+            qs = qs.none()
+
+    section_id = request.GET.get("section") or ""
+    if section_id.isdigit():
+        try:
+            sec = Section.objects.get(id=int(section_id))
+            qs = qs.filter(section__iexact=sec.name)
+        except Section.DoesNotExist:
+            qs = qs.none()
+
+    if role == "ADMIN":
+        teacher_id = request.GET.get("teacher") or ""
+        if teacher_id.isdigit():
+            qs = qs.filter(teacher_id=int(teacher_id))
+
+    subject_id = request.GET.get("subject") or ""
+    if subject_id.isdigit():
+        qs = qs.filter(subject_id=int(subject_id))
+
+    return qs.order_by("date", "id")
+
+
+_EXAM_CALENDAR_COLORS = (
+    "#2e7d32",
+    "#1565c0",
+    "#6a1b9a",
+    "#c62828",
+    "#ef6c00",
+    "#00838f",
+    "#4527a0",
+    "#558b2f",
+)
+
+
+def _exam_event_color(exam):
+    if exam.subject_id:
+        return _EXAM_CALENDAR_COLORS[exam.subject_id % len(_EXAM_CALENDAR_COLORS)]
+    return "#607d8b"
+
+
+def _exam_to_fc_event(exam):
+    from datetime import datetime as _dt
+
+    color = _exam_event_color(exam)
+    subj_name = exam.subject.name if exam.subject else "General"
+    t_name = ""
+    if exam.teacher_id and exam.teacher:
+        t_name = exam.teacher.user.get_full_name() or exam.teacher.user.username
+    title = f"{subj_name} ({exam.class_name} · {exam.section})"
+    ext = {
+        "exam_name": exam.name,
+        "subject": subj_name,
+        "class_name": exam.class_name,
+        "section": exam.section,
+        "teacher": t_name or "—",
+    }
+    ev = {
+        "id": str(exam.pk),
+        "title": title[:120],
+        "backgroundColor": color,
+        "borderColor": color,
+        "textColor": "#ffffff",
+        "extendedProps": ext,
+    }
+    # Avoid loading deferred time fields (or missing DB columns before migration 0017).
+    deferred = exam.get_deferred_fields()
+    if "start_time" not in deferred and "end_time" not in deferred and exam.start_time and exam.end_time:
+        start = _dt.combine(exam.date, exam.start_time)
+        end = _dt.combine(exam.date, exam.end_time)
+        ev["start"] = start.isoformat(timespec="minutes")
+        ev["end"] = end.isoformat(timespec="minutes")
+        ev["allDay"] = False
+    else:
+        ev["start"] = exam.date.isoformat()
+        ev["allDay"] = True
+    return ev
+
+
+@admin_required
+@feature_required("exams")
+def school_exam_create(request):
+    """
+    School Admin: single exam (one subject, one date) or bulk schedule
+    (multiple subjects on consecutive days within a date range).
+    """
+    school = request.user.school
+    if not school:
+        add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
+        return redirect("core:admin_dashboard")
+
+    from .forms import SchoolExamSingleForm, SchoolExamSchedulerForm
+
+    single_form = SchoolExamSingleForm(school)
+    scheduler_form = SchoolExamSchedulerForm(school)
 
     if request.method == "POST":
-        form = SchoolExamCreateForm(school, request.POST)
-        if form.is_valid():
-            name = form.cleaned_data["name"]
-            class_name = form.cleaned_data["class_name"]
-            sections = form.cleaned_data["sections"]
-            exam_date = form.cleaned_data["date"]
-            teacher_id = form.cleaned_data.get("teacher")
+        mode = request.POST.get("create_mode") or "single"
+        if mode == "multiple":
+            scheduler_form = SchoolExamSchedulerForm(school, request.POST)
+            single_form = SchoolExamSingleForm(school)
+            if scheduler_form.is_valid():
+                class_ids = [int(x) for x in request.POST.getlist("classes") if str(x).isdigit()]
+                section_ids = [int(x) for x in request.POST.getlist("sections") if str(x).isdigit()]
+                subject_ids = [int(x) for x in request.POST.getlist("subject_include") if str(x).isdigit()]
+                tm = scheduler_form.cleaned_data["total_marks"]
+                exam_name_base = (scheduler_form.cleaned_data.get("exam_name") or "").strip()
+                teacher_obj = _exam_teacher_for_school(school, scheduler_form.cleaned_data.get("teacher"))
 
-            teacher_obj = None
-            if teacher_id:
-                teacher_obj = Teacher.objects.filter(id=teacher_id, user__school=school).first()
+                if not class_ids:
+                    messages.error(request, "Select at least one class.")
+                elif not section_ids:
+                    messages.error(request, "Select at least one section.")
+                elif not subject_ids:
+                    messages.error(request, "Select at least one subject and set a date for each (use the checkboxes).")
+                else:
+                    missing_dates = []
+                    for sid in subject_ids:
+                        if not (request.POST.get(f"exam_date_{sid}") or "").strip():
+                            missing_dates.append(sid)
+                    if missing_dates:
+                        messages.error(
+                            request,
+                            "Every checked subject must have an exam date.",
+                        )
+                    else:
+                        classrooms = {
+                            c.id: c
+                            for c in ClassRoom.objects.filter(id__in=class_ids).prefetch_related("sections")
+                        }
+                        sections_by_id = {s.id: s for s in Section.objects.filter(id__in=section_ids)}
+                        pair_items = []
+                        for cid in class_ids:
+                            c = classrooms.get(cid)
+                            if not c:
+                                continue
+                            allowed_sec_ids = set(c.sections.values_list("id", flat=True))
+                            for sid in section_ids:
+                                if sid not in allowed_sec_ids:
+                                    continue
+                                sec = sections_by_id.get(sid)
+                                if c and sec:
+                                    pair_items.append((c, sec.name))
 
-            created = 0
-            for section_name in sections:
-                Exam.objects.create(
-                    name=name,
-                    class_name=class_name,
-                    section=section_name,
-                    date=exam_date,
-                    created_by=request.user,
-                    teacher=teacher_obj,
-                )
-                created += 1
-            messages.success(request, f"Created {created} exam(s) successfully.")
-            return redirect("core:school_exams_list")
-    else:
-        form = SchoolExamCreateForm(school)
+                        pair_items.sort(key=lambda x: (x[0].name, x[1]))
+                        if not pair_items:
+                            messages.error(
+                                request,
+                                "No valid class–section combinations. Each section must belong to a selected class.",
+                            )
+                        else:
+                            subjects_by_id = {s.id: s for s in Subject.objects.filter(id__in=subject_ids)}
+                            papers_created = 0
+                            sessions_created = 0
+                            skipped = []
+                            with transaction.atomic():
+                                for classroom, sn in pair_items:
+                                    cn = classroom.name
+                                    session = ExamSession.objects.create(
+                                        name=exam_name_base[:100],
+                                        class_name=cn,
+                                        section=sn,
+                                        classroom=classroom,
+                                        created_by=request.user,
+                                    )
+                                    sessions_created += 1
+                                    for subj_id in subject_ids:
+                                        subj = subjects_by_id.get(subj_id)
+                                        if not subj:
+                                            skipped.append(f"Unknown subject id {subj_id}")
+                                            continue
+                                        raw = request.POST.get(f"exam_date_{subj_id}", "").strip()
+                                        try:
+                                            dt = date.fromisoformat(raw)
+                                        except (ValueError, TypeError):
+                                            skipped.append(f"{subj.name}: invalid date")
+                                            continue
+                                        if _exam_class_section_date_conflict(cn, sn, dt):
+                                            skipped.append(
+                                                f"{cn} {sn} {dt} ({subj.name}) — class already has an exam that day"
+                                            )
+                                            continue
+                                        if _exam_duplicate(cn, sn, dt, subj):
+                                            skipped.append(
+                                                f"{cn} {sn} {dt} ({subj.name}) — duplicate exam"
+                                            )
+                                            continue
+                                        paper_name = f"{exam_name_base} - {subj.name}"[:100]
+                                        Exam.objects.create(
+                                            session=session,
+                                            name=paper_name,
+                                            classroom=classroom,
+                                            class_name=cn,
+                                            section=sn,
+                                            date=dt,
+                                            subject=subj,
+                                            total_marks=tm,
+                                            teacher=teacher_obj,
+                                            created_by=request.user,
+                                        )
+                                        papers_created += 1
+                            if sessions_created:
+                                messages.success(
+                                    request,
+                                    f"Created {sessions_created} exam session(s) with {papers_created} subject paper(s).",
+                                )
+                            if skipped:
+                                messages.warning(request, "Skipped: " + "; ".join(skipped[:25]))
+                                if len(skipped) > 25:
+                                    messages.warning(request, f"…and {len(skipped) - 25} more.")
+                            if sessions_created or skipped:
+                                return redirect("core:school_exams_list")
+        else:
+            single_form = SchoolExamSingleForm(school, request.POST)
+            scheduler_form = SchoolExamSchedulerForm(school)
+            if single_form.is_valid():
+                cn = single_form.cleaned_data["class_name"]
+                sn = single_form.cleaned_data["section"]
+                subj = single_form.cleaned_data["subject"]
+                dt = single_form.cleaned_data["date"]
+                tm = single_form.cleaned_data["total_marks"]
+                if _exam_duplicate(cn, sn, dt, subj):
+                    messages.error(
+                        request,
+                        "An exam already exists for this class, section, date, and subject.",
+                    )
+                else:
+                    classroom_obj = (
+                        ClassRoom.objects.filter(name__iexact=cn.strip())
+                        .select_related("academic_year")
+                        .order_by("-academic_year__start_date", "id")
+                        .first()
+                    )
+                    Exam.objects.create(
+                        name=single_form.cleaned_data["name"][:100],
+                        classroom=classroom_obj,
+                        class_name=cn,
+                        section=sn,
+                        date=dt,
+                        subject=subj,
+                        total_marks=tm,
+                        teacher=_exam_teacher_for_school(school, single_form.cleaned_data.get("teacher")),
+                        created_by=request.user,
+                    )
+                    messages.success(request, "Exam created successfully.")
+                    return redirect("core:school_exams_list")
 
-    # Class -> section names for JS filtering
     class_sections = {}
     for c in ClassRoom.objects.prefetch_related("sections").order_by("name"):
         class_sections[c.name] = [s.name for s in c.sections.order_by("name")]
 
-    return render(request, "core/school/exam_create.html", {
-        "form": form,
-        "class_sections_json": json.dumps(class_sections),
-    })
+    scheduler_class_sections = []
+    for c in ClassRoom.objects.prefetch_related("sections").order_by(
+        "academic_year__start_date", "name"
+    ):
+        scheduler_class_sections.append(
+            {
+                "id": c.id,
+                "name": c.name,
+                "sections": [{"id": s.id, "name": s.name} for s in c.sections.order_by("name")],
+            }
+        )
+
+    existing = list(
+        Exam.objects.filter(subject__isnull=False)
+        .values("id", "name", "date", "class_name", "section", "subject_id")
+        .order_by("-date")[:500]
+    )
+
+    return render(
+        request,
+        "core/school/exam_create.html",
+        {
+            "single_form": single_form,
+            "scheduler_form": scheduler_form,
+            "all_subjects": Subject.objects.order_by("name"),
+            "all_classrooms": ClassRoom.objects.select_related("academic_year").order_by(
+                "academic_year__start_date", "name"
+            ),
+            "class_sections_json": json.dumps(class_sections),
+            "scheduler_class_sections_json": json.dumps(scheduler_class_sections, default=str),
+            "existing_exams_json": json.dumps(
+                [{"d": str(x["date"]), "c": x["class_name"], "s": x["section"], "sub": x["subject_id"]} for x in existing],
+                default=str,
+            ),
+        },
+    )
+
+
+@login_required
+@feature_required("exams")
+def exam_events_json(request):
+    """FullCalendar JSON feed — scoped by role; supports ?classroom=&section=&subject=&teacher= (admin teacher filter)."""
+    events = [_exam_to_fc_event(e) for e in _exam_events_queryset(request)]
+    return JsonResponse(events, safe=False)
+
+
+@admin_required
+@feature_required("exams")
+@require_POST
+def exam_patch_date_json(request):
+    """Drag-and-drop: update exam date (admin only). Enforces class/section/day and teacher/day conflicts."""
+    if not request.user.school:
+        return JsonResponse({"error": "Forbidden"}, status=403)
+    try:
+        payload = json.loads(request.body.decode())
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    exam_id = payload.get("id")
+    if exam_id is None or str(exam_id).strip() == "":
+        return JsonResponse({"error": "Missing exam id"}, status=400)
+    try:
+        eid = int(exam_id)
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "Invalid exam id"}, status=400)
+
+    try:
+        new_date = _parse_exam_calendar_date(payload.get("date"))
+    except (ValueError, TypeError):
+        return JsonResponse({"error": "Invalid date"}, status=400)
+
+    exam = _exam_read_qs().filter(pk=eid).first()
+    if not exam:
+        return JsonResponse({"error": "Exam not found"}, status=404)
+
+    if _exam_class_section_date_conflict(exam.class_name, exam.section, new_date, exclude_pk=exam.pk):
+        return JsonResponse(
+            {"error": "This class and section already have another exam on that date."},
+            status=409,
+        )
+    if _exam_teacher_date_conflict(exam.teacher_id, new_date, exclude_pk=exam.pk):
+        return JsonResponse(
+            {"error": "This teacher already has another exam on that date."},
+            status=409,
+        )
+
+    exam.date = new_date
+    exam.save(update_fields=["date"])
+    return JsonResponse({"status": "ok", "id": exam.pk, "date": exam.date.isoformat()})
+
+
+@login_required
+@feature_required("exams")
+def school_exam_calendar(request):
+    """FullCalendar view: admin can drag-drop; teachers and students read-only."""
+    school = getattr(request.user, "school", None)
+    role = getattr(request.user, "role", None)
+    can_edit = bool(school and role == "ADMIN")
+
+    classrooms = ClassRoom.objects.none()
+    sections = Section.objects.none()
+    teachers = Teacher.objects.none()
+    subjects = Subject.objects.order_by("name")
+    has_filters = role in ("ADMIN", "TEACHER")
+
+    if school and role == "ADMIN":
+        classrooms = ClassRoom.objects.select_related("academic_year").order_by("academic_year__start_date", "name")
+        sections = Section.objects.order_by("name")
+        teachers = (
+            Teacher.objects.filter(user__school=school)
+            .select_related("user")
+            .order_by("user__first_name", "user__last_name")
+        )
+    elif role == "TEACHER":
+        teacher = getattr(request.user, "teacher_profile", None)
+        if teacher:
+            pairs = (
+                ClassSectionSubjectTeacher.objects.filter(teacher=teacher)
+                .values_list("class_obj_id", "section_id")
+                .distinct()
+            )
+            cids = {p[0] for p in pairs if p[0]}
+            sids = {p[1] for p in pairs if p[1]}
+            classrooms = ClassRoom.objects.filter(id__in=cids).order_by("name")
+            sections = Section.objects.filter(id__in=sids).order_by("name")
+
+    return render(
+        request,
+        "core/school/exam_calendar.html",
+        {
+            "can_edit": can_edit,
+            "events_url": reverse("core:exam_events_json"),
+            "patch_url": reverse("core:exam_patch_date_json"),
+            "classrooms": classrooms,
+            "sections": sections,
+            "teachers": teachers,
+            "subjects": subjects,
+            "has_filters": has_filters,
+        },
+    )
+
+
+@admin_required
+@feature_required("exams")
+def school_exam_edit(request, exam_id):
+    school = request.user.school
+    if not school:
+        return redirect("core:admin_dashboard")
+    # Full row: edit form includes start_time/end_time (requires DB columns from 0017).
+    exam = get_object_or_404(Exam, pk=exam_id)
+    from .forms import SchoolExamEditForm
+
+    form = SchoolExamEditForm(school, request.POST or None, instance=exam)
+    if request.method == "POST" and form.is_valid():
+        cn = form.cleaned_data["class_name"]
+        sn = form.cleaned_data["section"]
+        dt = form.cleaned_data["date"]
+        subj = form.cleaned_data.get("subject")
+        teacher_obj = form.cleaned_data.get("teacher")
+
+        if _exam_class_section_date_conflict(cn, sn, dt, exclude_pk=exam.pk):
+            messages.error(request, "This class and section already have another exam on that date.")
+        elif _exam_teacher_date_conflict(teacher_obj.pk if teacher_obj else None, dt, exclude_pk=exam.pk):
+            messages.error(request, "This teacher already has another exam on that date.")
+        elif _exam_duplicate(cn, sn, dt, subj, exclude_pk=exam.pk):
+            messages.error(request, "An exam already exists for this class, section, date, and subject.")
+        else:
+            form.save()
+            messages.success(request, "Exam updated.")
+            return redirect("core:school_exam_calendar")
+
+    return render(
+        request,
+        "core/school/exam_edit.html",
+        {"form": form, "exam": exam, "title": "Edit exam"},
+    )
 
 
 @teacher_required
@@ -3288,7 +4314,7 @@ def teacher_exam_summary(request, exam_id):
         return redirect("core:teacher_dashboard")
     if not has_feature_access(school, "exams"):
         return HttpResponseForbidden("Upgrade your plan to access this feature")
-    exam = get_object_or_404(Exam, id=exam_id)
+    exam = get_object_or_404(_exam_read_qs(), pk=exam_id)
     teacher = getattr(request.user, "teacher_profile", None)
     if not _teacher_exam_access(exam, school, teacher):
         raise PermissionDenied
@@ -3342,18 +4368,31 @@ def teacher_exam_enter_marks(request, exam_id):
         return redirect("core:teacher_dashboard")
     if not has_feature_access(school, "exams"):
         return HttpResponseForbidden("Upgrade your plan to access this feature")
-    exam = get_object_or_404(Exam, id=exam_id)
+    exam = get_object_or_404(_exam_read_qs(), pk=exam_id)
     teacher = getattr(request.user, "teacher_profile", None)
     if not _teacher_exam_access(exam, school, teacher):
         raise PermissionDenied
 
     # Subjects allowed by mapping for this exam class+section.
-    subject_ids = ClassSectionSubjectTeacher.objects.filter(
-        teacher=teacher,
-        class_obj__name__iexact=exam.class_name,
-        section__name__iexact=exam.section,
-    ).values_list("subject_id", flat=True).distinct()
-    subjects = Subject.objects.filter(id__in=subject_ids).order_by("name")
+    subject_ids = list(
+        ClassSectionSubjectTeacher.objects.filter(
+            teacher=teacher,
+            class_obj__name__iexact=exam.class_name,
+            section__name__iexact=exam.section,
+        ).values_list("subject_id", flat=True).distinct()
+    )
+    subject_id_set = set(subject_ids)
+    if exam.subject_id:
+        if exam.subject_id in subject_id_set or (exam.teacher_id and exam.teacher_id == teacher.id):
+            subjects = Subject.objects.filter(id=exam.subject_id).order_by("name")
+        else:
+            subjects = Subject.objects.none()
+    else:
+        subjects = Subject.objects.filter(id__in=subject_ids).order_by("name")
+
+    subject_id = request.GET.get("subject") or request.POST.get("subject")
+    if request.method == "GET" and not subject_id and subjects.count() == 1:
+        return redirect(f"{reverse('core:teacher_exam_enter_marks', args=[exam.id])}?subject={subjects.first().id}")
 
     # Students in exam's class+section
     students = list(
@@ -3365,14 +4404,17 @@ def teacher_exam_enter_marks(request, exam_id):
         .select_related("user")
         .order_by("roll_number")
     )
-
-    subject_id = request.GET.get("subject") or request.POST.get("subject")
     subject = None
     if subject_id:
         subject = subjects.filter(id=subject_id).first()
 
     if request.method == "POST" and subject:
-        if subject.id not in set(subject_ids):
+        if exam.subject_id:
+            if subject.id != exam.subject_id:
+                raise PermissionDenied
+            if subject.id not in subject_id_set and exam.teacher_id != teacher.id:
+                raise PermissionDenied
+        elif subject.id not in subject_id_set:
             raise PermissionDenied
         with transaction.atomic():
             existing = {
@@ -3381,13 +4423,14 @@ def teacher_exam_enter_marks(request, exam_id):
             }
             to_create = []
             to_update = []
+            default_tm = exam.total_marks if getattr(exam, "total_marks", None) else 100
             for s in students:
                 try:
                     obtained = int(request.POST.get(f"obtained_{s.id}", 0) or 0)
-                    total = int(request.POST.get(f"total_{s.id}", 100) or 100)
+                    total = int(request.POST.get(f"total_{s.id}", default_tm) or default_tm)
                 except (ValueError, TypeError):
                     obtained = 0
-                    total = 100
+                    total = default_tm
                 key = (s.id, subject.id)
                 if key in existing:
                     rec = existing[key]
@@ -3419,9 +4462,10 @@ def teacher_exam_enter_marks(request, exam_id):
         for m in Marks.objects.filter(exam=exam, subject=subject):
             existing_marks[m.student_id] = {"obtained": m.marks_obtained, "total": m.total_marks}
 
+    default_total = exam.total_marks if getattr(exam, "total_marks", None) else 100
     students_with_marks = []
     for s in students:
-        em = existing_marks.get(s.id, {"obtained": 0, "total": 100})
+        em = existing_marks.get(s.id, {"obtained": 0, "total": default_total})
         students_with_marks.append({
             "student": s,
             "obtained": em["obtained"],
@@ -3990,13 +5034,19 @@ def parent_announcements(request):
     children = list(Student.objects.filter(guardians__parent=parent).select_related("classroom", "section"))
     if not children:
         return render(request, "core/parent/announcements.html", {"announcements": [], "title": "Homework / Announcements"})
-    child_ids = [c.id for c in children]
-    # Legacy: subject-based homework for children's classes
-    hw_legacy_ids = set(Homework.objects.filter(subject__classroom__students__id__in=child_ids).values_list("id", flat=True))
-    # New: class+section homework
+    hw_legacy_ids = set()
     for c in children:
         if c.classroom_id and c.section_id:
-            hw_legacy_ids.update(Homework.objects.filter(classes=c.classroom, sections=c.section).values_list("id", flat=True))
+            subj_ids = ClassSectionSubjectTeacher.objects.filter(
+                class_obj_id=c.classroom_id,
+                section_id=c.section_id,
+            ).values_list("subject_id", flat=True)
+            hw_legacy_ids.update(
+                Homework.objects.filter(subject_id__in=subj_ids).values_list("id", flat=True)
+            )
+            hw_legacy_ids.update(
+                Homework.objects.filter(classes=c.classroom, sections=c.section).values_list("id", flat=True)
+            )
     hw = list(Homework.objects.filter(id__in=hw_legacy_ids).prefetch_related("classes", "sections").select_related("subject").order_by("-due_date")[:20])
     return render(request, "core/parent/announcements.html", {
         "announcements": hw,
@@ -4583,142 +5633,8 @@ def online_results_view(request, school_code):
 
 @admin_required
 def school_toppers(request):
-    """Backward-compatible redirect to new reports toppers view."""
-    return redirect("core:school_reports_toppers")
-
-
-@admin_required
-def school_reports_toppers(request):
-    """Toppers report under Reports module with filters."""
-    school = _school_module_check(request, "topper_list")
-    if not school:
-        add_warning_once(request, "topper_list_not_available", "Topper list not available in your plan.")
-        return redirect("core:admin_dashboard")
-    from apps.school_data.models import Marks, Exam, ClassRoom, Section
-    from django.db.models import Sum
-    import json
-
-    exam_id = request.GET.get("exam") or ""
-    classroom_id = request.GET.get("classroom") or ""
-    section_id = request.GET.get("section") or ""
-    top_n = int(request.GET.get("top", "10") or "10")
-    if top_n not in (3, 10):
-        top_n = 10
-
-    marks_qs = Marks.objects.filter(exam__isnull=False)
-    if exam_id.isdigit():
-        marks_qs = marks_qs.filter(exam_id=int(exam_id))
-    if classroom_id.isdigit():
-        marks_qs = marks_qs.filter(student__classroom_id=int(classroom_id))
-    if section_id.isdigit():
-        marks_qs = marks_qs.filter(student__section_id=int(section_id))
-
-    # Class toppers
-    marks_by_class = marks_qs.values("student__classroom__name", "student_id").annotate(
-        total_o=Sum("marks_obtained"), total_m=Sum("total_marks")
-    )
-    by_class = {}
-    for m in marks_by_class:
-        cname = m["student__classroom__name"] or "Unassigned"
-        if cname not in by_class:
-            by_class[cname] = []
-        pct = round((m["total_o"] / m["total_m"] * 100) if m["total_m"] else 0, 1)
-        by_class[cname].append({"student_id": m["student_id"], "pct": pct})
-    for c in by_class:
-        by_class[c].sort(key=lambda x: -x["pct"])
-        by_class[c] = by_class[c][:top_n]
-    # Resolve student names
-    student_ids = set()
-    for v in by_class.values():
-        for x in v:
-            student_ids.add(x["student_id"])
-    students = {s.id: s for s in Student.objects.filter(id__in=student_ids).select_related("user")}
-    class_toppers = []
-    for cname, rows in sorted(by_class.items()):
-        class_toppers.append({
-            "class": cname,
-            "toppers": [{"student": students.get(r["student_id"]), "pct": r["pct"]} for r in rows],
-        })
-    # School toppers (top N overall)
-    school_agg = marks_qs.values("student_id").annotate(
-        total_o=Sum("marks_obtained"), total_m=Sum("total_marks")
-    )
-    school_list = [
-        (x["student_id"], round((x["total_o"] / x["total_m"] * 100) if x["total_m"] else 0, 1))
-        for x in school_agg
-    ]
-    school_list.sort(key=lambda x: -x[1])
-    sid_set = {sid for sid, _ in school_list[:top_n]}
-    school_students = {s.id: s for s in Student.objects.filter(id__in=sid_set).select_related("user", "classroom", "section")}
-    school_toppers_list = [
-        {"student": school_students.get(sid), "pct": pct}
-        for sid, pct in school_list[:top_n]
-        if school_students.get(sid)
-    ]
-    # Subject toppers (top 3 per subject)
-    subj_agg = marks_qs.values(
-        "subject_id", "subject__name", "student_id"
-    ).annotate(total_o=Sum("marks_obtained"), total_m=Sum("total_marks"))
-    by_subj = {}
-    for m in subj_agg:
-        sname = m["subject__name"] or "Unknown"
-        if sname not in by_subj:
-            by_subj[sname] = []
-        pct = round((m["total_o"] / m["total_m"] * 100) if m["total_m"] else 0, 1)
-        by_subj[sname].append((m["student_id"], pct))
-    for s in by_subj:
-        by_subj[s].sort(key=lambda x: -x[1])
-        by_subj[s] = by_subj[s][:3]
-    subj_students = {
-        s.id: s
-        for s in Student.objects.filter(
-            id__in={x[0] for v in by_subj.values() for x in v}
-        ).select_related("user")
-    }
-    subject_toppers = [
-        {
-            "subject": sname,
-            "toppers": [
-                {"student": subj_students.get(x[0]), "pct": x[1]}
-                for x in v
-                if subj_students.get(x[0])
-            ],
-        }
-        for sname, v in sorted(by_subj.items())
-    ]
-
-    # Chart data for this report (top students + class comparison)
-    chart_labels = [
-        t["student"].user.get_full_name() or t["student"].user.username
-        for t in school_toppers_list
-    ]
-    chart_values = [t["pct"] for t in school_toppers_list]
-    class_chart_labels = [c["class"] for c in class_toppers]
-    class_chart_values = [
-        round(sum(x["pct"] for x in c["toppers"]) / len(c["toppers"]), 1) if c["toppers"] else 0
-        for c in class_toppers
-    ]
-
-    exams = Exam.objects.all().order_by("-date")
-    classes = ClassRoom.objects.all().order_by("name")
-    sections = Section.objects.all().order_by("name")
-
-    return render(request, "core/reports/toppers.html", {
-        "class_toppers": class_toppers,
-        "school_toppers": school_toppers_list,
-        "subject_toppers": subject_toppers,
-        "exams": exams,
-        "classes": classes,
-        "sections": sections,
-        "selected_exam": exam_id,
-        "selected_classroom": classroom_id,
-        "selected_section": section_id,
-        "top_n": top_n,
-        "chart_labels": json.dumps(chart_labels),
-        "chart_values": json.dumps(chart_values),
-        "class_chart_labels": json.dumps(class_chart_labels),
-        "class_chart_values": json.dumps(class_chart_values),
-    })
+    """Backward-compatible redirect to reports toppers view."""
+    return redirect("reports:toppers")
 
 
 # ======================

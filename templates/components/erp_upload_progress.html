@@ -1,0 +1,11 @@
+{% comment %}
+  Optional: place inside a form with file inputs. Pair with JS that updates
+  .erp-upload-progress__fill width (e.g. XHR upload). Global POST multipart
+  already shows full-screen "Uploading file…" overlay via loading-system.js.
+{% endcomment %}
+<div class="erp-upload-progress" id="erp-upload-progress" aria-live="polite">
+  <div class="erp-upload-progress__label">Uploading file… <span class="erp-upload-progress__pct"></span></div>
+  <div class="erp-upload-progress__track">
+    <div class="erp-upload-progress__fill"></div>
+  </div>
+</div>

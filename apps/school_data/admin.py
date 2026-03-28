@@ -55,8 +55,7 @@ class SectionAdmin(admin.ModelAdmin):
 
 @admin.register(Subject)
 class SubjectAdmin(admin.ModelAdmin):
-    list_display = ("name", "code", "classroom", "teacher", "academic_year")
-    list_filter = ("academic_year",)
+    list_display = ("name", "code", "created_on")
     search_fields = ("name", "code")
 
 

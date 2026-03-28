@@ -76,7 +76,7 @@ def api_results(request, school_code: str):
         return JsonResponse({"error": "exam_id required"}, status=400)
     with tenant_context(school):
         try:
-            exam = Exam.objects.get(id=exam_id)
+            exam = Exam.objects.defer("start_time", "end_time").get(id=exam_id)
         except Exam.DoesNotExist:
             return JsonResponse({"error": "Exam not found"}, status=404)
         marks_qs = Marks.objects.filter(exam=exam).select_related("student__user", "subject")

@@ -1,7 +1,11 @@
 /* Unified Sidebar Navigation - School ERP */
 
 :root {
-  --sidebar-width: 250px;
+  /* Sidebar: fixed rail; main content fills the rest (flex area). */
+  --sidebar-width: 268px;
+  /* Wider app shell than legacy max-w-6xl (~1152px) for ERP / SaaS layouts */
+  --app-content-max: 1400px;
+  --app-content-pad-x: 1.25rem;
   --sidebar-bg: #f5f5f5;
   --sidebar-hover: #e8e8e8;
   --sidebar-active: #9E21CC;
@@ -29,11 +33,36 @@ body {
   transition: transform 0.3s ease, width 0.3s ease;
 }
 
+@media (min-width: 1200px) {
+  :root {
+    --app-content-pad-x: 1.75rem;
+  }
+}
+
+@media (min-width: 1536px) {
+  :root {
+    --app-content-max: 1580px;
+  }
+}
+
+/* Centered content column inside main (matches navbar / footer). */
+.app-content-shell {
+  width: 100%;
+  max-width: var(--app-content-max);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--app-content-pad-x);
+  padding-right: var(--app-content-pad-x);
+  box-sizing: border-box;
+}
+
 /* Main content offset */
 .sidebar-main {
   margin-left: var(--sidebar-width);
   min-height: 100vh;
-  transition: margin-left 0.3s ease;
+  min-width: 0;
+  width: calc(100% - var(--sidebar-width));
+  transition: margin-left 0.3s ease, width 0.3s ease;
 }
 
 /* Footer aligns with main content when sidebar is visible */
@@ -171,6 +200,7 @@ body {
 
   .sidebar-main {
     margin-left: 0;
+    width: 100%;
   }
 
   .sidebar-footer-page {

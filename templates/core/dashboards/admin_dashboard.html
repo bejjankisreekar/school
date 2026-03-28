@@ -1,345 +1,853 @@
 {% extends "base.html" %}
+{% load nav_tags %}
 {% block title %}School Admin Dashboard | School ERP{% endblock %}
 {% block extra_head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 {% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto space-y-8">
-  {# Header #}
-  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+<div class="admin-dashboard-page w-100">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-4">
     <div>
-      <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">School Admin Dashboard</h1>
-      <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Overview of your school operations and analytics</p>
+      <h1 class="h4 fw-bold text-body mb-1">School Admin Dashboard</h1>
+      <p class="text-muted small mb-0">Key metrics and actions for today.</p>
     </div>
     {% if current_plan %}
-    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-2">
-      <span class="text-sm font-medium text-slate-700 dark:text-slate-300">Plan: {{ current_plan.name|title }}</span>
+    <div class="rounded-3 border bg-body-secondary px-3 py-2 small">
+      <span class="fw-medium text-body">Plan: {{ current_plan.name|title }}</span>
       {% if current_plan.price_per_student > 0 %}
-      <span class="text-sm text-slate-500 dark:text-slate-400">(₹{{ current_plan.price_per_student }}/student/month)</span>
+      <span class="text-muted">(₹{{ current_plan.price_per_student }}/student/month)</span>
       {% endif %}
-      {% if trial_expired %}<span class="badge bg-danger ms-2">Trial Expired</span>{% endif %}
+      {% if trial_expired %}<span class="badge text-bg-danger ms-1">Trial expired</span>{% endif %}
     </div>
     {% endif %}
   </div>
 
-  {# Top Summary Cards - 4 primary metrics #}
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-    <a href="{% url 'core:school_students_list' %}" class="group block rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-5 shadow-sm hover:shadow-md hover:border-pink-300 dark:hover:border-pink-600 transition-all" title="View students">
-      <div class="flex items-center gap-4">
-        <div class="rounded-xl p-3" style="background-color: rgba(255,107,129,0.2); color: #FF6B81;">
-          <i class="bi bi-person-fill text-2xl"></i>
-        </div>
-        <div>
-          <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Students</p>
-          <p class="text-2xl font-bold text-slate-900 dark:text-slate-50">{{ total_students }}</p>
-        </div>
-      </div>
-    </a>
-    <a href="{% url 'core:school_teachers_list' %}" class="group block rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-5 shadow-sm hover:shadow-md hover:border-teal-300 dark:hover:border-teal-500 transition-all" title="View staff directory">
-      <div class="flex items-center gap-4">
-        <div class="rounded-xl p-3" style="background-color: rgba(75,192,192,0.2); color: #4BC0C0;">
-          <i class="bi bi-person-briefcase-fill text-2xl"></i>
-        </div>
-        <div>
-          <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Employees</p>
-          <p class="text-2xl font-bold text-slate-900 dark:text-slate-50">{{ total_employees }}</p>
-        </div>
-      </div>
-    </a>
-    <a href="{% url 'core:school_subjects' %}" class="group block rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-5 shadow-sm hover:shadow-md hover:border-purple-300 dark:hover:border-purple-600 transition-all" title="View course list">
-      <div class="flex items-center gap-4">
-        <div class="rounded-xl p-3" style="background-color: rgba(138,43,226,0.2); color: #8A2BE2;">
-          <i class="bi bi-mortarboard-fill text-2xl"></i>
-        </div>
-        <div>
-          <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Courses</p>
-          <p class="text-2xl font-bold text-slate-900 dark:text-slate-50">{{ total_subjects }}</p>
-        </div>
-      </div>
-    </a>
-    <a href="{% url 'core:school_sections' %}" class="group block rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-5 shadow-sm hover:shadow-md hover:border-orange-300 dark:hover:border-orange-600 transition-all" title="View section details">
-      <div class="flex items-center gap-4">
-        <div class="rounded-xl p-3" style="background-color: rgba(255,165,0,0.2); color: #FFA500;">
-          <i class="bi bi-sun-fill text-2xl"></i>
-        </div>
-        <div>
-          <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Sections</p>
-          <p class="text-2xl font-bold text-slate-900 dark:text-slate-50">{{ total_sections }}</p>
-        </div>
-      </div>
-    </a>
-  </div>
-
-  {# Insights / Analytics Panels - 6 charts #}
-  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-    {# 1. Class-Wise Students #}
-    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-      <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-4">Class-Wise Students</h2>
-      <div class="h-48">
-        <canvas id="classDistChart"></canvas>
-      </div>
-      <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">Student distribution across classes</p>
-    </div>
-    {# 2. Employees Distribution #}
-    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-      <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-4">Employees Distribution</h2>
-      <div class="h-48">
-        <canvas id="employeesChart"></canvas>
-      </div>
-      <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">Staff composition by role</p>
-    </div>
-    {# 3. Salary Overview - feature-gated #}
-    {% if has_payroll %}
-    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-      <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-4">Salary Overview</h2>
-      <div class="h-48">
-        <canvas id="salaryChart"></canvas>
-      </div>
-      <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">Salary disbursement by period</p>
-    </div>
-    {% endif %}
-    {# 4. Transport Usage - feature-gated #}
-    {% if has_transport %}
-    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-      <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-4">Transport Usage</h2>
-      <div class="h-48">
-        <canvas id="transportChart"></canvas>
-      </div>
-      <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">Vehicles, drivers, routes, bus students</p>
-    </div>
-    {% endif %}
-    {# 5. Hostel Occupancy - feature-gated #}
-    {% if has_hostel %}
-    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-      <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-4">Hostel Occupancy</h2>
-      <div class="h-48">
-        <canvas id="hostelChart"></canvas>
-      </div>
-      <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">Rooms, beds, occupied</p>
-    </div>
-    {% endif %}
-    {# 6. Student Fee Collection - feature-gated #}
-    {% if has_fees %}
-    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-      <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-4">Student Fee Collection</h2>
-      <div class="h-48">
-        <canvas id="feeChart"></canvas>
-      </div>
-      <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">Fee collected by period</p>
-    </div>
-    {% endif %}
-  </div>
-
-  {# Secondary: Student Growth, Attendance, Timetable #}
-  <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-    <div class="xl:col-span-2 space-y-6">
-      <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-        <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-4">Student Growth (Last 6 Months)</h2>
-        <div class="h-48">
-          <canvas id="studentGrowthChart"></canvas>
-        </div>
-      </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-          <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-4">Attendance Today</h2>
-          <div class="h-40">
-            <canvas id="attendanceChart"></canvas>
+  {# Row 1: Students, Teachers, Fees or Classes, Attendance or Sections #}
+  <div class="dashboard-kpi-grid mb-4">
+      <a href="{% url 'core:school_students_list' %}" class="text-decoration-none text-reset">
+        <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all">
+          <div class="card-body dashboard-card-body">
+            <div class="d-flex align-items-center gap-3">
+              <div class="rounded-3 bg-primary bg-opacity-10 p-3 text-primary"><i class="bi bi-people-fill fs-3"></i></div>
+              <div>
+                <div class="text-uppercase small text-muted fw-semibold">Students</div>
+                <div class="fs-3 fw-bold text-body">{{ total_students }}</div>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-          <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-4">Subjects per Class</h2>
-          <div class="h-40">
-            <canvas id="subjectDistChart"></canvas>
+      </a>
+      <a href="{% url 'core:school_teachers_list' %}" class="text-decoration-none text-reset">
+        <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all">
+          <div class="card-body dashboard-card-body">
+            <div class="d-flex align-items-center gap-3">
+              <div class="rounded-3 bg-info bg-opacity-10 p-3 text-info"><i class="bi bi-person-badge-fill fs-3"></i></div>
+              <div>
+                <div class="text-uppercase small text-muted fw-semibold">Teachers</div>
+                <div class="fs-3 fw-bold text-body">{{ total_teachers }}</div>
+              </div>
+            </div>
           </div>
+        </div>
+      </a>
+      {% if fees_enabled %}
+      <a href="{% url 'core:school_fees_index' %}" class="text-decoration-none text-reset">
+        <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all">
+          <div class="card-body dashboard-card-body">
+            <div class="d-flex align-items-center gap-3">
+              <div class="rounded-3 bg-success bg-opacity-10 p-3 text-success"><i class="bi bi-currency-rupee fs-3"></i></div>
+              <div>
+                <div class="text-uppercase small text-muted fw-semibold">Fee collection (monthly)</div>
+                <div class="fs-3 fw-bold text-body">₹{{ fee_month_amt|floatformat:0 }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </a>
+      {% else %}
+      <a href="{% url 'core:school_classes' %}" class="text-decoration-none text-reset">
+        <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all">
+          <div class="card-body dashboard-card-body">
+            <div class="d-flex align-items-center gap-3">
+              <div class="rounded-3 bg-success bg-opacity-10 p-3 text-success"><i class="bi bi-grid-3x3-gap-fill fs-3"></i></div>
+              <div>
+                <div class="text-uppercase small text-muted fw-semibold">Classes</div>
+                <div class="fs-3 fw-bold text-body">{{ total_classes }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </a>
+      {% endif %}
+      {% if attendance_enabled %}
+      <a href="{% url 'core:attendance_list' %}" class="text-decoration-none text-reset">
+        <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all">
+          <div class="card-body dashboard-card-body">
+            <div class="d-flex align-items-center gap-3">
+              <div class="rounded-3 bg-warning bg-opacity-10 p-3 text-warning"><i class="bi bi-calendar-check fs-3"></i></div>
+              <div>
+                <div class="text-uppercase small text-muted fw-semibold">Attendance today</div>
+                <div class="fs-3 fw-bold text-body">{{ today_attendance_pct }}%</div>
+              </div>
+            </div>
+            <p class="small text-muted mb-0 mt-2">Students marked present today.</p>
+          </div>
+        </div>
+      </a>
+      {% else %}
+      <a href="{% url 'core:school_sections' %}" class="text-decoration-none text-reset">
+        <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all">
+          <div class="card-body dashboard-card-body">
+            <div class="d-flex align-items-center gap-3">
+              <div class="rounded-3 bg-warning bg-opacity-10 p-3 text-warning"><i class="bi bi-diagram-3 fs-3"></i></div>
+              <div>
+                <div class="text-uppercase small text-muted fw-semibold">Sections</div>
+                <div class="fs-3 fw-bold text-body">{{ total_sections }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </a>
+      {% endif %}
+  </div>
+
+  {# Fee insight strip #}
+  {% if fees_enabled %}
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body dashboard-card-body">
+      <h2 class="h6 fw-semibold mb-3"><i class="bi bi-wallet2 me-2 text-success"></i>Fee overview</h2>
+      <div class="dashboard-stat-grid">
+          <div class="rounded-3 border p-4 h-100">
+            <div class="small text-muted">Today collected</div>
+            <div class="fs-4 fw-bold text-body">₹{{ fee_today_amt|floatformat:0 }}</div>
+          </div>
+          <div class="rounded-3 border p-4 h-100">
+            <div class="small text-muted">This month</div>
+            <div class="fs-4 fw-bold text-body">₹{{ fee_month_amt|floatformat:0 }}</div>
+          </div>
+          <div class="rounded-3 border p-4 h-100 {% if pending_fees > 0 %}border-warning{% endif %}">
+            <div class="small text-muted">Pending dues</div>
+            <div class="fs-4 fw-bold {% if pending_fees > 0 %}text-warning-emphasis{% endif %}">₹{{ pending_fees|floatformat:0 }}</div>
+          </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# Attendance today (students + staff) #}
+  {% if attendance_enabled %}
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body dashboard-card-body">
+      <h2 class="h6 fw-semibold mb-3"><i class="bi bi-clipboard-data me-2 text-primary"></i>Attendance today</h2>
+      <div class="dashboard-two-col-grid">
+        <div>
+          <div class="d-flex justify-content-between align-items-center rounded-3 bg-primary bg-opacity-10 px-3 py-2">
+            <span class="small fw-medium">Students present</span>
+            <span class="fs-5 fw-bold">{{ today_attendance_pct }}%</span>
+          </div>
+          <p class="small text-muted mt-2 mb-0">Of enrolled students (present status for {{ today_iso }}).</p>
+        </div>
+        <div>
+          <div class="d-flex justify-content-between align-items-center rounded-3 bg-info bg-opacity-10 px-3 py-2">
+            <span class="small fw-medium">Staff present</span>
+            <span class="fs-5 fw-bold">{{ staff_attendance_pct }}%</span>
+          </div>
+          <p class="small text-muted mt-2 mb-0">Teachers marked present today vs total teachers.</p>
         </div>
       </div>
     </div>
-    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-      <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-3">Today's Timetable</h2>
-      {% if today_timetable %}
-      <ul class="space-y-2">
-        {% for tt in today_timetable %}
-        <li class="rounded-lg bg-slate-50 dark:bg-slate-800/80 px-3 py-2 text-sm">
-          <span class="font-medium text-slate-900 dark:text-slate-100">{{ tt.time_slot.start_time|time:"g:i" }}–{{ tt.time_slot.end_time|time:"g:i" }}</span>
-          <span class="text-slate-600 dark:text-slate-300">{{ tt.subject.name|default:"Break" }}</span>
-          <span class="text-slate-500 dark:text-slate-400">{{ tt.classroom.name }}</span>
-          {% for t in tt.teachers.all %}
-          <span class="text-slate-500 dark:text-slate-400">• {{ t.user.get_full_name|default:t.user.username }}</span>
-          {% endfor %}
-        </li>
-        {% endfor %}
-      </ul>
+  </div>
+  {% endif %}
+
+  {# Row 2: Exams or Subjects, Birthdays, Pending attendance or structure, Academic year #}
+  <div class="dashboard-insights-grid mb-4">
+      {% if exams_enabled %}
+      <div class="card border-0 shadow-sm rounded-4 dashboard-insight-card h-100">
+        <div class="card-body dashboard-card-body dashboard-insight-card-inner d-flex flex-column">
+          <div class="dashboard-insight-header flex-shrink-0">
+            <h2 class="h6 fw-semibold mb-1"><i class="bi bi-journal-text me-2 text-danger"></i>Upcoming exams</h2>
+            <p class="small text-muted mb-2">Next 7 days</p>
+          </div>
+          {% if upcoming_exams_count %}
+          <div class="fs-5 fw-bold text-body mb-2 flex-shrink-0">{{ upcoming_exams_count }} scheduled</div>
+          {% if upcoming_exams_count > 10 %}
+          <p class="small text-muted mb-2 flex-shrink-0 dashboard-insight-count-hint">Showing 10 of {{ upcoming_exams_count }} items · scroll for more</p>
+          {% endif %}
+          <div class="card-scroll dashboard-insight-scroll flex-grow-1 min-h-0">
+            <ul class="list-unstyled mb-0 small">
+              {% for exam in upcoming_exams %}
+              <li class="dashboard-insight-item">
+                <span class="fw-medium">{{ exam.name }}</span>
+                <span class="text-muted">· {{ exam.class_name }}-{{ exam.section }}</span>
+                <div class="text-muted small">{{ exam.date|date:"D, d M Y" }}</div>
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+          <div class="dashboard-insight-footer flex-shrink-0 pt-2 mt-2 border-top border-light">
+            <a href="{% url 'core:school_exams_list' %}" class="small fw-medium">View all exams</a>
+          </div>
+          {% else %}
+          <div class="flex-grow-1 d-flex flex-column justify-content-center">
+            <p class="text-muted small mb-3">Schedule papers for your classes.</p>
+            <a href="{% url 'core:school_exam_create' %}" class="btn btn-outline-danger btn-sm rounded-pill align-self-start">Create your first exam</a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
       {% else %}
-      <p class="text-sm text-slate-500 dark:text-slate-400 py-4">No classes scheduled today</p>
+      <a href="{% url 'core:school_subjects' %}" class="text-decoration-none text-reset d-block h-100">
+        <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all dashboard-insight-card dashboard-insight-card--static">
+          <div class="card-body dashboard-card-body dashboard-insight-card-inner d-flex flex-column justify-content-center">
+            <h2 class="h6 fw-semibold mb-2 text-body"><i class="bi bi-book me-2 text-primary"></i>Subjects</h2>
+            <div class="fs-3 fw-bold text-body">{{ total_subjects }}</div>
+            <p class="small text-muted mb-0 mt-2">Manage curriculum subjects.</p>
+          </div>
+        </div>
+      </a>
       {% endif %}
-    </div>
+
+      <div class="card border-0 shadow-sm rounded-4 dashboard-insight-card h-100">
+        <div class="card-body dashboard-card-body dashboard-insight-card-inner d-flex flex-column">
+          <div class="dashboard-insight-header flex-shrink-0">
+            <h2 class="h6 fw-semibold mb-1"><i class="bi bi-cake2 me-2 text-danger"></i>Birthdays today</h2>
+          </div>
+          {% if today_birthdays %}
+          {% with bc=today_birthdays|length %}
+          {% if bc > 10 %}
+          <p class="small text-muted flex-shrink-0 mb-2 dashboard-insight-count-hint">Showing 10 of {{ bc }} items · scroll for more</p>
+          {% endif %}
+          <div class="card-scroll dashboard-insight-scroll flex-grow-1 min-h-0">
+            <ul class="list-unstyled mb-0 small">
+              {% for s in today_birthdays %}
+              <li class="dashboard-insight-item">
+                <span class="fw-medium">{{ s.user.get_full_name|default:s.user.username }}</span>
+                <span class="text-muted">
+                  — {% if s.classroom %}{{ s.classroom.name }}{% else %}—{% endif %}{% if s.section %} · {{ s.section.name }}{% endif %}
+                </span>
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endwith %}
+          {% else %}
+          <div class="flex-grow-1 d-flex flex-column justify-content-center">
+            <p class="text-muted small mb-0">No student birthdays today.</p>
+            <a href="{% url 'core:school_students_list' %}" class="small fw-medium mt-2">View students</a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if attendance_enabled %}
+      <div class="card border-0 shadow-sm rounded-4 dashboard-insight-card h-100">
+        <div class="card-body dashboard-card-body dashboard-insight-card-inner d-flex flex-column">
+          <div class="dashboard-insight-header flex-shrink-0">
+            <h2 class="h6 fw-semibold mb-1"><i class="bi bi-exclamation-triangle me-2 text-warning"></i>Pending attendance</h2>
+          </div>
+          {% if pending_attendance %}
+          {% with pc=pending_attendance|length %}
+          {% if pc > 10 %}
+          <p class="small text-muted flex-shrink-0 mb-2 dashboard-insight-count-hint">Showing 10 of {{ pc }} items · scroll for more</p>
+          {% endif %}
+          <div class="card-scroll dashboard-insight-scroll flex-grow-1 min-h-0">
+            <ul class="list-group list-group-flush">
+              {% for row in pending_attendance %}
+              <li class="list-group-item dashboard-insight-item px-0 d-flex justify-content-between align-items-start gap-2 border-bottom border-light">
+                <div>
+                  <a href="{% url 'core:attendance_list' %}?classroom_id={{ row.classroom_id }}&section_id={{ row.section_id }}&attendance_date={{ today_iso }}" class="fw-medium text-decoration-none">
+                    {{ row.class_name }} · {{ row.section_name }}
+                  </a>
+                  <div class="small text-muted">{{ row.marked }}/{{ row.total }} marked</div>
+                </div>
+                <span class="badge text-bg-warning flex-shrink-0">{{ row.missing }} left</span>
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endwith %}
+          {% else %}
+          <div class="flex-grow-1 d-flex flex-column justify-content-center">
+            <p class="text-muted small mb-3">Every class has been marked for today.</p>
+            <a href="{% url 'core:attendance_list' %}" class="btn btn-outline-success btn-sm rounded-pill align-self-start">Open attendance</a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% else %}
+      <a href="{% url 'core:school_classes' %}" class="text-decoration-none text-reset d-block h-100">
+        <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all dashboard-insight-card dashboard-insight-card--static">
+          <div class="card-body dashboard-card-body dashboard-insight-card-inner d-flex flex-column justify-content-center">
+            <h2 class="h6 fw-semibold mb-2 text-body"><i class="bi bi-building me-2 text-secondary"></i>School structure</h2>
+            <div class="small text-muted">Classes</div>
+            <div class="fs-4 fw-bold text-body">{{ total_classes }}</div>
+            <div class="small text-muted mt-2">Sections</div>
+            <div class="fs-4 fw-bold text-body">{{ total_sections }}</div>
+          </div>
+        </div>
+      </a>
+      {% endif %}
+
+      <a href="{% url 'core:school_academic_years' %}" class="text-decoration-none text-reset d-block h-100">
+        <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all dashboard-insight-card dashboard-insight-card--static">
+          <div class="card-body dashboard-card-body dashboard-insight-card-inner d-flex flex-column justify-content-center">
+            <div class="d-flex align-items-center gap-3">
+              <div class="rounded-3 bg-secondary bg-opacity-10 p-3 text-secondary"><i class="bi bi-calendar3 fs-3"></i></div>
+              <div>
+                <div class="text-uppercase small text-muted fw-semibold">Academic year</div>
+                <div class="fs-5 fw-bold text-body">{{ active_academic_year_label }}</div>
+                <p class="small text-muted mb-0 mt-1">Manage years and terms.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </a>
   </div>
 
-  {# Extra Widgets: Upcoming Exams, Birthdays, Pending Attendance, Top Students #}
-  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-      <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-3">Upcoming Exams</h2>
-      {% if upcoming_exams %}
-      <ul class="space-y-2">
-        {% for exam in upcoming_exams %}
-        <li class="text-sm text-slate-700 dark:text-slate-200">{{ exam.name }} – {{ exam.class_name }} - {{ exam.section }} – {{ exam.date|date:"d M" }}</li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <p class="text-sm text-slate-500 dark:text-slate-400">No upcoming exams scheduled</p>
-      {% endif %}
-    </div>
-    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-      <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-3">Birthdays Today</h2>
-      {% if today_birthdays %}
-      <ul class="space-y-1">
-        {% for s in today_birthdays %}
-        <li class="text-sm">🎂 {{ s.user.get_full_name|default:s.user.username }} – {{ s.classroom.name|default:"—" }}{% if s.section %}-{{ s.section.name }}{% endif %}</li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <p class="text-sm text-slate-500 dark:text-slate-400">No student birthdays today</p>
-      {% endif %}
-    </div>
-    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-      <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-3">Pending Attendance</h2>
-      {% if pending_attendance %}
-      <ul class="space-y-1">
-        {% for cls in pending_attendance %}
-        <li class="text-sm text-amber-600 dark:text-amber-400">⚠ {{ cls.name }} – Attendance not marked</li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <p class="text-sm text-slate-500 dark:text-slate-400">All attendance marked</p>
-      {% endif %}
-    </div>
-    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-      <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-3">Top Performing Students</h2>
-      {% if top_students %}
-      <ul class="space-y-1">
-        {% for item in top_students %}
-        <li class="text-sm">{{ forloop.counter }}. {{ item.student.user.get_full_name|default:item.student.user.username }} – {{ item.student.classroom.name|default:"—" }}{% if item.student.section %}-{{ item.student.section.name }}{% endif %} – {{ item.percentage }}%</li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <p class="text-sm text-slate-500 dark:text-slate-400">No marks recorded yet</p>
-      {% endif %}
+  {# Charts #}
+  {% if show_class_chart or show_attendance_trend %}
+  <div class="dashboard-charts-grid mb-4">
+    {% if show_class_chart %}
+      <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body dashboard-card-body">
+          <h2 class="h6 fw-semibold mb-3">Students by class</h2>
+          <div style="height: 260px;">
+            <canvas id="classDistChart"></canvas>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+    {% if show_attendance_trend %}
+      <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body dashboard-card-body">
+          <h2 class="h6 fw-semibold mb-3">Attendance trend (last 7 days)</h2>
+          <p class="small text-muted">% of enrolled students marked present per day.</p>
+          <div style="height: 240px;">
+            <canvas id="attendanceTrendChart"></canvas>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# Top students — only when marks exist #}
+  {% if top_students %}
+  {% with ts_count=top_students|length %}
+  <div class="card border-0 shadow-sm rounded-4 mb-4 dashboard-insight-card dashboard-insight-card--wide">
+    <div class="card-body dashboard-card-body dashboard-insight-card-inner d-flex flex-column">
+      <div class="dashboard-insight-header flex-shrink-0">
+        <h2 class="h6 fw-semibold mb-2"><i class="bi bi-trophy me-2 text-warning"></i>Top performing students</h2>
+        {% if ts_count > 10 %}
+        <p class="small text-muted mb-0 dashboard-insight-count-hint">Showing 10 of {{ ts_count }} items · scroll for more</p>
+        {% endif %}
+      </div>
+      <div class="card-scroll dashboard-insight-scroll dashboard-insight-scroll--table flex-grow-1 min-h-0 mt-2">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light"><tr><th>#</th><th>Student</th><th>Class</th><th class="text-end">Best %</th></tr></thead>
+            <tbody>
+              {% for item in top_students %}
+              <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ item.student.user.get_full_name|default:item.student.user.username }}</td>
+                <td>{% if item.student.classroom %}{{ item.student.classroom.name }}{% if item.student.section %}-{{ item.student.section.name }}{% endif %}{% else %}—{% endif %}</td>
+                <td class="text-end fw-medium">{{ item.percentage }}%</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
+  {% endwith %}
+  {% endif %}
 
-  {# Quick Management Cards #}
-  <div>
-    <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-4">Quick Management</h2>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-        <h3 class="font-medium text-slate-900 dark:text-slate-50 flex items-center gap-2 mb-2"><i class="bi bi-mortarboard-fill text-indigo-500"></i> Academic Management</h3>
-        <ul class="space-y-1 text-sm">
-          <li><a href="{% url 'core:school_academic_years' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Academic Years</a></li>
-          <li><a href="{% url 'core:school_classes' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Classes</a></li>
-          <li><a href="{% url 'core:school_sections' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Sections</a></li>
-          <li><a href="{% url 'core:school_subjects' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Subjects</a></li>
-        </ul>
+  {# Quick actions — grouped SaaS-style cards #}
+  <div class="card border-0 shadow-sm rounded-4 quick-actions-panel">
+    <div class="card-body dashboard-card-body quick-actions-panel-body">
+      <div class="d-flex align-items-center gap-2 mb-4">
+        <div class="rounded-3 bg-primary bg-opacity-10 p-2 text-primary"><i class="bi bi-lightning-charge-fill"></i></div>
+        <div>
+          <h2 class="h5 fw-bold text-body mb-0">Quick actions</h2>
+          <p class="text-muted small mb-0">Jump to common tasks</p>
+        </div>
       </div>
-      <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-        <h3 class="font-medium text-slate-900 dark:text-slate-50 flex items-center gap-2 mb-2"><i class="bi bi-calendar2-week-fill text-emerald-500"></i> Timetable Management</h3>
-        <ul class="space-y-1 text-sm">
-          <li><a href="{% url 'timetable:school_timeslots' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Time Slots</a></li>
-          <li><a href="{% url 'timetable:school_timetable_index' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Timetable</a></li>
-        </ul>
-      </div>
-      <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-        <h3 class="font-medium text-slate-900 dark:text-slate-50 flex items-center gap-2 mb-2"><i class="bi bi-clipboard-check-fill text-rose-500"></i> Examination Management</h3>
-        <ul class="space-y-1 text-sm">
-          <li><a href="{% url 'core:teacher_exams' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Exams</a></li>
-          <li><a href="{% url 'core:marks_list' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Results</a></li>
-        </ul>
-      </div>
-      <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4 shadow-sm">
-        <h3 class="font-medium text-slate-900 dark:text-slate-50 flex items-center gap-2 mb-2"><i class="bi bi-person-video3-fill text-amber-500"></i> Student Management</h3>
-        <ul class="space-y-1 text-sm">
-          <li><a href="{% url 'core:school_students_list' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Students</a></li>
-          <li><a href="{% url 'core:attendance_list' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Attendance</a></li>
-        </ul>
-      </div>
+
+      <section class="quick-actions-group mb-4">
+        <h3 class="quick-actions-group-title"><i class="bi bi-mortarboard me-2 text-primary"></i>Student management</h3>
+        <div class="quick-actions-grid">
+          <a href="{% url 'core:school_student_add' %}" class="quick-action-card qa-theme-student text-decoration-none">
+            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-person-plus"></i></span>
+            <span class="qa-title">Add student</span>
+            <span class="qa-desc">Register a new student</span>
+          </a>
+          <a href="{% url 'core:school_students_list' %}" class="quick-action-card qa-theme-student text-decoration-none">
+            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-people"></i></span>
+            <span class="qa-title">Student list</span>
+            <span class="qa-desc">Browse and manage students</span>
+          </a>
+          {% if attendance_enabled %}
+          <a href="{% url 'core:attendance_list' %}" class="quick-action-card qa-theme-attendance text-decoration-none">
+            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-calendar-check"></i></span>
+            <span class="qa-title">Mark attendance</span>
+            <span class="qa-desc">Record daily attendance</span>
+          </a>
+          {% endif %}
+          <a href="{% url 'core:school_promote_students' %}" class="quick-action-card qa-theme-student text-decoration-none">
+            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-arrow-up-circle"></i></span>
+            <span class="qa-title">Promote students</span>
+            <span class="qa-desc">Move classes between years</span>
+          </a>
+        </div>
+      </section>
+
+      <section class="quick-actions-group mb-4">
+        <h3 class="quick-actions-group-title"><i class="bi bi-journal-bookmark me-2 text-warning"></i>Academic management</h3>
+        <div class="quick-actions-grid">
+          {% if exams_enabled %}
+          <a href="{% url 'core:school_exam_create' %}" class="quick-action-card qa-theme-exam text-decoration-none">
+            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-calendar-plus"></i></span>
+            <span class="qa-title">Create exam</span>
+            <span class="qa-desc">Schedule papers and sessions</span>
+          </a>
+          <a href="{% url 'core:school_exams_list' %}" class="quick-action-card qa-theme-exam text-decoration-none">
+            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-pencil-square"></i></span>
+            <span class="qa-title">Exams &amp; marks</span>
+            <span class="qa-desc">View exams and enter marks</span>
+          </a>
+          {% endif %}
+          <a href="{% url 'core:school_subjects' %}" class="quick-action-card qa-theme-academic text-decoration-none">
+            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-book"></i></span>
+            <span class="qa-title">Subjects</span>
+            <span class="qa-desc">Manage curriculum subjects</span>
+          </a>
+          <a href="{% url 'core:school_class_add' %}" class="quick-action-card qa-theme-academic text-decoration-none">
+            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-building-add"></i></span>
+            <span class="qa-title">Add class</span>
+            <span class="qa-desc">Create a new class</span>
+          </a>
+          <a href="{% url 'core:school_section_add' %}" class="quick-action-card qa-theme-academic text-decoration-none">
+            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-layout-three-columns"></i></span>
+            <span class="qa-title">Add section</span>
+            <span class="qa-desc">Add a class section</span>
+          </a>
+          {% if request.user.school|has_feature_access:"timetable" %}
+          <a href="{% url 'timetable:school_timetable_index' %}" class="quick-action-card qa-theme-academic text-decoration-none">
+            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-calendar-week"></i></span>
+            <span class="qa-title">Timetable</span>
+            <span class="qa-desc">View and edit schedules</span>
+          </a>
+          {% endif %}
+          <a href="{% url 'core:school_academic_years' %}" class="quick-action-card qa-theme-academic text-decoration-none">
+            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-calendar3"></i></span>
+            <span class="qa-title">Academic years</span>
+            <span class="qa-desc">Years, terms, and setup</span>
+          </a>
+        </div>
+      </section>
+
+      <section class="quick-actions-group mb-0">
+        <h3 class="quick-actions-group-title"><i class="bi bi-shield-check me-2 text-indigo-qa"></i>Administration</h3>
+        <div class="quick-actions-grid">
+          <a href="{% url 'core:school_teacher_add' %}" class="quick-action-card qa-theme-teacher text-decoration-none">
+            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-person-workspace"></i></span>
+            <span class="qa-title">Add teacher</span>
+            <span class="qa-desc">Onboard a staff member</span>
+          </a>
+          <a href="{% url 'core:school_teachers_list' %}" class="quick-action-card qa-theme-teacher text-decoration-none">
+            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-person-lines-fill"></i></span>
+            <span class="qa-title">Teachers</span>
+            <span class="qa-desc">Staff directory and roles</span>
+          </a>
+          <a href="{% url 'reports:dashboard' %}" class="quick-action-card qa-theme-reports text-decoration-none">
+            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-bar-chart-line"></i></span>
+            <span class="qa-title">Reports</span>
+            <span class="qa-desc">School analytics</span>
+          </a>
+          {% if fees_enabled %}
+          <a href="{% url 'core:school_fees_index' %}" class="quick-action-card qa-theme-fees text-decoration-none">
+            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-wallet2"></i></span>
+            <span class="qa-title">Fees</span>
+            <span class="qa-desc">Collection and structures</span>
+          </a>
+          {% endif %}
+        </div>
+      </section>
     </div>
   </div>
 </div>
 
-{{ student_growth_data|json_script:"student-growth-data" }}
 {{ class_distribution|json_script:"class-distribution-data" }}
-{{ subject_distribution|json_script:"subject-distribution-data" }}
+{{ attendance_trend|json_script:"attendance-trend-data" }}
+<style>
+  .hover-shadow:hover { box-shadow: 0 .5rem 1rem rgba(0,0,0,.08) !important; }
+
+  .admin-dashboard-page {
+    max-width: 100%;
+  }
+
+  .dashboard-card-body {
+    padding: 1.5rem 1.5rem;
+  }
+  @media (min-width: 992px) {
+    .dashboard-card-body {
+      padding: 1.75rem 2rem;
+    }
+  }
+
+  .dashboard-kpi-grid {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: repeat(2, 1fr);
+  }
+  @media (min-width: 576px) {
+    .dashboard-kpi-grid {
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+  }
+
+  .dashboard-stat-grid {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+
+  .dashboard-two-col-grid {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 768px) {
+    .dashboard-two-col-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .dashboard-charts-grid {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 992px) {
+    .dashboard-charts-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  /* Insight row: stable grid + equal-height cards */
+  .dashboard-insights-grid {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: repeat(2, 1fr);
+    align-items: stretch;
+  }
+  @media (min-width: 576px) {
+    .dashboard-insights-grid {
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+  }
+
+  .dashboard-insight-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 300px;
+    max-height: 360px;
+    overflow: hidden;
+  }
+  .dashboard-insight-card--static {
+    min-height: 300px;
+    max-height: 360px;
+  }
+  .dashboard-insight-card--wide {
+    max-height: 400px;
+    min-height: 260px;
+  }
+  .dashboard-insight-card .dashboard-insight-card-inner {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .dashboard-insight-footer {
+    border-color: var(--bs-border-color) !important;
+  }
+
+  .card-scroll.dashboard-insight-scroll {
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 6px;
+    margin-right: -4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+  }
+
+  .dashboard-insight-scroll--table {
+    max-height: 220px;
+  }
+
+  .card-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  .card-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .card-scroll::-webkit-scrollbar-thumb {
+    background: #d0d7de;
+    border-radius: 10px;
+  }
+  html.dark .card-scroll::-webkit-scrollbar-thumb {
+    background: #475569;
+  }
+  .card-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: #d0d7de transparent;
+  }
+  html.dark .card-scroll {
+    scrollbar-color: #475569 transparent;
+  }
+
+  .dashboard-insight-item {
+    padding: 10px 4px 10px 0;
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+  }
+  .dashboard-insight-item:last-child {
+    border-bottom: none;
+  }
+  .list-group .dashboard-insight-item {
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+  }
+
+  .dashboard-insight-count-hint {
+    font-size: 0.75rem;
+    line-height: 1.35;
+  }
+
+  .quick-actions-panel-body {
+    padding-bottom: 2rem;
+  }
+
+  .quick-actions-panel {
+    --qa-radius: 12px;
+    --qa-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+    --qa-shadow-hover: 0 12px 28px rgba(0, 0, 0, 0.14);
+  }
+  html.dark .quick-actions-panel {
+    --qa-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+    --qa-shadow-hover: 0 14px 36px rgba(0, 0, 0, 0.45);
+  }
+
+  .quick-actions-group-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--bs-secondary-color);
+    margin-bottom: 0.875rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid var(--bs-border-color);
+  }
+  .text-indigo-qa { color: #6366f1 !important; }
+  html.dark .text-indigo-qa { color: #818cf8 !important; }
+
+  .quick-actions-grid {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: repeat(2, 1fr);
+  }
+  @media (min-width: 768px) {
+    .quick-actions-grid {
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+  }
+  @media (min-width: 1200px) {
+    .quick-actions-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  .quick-action-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+    background: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    border-radius: var(--qa-radius);
+    padding: 1.15rem 1.15rem 1.25rem;
+    box-shadow: var(--qa-shadow);
+    border: 1px solid var(--bs-border-color-translucent);
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.2s ease;
+    cursor: pointer;
+    min-height: 128px;
+    position: relative;
+    overflow: hidden;
+  }
+  .quick-action-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+    border-radius: inherit;
+  }
+  .quick-action-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--qa-shadow-hover);
+    border-color: rgba(0, 0, 0, 0.06);
+  }
+  html.dark .quick-action-card:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+  .quick-action-card:hover::before {
+    opacity: 1;
+  }
+  .quick-action-card:hover .qa-icon-wrap i {
+    transform: scale(1.1);
+  }
+  .quick-action-card:focus-visible {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+  }
+
+  .qa-icon-wrap {
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+    margin-bottom: 0.65rem;
+    transition: transform 0.25s ease;
+  }
+  .qa-icon-wrap i {
+    display: block;
+    transition: transform 0.25s ease;
+  }
+  .qa-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    line-height: 1.25;
+    margin-bottom: 0.25rem;
+    color: inherit;
+  }
+  .qa-desc {
+    font-size: 0.78rem;
+    line-height: 1.35;
+    color: var(--bs-secondary-color);
+    margin: 0;
+  }
+
+  /* Theme accents: icon chip + hover glow */
+  .qa-theme-student .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(79, 140, 255, 0.2), rgba(122, 168, 255, 0.28));
+    color: #2563eb;
+  }
+  html.dark .qa-theme-student .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(96, 165, 250, 0.2));
+    color: #93c5fd;
+  }
+  .qa-theme-student:hover::before {
+    background: radial-gradient(120% 80% at 100% 0%, rgba(79, 140, 255, 0.12), transparent 55%);
+  }
+
+  .qa-theme-teacher .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(167, 139, 250, 0.28));
+    color: #7c3aed;
+  }
+  html.dark .qa-theme-teacher .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.28), rgba(167, 139, 250, 0.15));
+    color: #c4b5fd;
+  }
+  .qa-theme-teacher:hover::before {
+    background: radial-gradient(120% 80% at 100% 0%, rgba(139, 92, 246, 0.12), transparent 55%);
+  }
+
+  .qa-theme-attendance .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(74, 222, 128, 0.25));
+    color: #15803d;
+  }
+  html.dark .qa-theme-attendance .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.25), rgba(74, 222, 128, 0.12));
+    color: #86efac;
+  }
+  .qa-theme-attendance:hover::before {
+    background: radial-gradient(120% 80% at 100% 0%, rgba(34, 197, 94, 0.12), transparent 55%);
+  }
+
+  .qa-theme-exam .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.22), rgba(251, 146, 60, 0.28));
+    color: #c2410c;
+  }
+  html.dark .qa-theme-exam .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.28), rgba(251, 146, 60, 0.15));
+    color: #fdba74;
+  }
+  .qa-theme-exam:hover::before {
+    background: radial-gradient(120% 80% at 100% 0%, rgba(249, 115, 22, 0.12), transparent 55%);
+  }
+
+  .qa-theme-academic .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.18), rgba(34, 211, 238, 0.22));
+    color: #0e7490;
+  }
+  html.dark .qa-theme-academic .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.25), rgba(34, 211, 238, 0.12));
+    color: #67e8f9;
+  }
+  .qa-theme-academic:hover::before {
+    background: radial-gradient(120% 80% at 100% 0%, rgba(6, 182, 212, 0.1), transparent 55%);
+  }
+
+  .qa-theme-reports .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.22), rgba(129, 140, 248, 0.28));
+    color: #4f46e5;
+  }
+  html.dark .qa-theme-reports .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(129, 140, 248, 0.15));
+    color: #a5b4fc;
+  }
+  .qa-theme-reports:hover::before {
+    background: radial-gradient(120% 80% at 100% 0%, rgba(99, 102, 241, 0.12), transparent 55%);
+  }
+
+  .qa-theme-fees .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(52, 211, 153, 0.25));
+    color: #047857;
+  }
+  html.dark .qa-theme-fees .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.28), rgba(52, 211, 153, 0.12));
+    color: #6ee7b7;
+  }
+  .qa-theme-fees:hover::before {
+    background: radial-gradient(120% 80% at 100% 0%, rgba(16, 185, 129, 0.1), transparent 55%);
+  }
+</style>
 <script>
 document.addEventListener("DOMContentLoaded", function() {
   const isDark = document.documentElement.classList.contains("dark");
   const textColor = isDark ? "#94a3b8" : "#64748b";
   const gridColor = isDark ? "rgba(100,116,139,0.2)" : "rgba(148,163,184,0.3)";
 
-  const growthData = JSON.parse(document.getElementById("student-growth-data")?.textContent || "[]");
   const classData = JSON.parse(document.getElementById("class-distribution-data")?.textContent || "[]");
-  const subjectData = JSON.parse(document.getElementById("subject-distribution-data")?.textContent || "[]");
+  const trendData = JSON.parse(document.getElementById("attendance-trend-data")?.textContent || "[]");
 
-  {# Student Growth Chart #}
-  const growthCtx = document.getElementById("studentGrowthChart");
-  if (growthCtx) {
-    new Chart(growthCtx, {
-      type: "line",
-      data: {
-        labels: growthData.map(d => d.month),
-        datasets: [{
-          label: "New Enrollments",
-          data: growthData.map(d => d.count),
-          borderColor: "#6366f1",
-          backgroundColor: "rgba(99,102,241,0.1)",
-          fill: true,
-          tension: 0.3
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          y: { beginAtZero: true, ticks: { color: textColor }, grid: { color: gridColor } },
-          x: { ticks: { color: textColor }, grid: { color: gridColor } }
-        }
-      }
-    });
-  }
-
-  {# Attendance Chart #}
-  const attCtx = document.getElementById("attendanceChart");
-  if (attCtx) {
-    new Chart(attCtx, {
-      type: "doughnut",
-      data: {
-        labels: ["Present", "Absent"],
-        datasets: [{
-          data: [{{ attendance_analytics.present }}, {{ attendance_analytics.absent }}],
-          backgroundColor: ["#10b981", "#ef4444"],
-          borderWidth: 0
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { labels: { color: textColor } } }
-      }
-    });
-  }
-
-  {# Class Distribution Chart #}
   const classCtx = document.getElementById("classDistChart");
-  if (classCtx) {
+  if (classCtx && classData.length) {
     new Chart(classCtx, {
       type: "bar",
       data: {
-        labels: classData.map(d => d.label),
+        labels: classData.map(function(d) { return d.label; }),
         datasets: [{
           label: "Students",
-          data: classData.map(d => d.count),
-          backgroundColor: "rgba(99,102,241,0.6)",
-          borderColor: "#6366f1",
+          data: classData.map(function(d) { return d.count; }),
+          backgroundColor: "rgba(13,110,253,0.45)",
+          borderColor: "#0d6efd",
           borderWidth: 1
         }]
       },
@@ -348,26 +856,27 @@ document.addEventListener("DOMContentLoaded", function() {
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          y: { beginAtZero: true, ticks: { color: textColor }, grid: { color: gridColor } },
+          y: { beginAtZero: true, ticks: { color: textColor, precision: 0 }, grid: { color: gridColor } },
           x: { ticks: { color: textColor }, grid: { color: gridColor } }
         }
       }
     });
   }
 
-  {# Subject Distribution Chart #}
-  const subjectCtx = document.getElementById("subjectDistChart");
-  if (subjectCtx) {
-    new Chart(subjectCtx, {
-      type: "bar",
+  const trendCtx = document.getElementById("attendanceTrendChart");
+  if (trendCtx && trendData.length) {
+    new Chart(trendCtx, {
+      type: "line",
       data: {
-        labels: subjectData.map(d => d.label),
+        labels: trendData.map(function(d) { return d.short + " " + d.label; }),
         datasets: [{
-          label: "Subjects",
-          data: subjectData.map(d => d.count),
-          backgroundColor: "rgba(168,85,247,0.6)",
-          borderColor: "#a855f7",
-          borderWidth: 1
+          label: "% present",
+          data: trendData.map(function(d) { return d.pct; }),
+          fill: true,
+          backgroundColor: "rgba(25,135,84,0.15)",
+          borderColor: "#198754",
+          tension: 0.25,
+          pointRadius: 3
         }]
       },
       options: {
@@ -375,8 +884,13 @@ document.addEventListener("DOMContentLoaded", function() {
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          y: { beginAtZero: true, ticks: { color: textColor }, grid: { color: gridColor } },
-          x: { ticks: { color: textColor }, grid: { color: gridColor } }
+          y: {
+            beginAtZero: true,
+            max: 100,
+            ticks: { color: textColor, callback: function(v) { return v + "%"; } },
+            grid: { color: gridColor }
+          },
+          x: { ticks: { color: textColor, maxRotation: 45 }, grid: { color: gridColor } }
         }
       }
     });

@@ -11,55 +11,147 @@
   </nav>
 
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-    <h1 class="h4 fw-bold mb-0">Exams</h1>
-    <a href="{% url 'core:school_exam_create' %}" class="btn btn-primary btn-sm">Create Exam</a>
+    <div>
+      <h1 class="h4 fw-bold mb-0">Exams</h1>
+      <p class="text-muted small mb-0">Multi-subject sessions group papers; legacy rows are single papers without a session.</p>
+    </div>
+    <a href="{% url 'core:school_exam_create' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Create exam</a>
   </div>
 
   <div class="card border-0 shadow-sm rounded-3 mb-4">
     <div class="card-body">
-      <form method="get" class="row g-3">
-        <div class="col-md-4">
-          <label class="form-label small">Class</label>
+      <form method="get" class="row g-3 align-items-end">
+        <div class="col-md-6 col-lg-2">
+          <label class="form-label small mb-1">Class</label>
           <select name="classroom" class="form-select form-select-sm">
             <option value="">All</option>
             {% for c in classrooms %}
-              <option value="{{ c.id }}" {% if filters.classroom == c.id|stringformat:"s" %}selected{% endif %}>
-                {{ c.name }}
-              </option>
+              <option value="{{ c.id }}" {% if filters.classroom == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
             {% endfor %}
           </select>
         </div>
-        <div class="col-md-3 d-flex align-items-end gap-2">
-          <button type="submit" class="btn btn-outline-primary btn-sm">Filter</button>
+        <div class="col-md-6 col-lg-2">
+          <label class="form-label small mb-1">Section</label>
+          <select name="section" class="form-select form-select-sm">
+            <option value="">All</option>
+            {% for s in sections %}
+              <option value="{{ s.id }}" {% if filters.section == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6 col-lg-2">
+          <label class="form-label small mb-1">Teacher</label>
+          <select name="teacher" class="form-select form-select-sm">
+            <option value="">All</option>
+            {% for t in teachers %}
+              <option value="{{ t.id }}" {% if filters.teacher == t.id|stringformat:"s" %}selected{% endif %}>{{ t.user.get_full_name|default:t.user.username }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6 col-lg-2">
+          <label class="form-label small mb-1">Subject</label>
+          <select name="subject" class="form-select form-select-sm">
+            <option value="">All</option>
+            {% for sub in subjects %}
+              <option value="{{ sub.id }}" {% if filters.subject == sub.id|stringformat:"s" %}selected{% endif %}>{{ sub.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6 col-lg-2">
+          <label class="form-label small mb-1">Search</label>
+          <input type="text" name="q" class="form-control form-control-sm" placeholder="Session / exam name" value="{{ filters.q }}">
+        </div>
+        <div class="col-md-6 col-lg-2 d-flex gap-2">
+          <button type="submit" class="btn btn-outline-primary btn-sm flex-grow-1">Filter</button>
           <a href="{% url 'core:school_exams_list' %}" class="btn btn-outline-secondary btn-sm">Clear</a>
         </div>
       </form>
     </div>
   </div>
 
+  {% if not exam_sessions_enabled %}
+  <div class="alert alert-warning py-2">
+    Exam sessions are not available yet on this database. Run latest migrations to enable grouped multi-subject exams.
+  </div>
+  {% endif %}
+
+  <h2 class="h6 fw-semibold mb-2">Exam sessions</h2>
+  <div class="card border-0 shadow-sm rounded-3 overflow-hidden mb-4">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Exam</th>
+            <th>Class</th>
+            <th>Section</th>
+            <th>Papers</th>
+            <th>Date range</th>
+            <th>Created by</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in exam_sessions %}
+          <tr>
+            <td class="fw-medium">{{ s.name }}</td>
+            <td>{{ s.class_name }}</td>
+            <td><span class="badge bg-info bg-opacity-25 text-info">{{ s.section }}</span></td>
+            <td>{{ s.paper_count }}</td>
+            <td>
+              {% if s.date_min and s.date_max %}
+                {% if s.date_min == s.date_max %}{{ s.date_min|date:"M j, Y" }}{% else %}{{ s.date_min|date:"M j" }} – {{ s.date_max|date:"M j, Y" }}{% endif %}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="small text-muted">{{ s.created_by.get_full_name|default:s.created_by.username }}</td>
+            <td class="text-end">
+              <a href="{% url 'core:school_exam_session_detail' s.id %}" class="btn btn-sm btn-outline-primary">View</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="text-center text-muted py-4">No exam sessions found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h2 class="h6 fw-semibold mb-2">Individual papers (legacy)</h2>
+  <p class="small text-muted mb-2">Exams created before sessions or single-subject exams without a session.</p>
   <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
           <tr>
-            <th>Exam Name</th>
+            <th>Exam</th>
+            <th>Subject</th>
             <th>Class</th>
             <th>Section</th>
-            <th>Created By</th>
-            <th>Exam Date</th>
+            <th>Teacher</th>
+            <th>Date</th>
+            <th>Created by</th>
           </tr>
         </thead>
         <tbody>
-          {% for e in exams %}
+          {% for e in legacy_exams %}
           <tr>
-            <td>{{ e.name }}</td>
+            <td class="fw-medium">{{ e.name }}</td>
+            <td>{% if e.subject %}{{ e.subject.name }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
             <td>{{ e.class_name }}</td>
-            <td>{{ e.section }}</td>
-            <td>{{ e.created_by.get_full_name|default:e.created_by.username|default:"—" }}</td>
+            <td><span class="badge bg-secondary bg-opacity-25">{{ e.section }}</span></td>
+            <td>
+              {% if e.teacher %}
+                {{ e.teacher.user.get_full_name|default:e.teacher.user.username }}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
             <td>{{ e.date }}</td>
+            <td class="small text-muted">{{ e.created_by.get_full_name|default:e.created_by.username|default:"—" }}</td>
           </tr>
           {% empty %}
-          <tr><td colspan="5" class="text-center text-muted py-4">No exams found.</td></tr>
+          <tr><td colspan="7" class="text-center text-muted py-4">No legacy papers.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -67,4 +159,3 @@
   </div>
 </div>
 {% endblock %}
-

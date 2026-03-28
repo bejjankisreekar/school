@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Promote Students | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Promote Students</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <h1 class="h4 fw-bold mb-0">Promote / Demote / Transfer / Detain</h1>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body">
+      <form method="get" class="row g-3 align-items-end">
+        <div class="col-md-3"><label class="form-label small">From Year</label>{{ filter_form.from_year }}</div>
+        <div class="col-md-3"><label class="form-label small">To Year</label>{{ filter_form.to_year }}</div>
+        <div class="col-md-3"><label class="form-label small">Class</label>{{ filter_form.classroom }}</div>
+        <div class="col-md-3"><label class="form-label small">Section</label>{{ filter_form.section }}</div>
+        <div class="col-12 d-flex gap-2">
+          <button class="btn btn-outline-primary btn-sm" type="submit">Load Students</button>
+          <a href="{% url 'core:school_promote_students' %}" class="btn btn-outline-secondary btn-sm">Clear</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if students %}
+  <form method="post" id="promotionForm">
+    {% csrf_token %}
+    <input type="hidden" name="from_year" value="{{ from_year.id }}">
+    <input type="hidden" name="to_year" value="{{ to_year.id }}">
+    <div class="card border-0 shadow-sm rounded-3 mb-3">
+      <div class="card-body">
+        <div class="row g-3 align-items-end">
+          <div class="col-md-4"><label class="form-label small">Action</label>{{ action_form.action }}</div>
+          <div class="col-md-4"><label class="form-label small">Target Class (for transfer/demote override)</label>{{ action_form.target_classroom }}</div>
+          <div class="col-md-4"><label class="form-label small">Target Section</label>{{ action_form.target_section }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th><input type="checkbox" id="selectAll"></th>
+              <th>Student</th>
+              <th>Current</th>
+              <th>Suggested</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in preview_rows %}
+            <tr>
+              <td><input type="checkbox" name="student_ids" value="{{ row.student.id }}" class="student-check"></td>
+              <td>{{ row.student.user.get_full_name|default:row.student.user.username }}</td>
+              <td>{{ row.student.classroom|default:"—" }}{% if row.student.section %} · {{ row.student.section.name }}{% endif %}</td>
+              <td>
+                {% if row.suggested_class %}
+                  {{ row.suggested_class.name }}{% if row.suggested_section %} · {{ row.suggested_section.name }}{% endif %}
+                {% else %}
+                  <span class="text-muted">No next class mapping</span>
+                {% endif %}
+              </td>
+              <td>{% if row.is_final_class %}<span class="badge bg-warning text-dark">Final class</span>{% else %}<span class="badge bg-success">Mappable</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer d-flex justify-content-between">
+        <span class="small text-muted">Selected changes will be highlighted in preview modal.</span>
+        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#confirmModal">Apply Changes</button>
+      </div>
+    </div>
+
+    <div class="modal fade" id="confirmModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header"><h5 class="modal-title">Confirm Promotion Update</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+          <div class="modal-body">
+            <p class="mb-1">Apply selected action to checked students?</p>
+            <div class="small text-muted">This will create promotion logs and enrollment history entries.</div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-light" data-bs-dismiss="modal" type="button">Cancel</button>
+            <button class="btn btn-primary" type="submit">Confirm & Apply</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+  {% else %}
+  <div class="alert alert-secondary">Select years and filters, then click Load Students.</div>
+  {% endif %}
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  const all = document.getElementById("selectAll");
+  if (all) {
+    all.addEventListener("change", function() {
+      document.querySelectorAll(".student-check").forEach(cb => cb.checked = all.checked);
+    });
+  }
+});
+</script>
+{% endblock %}
+

@@ -1,7 +1,39 @@
 {% extends "base.html" %}
 {% block title %}Create Exam | School ERP{% endblock %}
+{% block extra_head %}
+<link href="https://cdn.jsdelivr.net/npm/tom-select/dist/css/tom-select.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/tom-select/dist/js/tom-select.complete.min.js"></script>
+<style>
+  .exam-create-page .form-control,
+  .exam-create-page .ts-control {
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .exam-create-page .ts-wrapper .ts-control {
+    min-height: 46px;
+  }
+  .exam-create-page .exam-scheduler-card .ts-wrapper.multi .ts-control {
+    min-height: 52px;
+  }
+  .exam-create-page .ts-wrapper.focus .ts-control {
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+  }
+  .exam-create-page .mode-pill .btn-check:checked + .btn {
+    background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+    border-color: #0a58ca;
+    color: #fff;
+  }
+  .exam-create-page .scheduler-accent {
+    border-top: 4px solid #0d6efd;
+  }
+  #subjectScheduleTable tbody tr td {
+    vertical-align: middle;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container-fluid px-0">
+<div class="container-fluid px-0 exam-create-page">
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
@@ -9,169 +41,479 @@
       <li class="breadcrumb-item active">Create Exam</li>
     </ol>
   </nav>
-  <h1 class="h4 fw-bold mb-2">Create Exam</h1>
-  <p class="text-muted mb-4">Add a new exam. Select a class, then pick one or more sections. Optionally assign a teacher. One exam will be created per section.</p>
 
-  <div class="card border-0 shadow-sm rounded-4 p-4">
-    {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
-    <form method="post">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h1 class="h4 fw-bold mb-1">Create exam</h1>
+      <p class="text-muted small mb-0">Schedule one exam, or batch many subjects with a date per subject across classes and sections.</p>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-lg rounded-4 p-4 p-lg-5 mb-4">
+    <div class="mb-4">
+      <span class="text-uppercase small fw-semibold text-muted d-block mb-2">Creation mode</span>
+      <div class="btn-group mode-pill flex-wrap" role="group" aria-label="Mode">
+        <input type="radio" class="btn-check" name="exam_mode_ui" id="mode_single" value="single" checked autocomplete="off">
+        <label class="btn btn-outline-primary px-4 rounded-start-pill" for="mode_single"><i class="bi bi-file-earmark-plus me-1"></i> Single exam</label>
+        <input type="radio" class="btn-check" name="exam_mode_ui" id="mode_multiple" value="multiple" autocomplete="off">
+        <label class="btn btn-outline-primary px-4 rounded-end-pill" for="mode_multiple"><i class="bi bi-calendar3-range me-1"></i> Multi-exam scheduler</label>
+      </div>
+    </div>
+
+    {# Single #}
+    <form method="post" id="form-single" class="exam-mode-panel">
       {% csrf_token %}
+      <input type="hidden" name="create_mode" value="single">
+      {% if single_form.non_field_errors %}<div class="alert alert-danger">{{ single_form.non_field_errors }}</div>{% endif %}
 
-      <div class="row g-4">
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Exam Name</label>
-          {{ form.name }}
-          {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Exam Date</label>
-          {{ form.date }}
-          {% if form.date.errors %}<div class="text-danger small mt-1">{{ form.date.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Class</label>
-          {{ form.class_name }}
-          {% if form.class_name.errors %}<div class="text-danger small mt-1">{{ form.class_name.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Assign to Teacher <span class="text-muted">(optional)</span></label>
-          {{ form.teacher }}
-          {% if form.teacher.errors %}<div class="text-danger small mt-1">{{ form.teacher.errors.0 }}</div>{% endif %}
-          <div class="form-text">Teachers mapped to the selected class+section will see the exam. Assign a teacher to make it primary.</div>
-        </div>
-      </div>
-
-      <div class="mt-4">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
-          <label class="form-label fw-semibold mb-0">Sections</label>
-          <span class="text-muted small" id="sectionCount">Select a class first</span>
-        </div>
-        <div class="form-check mb-2">
-          <input class="form-check-input" type="checkbox" id="selectAllSections">
-          <label class="form-check-label" for="selectAllSections">Select All</label>
-        </div>
-        {% if form.sections.errors %}<div class="text-danger small mb-2">{{ form.sections.errors.0 }}</div>{% endif %}
-
-        <div id="sectionsPlaceholder" class="text-muted py-3 text-center border rounded bg-light">
-          Select a class above to choose sections.
-        </div>
-        <div id="sectionsGrid" class="row g-2" style="display: none;">
-          {% for value, label in form.fields.sections.choices %}
-          <div class="col-6 col-md-4 col-lg-3 col-xl-2 section-card-wrap" data-section="{{ value }}" style="display: none;">
-            <div class="section-card p-2 rounded text-center border" role="button" tabindex="0">
-              <input type="checkbox" name="sections" value="{{ value }}" id="id_section_{{ forloop.counter }}" class="form-check-input">
-              <label class="ms-1 mb-0" for="id_section_{{ forloop.counter }}">{{ label }}</label>
-            </div>
+      <div class="card border rounded-4 bg-body-tertiary bg-opacity-25 p-3 p-md-4 mb-0">
+        <h5 class="fw-semibold mb-3"><i class="bi bi-pencil-square text-primary me-2"></i>Exam details</h5>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Exam name</label>
+            {{ single_form.name }}
+            {% if single_form.name.errors %}<div class="text-danger small">{{ single_form.name.errors.0 }}</div>{% endif %}
           </div>
-          {% endfor %}
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Subject</label>
+            {{ single_form.subject }}
+            {% if single_form.subject.errors %}<div class="text-danger small">{{ single_form.subject.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Class</label>
+            {{ single_form.class_name }}
+            {% if single_form.class_name.errors %}<div class="text-danger small">{{ single_form.class_name.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Section</label>
+            {{ single_form.section }}
+            {% if single_form.section.errors %}<div class="text-danger small">{{ single_form.section.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Assign teacher <span class="text-muted fw-normal">(optional)</span></label>
+            {{ single_form.teacher }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Exam date</label>
+            {{ single_form.date }}
+            {% if single_form.date.errors %}<div class="text-danger small">{{ single_form.date.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Total marks</label>
+            {{ single_form.total_marks }}
+          </div>
         </div>
       </div>
+
+      <div id="singleConflict" class="alert alert-warning small mt-3 d-none" role="alert"></div>
 
       <div class="d-flex justify-content-end gap-2 mt-4">
-        <a href="{% url 'core:school_exams_list' %}" class="btn btn-light">Cancel</a>
-        <button type="submit" class="btn btn-primary">Create Exam(s)</button>
+        <a href="{% url 'core:school_exams_list' %}" class="btn btn-outline-secondary rounded-3">Cancel</a>
+        <button type="submit" class="btn btn-primary rounded-3 px-4">Create exam</button>
+      </div>
+    </form>
+
+    {# Multi-exam scheduler #}
+    <form method="post" id="form-scheduler" class="exam-mode-panel d-none">
+      {% csrf_token %}
+      <input type="hidden" name="create_mode" value="multiple">
+
+      {% if scheduler_form.non_field_errors %}<div class="alert alert-danger">{{ scheduler_form.non_field_errors }}</div>{% endif %}
+
+      <div class="card shadow-sm border-0 rounded-4 p-4 exam-scheduler-card bg-body-tertiary bg-opacity-50 scheduler-accent">
+        <h5 class="fw-semibold mb-3"><i class="bi bi-info-circle text-primary me-2"></i>Exam details</h5>
+        <div class="row g-3 mb-4">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Exam name <span class="text-danger">*</span></label>
+            {{ scheduler_form.exam_name }}
+            {% if scheduler_form.exam_name.errors %}<div class="text-danger small">{{ scheduler_form.exam_name.errors.0 }}</div>{% endif %}
+            <div class="form-text">{{ scheduler_form.exam_name.help_text }}</div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">Total marks (each)</label>
+            {{ scheduler_form.total_marks }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">Teacher <span class="text-muted fw-normal">(optional)</span></label>
+            {{ scheduler_form.teacher }}
+          </div>
+        </div>
+
+        <h5 class="fw-semibold mb-3"><i class="bi bi-diagram-3 text-primary me-2"></i>Select classes &amp; sections</h5>
+        <div class="row g-3 mb-2">
+          <div class="col-md-6">
+            <label class="form-label small text-muted" for="classSelect">Classes</label>
+            <select id="classSelect" name="classes" multiple autocomplete="off" aria-describedby="classHelp"></select>
+            <div id="classHelp" class="form-text">Choose one or more classes.</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small text-muted" for="sectionSelect">Sections</label>
+            <select id="sectionSelect" name="sections" multiple autocomplete="off" aria-describedby="sectionHelp"></select>
+            <div id="sectionHelp" class="form-text">Only sections linked to the selected classes appear here.</div>
+          </div>
+        </div>
+
+        <h5 class="fw-semibold mt-4 mb-3"><i class="bi bi-journal-bookmark text-primary me-2"></i>Subjects &amp; dates</h5>
+        <p class="small text-muted mb-2">Tick each subject to include; set the exam date beside it (same row).</p>
+
+        <div class="table-responsive border rounded-3 bg-white shadow-sm" style="max-height: 420px;">
+          <table class="table table-hover align-middle mb-0" id="subjectScheduleTable">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th style="width: 48px;" class="text-center">Include</th>
+                <th>Subject</th>
+                <th style="min-width: 200px;">Exam date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for sub in all_subjects %}
+              <tr class="subject-schedule-row">
+                <td class="text-center">
+                  <input type="checkbox" name="subject_include" value="{{ sub.id }}" class="form-check-input subject-include"
+                         id="sub_inc_{{ sub.id }}" data-subject-id="{{ sub.id }}" data-subject-name="{{ sub.name|escape }}">
+                </td>
+                <td>
+                  <label class="fw-medium mb-0" for="sub_inc_{{ sub.id }}">{{ sub.name }}</label>
+                </td>
+                <td>
+                  <input type="date" name="exam_date_{{ sub.id }}" id="exam_date_{{ sub.id }}"
+                         class="form-control form-control-sm exam-date-input" disabled
+                         data-subject-id="{{ sub.id }}" autocomplete="off">
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="3" class="text-muted text-center py-4">No subjects in the catalog. Add subjects first.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="small text-muted mt-2 mb-0">
+          <i class="bi bi-lightbulb me-1"></i>
+          Sundays move to Monday automatically when you pick a Sunday. The server also blocks duplicate class/section/date clashes.
+        </p>
+      </div>
+
+      <div class="card border-info mt-4 rounded-4 shadow-sm" id="schedulePreviewCard">
+        <div class="card-header bg-info bg-opacity-10 py-3 d-flex flex-wrap align-items-center justify-content-between gap-2 rounded-top-4 border-0">
+          <strong><i class="bi bi-eye me-1"></i> Preview schedule</strong>
+          <button type="button" id="btnGeneratePreview" class="btn btn-sm btn-info rounded-3">Generate preview</button>
+        </div>
+        <div class="card-body py-3">
+          <div class="mb-0 small text-muted" id="schedulePreviewHint">Select classes, sections, and subjects with dates, then preview before saving.</div>
+          <ul class="mb-0 small mt-2 list-unstyled d-none" id="schedulePreview"></ul>
+        </div>
+      </div>
+
+      <div id="schedulerConflict" class="alert alert-warning small mt-3 d-none" role="alert"></div>
+
+      <div class="d-flex justify-content-end gap-2 mt-4">
+        <a href="{% url 'core:school_exams_list' %}" class="btn btn-outline-secondary rounded-3">Cancel</a>
+        <button type="submit" class="btn btn-primary rounded-3 px-4 shadow-sm" id="btnSchedulerSubmit">
+          <i class="bi bi-check2-circle me-1"></i> Create exams
+        </button>
       </div>
     </form>
   </div>
 </div>
 
-<style>
-.section-card { cursor: pointer; transition: 0.2s; user-select: none; }
-.section-card:hover { background-color: #f8f9fa; border-color: #0d6efd !important; }
-.section-card.selected { background-color: #e7f1ff; border-color: #0d6efd !important; box-shadow: 0 0 0 0.2rem rgba(13,110,253,.12); }
-.section-card input { margin-right: 5px; }
-</style>
-
 <script>
 (function() {
-  var classSelect = document.getElementById("id_exam_class");
-  var classSections = {{ class_sections_json|safe }};
-  var placeholder = document.getElementById("sectionsPlaceholder");
-  var grid = document.getElementById("sectionsGrid");
-  var sectionWraps = document.querySelectorAll(".section-card-wrap");
-  var countEl = document.getElementById("sectionCount");
-  var selectAll = document.getElementById("selectAllSections");
+  var classSectionsData = {{ scheduler_class_sections_json|safe }};
+  var existingExams = {{ existing_exams_json|safe }};
+  var classTs = null;
+  var sectionTs = null;
 
-  function getVisibleCheckboxes() {
-    return Array.from(sectionWraps)
-      .filter(function(w) { return w.style.display !== "none"; })
-      .map(function(w) { return w.querySelector("input[type='checkbox']"); })
-      .filter(Boolean);
+  function sectionNameById(id) {
+    for (var i = 0; i < classSectionsData.length; i++) {
+      var secs = classSectionsData[i].sections || [];
+      for (var j = 0; j < secs.length; j++) {
+        if (String(secs[j].id) === String(id)) return secs[j].name;
+      }
+    }
+    return "";
   }
 
-  function getVisibleWraps() {
-    return Array.from(sectionWraps).filter(function(w) { return w.style.display !== "none"; });
-  }
-
-  function updateUI() {
-    var cbs = getVisibleCheckboxes();
-    var n = cbs.filter(function(c) { return c.checked; }).length;
-    if (countEl) countEl.textContent = n + " section(s) selected";
-    getVisibleWraps().forEach(function(w) {
-      var card = w.querySelector(".section-card");
-      var cb = w.querySelector("input");
-      if (card && cb) card.classList.toggle("selected", cb.checked);
+  function validPairs() {
+    var cids = classTs ? classTs.getValue() : [];
+    var sids = sectionTs ? sectionTs.getValue() : [];
+    var pairs = [];
+    var seen = {};
+    cids.forEach(function(cid) {
+      var row = classSectionsData.find(function(c) { return String(c.id) === String(cid); });
+      if (!row) return;
+      var allowed = {};
+      (row.sections || []).forEach(function(s) { allowed[String(s.id)] = true; });
+      sids.forEach(function(sid) {
+        if (allowed[String(sid)]) {
+          var key = row.name + "\0" + sectionNameById(sid);
+          if (!seen[key]) {
+            seen[key] = true;
+            pairs.push({ cn: row.name, sn: sectionNameById(sid) });
+          }
+        }
+      });
     });
-    if (selectAll && cbs.length) {
-      selectAll.checked = n === cbs.length;
-      selectAll.indeterminate = n > 0 && n < cbs.length;
+    return pairs;
+  }
+
+  function rebuildSectionOptions() {
+    if (!sectionTs || !classTs) return;
+    var cids = classTs.getValue();
+    var union = {};
+    cids.forEach(function(cid) {
+      var row = classSectionsData.find(function(c) { return String(c.id) === String(cid); });
+      if (!row || !row.sections) return;
+      row.sections.forEach(function(s) {
+        union[String(s.id)] = { value: s.id, text: s.name };
+      });
+    });
+    var current = sectionTs.getValue();
+    sectionTs.clear();
+    sectionTs.clearOptions();
+    Object.keys(union).forEach(function(k) {
+      sectionTs.addOption(union[k]);
+    });
+    sectionTs.refreshOptions(false);
+    var keep = current.filter(function(id) { return union[String(id)]; });
+    if (keep.length) sectionTs.setValue(keep);
+  }
+
+  function checkedSubjectIds() {
+    var ids = [];
+    document.querySelectorAll("input.subject-include:checked").forEach(function(cb) {
+      ids.push(cb.value);
+    });
+    return ids;
+  }
+
+  function bindSubjectRows() {
+    document.querySelectorAll("input.subject-include").forEach(function(cb) {
+      cb.addEventListener("change", function() {
+        var sid = cb.value;
+        var inp = document.querySelector("#exam_date_" + sid);
+        if (!inp) return;
+        if (cb.checked) {
+          inp.disabled = false;
+          inp.required = true;
+        } else {
+          inp.disabled = true;
+          inp.required = false;
+          inp.value = "";
+        }
+        checkSchedulerConflicts();
+      });
+    });
+    document.querySelectorAll("#subjectScheduleTable input.exam-date-input").forEach(function(inp) {
+      inp.addEventListener("change", function() {
+        skipSunday(inp);
+        checkSchedulerConflicts();
+      });
+    });
+  }
+
+  function skipSunday(inp) {
+    if (!inp.value) return;
+    var d = new Date(inp.value + "T12:00:00");
+    if (d.getDay() === 0) {
+      d.setDate(d.getDate() + 1);
+      var y = d.getFullYear();
+      var m = String(d.getMonth() + 1).padStart(2, "0");
+      var day = String(d.getDate()).padStart(2, "0");
+      inp.value = y + "-" + m + "-" + day;
     }
   }
 
-  function onClassChange() {
-    var val = classSelect ? classSelect.value : "";
-    if (!val) {
-      placeholder.style.display = "block";
-      grid.style.display = "none";
-      sectionWraps.forEach(function(w) { w.style.display = "none"; });
-      if (countEl) countEl.textContent = "Select a class first";
+  function initTomSelect() {
+    if (typeof TomSelect === "undefined") return;
+    classTs = new TomSelect("#classSelect", {
+      plugins: ["remove_button"],
+      placeholder: "Select classes",
+      hideSelected: true,
+      onChange: function() { rebuildSectionOptions(); checkSchedulerConflicts(); }
+    });
+    sectionTs = new TomSelect("#sectionSelect", {
+      plugins: ["remove_button"],
+      placeholder: "Select sections",
+      hideSelected: true,
+      onChange: function() { checkSchedulerConflicts(); }
+    });
+    {% for c in all_classrooms %}
+    classTs.addOption({ value: "{{ c.id }}", text: "{{ c.name|escapejs }}" });
+    {% endfor %}
+    classTs.refreshOptions(false);
+    rebuildSectionOptions();
+    bindSubjectRows();
+  }
+
+  function subjectDates() {
+    var out = {};
+    document.querySelectorAll("input.subject-include:checked").forEach(function(cb) {
+      var sid = cb.value;
+      var inp = document.querySelector("#exam_date_" + sid);
+      if (inp) out[sid] = inp.value;
+    });
+    return out;
+  }
+
+  function checkSchedulerConflicts() {
+    var warn = document.getElementById("schedulerConflict");
+    if (!warn) return;
+    var pairs = validPairs();
+    var ids = checkedSubjectIds();
+    var dates = subjectDates();
+    if (!pairs.length || !ids.length) {
+      warn.classList.add("d-none");
       return;
     }
-    var sections = classSections[val];
-    if (!sections || sections.length === 0) {
-      sections = Array.from(sectionWraps).map(function(w) { return w.getAttribute("data-section"); }).filter(Boolean);
+    var msgs = [];
+    ids.forEach(function(sid) {
+      var dt = dates[sid];
+      if (!dt) return;
+      pairs.forEach(function(p) {
+        var hit = existingExams.some(function(e) {
+          return e.d === dt && e.c === p.cn && e.s === p.sn;
+        });
+        if (hit) msgs.push(p.cn + " " + p.sn + " on " + dt + " (slot busy)");
+      });
+    });
+    if (msgs.length) {
+      warn.textContent = "Possible conflicts with existing exams: " + msgs.slice(0, 8).join("; ");
+      if (msgs.length > 8) warn.textContent += " …";
+      warn.classList.remove("d-none");
+    } else {
+      warn.classList.add("d-none");
     }
-    placeholder.style.display = "none";
-    grid.style.display = "flex";
-    sectionWraps.forEach(function(w) {
-      var s = w.getAttribute("data-section");
-      w.style.display = (sections.indexOf(s) >= 0) ? "" : "none";
-      var cb = w.querySelector("input");
-      if (cb) cb.checked = false;
-    });
-    if (selectAll) selectAll.checked = false;
-    updateUI();
   }
 
-  if (classSelect) {
-    classSelect.addEventListener("change", onClassChange);
-    if (classSelect.value) onClassChange();
-  }
-
-  sectionWraps.forEach(function(wrap) {
-    var card = wrap.querySelector(".section-card");
-    if (!card) return;
-    card.addEventListener("click", function(e) {
-      if (e.target.tagName === "INPUT" || e.target.tagName === "LABEL") return;
-      var cb = wrap.querySelector("input");
-      if (cb) { cb.checked = !cb.checked; updateUI(); }
+  document.getElementById("btnGeneratePreview").addEventListener("click", function() {
+    var ul = document.getElementById("schedulePreview");
+    var hint = document.getElementById("schedulePreviewHint");
+    var examBase = (document.getElementById("id_scheduler_exam_name") && document.getElementById("id_scheduler_exam_name").value) || "Exam";
+    ul.innerHTML = "";
+    ul.classList.add("d-none");
+    var pairs = validPairs();
+    var ids = checkedSubjectIds();
+    var dates = subjectDates();
+    if (!pairs.length || !ids.length) {
+      hint.textContent = "Select classes, sections, and tick at least one subject with a date.";
+      return;
+    }
+    var missing = ids.filter(function(sid) { return !dates[sid]; });
+    if (missing.length) {
+      hint.textContent = "Set a date for every checked subject.";
+      return;
+    }
+    hint.textContent = "One exam session per class–section; each line is a subject paper. Click Create when ready.";
+    ul.classList.remove("d-none");
+    pairs.forEach(function(p) {
+      ids.forEach(function(sid) {
+        var dt = dates[sid];
+        var cb = document.querySelector('input.subject-include[value="' + sid + '"]');
+        var subjName = cb && cb.getAttribute("data-subject-name") ? cb.getAttribute("data-subject-name") : sid;
+        var li = document.createElement("li");
+        li.className = "mb-1 border-bottom pb-1";
+        li.textContent = "Session: " + examBase + " | " + p.cn + " · " + p.sn + " → " + subjName + " on " + dt;
+        ul.appendChild(li);
+      });
     });
-    card.addEventListener("keydown", function(e) {
-      if (e.key !== "Enter" && e.key !== " ") return;
-      e.preventDefault();
-      var cb = wrap.querySelector("input");
-      if (cb) { cb.checked = !cb.checked; updateUI(); }
-    });
-    var cb = wrap.querySelector("input");
-    if (cb) cb.addEventListener("change", updateUI);
   });
 
-  if (selectAll) {
-    selectAll.addEventListener("change", function() {
-      getVisibleCheckboxes().forEach(function(c) { c.checked = selectAll.checked; });
-      updateUI();
+  var modeSingle = document.getElementById("mode_single");
+  var modeMulti = document.getElementById("mode_multiple");
+  var panelSingle = document.getElementById("form-single");
+  var panelSched = document.getElementById("form-scheduler");
+  function setMode() {
+    var multi = modeMulti && modeMulti.checked;
+    if (panelSingle) panelSingle.classList.toggle("d-none", multi);
+    if (panelSched) panelSched.classList.toggle("d-none", !multi);
+  }
+  if (modeSingle) modeSingle.addEventListener("change", setMode);
+  if (modeMulti) modeMulti.addEventListener("change", setMode);
+  setMode();
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initTomSelect);
+  } else {
+    initTomSelect();
+  }
+
+  var sc = document.getElementById("id_single_class");
+  var ss = document.getElementById("id_single_section");
+  var classSections = {{ class_sections_json|safe }};
+  function filterSectionOptions(classSelect, sectionSelect, classKey) {
+    if (!sectionSelect) return;
+    var allowed = classSections[classKey] || null;
+    var opts = sectionSelect.querySelectorAll("option");
+    opts.forEach(function(opt) {
+      if (!opt.value) { opt.hidden = false; return; }
+      if (!allowed || allowed.indexOf(opt.value) < 0) opt.hidden = true;
+      else opt.hidden = false;
+    });
+    if (sectionSelect.selectedOptions.length && sectionSelect.selectedOptions[0].hidden) sectionSelect.value = "";
+  }
+  if (sc && ss) {
+    sc.addEventListener("change", function() { filterSectionOptions(sc, ss, sc.value); });
+    if (sc.value) filterSectionOptions(sc, ss, sc.value);
+  }
+
+  var subSel = document.getElementById("id_single_subject");
+  var nameInp = document.getElementById("id_name");
+  if (subSel && nameInp) {
+    subSel.addEventListener("change", function() {
+      var t = subSel.options[subSel.selectedIndex];
+      if (t && t.text && !nameInp.value.trim()) nameInp.value = t.text.trim() + " Exam";
     });
   }
+
+  function checkSingleConflict() {
+    var warnSingle = document.getElementById("singleConflict");
+    var cn = sc && sc.value;
+    var sn = ss && ss.value;
+    var dt = document.getElementById("id_single_date");
+    var subSingle = subSel && subSel.value;
+    if (warnSingle && cn && sn && dt && dt.value && subSingle) {
+      var hit = existingExams.some(function(e) {
+        return e.c === cn && e.s === sn && e.d === dt.value && String(e.sub) === String(subSingle);
+      });
+      if (hit) {
+        warnSingle.textContent = "An exam already exists for this class, section, date, and subject.";
+        warnSingle.classList.remove("d-none");
+      } else {
+        warnSingle.classList.add("d-none");
+      }
+    } else if (warnSingle) warnSingle.classList.add("d-none");
+  }
+  if (subSel) subSel.addEventListener("change", checkSingleConflict);
+  if (sc) sc.addEventListener("change", checkSingleConflict);
+  if (ss) ss.addEventListener("change", checkSingleConflict);
+  var sd = document.getElementById("id_single_date");
+  if (sd) sd.addEventListener("change", checkSingleConflict);
+
+  document.getElementById("form-scheduler").addEventListener("submit", function(ev) {
+    if (!classTs || !sectionTs) return;
+    var cids = classTs.getValue();
+    var sids = sectionTs.getValue();
+    var subj = checkedSubjectIds();
+    if (!cids.length) { alert("Select at least one class."); ev.preventDefault(); return false; }
+    if (!sids.length) { alert("Select at least one section."); ev.preventDefault(); return false; }
+    if (!subj.length) { alert("Tick at least one subject and set its date."); ev.preventDefault(); return false; }
+    var missing = [];
+    subj.forEach(function(sid) {
+      var inp = document.querySelector("#exam_date_" + sid);
+      if (!inp || !inp.value) missing.push(sid);
+    });
+    if (missing.length) {
+      alert("Set an exam date for every checked subject.");
+      ev.preventDefault();
+      return false;
+    }
+    var pairs = validPairs();
+    if (!pairs.length) {
+      alert("No valid class–section pairs. Each section must belong to one of the selected classes.");
+      ev.preventDefault();
+      return false;
+    }
+  });
 })();
 </script>
 {% endblock %}

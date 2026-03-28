@@ -52,3 +52,52 @@ def get_current_academic_year_bounds() -> tuple[date, date]:
     start_date = date(start_year, 6, 1)
     end_date = date(start_year + 1, 5, 31)
     return start_date, end_date
+
+
+def get_active_academic_year_obj():
+    try:
+        from apps.school_data.models import AcademicYear
+
+        return AcademicYear.objects.filter(is_active=True).order_by("-start_date").first()
+    except Exception:
+        return None
+
+
+def apply_active_year_filter(qs, field_name: str = "academic_year"):
+    """Apply active academic-year filter to a queryset when possible."""
+    ay = get_active_academic_year_obj()
+    if not ay:
+        return qs
+    try:
+        return qs.filter(**{f"{field_name}_id": ay.id})
+    except Exception:
+        return qs
+
+
+def tenant_migrate_cli_hint(school=None) -> str:
+    """
+    Shell command to migrate the current tenant schema (django-tenants).
+
+    Prefer School.schema_name (PostgreSQL schema), not School.code.
+    Falls back to connection.schema_name, then a placeholder.
+    """
+    from django.db import connection
+
+    if school is not None:
+        sn = getattr(school, "schema_name", None)
+        if sn:
+            return f"python manage.py migrate_schemas -s {sn}"
+
+    schema = getattr(connection, "schema_name", None)
+    try:
+        from django_tenants.utils import get_public_schema_name
+
+        public = get_public_schema_name()
+    except Exception:
+        public = "public"
+    if schema and schema != public:
+        return f"python manage.py migrate_schemas -s {schema}"
+    return (
+        "python manage.py migrate_schemas -s <schema_name> "
+        "(run python manage.py list_school_schemas to see names)"
+    )

@@ -6,7 +6,7 @@
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
     <div>
       <h1 class="h4 fw-bold mb-1">Exam Management</h1>
-      <p class="text-muted small mb-0">Create exams and enter marks by class.</p>
+      <p class="text-muted small mb-0">Exams assigned to you (or open in your class/section). Enter marks per subject for your students.</p>
     </div>
     <a href="{% url 'core:teacher_exam_create' %}" class="btn btn-primary">
       <i class="bi bi-plus-lg me-1"></i> Create Exam
@@ -24,6 +24,7 @@
           <thead class="table-light">
             <tr>
               <th>Exam Name</th>
+              <th>Subject</th>
               <th>Class</th>
               <th>Section</th>
               <th>Exam Date</th>
@@ -34,6 +35,7 @@
             {% for e in exams %}
             <tr>
               <td>{{ e.name }}</td>
+              <td class="small">{% if e.subject %}{{ e.subject.name }}{% else %}<span class="text-muted">All mapped subjects</span>{% endif %}</td>
               <td>{{ e.class_name }}</td>
               <td>{{ e.section }}</td>
               <td>{{ e.date }}</td>

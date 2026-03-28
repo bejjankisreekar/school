@@ -25,7 +25,12 @@
           {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>{% endif %}
         </div>
         <div class="col-md-6">
-          <label class="form-label fw-semibold">Academic Year</label>
+          <div class="d-flex justify-content-between align-items-center">
+            <label class="form-label fw-semibold mb-0">Academic Year</label>
+            <a href="{% url 'core:school_academic_years' %}" class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-plus-lg"></i> Add Academic Year
+            </a>
+          </div>
           {{ form.academic_year }}
           {% if form.academic_year.errors %}<div class="text-danger small mt-1">{{ form.academic_year.errors.0 }}</div>{% endif %}
         </div>

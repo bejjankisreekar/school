@@ -1,0 +1,316 @@
+/**
+ * School ERP — global loading UI
+ * Overlay, top nav progress, skeletons, form/upload helpers
+ */
+
+/* ---- Scroll lock when full overlay visible ---- */
+html.erp-loading-locked,
+html.erp-loading-locked body {
+  overflow: hidden;
+}
+
+/* ========== Top navigation progress (indeterminate) ========== */
+.erp-nav-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 10060;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.erp-nav-progress.is-active {
+  opacity: 1;
+}
+
+.erp-nav-progress__bar {
+  height: 100%;
+  width: 35%;
+  background: linear-gradient(90deg, #4f46e5, #6366f1, #0ea5e9);
+  border-radius: 0 2px 2px 0;
+  animation: erp-nav-sweep 1.1s ease-in-out infinite;
+  box-shadow: 0 0 12px rgba(79, 70, 229, 0.45);
+}
+
+@keyframes erp-nav-sweep {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+/* ========== Full-screen loading overlay ========== */
+.erp-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 200ms ease, visibility 200ms ease;
+}
+
+.erp-loading-overlay.is-visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.erp-loading-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+html.dark .erp-loading-overlay__backdrop {
+  background: rgba(15, 23, 42, 0.78);
+}
+
+.erp-loading-overlay__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  text-align: center;
+  max-width: 280px;
+}
+
+.erp-loading-overlay__text {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #334155;
+  letter-spacing: 0.01em;
+}
+
+html.dark .erp-loading-overlay__text {
+  color: #e2e8f0;
+}
+
+/* Circular spinner — 1s rotation */
+.erp-spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid rgba(79, 70, 229, 0.2);
+  border-top-color: #4f46e5;
+  border-radius: 50%;
+  animation: erp-spin 1s linear infinite;
+}
+
+html.dark .erp-spinner {
+  border-color: rgba(129, 140, 248, 0.25);
+  border-top-color: #818cf8;
+}
+
+@keyframes erp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.erp-inline-spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: erp-spin 0.85s linear infinite;
+  vertical-align: -0.15em;
+  margin-right: 0.5rem;
+}
+
+.btn .erp-inline-spinner {
+  border-color: rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+}
+
+.btn-outline-primary .erp-inline-spinner,
+.btn-outline-secondary .erp-inline-spinner,
+.btn-outline-danger .erp-inline-spinner {
+  border-color: rgba(79, 70, 229, 0.25);
+  border-top-color: #4f46e5;
+}
+
+/* ========== Skeleton shimmer (1.5s) ========== */
+@keyframes erp-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.erp-skel {
+  border-radius: 10px;
+  background: linear-gradient(
+    110deg,
+    #e2e8f0 0%,
+    #f1f5f9 40%,
+    #e2e8f0 80%
+  );
+  background-size: 200% 100%;
+  animation: erp-shimmer 1.5s ease-in-out infinite;
+}
+
+html.dark .erp-skel {
+  background: linear-gradient(
+    110deg,
+    #1e293b 0%,
+    #334155 45%,
+    #1e293b 90%
+  );
+  background-size: 200% 100%;
+}
+
+.erp-dash-skeleton-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(2, 1fr);
+}
+
+@media (min-width: 576px) {
+  .erp-dash-skeleton-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+}
+
+.erp-dash-skel-card {
+  height: 112px;
+  border-radius: 16px;
+}
+
+.erp-dash-skel-chart {
+  height: 320px;
+  border-radius: 16px;
+}
+
+.erp-dash-skel-charts-row {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 992px) {
+  .erp-dash-skel-charts-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Table skeleton overlay */
+.erp-table-skeleton-host {
+  position: relative;
+  min-height: 240px;
+}
+
+.erp-table-skeleton-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: var(--bs-body-bg, #fff);
+  transition: opacity 220ms ease;
+}
+
+html.dark .erp-table-skeleton-overlay {
+  background: var(--bs-body-bg, #0f172a);
+}
+
+.erp-table-skeleton-overlay.erp-skeleton-fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.erp-table-live {
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+.erp-table-live.erp-skeleton-fade-in {
+  opacity: 1;
+}
+
+.erp-table-skel-row {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  align-items: center;
+}
+
+.erp-table-skel-cell {
+  height: 14px;
+  border-radius: 6px;
+  flex: 1;
+}
+
+.erp-table-skel-cell--sm {
+  flex: 0 0 18%;
+}
+
+.erp-table-skel-cell--md {
+  flex: 0 0 28%;
+}
+
+/* Reports section skeleton */
+.erp-reports-skel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.25rem;
+}
+
+.erp-report-skel-card {
+  height: 180px;
+  border-radius: 12px;
+}
+
+/* Upload progress bar */
+.erp-upload-progress {
+  margin-top: 0.75rem;
+  display: none;
+}
+
+.erp-upload-progress.is-visible {
+  display: block;
+}
+
+.erp-upload-progress__label {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-bottom: 0.35rem;
+}
+
+.erp-upload-progress__track {
+  height: 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+html.dark .erp-upload-progress__track {
+  background: #334155;
+}
+
+.erp-upload-progress__fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #4f46e5, #0ea5e9);
+  transition: width 0.2s ease;
+}
+
+/* Section load error */
+.erp-load-error {
+  border-radius: 12px;
+}

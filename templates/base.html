@@ -91,9 +91,9 @@
         </header>
         <div class="flex flex-col flex-1 min-w-0">
       {% endif %}
-            <main class="flex-1 overflow-auto">
-              <div class="mx-auto max-w-6xl px-4 py-6 lg:py-8">
-                <section class="rounded-2xl bg-white dark:bg-slate-900 shadow-sm shadow-slate-900/5 border border-slate-200 dark:border-slate-800 p-5 lg:p-6">
+            <main class="flex-1 overflow-auto min-w-0">
+              <div class="{% if request.user.is_authenticated %}app-content-shell py-6 lg:py-8{% else %}mx-auto max-w-6xl px-4 py-6 lg:py-8{% endif %}">
+                <section class="rounded-2xl bg-white dark:bg-slate-900 shadow-sm shadow-slate-900/5 border border-slate-200 dark:border-slate-800 {% if request.user.is_authenticated %}p-6 lg:p-8{% else %}p-5 lg:p-6{% endif %}">
                   {% if messages %}
                   <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;">
                     {% for message in messages %}
@@ -125,7 +125,7 @@
       {% endif %}
 
       <footer class="flex-shrink-0 border-t border-slate-200/70 dark:border-slate-800/70 bg-slate-50/80 dark:bg-slate-900/80 {% if request.user.is_authenticated %}sidebar-footer-page{% endif %}">
-        <div class="mx-auto max-w-6xl px-4 py-3 text-xs text-slate-500 dark:text-slate-400 flex justify-between gap-3">
+        <div class="{% if request.user.is_authenticated %}app-content-shell{% else %}mx-auto max-w-6xl px-4{% endif %} py-3 text-xs text-slate-500 dark:text-slate-400 flex justify-between gap-3">
           <span>© {% now "Y" %} School ERP</span>
           <span class="hidden sm:inline">EduSaaS · Smart School Management</span>
         </div>

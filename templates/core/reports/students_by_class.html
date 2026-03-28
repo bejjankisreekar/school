@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+{% block title %}Students by Class Report | School ERP{% endblock %}
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  .report-sbc-chart-wrap {
+    position: relative;
+    width: 100%;
+    min-height: 280px;
+    height: 42vh;
+    max-height: 420px;
+  }
+  @media (min-width: 768px) {
+    .report-sbc-chart-wrap {
+      min-height: 320px;
+      height: 380px;
+    }
+  }
+  .report-sbc-filter-card .form-select {
+    max-width: 280px;
+    border-radius: 12px;
+  }
+  .report-sbc-chart-wrap.is-loading {
+    opacity: 0.55;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'reports:dashboard' %}">Reports</a></li>
+      <li class="breadcrumb-item active">Students by Class</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h1 class="h4 fw-bold text-body mb-1">Students by Class Report</h1>
+      <p class="text-muted small mb-0">
+        Class name on the horizontal axis; total enrolled students on the vertical axis.
+        <span id="report-sbc-year-hint" class="d-block mt-1 fw-medium text-body-secondary">Showing: {{ filter_year_label }}</span>
+      </p>
+    </div>
+    <a href="{% url 'reports:dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill align-self-lg-center">All reports</a>
+  </div>
+
+  <!-- Filter: academic year (updates chart + table via API) -->
+  <div class="card border-0 shadow-sm rounded-4 mb-4 report-sbc-filter-card">
+    <div class="card-body p-4 d-flex flex-column flex-sm-row align-items-sm-center gap-3">
+      <label for="report-sbc-academic-year" class="fw-semibold text-body mb-0 text-nowrap">Academic Year</label>
+      <select id="report-sbc-academic-year" class="form-select form-select-sm shadow-sm" aria-label="Filter by academic year">
+        <option value="all" {% if selected_year_id is None %}selected{% endif %}>All academic years</option>
+        {% for y in academic_years %}
+        <option value="{{ y.pk }}" {% if selected_year_id == y.pk %}selected{% endif %}>{{ y.name }}</option>
+        {% endfor %}
+      </select>
+      <span class="small text-muted ms-sm-auto">Chart updates when you change the year.</span>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-4">
+      <h2 class="h6 fw-semibold mb-3">Enrollment by class</h2>
+      <p class="small text-muted mb-3 mb-lg-4">Bar chart — hover a bar for exact counts. Layout scales on smaller screens.</p>
+      <div id="report-sbc-chart-outer" class="report-sbc-chart-wrap">
+        <canvas id="chartStudentsByClass" aria-label="Students by class bar chart"></canvas>
+      </div>
+      <p id="report-sbc-empty" class="small text-muted text-center mt-3 d-none">No classes or students match this filter.</p>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-4">Class name</th>
+              <th class="text-end pe-4">Total students</th>
+            </tr>
+          </thead>
+          <tbody id="report-sbc-tbody">
+            {% for row in class_rows %}
+            <tr>
+              <td class="ps-4 fw-medium">{{ row.name }}</td>
+              <td class="text-end pe-4">{{ row.total }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="2" class="text-muted text-center py-4">No classes found.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="report-sbc-root" class="d-none" data-data-url="{% url 'reports:students_by_class_data' %}"></div>
+{{ chart_labels|json_script:"students-class-labels" }}
+{{ chart_counts|json_script:"students-class-counts" }}
+<script>
+(function () {
+  var rootEl = document.getElementById("report-sbc-root");
+  var DATA_URL = rootEl ? rootEl.getAttribute("data-data-url") || "" : "";
+
+  function readJsonScript(id) {
+    var el = document.getElementById(id);
+    if (!el) return [];
+    try {
+      return JSON.parse(el.textContent || "[]");
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function chartColors(isDark) {
+    return {
+      tick: isDark ? "#94a3b8" : "#64748b",
+      grid: isDark ? "rgba(148,163,184,0.15)" : "rgba(148,163,184,0.22)",
+      bar: "rgba(79, 70, 229, 0.75)",
+      barBorder: "#4f46e5",
+      barHover: "rgba(99, 102, 241, 0.92)",
+    };
+  }
+
+  function buildChartOptions(c) {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 450 },
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          enabled: true,
+          backgroundColor: "rgba(15, 23, 42, 0.92)",
+          titleColor: "#f8fafc",
+          bodyColor: "#e2e8f0",
+          padding: 12,
+          cornerRadius: 10,
+          displayColors: false,
+          titleFont: { size: 12, weight: "600", family: "'Inter', system-ui, sans-serif" },
+          bodyFont: { size: 14, weight: "500", family: "'Inter', system-ui, sans-serif" },
+          callbacks: {
+            title: function (items) {
+              return items.length ? items[0].label : "";
+            },
+            label: function (ctx) {
+              var n = ctx.parsed.y;
+              return n === 1 ? "1 student" : n + " students";
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          title: { display: true, text: "Class name", color: c.tick, font: { size: 12, weight: "600" } },
+          ticks: { color: c.tick, maxRotation: 45, minRotation: 0, autoSkip: true, maxTicksLimit: 14 },
+          grid: { display: false },
+        },
+        y: {
+          title: { display: true, text: "Total students", color: c.tick, font: { size: 12, weight: "600" } },
+          beginAtZero: true,
+          ticks: { color: c.tick, precision: 0, stepSize: 1 },
+          grid: { color: c.grid },
+        },
+      },
+    };
+  }
+
+  var chartInstance = null;
+  var canvas = document.getElementById("chartStudentsByClass");
+  var outer = document.getElementById("report-sbc-chart-outer");
+  var emptyMsg = document.getElementById("report-sbc-empty");
+  var tbody = document.getElementById("report-sbc-tbody");
+  var yearSelect = document.getElementById("report-sbc-academic-year");
+  var yearHint = document.getElementById("report-sbc-year-hint");
+
+  function setTableRows(rows) {
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    if (!rows || !rows.length) {
+      var tr0 = document.createElement("tr");
+      var td0 = document.createElement("td");
+      td0.colSpan = 2;
+      td0.className = "text-muted text-center py-4";
+      td0.textContent = "No data for this filter.";
+      tr0.appendChild(td0);
+      tbody.appendChild(tr0);
+      return;
+    }
+    rows.forEach(function (r) {
+      var tr = document.createElement("tr");
+      var td1 = document.createElement("td");
+      td1.className = "ps-4 fw-medium";
+      td1.textContent = r.name || "—";
+      var td2 = document.createElement("td");
+      td2.className = "text-end pe-4";
+      td2.textContent = String(r.total);
+      tr.appendChild(td1);
+      tr.appendChild(td2);
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderOrUpdateChart(labels, counts) {
+    var isDark = document.documentElement.classList.contains("dark");
+    var c = chartColors(isDark);
+    var hasData = labels && labels.length && counts && counts.length;
+
+    if (emptyMsg) {
+      emptyMsg.classList.toggle("d-none", !!hasData);
+    }
+    if (canvas) {
+      canvas.style.display = hasData ? "block" : "none";
+    }
+
+    if (!canvas) return;
+
+    var data = {
+      labels: labels || [],
+      datasets: [
+        {
+          label: "Students",
+          data: counts || [],
+          backgroundColor: c.bar,
+          borderColor: c.barBorder,
+          borderWidth: 1.5,
+          borderRadius: 10,
+          borderSkipped: false,
+          hoverBackgroundColor: c.barHover,
+          hoverBorderColor: "#6366f1",
+          hoverBorderWidth: 2,
+        },
+      ],
+    };
+
+    if (!chartInstance) {
+      chartInstance = new Chart(canvas.getContext("2d"), {
+        type: "bar",
+        data: data,
+        options: buildChartOptions(c),
+      });
+      canvas.addEventListener("mousemove", function (e) {
+        if (!chartInstance) return;
+        var pts = chartInstance.getElementsAtEventForMode(e, "index", { intersect: false }, true);
+        canvas.style.cursor = pts.length ? "pointer" : "default";
+      });
+    } else {
+      chartInstance.data.labels = data.labels;
+      chartInstance.data.datasets[0].data = data.datasets[0].data;
+      chartInstance.data.datasets[0].backgroundColor = c.bar;
+      chartInstance.data.datasets[0].borderColor = c.barBorder;
+      chartInstance.data.datasets[0].hoverBackgroundColor = c.barHover;
+      chartInstance.options.scales.x.ticks.color = c.tick;
+      chartInstance.options.scales.y.ticks.color = c.tick;
+      chartInstance.options.scales.y.grid.color = c.grid;
+      chartInstance.options.scales.x.title.color = c.tick;
+      chartInstance.options.scales.y.title.color = c.tick;
+      chartInstance.update("active");
+    }
+  }
+
+  function initialFromServer() {
+    var labels = readJsonScript("students-class-labels");
+    var counts = readJsonScript("students-class-counts");
+    renderOrUpdateChart(labels, counts);
+  }
+
+  async function fetchAndApply() {
+    if (!DATA_URL || !yearSelect) return;
+    var v = yearSelect.value;
+    var url = new URL(DATA_URL, window.location.origin);
+    url.searchParams.set("academic_year", v);
+
+    if (outer) outer.classList.add("is-loading");
+    try {
+      var res = await fetch(url.toString(), {
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      if (!res.ok) throw new Error("Request failed");
+      var payload = await res.json();
+      if (yearHint && payload.filter_year_label) {
+        yearHint.textContent = "Showing: " + payload.filter_year_label;
+      }
+      setTableRows(payload.class_rows);
+      renderOrUpdateChart(payload.chart_labels, payload.chart_counts);
+
+      if (window.history && window.history.replaceState) {
+        var pageUrl = new URL(window.location.href);
+        if (v === "all") pageUrl.searchParams.delete("academic_year");
+        else pageUrl.searchParams.set("academic_year", v);
+        window.history.replaceState({}, "", pageUrl.toString());
+      }
+    } catch (err) {
+      if (yearHint) yearHint.textContent = "Could not refresh data. Try again.";
+    } finally {
+      if (outer) outer.classList.remove("is-loading");
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    initialFromServer();
+    if (yearSelect) {
+      yearSelect.addEventListener("change", fetchAndApply);
+    }
+  });
+})();
+</script>
+{% endblock %}

@@ -87,32 +87,20 @@
                 <a href="{% url 'core:school_student_edit' s.id %}" class="btn btn-sm btn-outline-primary" title="Edit" aria-label="Edit">
                   <i class="bi bi-pencil"></i>
                 </a>
-                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ s.id }}" title="Delete" aria-label="Delete">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-danger"
+                  title="Delete"
+                  aria-label="Delete"
+                  data-bs-toggle="modal"
+                  data-bs-target="#deleteStudentModal"
+                  data-delete-url="{% url 'core:school_student_delete' s.id %}"
+                  data-student-name="{{ s.user.get_full_name|default:s.user.username }}"
+                >
                   <i class="bi bi-trash"></i>
                 </button>
               </td>
             </tr>
-
-            <div class="modal fade" id="deleteModal{{ s.id }}" tabindex="-1" aria-hidden="true">
-              <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                  <div class="modal-header">
-                    <h5 class="modal-title">Delete Student</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                  </div>
-                  <div class="modal-body">
-                    Delete <strong>{{ s.user.get_full_name|default:s.user.username }}</strong>? This will remove the student profile and user account.
-                  </div>
-                  <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <form method="post" action="{% url 'core:school_student_delete' s.id %}">
-                      {% csrf_token %}
-                      <button type="submit" class="btn btn-danger">Delete</button>
-                    </form>
-                  </div>
-                </div>
-              </div>
-            </div>
           {% empty %}
             <tr><td colspan="7" class="text-center text-muted py-4">No students found.</td></tr>
           {% endfor %}
@@ -120,6 +108,41 @@
       </table>
     </div>
   </div>
+
+  {# Single modal outside table — modals inside <tbody> are invalid HTML and break delete POST #}
+  <div class="modal fade" id="deleteStudentModal" tabindex="-1" aria-labelledby="deleteStudentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="deleteStudentModalLabel">Delete Student</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="deleteStudentForm" method="post" action="">
+          {% csrf_token %}
+          <div class="modal-body">
+            Delete <strong id="deleteStudentName"></strong>? This removes the student profile and login account permanently.
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-danger">Delete</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById("deleteStudentModal")?.addEventListener("show.bs.modal", function (event) {
+      var btn = event.relatedTarget;
+      if (!btn) return;
+      var url = btn.getAttribute("data-delete-url");
+      var name = btn.getAttribute("data-student-name") || "";
+      var form = document.getElementById("deleteStudentForm");
+      var nameEl = document.getElementById("deleteStudentName");
+      if (form && url) form.action = url;
+      if (nameEl) nameEl.textContent = name;
+    });
+  </script>
 
   {% if students.has_other_pages %}
     <nav class="mt-3">

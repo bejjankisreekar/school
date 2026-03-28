@@ -10,28 +10,22 @@
   </nav>
 
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-    <h1 class="h4 fw-bold mb-0">Subject Management</h1>
+    <div>
+      <h1 class="h4 fw-bold mb-0">Subject master list</h1>
+      <p class="text-muted small mb-0">Define each subject once for your school (master list).</p>
+    </div>
     <a href="{% url 'core:school_subject_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Subject</a>
   </div>
 
   <div class="card border-0 shadow-sm rounded-3 mb-4">
     <div class="card-body">
       <form method="get" class="row g-3">
-        <div class="col-md-3">
-          <label class="form-label small">Academic Year</label>
-          <select name="academic_year" class="form-select form-select-sm">
-            <option value="">All</option>
-            {% for ay in academic_years %}
-              <option value="{{ ay.id }}" {% if filters.academic_year == ay.id|stringformat:"s" %}selected{% endif %}>{{ ay.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-md-3">
+        <div class="col-md-4">
           <label class="form-label small">Search</label>
           <input type="text" name="q" class="form-control form-control-sm" placeholder="Name or code" value="{{ filters.q }}">
         </div>
         <div class="col-md-3 d-flex align-items-end gap-2">
-          <button type="submit" class="btn btn-outline-primary btn-sm">Filter</button>
+          <button type="submit" class="btn btn-outline-primary btn-sm">Search</button>
           <a href="{% url 'core:school_subjects' %}" class="btn btn-outline-secondary btn-sm">Clear</a>
         </div>
       </form>
@@ -43,11 +37,8 @@
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
           <tr>
-            <th>Subject Name</th>
-            <th>Code</th>
-            <th>Class</th>
-            <th>Assigned Teacher</th>
-            <th>Academic Year</th>
+            <th>Subject name</th>
+            <th>Subject code</th>
             <th class="text-center" style="width: 140px;">Actions</th>
           </tr>
         </thead>
@@ -55,14 +46,8 @@
           {% for s in subjects %}
           <tr>
             <td>{{ s.name }}</td>
-            <td><code>{{ s.code|default:"—" }}</code></td>
-            <td>{{ s.classroom|default:"—" }}</td>
-            <td>{% if s.teacher %}{{ s.teacher.user.get_full_name|default:s.teacher.user.username }}{% else %}—{% endif %}</td>
-            <td>{{ s.academic_year.name|default:"—" }}</td>
+            <td><code>{{ s.code }}</code></td>
             <td class="text-center" style="width: 180px;">
-              <a href="{% url 'core:school_subject_edit' s.id %}" class="btn btn-sm btn-outline-secondary" title="View" aria-label="View">
-                <i class="bi bi-eye"></i>
-              </a>
               <a href="{% url 'core:school_subject_edit' s.id %}" class="btn btn-sm btn-outline-primary" title="Edit" aria-label="Edit">
                 <i class="bi bi-pencil"></i>
               </a>
@@ -78,7 +63,7 @@
                   <h5 class="modal-title">Delete Subject</h5>
                   <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">Delete <strong>{{ s.name }}</strong>?</div>
+                <div class="modal-body">Delete <strong>{{ s.name }}</strong> ({{ s.code }})? This may affect marks, exams, and assignments that use this subject.</div>
                 <div class="modal-footer">
                   <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                   <form method="post" action="{% url 'core:school_subject_delete' s.id %}" class="d-inline">{% csrf_token %}<button type="submit" class="btn btn-danger">Delete</button></form>
@@ -87,7 +72,7 @@
             </div>
           </div>
           {% empty %}
-          <tr><td colspan="6" class="text-center text-muted py-4">No subjects. Add classes and academic year first.</td></tr>
+          <tr><td colspan="3" class="text-center text-muted py-4">No subjects yet. Add subjects to get started.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -96,8 +81,8 @@
     <div class="card-footer d-flex justify-content-between align-items-center">
       <span class="small text-muted">Page {{ subjects.number }} of {{ subjects.paginator.num_pages }}</span>
       <ul class="pagination pagination-sm mb-0">
-        {% if subjects.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ subjects.previous_page_number }}{% if filters.academic_year %}&academic_year={{ filters.academic_year }}{% endif %}{% if filters.q %}&q={{ filters.q }}{% endif %}">Previous</a></li>{% endif %}
-        {% if subjects.has_next %}<li class="page-item"><a class="page-link" href="?page={{ subjects.next_page_number }}{% if filters.academic_year %}&academic_year={{ filters.academic_year }}{% endif %}{% if filters.q %}&q={{ filters.q }}{% endif %}">Next</a></li>{% endif %}
+        {% if subjects.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ subjects.previous_page_number }}{% if filters.q %}&q={{ filters.q }}{% endif %}">Previous</a></li>{% endif %}
+        {% if subjects.has_next %}<li class="page-item"><a class="page-link" href="?page={{ subjects.next_page_number }}{% if filters.q %}&q={{ filters.q }}{% endif %}">Next</a></li>{% endif %}
       </ul>
     </div>
     {% endif %}

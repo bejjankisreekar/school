@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import include, path
 from . import views
 
 app_name = "core"
@@ -56,6 +56,7 @@ urlpatterns = [
     # School Admin: Exam list and create
     path("school/exams/", views.school_exams_list, name="school_exams_list"),
     path("school/exams/create/", views.school_exam_create, name="school_exam_create"),
+    path("school/exams/session/<int:session_id>/", views.school_exam_session_detail, name="school_exam_session_detail"),
 
     # Sidebar items (unified)
     path("students/", views.students_list, name="students_list"),
@@ -78,6 +79,8 @@ urlpatterns = [
     path("school/academic-years/<int:year_id>/edit/", views.school_academic_year_edit, name="school_academic_year_edit"),
     path("school/academic-years/<int:year_id>/set-active/", views.school_academic_year_set_active, name="school_academic_year_set_active"),
     path("school/academic-years/<int:year_id>/delete/", views.school_academic_year_delete, name="school_academic_year_delete"),
+    path("school/academic-years/end-and-promote/", views.school_year_end_promote, name="school_year_end_promote"),
+    path("school/promote-students/", views.school_promote_students, name="school_promote_students"),
     path("school/classes/", views.school_classes, name="school_classes"),
     path("school/classes/add/", views.school_class_add, name="school_class_add"),
     path("school/classes/<int:class_id>/edit/", views.school_class_edit, name="school_class_edit"),
@@ -90,7 +93,6 @@ urlpatterns = [
     path("school/subjects/add/", views.school_subject_add, name="school_subject_add"),
     path("school/subjects/<int:subject_id>/edit/", views.school_subject_edit, name="school_subject_edit"),
     path("school/subjects/<int:subject_id>/delete/", views.school_subject_delete, name="school_subject_delete"),
-    path("school/subject-teacher-mapping/", views.school_subject_teacher_mapping, name="school_subject_teacher_mapping"),
     path("attendance/", views.attendance_list, name="attendance_list"),
     path("marks/", views.marks_list, name="marks_list"),
     path("homework/", views.homework_list, name="homework_list"),
@@ -149,11 +151,9 @@ urlpatterns = [
     path("school/admissions/<int:pk>/approve/", views.school_admission_approve, name="school_admission_approve"),
     path("school/admissions/<int:pk>/reject/", views.school_admission_reject, name="school_admission_reject"),
 
-    # Reports dashboard (school-level)
-    path("school/reports/", views.school_reports_dashboard, name="school_reports_dashboard"),
-    path("school/reports/toppers/", views.school_reports_toppers, name="school_reports_toppers"),
+    # Reports module: mounted in school_erp_demo.urls as namespace `reports`
 
-    # Pro Plan: Toppers, Library, Hostel, Transport, Branding
+    # Pro Plan: Toppers alias → reports
     path("school/toppers/", views.school_toppers, name="school_toppers"),
     path("school/library/", views.school_library_index, name="school_library_index"),
     path("school/library/book/add/", views.school_library_book_add, name="school_library_book_add"),

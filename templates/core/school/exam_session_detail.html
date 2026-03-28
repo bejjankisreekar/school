@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}{{ session.name }} | Exam session{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_exams_list' %}">Exams</a></li>
+      <li class="breadcrumb-item active">{{ session.name }}</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h1 class="h4 fw-bold mb-1">{{ session.name }}</h1>
+      <p class="text-muted small mb-0">
+        {{ session.class_name }} · <span class="badge bg-info bg-opacity-25 text-info">{{ session.section }}</span>
+        <span class="text-muted">· created {{ session.created_at|date:"M d, Y" }}</span>
+      </p>
+    </div>
+    <a href="{% url 'core:school_exams_list' %}" class="btn btn-outline-secondary btn-sm">Back to exams</a>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+    <div class="card-header bg-white border-0 py-3">
+      <h2 class="h6 fw-semibold mb-0">Subject papers</h2>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Paper</th>
+            <th>Subject</th>
+            <th>Date</th>
+            <th>Teacher</th>
+            <th>Marks</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in papers %}
+          <tr>
+            <td class="fw-medium">{{ e.name }}</td>
+            <td>{% if e.subject %}{{ e.subject.name }}{% else %}—{% endif %}</td>
+            <td>{{ e.date }}</td>
+            <td>
+              {% if e.teacher %}
+                {{ e.teacher.user.get_full_name|default:e.teacher.user.username }}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td>{{ e.total_marks|default:"—" }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="text-center text-muted py-4">No papers linked to this session.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

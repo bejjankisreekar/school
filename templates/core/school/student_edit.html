@@ -30,6 +30,11 @@
             {% if form.last_name.errors %}<div class="text-danger small">{{ form.last_name.errors.0 }}</div>{% endif %}
           </div>
           <div class="col-md-6">
+            <label class="form-label">Email</label>
+            {{ form.email }}
+            {% if form.email.errors %}<div class="text-danger small">{{ form.email.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
             <label class="form-label">Class</label>
             {{ form.classroom }}
           </div>
@@ -49,6 +54,10 @@
           <div class="col-md-6">
             <label class="form-label">Date of Birth</label>
             {{ form.date_of_birth }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Gender</label>
+            {{ form.gender }}
           </div>
           <div class="col-md-6">
             <label class="form-label">Parent Name</label>

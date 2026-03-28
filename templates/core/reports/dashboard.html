@@ -1,298 +1,1213 @@
 {% extends "base.html" %}
-{% block title %}Reports Dashboard | School ERP{% endblock %}
+{% load static %}
+{% block title %}School Analytics Dashboard | School ERP{% endblock %}
 {% block extra_head %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="{% static 'css/loading-system.css' %}">
+<style>
+  .analytics-dashboard-page {
+    --analytics-card-radius: 14px;
+    --analytics-card-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+    --analytics-card-shadow-hover: 0 12px 40px rgba(15, 23, 42, 0.1);
+    --analytics-section-gap: 2.75rem;
+    --analytics-chart-min-h: 280px;
+  }
+  html.dark .analytics-dashboard-page {
+    --analytics-card-shadow: 0 4px 28px rgba(0, 0, 0, 0.45);
+    --analytics-card-shadow-hover: 0 14px 48px rgba(0, 0, 0, 0.55);
+  }
+
+  .analytics-page-header .analytics-title {
+    font-size: clamp(1.35rem, 2.5vw, 1.65rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--bs-body-color);
+  }
+  .analytics-page-header .analytics-subtitle {
+    max-width: 40rem;
+    line-height: 1.55;
+    font-size: 0.95rem;
+  }
+
+  .analytics-dash-section {
+    margin-bottom: var(--analytics-section-gap);
+    scroll-margin-top: 1rem;
+  }
+  .analytics-section-kicker {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--bs-primary);
+    margin-bottom: 0.35rem;
+  }
+  .analytics-section-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--bs-body-color);
+    margin-bottom: 0.25rem;
+  }
+  .analytics-section-desc {
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color);
+    max-width: 48rem;
+    margin-bottom: 1.35rem;
+    line-height: 1.5;
+  }
+
+  .analytics-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.15rem;
+  }
+  .analytics-metric-card {
+    padding: 1.15rem 1.25rem;
+    border-radius: var(--analytics-card-radius);
+    box-shadow: var(--analytics-card-shadow);
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color-translucent);
+    transition: transform 0.22s ease, box-shadow 0.22s ease;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+  .analytics-metric-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--analytics-card-shadow-hover);
+  }
+  .analytics-metric-card__top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .analytics-metric-icon {
+    width: 2.65rem;
+    height: 2.65rem;
+    border-radius: 11px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    flex-shrink: 0;
+  }
+  .analytics-metric-value {
+    font-size: 1.65rem;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.03em;
+    color: var(--bs-body-color);
+    font-variant-numeric: tabular-nums;
+  }
+  .analytics-metric-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--bs-secondary-color);
+    margin: 0;
+  }
+  .analytics-metric-trend {
+    font-size: 0.8rem;
+    font-weight: 500;
+    margin: 0;
+    margin-top: auto;
+    padding-top: 0.2rem;
+    line-height: 1.35;
+  }
+  .analytics-metric-trend--up { color: var(--bs-success); }
+  .analytics-metric-trend--neutral { color: var(--bs-secondary-color); }
+  .analytics-metric-trend--muted { color: var(--bs-secondary-color); font-weight: 400; }
+
+  .analytics-chart-card {
+    border-radius: var(--analytics-card-radius);
+    box-shadow: var(--analytics-card-shadow);
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color-translucent);
+    height: 100%;
+  }
+  .analytics-chart-card .card-body {
+    padding: 1.2rem 1.35rem 1.35rem;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+  }
+  .analytics-chart-card__head {
+    margin-bottom: 0.65rem;
+  }
+  .analytics-chart-card__title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-bottom: 0.15rem;
+    color: var(--bs-body-color);
+  }
+  .analytics-chart-card__hint {
+    font-size: 0.78rem;
+    color: var(--bs-secondary-color);
+    line-height: 1.4;
+    margin: 0;
+  }
+  .reports-hub-chart-wrap {
+    position: relative;
+    width: 100%;
+    min-height: var(--analytics-chart-min-h);
+    height: 30vh;
+    max-height: 340px;
+    flex: 1;
+  }
+  @media (min-width: 768px) {
+    .reports-hub-chart-wrap {
+      min-height: 300px;
+      height: 300px;
+    }
+  }
+  .reports-hub-chart-wrap--compact {
+    min-height: 240px;
+    height: 260px;
+    max-height: 280px;
+  }
+
+  .analytics-student-grid {
+    display: grid;
+    gap: 1.15rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 1100px) {
+    .analytics-student-grid {
+      grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.65fr);
+      align-items: stretch;
+    }
+  }
+  .analytics-attendance-grid {
+    display: grid;
+    gap: 1.15rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 992px) {
+    .analytics-attendance-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .analytics-academic-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.75rem;
+  }
+  .analytics-pill {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+    background: var(--bs-tertiary-bg);
+    color: var(--bs-secondary-color);
+    border: 1px solid var(--bs-border-color-translucent);
+  }
+
+  .analytics-alert-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+  .analytics-alert-item {
+    display: flex;
+    gap: 0.85rem;
+    padding: 0.95rem 1.1rem;
+    border-radius: var(--analytics-card-radius);
+    border: 1px solid var(--bs-border-color-translucent);
+    background: var(--bs-body-bg);
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.04);
+    align-items: flex-start;
+  }
+  html.dark .analytics-alert-item {
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.25);
+  }
+  .analytics-alert-item--warning {
+    border-color: rgba(245, 158, 11, 0.35);
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.06), transparent);
+  }
+  .analytics-alert-item--info {
+    border-color: rgba(59, 130, 246, 0.35);
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.06), transparent);
+  }
+  .analytics-alert-icon {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05rem;
+    flex-shrink: 0;
+  }
+  .analytics-alert-item--warning .analytics-alert-icon {
+    background: rgba(245, 158, 11, 0.15);
+    color: #d97706;
+  }
+  .analytics-alert-item--info .analytics-alert-icon {
+    background: rgba(59, 130, 246, 0.15);
+    color: #2563eb;
+  }
+  html.dark .analytics-alert-item--warning .analytics-alert-icon { color: #fbbf24; }
+  html.dark .analytics-alert-item--info .analytics-alert-icon { color: #60a5fa; }
+
+  .analytics-enrollment-table-wrap {
+    border-radius: var(--analytics-card-radius);
+    border: 1px solid var(--bs-border-color-translucent);
+    overflow: hidden;
+    box-shadow: var(--analytics-card-shadow);
+    background: var(--bs-body-bg);
+  }
+  .analytics-enrollment-table {
+    margin: 0;
+    font-size: 0.875rem;
+  }
+  .analytics-enrollment-table thead th {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    color: var(--bs-secondary-color);
+    border-bottom-width: 1px;
+    padding: 0.75rem 1rem;
+    background: var(--bs-tertiary-bg);
+  }
+  .analytics-enrollment-table tbody td {
+    padding: 0.7rem 1rem;
+    vertical-align: middle;
+    font-variant-numeric: tabular-nums;
+  }
+  .analytics-enrollment-table tbody tr:hover {
+    background: var(--bs-tertiary-bg);
+  }
+
+  .reports-hub-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1.15rem;
+  }
+  .reports-hub-card {
+    border-radius: var(--analytics-card-radius);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+  }
+  .reports-hub-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--analytics-card-shadow-hover) !important;
+  }
+  .reports-hub-icon {
+    width: 2.65rem;
+    height: 2.65rem;
+    border-radius: 11px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+  }
+  .reports-empty {
+    border: 2px dashed var(--bs-border-color);
+    border-radius: var(--analytics-card-radius);
+    background: var(--bs-tertiary-bg);
+  }
+
+  .analytics-metrics-host,
+  .reports-cards-host {
+    position: relative;
+    min-height: 1px;
+  }
+  .analytics-skel-layer,
+  .reports-cards-skel-layer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    z-index: 3;
+    transition: opacity 0.28s ease, visibility 0.28s ease;
+  }
+  .analytics-live-layer,
+  .reports-cards-live-layer {
+    position: relative;
+    z-index: 1;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.38s ease 0.08s, visibility 0.38s ease 0.08s;
+  }
+  .analytics-dashboard-page.analytics-ready .analytics-skel-layer,
+  .analytics-dashboard-page.analytics-ready .reports-cards-skel-layer {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .analytics-dashboard-page.analytics-ready .analytics-live-layer,
+  .analytics-dashboard-page.analytics-ready .reports-cards-live-layer {
+    opacity: 1;
+    visibility: visible;
+  }
+  .analytics-metric-card-skeleton {
+    padding: 1.15rem 1.25rem;
+    border-radius: var(--analytics-card-radius);
+    box-shadow: var(--analytics-card-shadow);
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color-translucent);
+    min-height: 112px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .reports-hub-card-skeleton {
+    border-radius: var(--analytics-card-radius);
+    border: 1px solid var(--bs-border-color-translucent);
+    background: var(--bs-body-bg);
+    box-shadow: var(--analytics-card-shadow);
+    min-height: 160px;
+    padding: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .reports-hub-chart-skeleton {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    border-radius: 12px;
+    transition: opacity 0.32s ease, visibility 0.32s ease;
+  }
+  .analytics-dashboard-page.analytics-ready .reports-hub-chart-skeleton.is-dismissed {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .reports-hub-chart-wrap canvas.reports-hub-chart-canvas {
+    position: relative;
+    z-index: 1;
+    opacity: 0;
+    transition: opacity 0.4s ease 0.12s;
+  }
+  .analytics-dashboard-page.analytics-ready .reports-hub-chart-wrap canvas.reports-hub-chart-canvas.is-visible {
+    opacity: 1;
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 {% endblock %}
 {% block content %}
-<div class="container-fluid px-0">
-  <nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb">
-      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
-      <li class="breadcrumb-item active">Reports</li>
-    </ol>
-  </nav>
+<div class="container-fluid px-0 analytics-dashboard-page">
+  <header class="analytics-page-header pb-4 mb-1 border-bottom border-light-subtle">
+    <h1 class="analytics-title mb-2">School Analytics Dashboard</h1>
+    <p class="analytics-subtitle text-muted mb-0">
+      Live enrollment, attendance, and academic signals — structured like a modern analytics workspace.
+    </p>
+  </header>
 
-  <h1 class="h4 fw-bold mb-3">Reports Dashboard</h1>
-  <p class="text-muted small mb-4">Quick insights into academic performance across your school.</p>
+  {# —— Section 1 · Summary metrics —— #}
+  {% if analytics_metrics %}
+  <section class="analytics-dash-section" id="summary-metrics" aria-labelledby="summary-metrics-heading">
+    <p class="analytics-section-kicker mb-0">Section 1</p>
+    <h2 class="analytics-section-title" id="summary-metrics-heading">Summary metrics</h2>
+    <p class="analytics-section-desc">High-level KPIs refreshed from your school data. Trends compare activity this calendar month.</p>
+    <div class="analytics-metrics-host">
+      <div class="analytics-metric-grid analytics-skel-layer" aria-hidden="true">
+        {% for m in analytics_metrics %}
+        <div class="analytics-metric-card-skeleton">
+          <div class="d-flex justify-content-between gap-2">
+            <div class="flex-grow-1">
+              <div class="erp-skel mb-2" style="height:11px;width:52%;border-radius:6px"></div>
+              <div class="erp-skel mb-0" style="height:28px;width:38%;border-radius:8px"></div>
+            </div>
+            <div class="erp-skel flex-shrink-0" style="width:2.65rem;height:2.65rem;border-radius:10px"></div>
+          </div>
+          <div class="erp-skel mt-auto" style="height:12px;width:78%;border-radius:6px"></div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="analytics-metric-grid analytics-live-layer">
+        {% for m in analytics_metrics %}
+        <article class="analytics-metric-card">
+          <div class="analytics-metric-card__top">
+            <div>
+              <p class="analytics-metric-label">{{ m.label }}</p>
+              <p class="analytics-metric-value">{{ m.value }}</p>
+            </div>
+            <div class="analytics-metric-icon bg-{{ m.theme }} bg-opacity-10 text-{{ m.theme }}" aria-hidden="true">
+              <i class="bi {{ m.icon }}"></i>
+            </div>
+          </div>
+          <p class="analytics-metric-trend {% if m.muted %}analytics-metric-trend--muted{% elif m.trend_positive %}analytics-metric-trend--up{% else %}analytics-metric-trend--neutral{% endif %}">
+            {{ m.trend }}
+          </p>
+        </article>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+  {% endif %}
 
-  <div class="row g-3 mb-4">
-    <div class="col-lg-6">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-header bg-white border-0"><strong>Top 10 Students by Percentage</strong></div>
+  {% if hub_charts_enabled %}
+  {{ dash_charts_bundle|json_script:"reports-dash-bundle" }}
+
+  {# —— Section 2 · Student analytics —— #}
+  <section class="analytics-dash-section" id="student-analytics" aria-labelledby="student-analytics-heading">
+    <p class="analytics-section-kicker mb-0">Section 2</p>
+    <h2 class="analytics-section-title" id="student-analytics-heading">Student analytics</h2>
+    <p class="analytics-section-desc">Enrollment distribution, demographics, and how new admissions landed over recent months.</p>
+
+    <div class="analytics-student-grid mb-4">
+      <div class="card border-0 analytics-chart-card shadow-sm">
         <div class="card-body">
-          <canvas id="chartTopStudents" height="140"></canvas>
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 analytics-chart-card__head">
+            <div>
+              <h3 class="analytics-chart-card__title">Students by class</h3>
+              <p class="analytics-chart-card__hint">Headcount per class (all academic years). Hover a bar for exact enrollment.</p>
+            </div>
+            <a href="{% url 'reports:students_by_class' %}" class="btn btn-outline-primary btn-sm rounded-pill">Open report</a>
+          </div>
+          {% if hub_class_labels %}
+          <div class="reports-hub-chart-wrap flex-grow-1">
+            <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
+            <canvas id="hubChartStudentsByClass" class="reports-hub-chart-canvas" aria-label="Students by class"></canvas>
+          </div>
+          {% else %}
+          <div class="d-flex align-items-center justify-content-center text-muted small py-5 px-3 text-center rounded-3 bg-body-secondary" style="min-height:220px">
+            No classes or enrolled students yet. Add classes and students to populate this chart.
+          </div>
+          {% endif %}
         </div>
       </div>
-    </div>
-    <div class="col-lg-6">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-header bg-white border-0"><strong>Grade Distribution</strong></div>
+
+      <div class="card border-0 analytics-chart-card shadow-sm">
         <div class="card-body">
-          <canvas id="chartGrades" height="140"></canvas>
+          <div class="analytics-chart-card__head">
+            <h3 class="analytics-chart-card__title">Gender mix</h3>
+            <p class="analytics-chart-card__hint">Share of students by recorded gender (optional field).</p>
+          </div>
+          <div class="reports-hub-chart-wrap reports-hub-chart-wrap--compact flex-grow-1">
+            <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
+            <canvas id="hubChartGender" class="reports-hub-chart-canvas" aria-label="Gender distribution"></canvas>
+          </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <div class="row g-3 mb-4">
-    <div class="col-lg-6">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-header bg-white border-0"><strong>Class-wise Average Percentage</strong></div>
+    <div class="card border-0 analytics-chart-card shadow-sm">
+      <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 analytics-chart-card__head">
+          <div>
+            <h3 class="analytics-chart-card__title">New admissions by month</h3>
+            <p class="analytics-chart-card__hint">Student profiles created in each of the last six calendar months.</p>
+          </div>
+          <a href="{% url 'reports:student_analytics' %}" class="btn btn-outline-info btn-sm rounded-pill">Student analytics</a>
+        </div>
+        <div class="reports-hub-chart-wrap flex-grow-1">
+          <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
+          <canvas id="hubChartAdmissions" class="reports-hub-chart-canvas" aria-label="Admissions trend"></canvas>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {# —— Section 3 · Attendance analytics —— #}
+  <section class="analytics-dash-section" id="attendance-analytics" aria-labelledby="attendance-analytics-heading">
+    <p class="analytics-section-kicker mb-0">Section 3</p>
+    <h2 class="analytics-section-title" id="attendance-analytics-heading">Attendance analytics</h2>
+    <p class="analytics-section-desc">Daily presence trend and how marks are distributed across the last seven days.</p>
+
+    <div class="analytics-attendance-grid mb-2">
+      <div class="card border-0 analytics-chart-card shadow-sm">
         <div class="card-body">
-          <canvas id="chartClassAvg" height="140"></canvas>
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 analytics-chart-card__head">
+            <div>
+              <h3 class="analytics-chart-card__title">Daily attendance rate</h3>
+              <p class="analytics-chart-card__hint">% of enrolled students marked present each day.</p>
+            </div>
+            {% if hub_show_attendance_chart %}
+            <a href="{% url 'reports:attendance_trend' %}" class="btn btn-outline-success btn-sm rounded-pill">Full trend</a>
+            {% endif %}
+          </div>
+          {% if hub_show_attendance_chart %}
+          <div class="reports-hub-chart-wrap flex-grow-1">
+            <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
+            <canvas id="hubChartAttendanceTrend" class="reports-hub-chart-canvas" aria-label="Attendance trend"></canvas>
+          </div>
+          {% else %}
+          <div class="d-flex align-items-center justify-content-center text-muted small py-5 px-3 text-center rounded-3 bg-body-secondary" style="min-height:220px">
+            {{ hub_attendance_unavailable_message|default:"Attendance analytics are not available for this workspace." }}
+          </div>
+          {% endif %}
         </div>
       </div>
-    </div>
-    <div class="col-lg-6">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-header bg-white border-0"><strong>Performance Trend over Exams</strong></div>
+
+      <div class="card border-0 analytics-chart-card shadow-sm">
         <div class="card-body">
-          <canvas id="chartTrend" height="140"></canvas>
+          <div class="analytics-chart-card__head">
+            <h3 class="analytics-chart-card__title">Marking mix (7 days)</h3>
+            <p class="analytics-chart-card__hint">Total present, absent, and on-leave records recorded in the rolling week.</p>
+          </div>
+          {% if dash_has_attendance_status_chart %}
+          <div class="reports-hub-chart-wrap reports-hub-chart-wrap--compact flex-grow-1">
+            <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
+            <canvas id="hubChartAttendanceStatus" class="reports-hub-chart-canvas" aria-label="Attendance status mix"></canvas>
+          </div>
+          {% else %}
+          <div class="d-flex align-items-center justify-content-center text-muted small py-5 px-3 text-center rounded-3 bg-body-secondary" style="min-height:220px">
+            No attendance rows in the last 7 days. Once teachers mark attendance, this breakdown appears here.
+          </div>
+          {% endif %}
         </div>
       </div>
     </div>
-  </div>
+  </section>
 
-  <h2 class="h5 fw-bold mb-3">Reports</h2>
-  <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
-    <!-- Academic Reports -->
-    <div class="col">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body d-flex flex-column">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <span class="badge bg-primary-subtle text-primary"><i class="bi bi-trophy"></i></span>
-            <h3 class="h6 fw-bold mb-0">Toppers Report</h3>
-          </div>
-          <p class="text-muted small mb-3">View highest scoring students by class, section, and exam.</p>
-          <div class="mt-auto">
-            <a href="{% url 'core:school_reports_toppers' %}" class="btn btn-sm btn-primary">View Report</a>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="col">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body d-flex flex-column">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <span class="badge bg-primary-subtle text-primary"><i class="bi bi-collection"></i></span>
-            <h3 class="h6 fw-bold mb-0">Class-wise Result Report</h3>
-          </div>
-          <p class="text-muted small mb-3">Analyze class-level result statistics and pass percentages.</p>
-          <div class="mt-auto">
-            <button class="btn btn-sm btn-outline-secondary" type="button" disabled>Coming soon</button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="col">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body d-flex flex-column">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <span class="badge bg-primary-subtle text-primary"><i class="bi bi-person-lines-fill"></i></span>
-            <h3 class="h6 fw-bold mb-0">Student Performance Report</h3>
-          </div>
-          <p class="text-muted small mb-3">Drill down into an individual student's performance over time.</p>
-          <div class="mt-auto">
-            <button class="btn btn-sm btn-outline-secondary" type="button" disabled>Coming soon</button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="col">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body d-flex flex-column">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <span class="badge bg-primary-subtle text-primary"><i class="bi bi-bar-chart-line"></i></span>
-            <h3 class="h6 fw-bold mb-0">Subject-wise Analysis</h3>
-          </div>
-          <p class="text-muted small mb-3">Compare performance across different subjects and classes.</p>
-          <div class="mt-auto">
-            <button class="btn btn-sm btn-outline-secondary" type="button" disabled>Coming soon</button>
-          </div>
-        </div>
-      </div>
-    </div>
+  {# —— Section 4 · Academic insights —— #}
+  <section class="analytics-dash-section" id="academic-insights" aria-labelledby="academic-insights-heading">
+    <p class="analytics-section-kicker mb-0">Section 4</p>
+    <h2 class="analytics-section-title" id="academic-insights-heading">Academic insights</h2>
+    <p class="analytics-section-desc">Weighted average score by subject across all entered marks — useful for spotting strengths and gaps.</p>
 
-    <!-- Attendance Reports -->
-    <div class="col">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body d-flex flex-column">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <span class="badge bg-success-subtle text-success"><i class="bi bi-clipboard-check"></i></span>
-            <h3 class="h6 fw-bold mb-0">Student Attendance Report</h3>
-          </div>
-          <p class="text-muted small mb-3">Attendance statistics for students by class and section.</p>
-          <div class="mt-auto">
-            <button class="btn btn-sm btn-outline-secondary" type="button" disabled>Coming soon</button>
-          </div>
+    <div class="card border-0 analytics-chart-card shadow-sm">
+      <div class="card-body">
+        <div class="analytics-academic-meta">
+          <span class="analytics-pill">Exams (90 days): {{ dash_exams_last_90_days }}</span>
+          {% if dash_has_academic_chart %}
+          <span class="analytics-pill">Top {{ dash_subject_labels|length }} subjects by avg %</span>
+          {% endif %}
         </div>
+        {% if dash_has_academic_chart %}
+        <div class="reports-hub-chart-wrap flex-grow-1" style="max-height:420px;height:360px">
+          <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
+          <canvas id="hubChartSubjectAvg" class="reports-hub-chart-canvas" aria-label="Average score by subject"></canvas>
+        </div>
+        {% else %}
+        <div class="d-flex align-items-center justify-content-center text-muted small py-5 px-3 text-center rounded-3 bg-body-secondary" style="min-height:240px">
+          No marks in the system yet, or the exams feature is off. Publish exam results to unlock subject-level averages.
+        </div>
+        {% endif %}
       </div>
     </div>
-    <div class="col">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body d-flex flex-column">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <span class="badge bg-success-subtle text-success"><i class="bi bi-people"></i></span>
-            <h3 class="h6 fw-bold mb-0">Staff Attendance Report</h3>
-          </div>
-          <p class="text-muted small mb-3">Attendance insights for teaching and non-teaching staff.</p>
-          <div class="mt-auto">
-            <button class="btn btn-sm btn-outline-secondary" type="button" disabled>Coming soon</button>
-          </div>
-        </div>
-      </div>
-    </div>
+  </section>
 
-    <!-- Financial Reports -->
-    <div class="col">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body d-flex flex-column">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <span class="badge bg-warning-subtle text-warning"><i class="bi bi-cash-coin"></i></span>
-            <h3 class="h6 fw-bold mb-0">Fee Collection Report</h3>
+  {# —— Section 5 · Alerts & tables —— #}
+  <section class="analytics-dash-section mb-4" id="alerts-tables" aria-labelledby="alerts-tables-heading">
+    <p class="analytics-section-kicker mb-0">Section 5</p>
+    <h2 class="analytics-section-title" id="alerts-tables-heading">Alerts &amp; tables</h2>
+    <p class="analytics-section-desc">Operational signals that need attention and a ranked view of class sizes.</p>
+
+    <div class="row g-4">
+      <div class="col-lg-5">
+        <h3 class="h6 fw-bold text-body-secondary mb-3">Alerts</h3>
+        {% if dash_alerts %}
+        <div class="analytics-alert-list">
+          {% for a in dash_alerts %}
+          <div class="analytics-alert-item {% if a.severity == 'warning' %}analytics-alert-item--warning{% else %}analytics-alert-item--info{% endif %}">
+            <span class="analytics-alert-icon" aria-hidden="true"><i class="bi {{ a.icon }}"></i></span>
+            <div>
+              <div class="fw-semibold small mb-1">{{ a.title }}</div>
+              <div class="text-muted small mb-0">{{ a.detail }}</div>
+            </div>
           </div>
-          <p class="text-muted small mb-3">Track fee collections over time and by class.</p>
-          <div class="mt-auto">
-            <button class="btn btn-sm btn-outline-secondary" type="button" disabled>Coming soon</button>
-          </div>
+          {% endfor %}
         </div>
+        {% else %}
+        <div class="text-muted small py-4 px-3 rounded-3 bg-body-secondary">
+          No alerts right now. When attendance is incomplete or weekly presence drops, guidance will show here.
+        </div>
+        {% endif %}
       </div>
-    </div>
-    <div class="col">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body d-flex flex-column">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <span class="badge bg-warning-subtle text-warning"><i class="bi bi-exclamation-circle"></i></span>
-            <h3 class="h6 fw-bold mb-0">Pending Fees Report</h3>
-          </div>
-          <p class="text-muted small mb-3">Identify pending and overdue fees for follow-up.</p>
-          <div class="mt-auto">
-            <button class="btn btn-sm btn-outline-secondary" type="button" disabled>Coming soon</button>
-          </div>
+      <div class="col-lg-7">
+        <h3 class="h6 fw-bold text-body-secondary mb-3">Class enrollment</h3>
+        {% if dash_enrollment_rows %}
+        <div class="analytics-enrollment-table-wrap">
+          <table class="table analytics-enrollment-table mb-0">
+            <thead>
+              <tr>
+                <th scope="col">#</th>
+                <th scope="col">Class</th>
+                <th scope="col" class="text-end">Students</th>
+                <th scope="col" class="text-end">Share</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in dash_enrollment_rows %}
+              <tr>
+                <td class="text-muted">{{ row.rank }}</td>
+                <td class="fw-medium">{{ row.class_name }}</td>
+                <td class="text-end">{{ row.students }}</td>
+                <td class="text-end text-muted">{{ row.share }}%</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
+        {% else %}
+        <div class="text-muted small py-4 px-3 rounded-3 bg-body-secondary">No enrollment rows to display.</div>
+        {% endif %}
       </div>
     </div>
 
-    <!-- Administrative Reports -->
-    <div class="col">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body d-flex flex-column">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <span class="badge bg-secondary-subtle text-secondary"><i class="bi bi-people-fill"></i></span>
-            <h3 class="h6 fw-bold mb-0">Staff Report</h3>
+    <h3 class="h6 fw-bold text-body-secondary mt-5 mb-3">Report shortcuts</h3>
+    {% if report_cards_primary or report_cards_more %}
+    <div class="reports-cards-host">
+      <div class="reports-cards-skel-layer" aria-hidden="true">
+        {% if report_cards_primary %}
+        <div class="reports-hub-grid mb-4">
+          {% for card in report_cards_primary %}
+          <div class="reports-hub-card-skeleton">
+            <div class="erp-skel" style="width:2.65rem;height:2.65rem;border-radius:10px"></div>
+            <div class="erp-skel" style="height:16px;width:55%;border-radius:6px"></div>
+            <div class="erp-skel flex-grow-1" style="min-height:2.5rem;border-radius:6px"></div>
+            <div class="erp-skel" style="height:32px;width:42%;border-radius:999px"></div>
           </div>
-          <p class="text-muted small mb-3">Overview of staff strength and distribution.</p>
-          <div class="mt-auto">
-            <button class="btn btn-sm btn-outline-secondary" type="button" disabled>Coming soon</button>
-          </div>
+          {% endfor %}
         </div>
+        {% endif %}
+        {% if report_cards_more %}
+        <h4 class="h6 text-muted fw-semibold mb-3 opacity-50">More tools</h4>
+        <div class="reports-hub-grid">
+          {% for card in report_cards_more %}
+          <div class="reports-hub-card-skeleton">
+            <div class="erp-skel" style="width:2.65rem;height:2.65rem;border-radius:10px"></div>
+            <div class="erp-skel" style="height:16px;width:50%;border-radius:6px"></div>
+            <div class="erp-skel flex-grow-1" style="min-height:2.5rem;border-radius:6px"></div>
+            <div class="erp-skel" style="height:32px;width:36%;border-radius:999px"></div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      <div class="reports-cards-live-layer">
+        {% if report_cards_primary %}
+        <div class="reports-hub-grid mb-4">
+          {% for card in report_cards_primary %}
+          <div class="card border-0 shadow-sm h-100 reports-hub-card">
+            <div class="card-body d-flex flex-column p-4">
+              <div class="reports-hub-icon bg-{{ card.theme }} bg-opacity-10 text-{{ card.theme }} mb-3"><i class="bi {{ card.icon }}"></i></div>
+              <h4 class="h6 fw-bold mb-2">{{ card.title }}</h4>
+              <p class="text-muted small flex-grow-1 mb-3">{{ card.description }}</p>
+              <a href="{{ card.url }}" class="btn btn-{{ card.theme }} btn-sm rounded-pill align-self-start">{{ card.button_label }}</a>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if report_cards_more %}
+        <h4 class="h6 text-muted fw-semibold mb-3">More tools</h4>
+        <div class="reports-hub-grid">
+          {% for card in report_cards_more %}
+          <div class="card border-0 shadow-sm h-100 reports-hub-card">
+            <div class="card-body d-flex flex-column p-4">
+              <div class="reports-hub-icon bg-{{ card.theme }} bg-opacity-10 text-{{ card.theme }} mb-3"><i class="bi {{ card.icon }}"></i></div>
+              <h4 class="h6 fw-bold mb-2">{{ card.title }}</h4>
+              <p class="text-muted small flex-grow-1 mb-3">{{ card.description }}</p>
+              {% if card.ready %}
+              <a href="{{ card.url }}" class="btn btn-{{ card.theme }} btn-sm rounded-pill align-self-start">Open</a>
+              {% else %}
+              <button class="btn btn-sm btn-outline-secondary rounded-pill align-self-start" type="button" disabled title="{{ card.unavailable_label|default:'Coming soon' }}">{{ card.unavailable_label|default:"Coming soon" }}</button>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
       </div>
     </div>
-    <div class="col">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body d-flex flex-column">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <span class="badge bg-secondary-subtle text-secondary"><i class="bi bi-people"></i></span>
-            <h3 class="h6 fw-bold mb-0">Student Strength Report</h3>
+    {% else %}
+    <div class="reports-empty text-center py-5 px-4">
+      <div class="reports-hub-icon bg-primary bg-opacity-10 text-primary mx-auto mb-3"><i class="bi bi-graph-up-arrow"></i></div>
+      <p class="text-muted mb-0">Detailed reports will appear here when enabled for your plan.</p>
+    </div>
+    {% endif %}
+  </section>
+  {% else %}
+  <section class="analytics-dash-section mb-4" id="reports-exploration" aria-labelledby="reports-exploration-heading">
+    <p class="analytics-section-kicker mb-0">Reports</p>
+    <h2 class="analytics-section-title" id="reports-exploration-heading">Reports &amp; exploration</h2>
+    <p class="analytics-section-desc">Upgrade your plan to unlock the full analytics workspace, charts, and deep reports.</p>
+    {% if report_cards_primary or report_cards_more %}
+    <div class="reports-cards-host">
+      <div class="reports-cards-skel-layer" aria-hidden="true">
+        {% if report_cards_primary %}
+        <div class="reports-hub-grid mb-4">
+          {% for card in report_cards_primary %}
+          <div class="reports-hub-card-skeleton">
+            <div class="erp-skel" style="width:2.65rem;height:2.65rem;border-radius:10px"></div>
+            <div class="erp-skel" style="height:16px;width:55%;border-radius:6px"></div>
+            <div class="erp-skel flex-grow-1" style="min-height:2.5rem;border-radius:6px"></div>
+            <div class="erp-skel" style="height:32px;width:42%;border-radius:999px"></div>
           </div>
-          <p class="text-muted small mb-3">Class and section-wise student strength overview.</p>
-          <div class="mt-auto">
-            <button class="btn btn-sm btn-outline-secondary" type="button" disabled>Coming soon</button>
-          </div>
+          {% endfor %}
         </div>
+        {% endif %}
+        {% if report_cards_more %}
+        <h4 class="h6 text-muted fw-semibold mb-3 opacity-50">More tools</h4>
+        <div class="reports-hub-grid">
+          {% for card in report_cards_more %}
+          <div class="reports-hub-card-skeleton">
+            <div class="erp-skel" style="width:2.65rem;height:2.65rem;border-radius:10px"></div>
+            <div class="erp-skel" style="height:16px;width:50%;border-radius:6px"></div>
+            <div class="erp-skel flex-grow-1" style="min-height:2.5rem;border-radius:6px"></div>
+            <div class="erp-skel" style="height:32px;width:36%;border-radius:999px"></div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      <div class="reports-cards-live-layer">
+        {% if report_cards_primary %}
+        <div class="reports-hub-grid mb-4">
+          {% for card in report_cards_primary %}
+          <div class="card border-0 shadow-sm h-100 reports-hub-card">
+            <div class="card-body d-flex flex-column p-4">
+              <div class="reports-hub-icon bg-{{ card.theme }} bg-opacity-10 text-{{ card.theme }} mb-3"><i class="bi {{ card.icon }}"></i></div>
+              <h4 class="h6 fw-bold mb-2">{{ card.title }}</h4>
+              <p class="text-muted small flex-grow-1 mb-3">{{ card.description }}</p>
+              <a href="{{ card.url }}" class="btn btn-{{ card.theme }} btn-sm rounded-pill align-self-start">{{ card.button_label }}</a>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if report_cards_more %}
+        <h4 class="h6 text-muted fw-semibold mb-3">More tools</h4>
+        <div class="reports-hub-grid">
+          {% for card in report_cards_more %}
+          <div class="card border-0 shadow-sm h-100 reports-hub-card">
+            <div class="card-body d-flex flex-column p-4">
+              <div class="reports-hub-icon bg-{{ card.theme }} bg-opacity-10 text-{{ card.theme }} mb-3"><i class="bi {{ card.icon }}"></i></div>
+              <h4 class="h6 fw-bold mb-2">{{ card.title }}</h4>
+              <p class="text-muted small flex-grow-1 mb-3">{{ card.description }}</p>
+              {% if card.ready %}
+              <a href="{{ card.url }}" class="btn btn-{{ card.theme }} btn-sm rounded-pill align-self-start">Open</a>
+              {% else %}
+              <button class="btn btn-sm btn-outline-secondary rounded-pill align-self-start" type="button" disabled title="{{ card.unavailable_label|default:'Coming soon' }}">{{ card.unavailable_label|default:"Coming soon" }}</button>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
       </div>
     </div>
-  </div>
+    {% else %}
+    <div class="reports-empty text-center py-5 px-4">
+      <div class="reports-hub-icon bg-primary bg-opacity-10 text-primary mx-auto mb-3"><i class="bi bi-graph-up-arrow"></i></div>
+      <p class="text-muted mb-0">Detailed reports will appear here when enabled for your plan.</p>
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
 </div>
 
+{% if hub_charts_enabled %}
 <script>
-  (function() {
-    const topLabels = {{ chart_top_labels|default:"[]"|safe }};
-    const topValues = {{ chart_top_values|default:"[]"|safe }};
-    const gradeLabels = {{ grade_labels|default:"[]"|safe }};
-    const gradeValues = {{ grade_values|default:"[]"|safe }};
-    const classLabels = {{ class_labels|default:"[]"|safe }};
-    const classValues = {{ class_values|default:"[]"|safe }};
-    const trendLabels = {{ trend_labels|default:"[]"|safe }};
-    const trendValues = {{ trend_values|default:"[]"|safe }};
+(function () {
+  function readBundle() {
+    var el = document.getElementById("reports-dash-bundle");
+    if (!el) return null;
+    try { return JSON.parse(el.textContent || "{}"); } catch (e) { return null; }
+  }
 
-    if (document.getElementById("chartTopStudents")) {
-      new Chart(document.getElementById("chartTopStudents"), {
-        type: "bar",
-        data: {
-          labels: topLabels,
-          datasets: [{
-            label: "Percentage",
-            data: topValues,
-            backgroundColor: "rgba(59,130,246,0.6)",
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true, max: 100 } }
-        }
-      });
+  document.addEventListener("DOMContentLoaded", function () {
+    var bundle = readBundle();
+    if (!bundle || !window.Chart) return;
+
+    var isDark = document.documentElement.classList.contains("dark");
+    var tick = isDark ? "#94a3b8" : "#64748b";
+    var gridMaj = isDark ? "rgba(148,163,184,0.14)" : "rgba(100,116,139,0.18)";
+    var gridMin = isDark ? "rgba(148,163,184,0.06)" : "rgba(100,116,139,0.08)";
+    Chart.defaults.font.family = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+    Chart.defaults.color = tick;
+
+    var anim = { duration: 1000, easing: "easeOutQuart" };
+    var animShort = { duration: 780, easing: "easeOutCubic" };
+
+    function commonTooltip() {
+      return {
+        backgroundColor: isDark ? "rgba(15, 23, 42, 0.94)" : "rgba(255,255,255,0.96)",
+        titleColor: isDark ? "#f8fafc" : "#0f172a",
+        bodyColor: isDark ? "#e2e8f0" : "#334155",
+        borderColor: isDark ? "rgba(148,163,184,0.25)" : "rgba(15,23,42,0.08)",
+        borderWidth: 1,
+        padding: 12,
+        cornerRadius: 10,
+        displayColors: true,
+        boxPadding: 4
+      };
     }
 
-    if (document.getElementById("chartGrades")) {
-      new Chart(document.getElementById("chartGrades"), {
-        type: "pie",
-        data: {
-          labels: gradeLabels,
-          datasets: [{
-            data: gradeValues,
-            backgroundColor: [
-              "rgba(16,185,129,0.7)",
-              "rgba(59,130,246,0.7)",
-              "rgba(234,179,8,0.7)",
-              "rgba(239,68,68,0.7)"
-            ]
-          }]
-        },
-        options: { responsive: true }
-      });
+    var barHue = [220, 200, 175, 250, 145, 310, 25, 280];
+    function barColors(n) {
+      var bg = [];
+      var borders = [];
+      for (var i = 0; i < n; i++) {
+        var h = barHue[i % barHue.length];
+        bg.push("hsla(" + h + ", 72%, " + (isDark ? "42%" : "52%") + ", 0.78)");
+        borders.push("hsla(" + h + ", 78%, " + (isDark ? "55%" : "40%") + ", 1)");
+      }
+      return { bg: bg, borders: borders };
     }
 
-    if (document.getElementById("chartClassAvg")) {
-      new Chart(document.getElementById("chartClassAvg"), {
+    var classLabels = bundle.hubClassLabels || [];
+    var classCounts = bundle.hubClassCounts || [];
+    var barEl = document.getElementById("hubChartStudentsByClass");
+    if (barEl && classLabels.length && window.Chart) {
+      var bc = barColors(classLabels.length);
+      new Chart(barEl.getContext("2d"), {
         type: "bar",
         data: {
           labels: classLabels,
           datasets: [{
-            label: "Average %",
-            data: classValues,
-            backgroundColor: "rgba(99,102,241,0.6)",
+            label: "Students",
+            data: classCounts,
+            backgroundColor: bc.bg,
+            borderColor: bc.borders,
+            borderWidth: 1.5,
+            borderRadius: 10,
+            borderSkipped: false,
+            maxBarThickness: 48
           }]
         },
         options: {
           responsive: true,
-          plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true, max: 100 } }
+          maintainAspectRatio: false,
+          animation: anim,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: Object.assign(commonTooltip(), {
+              displayColors: false,
+              callbacks: {
+                title: function (items) { return items.length ? String(items[0].label) : ""; },
+                label: function (ctx) { return "Enrollment: " + ctx.parsed.y + " students"; }
+              }
+            })
+          },
+          scales: {
+            x: {
+              title: { display: true, text: "Class", color: tick, font: { size: 11, weight: "600" } },
+              ticks: { color: tick, maxRotation: 35, autoSkip: true, font: { size: 11 } },
+              grid: { display: false }
+            },
+            y: {
+              title: { display: true, text: "Students", color: tick, font: { size: 11, weight: "600" } },
+              beginAtZero: true,
+              ticks: { color: tick, precision: 0, font: { size: 11 } },
+              grid: { color: gridMaj }
+            }
+          }
         }
       });
     }
 
-    if (document.getElementById("chartTrend")) {
-      new Chart(document.getElementById("chartTrend"), {
+    var gEl = document.getElementById("hubChartGender");
+    var gLabels = bundle.genderLabels || [];
+    var gData = bundle.genderCounts || [];
+    if (gEl && gLabels.length && gData.length) {
+      new Chart(gEl.getContext("2d"), {
+        type: "doughnut",
+        data: {
+          labels: gLabels,
+          datasets: [{
+            data: gData,
+            backgroundColor: [
+              "rgba(59, 130, 246, 0.82)",
+              "rgba(236, 72, 153, 0.82)",
+              "rgba(139, 92, 246, 0.82)",
+              "rgba(148, 163, 184, 0.75)"
+            ],
+            borderColor: isDark ? "rgba(15,23,42,0.95)" : "#fff",
+            borderWidth: 3,
+            hoverOffset: 10
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: "62%",
+          animation: { animateRotate: true, animateScale: true, duration: 900, easing: "easeOutCubic" },
+          plugins: {
+            legend: {
+              position: "bottom",
+              labels: { usePointStyle: true, padding: 14, font: { size: 11 } }
+            },
+            tooltip: Object.assign(commonTooltip(), {
+              callbacks: {
+                label: function (ctx) {
+                  var total = ctx.dataset.data.reduce(function (a, b) { return a + b; }, 0) || 1;
+                  var v = ctx.parsed;
+                  var pct = ((v / total) * 100).toFixed(1);
+                  return ctx.label + ": " + v + " (" + pct + "%)";
+                }
+              }
+            })
+          }
+        }
+      });
+    }
+
+    var admEl = document.getElementById("hubChartAdmissions");
+    var admL = bundle.admissionLabels || [];
+    var admC = bundle.admissionCounts || [];
+    if (admEl && admL.length) {
+      var ctx2d = admEl.getContext("2d");
+      var grad = ctx2d.createLinearGradient(0, 0, 0, admEl.height || 280);
+      grad.addColorStop(0, isDark ? "rgba(56, 189, 248, 0.35)" : "rgba(14, 165, 233, 0.25)");
+      grad.addColorStop(1, isDark ? "rgba(56, 189, 248, 0.02)" : "rgba(14, 165, 233, 0.02)");
+      new Chart(ctx2d, {
         type: "line",
         data: {
-          labels: trendLabels,
+          labels: admL,
           datasets: [{
-            label: "Average %",
-            data: trendValues,
-            borderColor: "rgba(59,130,246,1)",
-            backgroundColor: "rgba(59,130,246,0.1)",
-            tension: 0.3,
+            label: "New profiles",
+            data: admC,
+            tension: 0.42,
+            fill: true,
+            backgroundColor: grad,
+            borderColor: isDark ? "#38bdf8" : "#0284c7",
+            borderWidth: 2.5,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            pointBackgroundColor: isDark ? "#38bdf8" : "#0284c7",
+            pointBorderColor: isDark ? "#0f172a" : "#fff",
+            pointBorderWidth: 2
           }]
         },
         options: {
           responsive: true,
-          scales: { y: { beginAtZero: true, max: 100 } }
+          maintainAspectRatio: false,
+          animation: anim,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: Object.assign(commonTooltip(), {
+              displayColors: false,
+              callbacks: {
+                label: function (ctx) { return "Admissions: " + ctx.parsed.y; }
+              }
+            })
+          },
+          scales: {
+            x: {
+              title: { display: true, text: "Month", color: tick, font: { size: 11, weight: "600" } },
+              ticks: { color: tick, font: { size: 11 } },
+              grid: { color: gridMin }
+            },
+            y: {
+              title: { display: true, text: "Count", color: tick, font: { size: 11, weight: "600" } },
+              beginAtZero: true,
+              ticks: { color: tick, precision: 0, font: { size: 11 } },
+              grid: { color: gridMaj }
+            }
+          }
         }
       });
     }
-  })();
+
+    var lineEl = document.getElementById("hubChartAttendanceTrend");
+    var shortL = bundle.hubAttendanceShort || [];
+    var fullL = bundle.hubAttendanceFull || [];
+    var pcts = bundle.hubAttendancePcts || [];
+    var presents = bundle.hubAttendancePresent || [];
+    if (lineEl && shortL.length && bundle.hubShowAttendance) {
+      var lctx = lineEl.getContext("2d");
+      var lg = lctx.createLinearGradient(0, 0, 0, lineEl.height || 300);
+      lg.addColorStop(0, isDark ? "rgba(16, 185, 129, 0.35)" : "rgba(16, 185, 129, 0.22)");
+      lg.addColorStop(1, isDark ? "rgba(16, 185, 129, 0.02)" : "rgba(16, 185, 129, 0.02)");
+      new Chart(lctx, {
+        type: "line",
+        data: {
+          labels: shortL,
+          datasets: [{
+            label: "Attendance %",
+            data: pcts,
+            tension: 0.45,
+            fill: true,
+            pointRadius: 5,
+            pointHoverRadius: 8,
+            pointBackgroundColor: isDark ? "#34d399" : "#059669",
+            pointBorderColor: isDark ? "#0f172a" : "#fff",
+            pointBorderWidth: 2,
+            borderColor: isDark ? "#34d399" : "#059669",
+            backgroundColor: lg,
+            borderWidth: 2.5
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: anim,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: Object.assign(commonTooltip(), {
+              displayColors: false,
+              callbacks: {
+                title: function (items) {
+                  var i = items.length ? items[0].dataIndex : 0;
+                  return fullL[i] || "";
+                },
+                label: function (ctx) {
+                  var i = ctx.dataIndex;
+                  var pr = presents[i] != null ? presents[i] : "—";
+                  return [
+                    "Rate: " + ctx.parsed.y + "%",
+                    "Present: " + pr + " students"
+                  ];
+                }
+              }
+            })
+          },
+          scales: {
+            x: {
+              title: { display: true, text: "Day", color: tick, font: { size: 11, weight: "600" } },
+              ticks: { color: tick, font: { size: 11 } },
+              grid: { color: gridMin }
+            },
+            y: {
+              title: { display: true, text: "Attendance %", color: tick, font: { size: 11, weight: "600" } },
+              min: 0,
+              max: 100,
+              ticks: {
+                color: tick,
+                font: { size: 11 },
+                callback: function (v) { return v + "%"; }
+              },
+              grid: { color: gridMaj }
+            }
+          }
+        }
+      });
+    }
+
+    var stEl = document.getElementById("hubChartAttendanceStatus");
+    var stLabels = bundle.attendanceStatusLabels || [];
+    var stData = bundle.attendanceStatusCounts || [];
+    if (stEl && stLabels.length && stData.some(function (n) { return n > 0; })) {
+      new Chart(stEl.getContext("2d"), {
+        type: "doughnut",
+        data: {
+          labels: stLabels,
+          datasets: [{
+            data: stData,
+            backgroundColor: [
+              "rgba(16, 185, 129, 0.85)",
+              "rgba(239, 68, 68, 0.82)",
+              "rgba(245, 158, 11, 0.82)"
+            ],
+            borderColor: isDark ? "rgba(15,23,42,0.95)" : "#fff",
+            borderWidth: 3,
+            hoverOffset: 8
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: "58%",
+          animation: { animateRotate: true, duration: 880, easing: "easeOutCubic" },
+          plugins: {
+            legend: {
+              position: "bottom",
+              labels: { usePointStyle: true, padding: 12, font: { size: 11 } }
+            },
+            tooltip: Object.assign(commonTooltip(), {
+              callbacks: {
+                label: function (ctx) {
+                  var t = ctx.dataset.data.reduce(function (a, b) { return a + b; }, 0) || 1;
+                  var v = ctx.parsed;
+                  return ctx.label + ": " + v + " marks (" + ((v / t) * 100).toFixed(1) + "%)";
+                }
+              }
+            })
+          }
+        }
+      });
+    }
+
+    var subEl = document.getElementById("hubChartSubjectAvg");
+    var subL = bundle.subjectLabels || [];
+    var subV = bundle.subjectAvgPct || [];
+    if (subEl && subL.length) {
+      var hues = barColors(subL.length);
+      new Chart(subEl.getContext("2d"), {
+        type: "bar",
+        data: {
+          labels: subL,
+          datasets: [{
+            label: "Avg %",
+            data: subV,
+            backgroundColor: hues.bg,
+            borderColor: hues.borders,
+            borderWidth: 1.5,
+            borderRadius: 8,
+            borderSkipped: false,
+            barThickness: 18
+          }]
+        },
+        options: {
+          indexAxis: "y",
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: animShort,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: Object.assign(commonTooltip(), {
+              displayColors: false,
+              callbacks: {
+                label: function (ctx) { return "Average score: " + ctx.parsed.x + "%"; }
+              }
+            })
+          },
+          scales: {
+            x: {
+              min: 0,
+              max: 100,
+              title: { display: true, text: "Average % (weighted)", color: tick, font: { size: 11, weight: "600" } },
+              ticks: {
+                color: tick,
+                font: { size: 11 },
+                callback: function (v) { return v + "%"; }
+              },
+              grid: { color: gridMaj }
+            },
+            y: {
+              title: { display: true, text: "Subject", color: tick, font: { size: 11, weight: "600" } },
+              ticks: { color: tick, font: { size: 11 } },
+              grid: { display: false }
+            }
+          }
+        }
+      });
+    }
+  });
+})();
+</script>
+{% endif %}
+<script>
+(function () {
+  document.addEventListener("DOMContentLoaded", function () {
+    var root = document.querySelector(".analytics-dashboard-page");
+    if (!root) return;
+    var t0 = performance.now();
+    function reveal() {
+      var minMs = 320;
+      var wait = Math.max(0, minMs - (performance.now() - t0));
+      setTimeout(function () {
+        root.classList.add("analytics-ready");
+        document.querySelectorAll(".reports-hub-chart-skeleton").forEach(function (el) {
+          el.classList.add("is-dismissed");
+        });
+        document.querySelectorAll("canvas.reports-hub-chart-canvas").forEach(function (el) {
+          el.classList.add("is-visible");
+        });
+      }, wait);
+    }
+    requestAnimationFrame(function () {
+      requestAnimationFrame(reveal);
+    });
+  });
+})();
 </script>
 {% endblock %}
-

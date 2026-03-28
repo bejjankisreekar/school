@@ -52,7 +52,7 @@
           </div>
           {% if item.homework.subject %}
           <p class="text-muted small mb-1">📘 {{ item.homework.subject.name }}</p>
-          <p class="text-muted small mb-1">🏫 {{ item.homework.subject.classroom.name|default:"N/A" }} - {{ item.section_name }}</p>
+          <p class="text-muted small mb-1">🏫 {{ item.section_name }}</p>
           {% else %}
           <p class="text-muted small mb-1">🏫 {{ item.homework.classes.all|join:", "|default:"—" }} - {{ item.homework.sections.all|join:", "|default:item.section_name }}</p>
           {% endif %}

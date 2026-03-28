@@ -36,6 +36,7 @@ from apps.school_data.models import (
     Driver,
     StudentRouteAssignment,
     OnlineAdmission,
+    StudentPromotion,
 )
 from .models import ContactEnquiry
 
@@ -164,19 +165,29 @@ class ContactEnquiryForm(forms.ModelForm):
         }
 
 
-class SchoolExamCreateForm(forms.Form):
-    """Admin form to create exam(s): class + multi-section + optional teacher."""
-    name = forms.CharField(max_length=100, widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. Mid Term, Final Exam"}))
-    class_name = forms.ChoiceField(choices=[], widget=forms.Select(attrs={"class": BS_INPUT, "id": "id_exam_class"}))
-    sections = forms.MultipleChoiceField(choices=[], required=True, widget=forms.CheckboxSelectMultiple())
-    date = forms.DateField(widget=forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}))
+class SchoolExamSingleForm(forms.Form):
+    """Admin: one exam, one class, one section, one subject, one date."""
+
+    name = forms.CharField(
+        max_length=100,
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. Mid Term — Mathematics"}),
+    )
+    class_name = forms.ChoiceField(choices=[], widget=forms.Select(attrs={"class": BS_INPUT, "id": "id_single_class"}))
+    section = forms.ChoiceField(choices=[], widget=forms.Select(attrs={"class": BS_INPUT, "id": "id_single_section"}))
+    subject = forms.ModelChoiceField(
+        queryset=Subject.objects.none(),
+        widget=forms.Select(attrs={"class": BS_INPUT, "id": "id_single_subject"}),
+    )
+    date = forms.DateField(widget=forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS, "id": "id_single_date"}))
+    total_marks = forms.IntegerField(min_value=1, max_value=1000, initial=100, widget=forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 1}))
     teacher = forms.TypedChoiceField(choices=[], required=False, empty_value=None, widget=forms.Select(attrs={"class": BS_INPUT}))
 
     def __init__(self, school, *args, **kwargs):
         super().__init__(*args, **kwargs)
         classrooms = ClassRoom.objects.select_related("academic_year").order_by("academic_year__start_date", "name")
         self.fields["class_name"].choices = [("", "Select Class")] + [(c.name, c.name) for c in classrooms]
-        self.fields["sections"].choices = [(s.name, s.name) for s in Section.objects.order_by("name")]
+        self.fields["section"].choices = [("", "Select Section")] + [(s.name, s.name) for s in Section.objects.order_by("name")]
+        self.fields["subject"].queryset = Subject.objects.order_by("name")
         teachers = Teacher.objects.filter(user__school=school).select_related("user").order_by("user__first_name", "user__last_name")
         self.fields["teacher"].choices = [("", "No specific teacher")] + [(t.id, t.user.get_full_name() or t.user.username) for t in teachers]
 
@@ -188,6 +199,111 @@ class SchoolExamCreateForm(forms.Form):
             return int(val)
         except (TypeError, ValueError):
             return None
+
+
+class SchoolExamEditForm(forms.ModelForm):
+    """Admin: edit exam including optional time range for the calendar."""
+
+    class Meta:
+        model = Exam
+        fields = [
+            "name",
+            "date",
+            "start_time",
+            "end_time",
+            "class_name",
+            "section",
+            "subject",
+            "total_marks",
+            "teacher",
+        ]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Exam title"}),
+            "date": forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
+            "start_time": forms.TimeInput(attrs={"type": "time", "class": INPUT_CLASS}),
+            "end_time": forms.TimeInput(attrs={"type": "time", "class": INPUT_CLASS}),
+            "total_marks": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 1, "max": 1000}),
+        }
+
+    def __init__(self, school, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from django import forms as dforms
+
+        classrooms = ClassRoom.objects.select_related("academic_year").order_by("academic_year__start_date", "name")
+        self.fields["class_name"] = dforms.ChoiceField(
+            choices=[(c.name, c.name) for c in classrooms],
+            widget=dforms.Select(attrs={"class": BS_INPUT}),
+        )
+        self.fields["section"] = dforms.ChoiceField(
+            choices=[(s.name, s.name) for s in Section.objects.order_by("name")],
+            widget=dforms.Select(attrs={"class": BS_INPUT}),
+        )
+        self.fields["subject"].queryset = Subject.objects.order_by("name")
+        self.fields["subject"].required = False
+        self.fields["subject"].widget.attrs.update({"class": BS_INPUT})
+        self.fields["teacher"].queryset = Teacher.objects.filter(user__school=school).select_related("user").order_by(
+            "user__first_name", "user__last_name"
+        )
+        self.fields["teacher"].required = False
+        self.fields["teacher"].widget.attrs.update({"class": BS_INPUT})
+
+    def clean(self):
+        data = super().clean()
+        st = data.get("start_time")
+        et = data.get("end_time")
+        if st and et and et <= st:
+            raise forms.ValidationError("End time must be after start time.")
+        if (st and not et) or (et and not st):
+            raise forms.ValidationError("Set both start and end time, or leave both empty for an all-day exam.")
+        return data
+
+
+class SchoolExamSchedulerForm(forms.Form):
+    """Admin: multi-class, multi-section, multi-subject with a manual date per subject."""
+
+    exam_name = forms.CharField(
+        max_length=100,
+        required=True,
+        widget=forms.TextInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "placeholder": "e.g. Mid Term",
+                "id": "id_scheduler_exam_name",
+            }
+        ),
+        help_text='Each exam is saved as "<exam name> - <subject>".',
+    )
+    total_marks = forms.IntegerField(
+        min_value=1,
+        max_value=1000,
+        initial=100,
+        widget=forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 1, "id": "id_scheduler_total_marks"}),
+    )
+    teacher = forms.TypedChoiceField(
+        choices=[],
+        required=False,
+        empty_value=None,
+        widget=forms.Select(attrs={"class": BS_INPUT, "id": "id_scheduler_teacher"}),
+    )
+
+    def __init__(self, school, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        teachers = Teacher.objects.filter(user__school=school).select_related("user").order_by(
+            "user__first_name", "user__last_name"
+        )
+        self.fields["teacher"].choices = [("", "No specific teacher")] + [
+            (t.id, t.user.get_full_name() or t.user.username) for t in teachers
+        ]
+
+    def clean_teacher(self):
+        val = self.cleaned_data.get("teacher")
+        if val is None or val == "":
+            return None
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return None
+
 
 class AttendanceForm(forms.ModelForm):
     class Meta:
@@ -202,34 +318,104 @@ class AttendanceForm(forms.ModelForm):
 
 # ---- School Admin: Student Add Form ----
 class StudentAddForm(forms.Form):
-    first_name = forms.CharField(max_length=150, widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "First Name"}))
-    last_name = forms.CharField(max_length=150, widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Last Name"}))
-    username = forms.CharField(max_length=150, widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Username"}))
-    password = forms.CharField(widget=forms.PasswordInput(attrs={"class": INPUT_CLASS, "placeholder": "Password"}))
-    classroom = forms.ModelChoiceField(queryset=ClassRoom.objects.none(), widget=forms.Select(attrs={"class": BS_INPUT, "id": "id_classroom"}))
-    section = forms.ModelChoiceField(queryset=Section.objects.none(), widget=forms.Select(attrs={"class": BS_INPUT, "id": "id_section"}))
-    roll_number = forms.CharField(max_length=50, widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Roll Number"}))
-    admission_number = forms.CharField(max_length=50, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Admission Number"}))
-    date_of_birth = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}))
-    parent_name = forms.CharField(max_length=150, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Parent Name"}))
-    parent_phone = forms.CharField(max_length=20, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Parent Phone"}))
+    # Student Basic Info
+    first_name = forms.CharField(
+        max_length=150,
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. Rahul"}),
+    )
+    last_name = forms.CharField(
+        max_length=150,
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. Sharma"}),
+    )
+    date_of_birth = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
+    )
+    gender = forms.ChoiceField(
+        choices=[("", "— Not specified —")] + list(Student.Gender.choices),
+        required=False,
+        widget=forms.Select(attrs={"class": BS_INPUT}),
+    )
+    # Academic Details
+    classroom = forms.ModelChoiceField(
+        queryset=ClassRoom.objects.none(),
+        widget=forms.Select(attrs={"class": BS_INPUT, "id": "id_classroom"}),
+    )
+    section = forms.ModelChoiceField(
+        queryset=Section.objects.none(),
+        widget=forms.Select(attrs={"class": BS_INPUT, "id": "id_section"}),
+    )
+    roll_number = forms.CharField(
+        max_length=50,
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. 23"}),
+    )
+    admission_number = forms.CharField(
+        max_length=50,
+        required=True,
+        widget=forms.TextInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "placeholder": "e.g. SCH2026001",
+                "style": "text-transform: uppercase",
+                "autocomplete": "off",
+            }
+        ),
+    )
+    # Parent Details
+    parent_name = forms.CharField(
+        max_length=150,
+        required=False,
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Parent/Guardian name"}),
+    )
+    parent_phone = forms.CharField(
+        max_length=20,
+        required=False,
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. 9876543210"}),
+    )
+    email = forms.EmailField(
+        required=True,
+        widget=forms.EmailInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. parent@example.com"}),
+        help_text="Required for login credentials and password reset.",
+    )
+    # Account Details (password optional - system generates if empty)
+    password = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(
+            attrs={"class": INPUT_CLASS, "placeholder": "Optional – system will generate"}
+        ),
+    )
 
     def __init__(self, school, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.school = school
-        self.fields["classroom"].queryset = ClassRoom.objects.select_related("academic_year").order_by("academic_year", "name")
-        self.fields["section"].queryset = Section.objects.order_by("name")
+        self.fields["classroom"].queryset = (
+            ClassRoom.objects.select_related("academic_year")
+            .prefetch_related("sections")
+            .order_by("academic_year", "name")
+        )
+        self.fields["section"].queryset = (
+            Section.objects.prefetch_related("classrooms").order_by("name")
+        )
 
-    def clean_username(self):
-        username = self.cleaned_data.get("username")
-        if User.objects.filter(username=username).exists():
-            raise forms.ValidationError("Username already exists.")
-        return username
+    def clean_parent_phone(self):
+        phone = self.cleaned_data.get("parent_phone")
+        if phone and not phone.replace(" ", "").isdigit():
+            raise forms.ValidationError("Phone must contain only digits.")
+        if phone and len(phone.replace(" ", "")) != 10:
+            raise forms.ValidationError("Phone must be 10 digits.")
+        return phone
 
     def clean_admission_number(self):
         adm = self.cleaned_data.get("admission_number")
-        if adm and Student.objects.filter(admission_number=adm).exists():
-            raise forms.ValidationError("Admission number already exists for this school.")
+        if adm is not None:
+            adm = adm.strip()
+        if not adm:
+            raise forms.ValidationError("Admission Number is required and cannot be empty.")
+        adm = adm.upper()
+        if User.objects.filter(username=adm).exists():
+            raise forms.ValidationError("Admission Number already exists.")
+        if Student.objects.filter(admission_number=adm).exists():
+            raise forms.ValidationError("Admission Number already exists for this school.")
         return adm
 
     def clean(self):
@@ -239,8 +425,9 @@ class StudentAddForm(forms.Form):
         roll = data.get("roll_number")
         if section and classroom and section not in classroom.sections.all():
             raise forms.ValidationError("Section must belong to selected class.")
-        if section and classroom and roll and Student.objects.filter(classroom=classroom, section=section, roll_number=roll).exists():
-            raise forms.ValidationError("Roll number already exists for this class-section.")
+        if section and classroom and roll:
+            if Student.objects.filter(classroom=classroom, section=section, roll_number=roll).exists():
+                raise forms.ValidationError("Roll number already exists for this class-section.")
         return data
 
 
@@ -248,11 +435,17 @@ class StudentAddForm(forms.Form):
 class StudentEditForm(forms.Form):
     first_name = forms.CharField(max_length=150, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
     last_name = forms.CharField(max_length=150, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    email = forms.EmailField(required=True, widget=forms.EmailInput(attrs={"class": INPUT_CLASS}))
     classroom = forms.ModelChoiceField(queryset=ClassRoom.objects.none(), required=False, widget=forms.Select(attrs={"class": BS_INPUT}))
     section = forms.ModelChoiceField(queryset=Section.objects.none(), required=False, widget=forms.Select(attrs={"class": BS_INPUT}))
     roll_number = forms.CharField(max_length=50, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
     admission_number = forms.CharField(max_length=50, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
     date_of_birth = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}))
+    gender = forms.ChoiceField(
+        choices=[("", "— Not specified —")] + list(Student.Gender.choices),
+        required=False,
+        widget=forms.Select(attrs={"class": BS_INPUT}),
+    )
     parent_name = forms.CharField(max_length=150, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
     parent_phone = forms.CharField(max_length=20, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
 
@@ -262,6 +455,17 @@ class StudentEditForm(forms.Form):
         self.student = student
         self.fields["classroom"].queryset = ClassRoom.objects.select_related("academic_year").order_by("academic_year", "name")
         self.fields["section"].queryset = Section.objects.order_by("name")
+
+    def clean_email(self):
+        email = (self.cleaned_data.get("email") or "").strip()
+        if not email:
+            return email
+        qs = User.objects.filter(email__iexact=email)
+        if self.student and self.student.user_id:
+            qs = qs.exclude(pk=self.student.user_id)
+        if qs.exists():
+            raise forms.ValidationError("This email is already in use.")
+        return email
 
     def clean_admission_number(self):
         adm = self.cleaned_data.get("admission_number")
@@ -309,7 +513,9 @@ class TeacherAddForm(forms.Form):
     def __init__(self, school, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["subjects"].queryset = Subject.objects.order_by("name")
-        self.fields["classrooms"].queryset = ClassRoom.objects.order_by("name", "section")
+        self.fields["classrooms"].queryset = ClassRoom.objects.select_related("academic_year").order_by(
+            "academic_year", "name"
+        )
 
     def clean_username(self):
         username = self.cleaned_data.get("username")
@@ -347,17 +553,6 @@ class TeacherEditForm(forms.Form):
         if teacher:
             self.fields["role"].initial = teacher.user.role
 
-    def clean_email(self):
-        email = self.cleaned_data.get("email")
-        if not email:
-            return email
-        qs = User.objects.filter(email__iexact=email, school=self.school)
-        if self.teacher:
-            qs = qs.exclude(pk=self.teacher.user_id)
-        if qs.exists():
-            raise forms.ValidationError("This email is already used by another user in this school.")
-        return email
-
     def clean(self):
         data = super().clean()
         return data
@@ -394,6 +589,32 @@ class AcademicYearForm(forms.ModelForm):
         if self.instance and self.instance.pk and end and end < date.today():
             raise forms.ValidationError("Cannot edit an academic year that has already ended.")
         return data
+
+
+class PromoteStudentsFilterForm(forms.Form):
+    from_year = forms.ModelChoiceField(queryset=AcademicYear.objects.none(), widget=forms.Select(attrs={"class": BS_INPUT}))
+    to_year = forms.ModelChoiceField(queryset=AcademicYear.objects.none(), widget=forms.Select(attrs={"class": BS_INPUT}))
+    classroom = forms.ModelChoiceField(queryset=ClassRoom.objects.none(), required=False, widget=forms.Select(attrs={"class": BS_INPUT}))
+    section = forms.ModelChoiceField(queryset=Section.objects.none(), required=False, widget=forms.Select(attrs={"class": BS_INPUT}))
+
+    def __init__(self, school, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        years = AcademicYear.objects.order_by("-start_date")
+        self.fields["from_year"].queryset = years
+        self.fields["to_year"].queryset = years
+        self.fields["classroom"].queryset = ClassRoom.objects.select_related("academic_year").order_by("academic_year", "name")
+        self.fields["section"].queryset = Section.objects.order_by("name")
+
+
+class PromoteStudentsActionForm(forms.Form):
+    action = forms.ChoiceField(choices=StudentPromotion.Action.choices, widget=forms.Select(attrs={"class": BS_INPUT}))
+    target_classroom = forms.ModelChoiceField(queryset=ClassRoom.objects.none(), required=False, widget=forms.Select(attrs={"class": BS_INPUT}))
+    target_section = forms.ModelChoiceField(queryset=Section.objects.none(), required=False, widget=forms.Select(attrs={"class": BS_INPUT}))
+
+    def __init__(self, school, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["target_classroom"].queryset = ClassRoom.objects.select_related("academic_year").order_by("academic_year", "name")
+        self.fields["target_section"].queryset = Section.objects.order_by("name")
 
 
 # ---- School Admin: Class (Grade) ----
@@ -438,31 +659,21 @@ class SectionForm(forms.ModelForm):
         self.school = school
 
 
-# ---- School Admin: Subject ----
+# ---- School Admin: Subject (master list only) ----
 class SubjectForm(forms.ModelForm):
     class Meta:
         model = Subject
-        fields = ["name", "code", "classroom", "teacher", "academic_year"]
+        fields = ["name", "code"]
         widgets = {
             "name": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. Mathematics, Physics"}),
-            "code": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. MATH101, PHY101"}),
-            "classroom": forms.Select(attrs={"class": BS_INPUT}),
-            "teacher": forms.Select(attrs={"class": BS_INPUT}),
-            "academic_year": forms.Select(attrs={"class": BS_INPUT}),
+            "code": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. MATH01 (unique)"}),
         }
 
     def __init__(self, school, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.school = school
-        self.fields["classroom"].queryset = ClassRoom.objects.select_related("academic_year").order_by("academic_year", "name")
-        self.fields["teacher"].queryset = Teacher.objects.select_related("user").order_by("user__first_name")
-        self.fields["academic_year"].queryset = AcademicYear.objects.order_by("-start_date")
-        self.fields["teacher"].required = False
-        self.fields["code"].required = False
-
-    def clean(self):
-        data = super().clean()
-        return data
+        self.fields["name"].required = True
+        self.fields["code"].required = True
 
 
 # ---- Admin Frontend: School / Teacher / Student (SuperAdmin) ----

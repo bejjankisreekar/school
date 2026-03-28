@@ -1,6 +1,6 @@
 {% load static %}
-<header class="erp-navbar flex-shrink-0 border-b border-slate-200/70 dark:border-slate-700/70 bg-white dark:bg-slate-900/95 backdrop-blur">
-  <div class="d-flex align-items-center justify-content-between px-4 lg:px-6" style="height: 56px; margin-left: 0;">
+<header class="erp-navbar flex-shrink-0 w-100 border-b border-slate-200/70 dark:border-slate-700/70 bg-white dark:bg-slate-900/95 backdrop-blur">
+  <div class="app-content-shell d-flex align-items-center justify-content-between py-0" style="height: 56px;">
     <h1 class="text-base font-semibold tracking-tight text-slate-900 dark:text-slate-50 truncate mb-0">
       {% if request.user.school %}{{ request.user.school.name }}{% else %}EduSaaS{% endif %}
     </h1>

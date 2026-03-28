@@ -1,38 +1,86 @@
 {% extends "base.html" %}
-
-{% block title %}Marks | Student Dashboard{% endblock %}
+{% block title %}Results | Student Portal{% endblock %}
 
 {% block content %}
-<h1 class="text-2xl font-semibold mb-6">Exam Marks</h1>
+<div class="max-w-5xl mx-auto px-4">
+  <nav aria-label="breadcrumb" class="mb-4 text-sm text-slate-600 dark:text-slate-400">
+    <a href="{% url 'core:student_dashboard' %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">Dashboard</a>
+    <span class="mx-2">/</span>
+    <span class="text-slate-900 dark:text-slate-50 font-medium">Results</span>
+  </nav>
 
-<table class="table-auto w-full border-collapse border border-gray-200">
-  <thead>
-    <tr class="bg-gray-100">
-      <th class="border px-4 py-2">Subject</th>
-      <th class="border px-4 py-2">Score</th>
-      <th class="border px-4 py-2">Grade</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td class="border px-4 py-2">Mathematics</td>
-      <td class="border px-4 py-2">88</td>
-      <td class="border px-4 py-2">A</td>
-    </tr>
-    <tr>
-      <td class="border px-4 py-2">Science</td>
-      <td class="border px-4 py-2">82</td>
-      <td class="border px-4 py-2">B+</td>
-    </tr>
-    <tr>
-      <td class="border px-4 py-2">English</td>
-      <td class="border px-4 py-2">90</td>
-      <td class="border px-4 py-2">A+</td>
-    </tr>
-  </tbody>
-</table>
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+    <div>
+      <h1 class="text-xl font-bold text-slate-900 dark:text-slate-50">My Results</h1>
+      <p class="text-sm text-slate-600 dark:text-slate-400 mt-1">Marks by exam and subject. Linked to class, section, and subjects taught.</p>
+    </div>
+    <a href="{% url 'core:student_exams_list' %}" class="inline-flex items-center justify-center rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+      <i class="bi bi-grid-3x3-gap me-2"></i> Exam summaries
+    </a>
+  </div>
 
-<div class="mt-8">
-  <a href="{% url 'core:student_dashboard' %}" class="btn btn-outline btn-sm">Back to Dashboard</a>
+  {% if exam_summaries %}
+  <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 shadow-sm p-4 mb-6">
+    <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-3">Exam overview</h2>
+    <div class="flex flex-wrap gap-2">
+      {% for e in exam_summaries %}
+      <a href="{% url 'core:student_exam_detail_by_id' e.exam_id %}" class="inline-flex items-center gap-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 px-3 py-2 text-sm text-indigo-800 dark:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-900/40">
+        <span class="font-medium">{{ e.exam_name }}</span>
+        <span class="text-indigo-600 dark:text-indigo-300">{{ e.overall_pct }}%</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 shadow-sm overflow-hidden">
+    <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+      <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50">All marks</h2>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Exam · Subject · Score · Total · %</p>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-slate-50 dark:bg-slate-900/50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+            <th class="px-4 py-3">Exam</th>
+            <th class="px-4 py-3">Subject</th>
+            <th class="px-4 py-3 text-end">Marks</th>
+            <th class="px-4 py-3 text-end">Total</th>
+            <th class="px-4 py-3 text-end">%</th>
+            <th class="px-4 py-3">Grade</th>
+            <th class="px-4 py-3 text-end"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+          {% for row in mark_rows %}
+          <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/60">
+            <td class="px-4 py-3 text-slate-900 dark:text-slate-100">
+              <div class="font-medium">{{ row.exam_name }}</div>
+              {% if row.exam_date %}<div class="text-xs text-slate-500">{{ row.exam_date }}</div>{% endif %}
+            </td>
+            <td class="px-4 py-3 text-slate-700 dark:text-slate-300">{{ row.subject }}</td>
+            <td class="px-4 py-3 text-end tabular-nums">{{ row.marks_obtained }}</td>
+            <td class="px-4 py-3 text-end tabular-nums">{{ row.total_marks }}</td>
+            <td class="px-4 py-3 text-end tabular-nums font-medium">{{ row.pct }}%</td>
+            <td class="px-4 py-3"><span class="rounded-full bg-slate-200 dark:bg-slate-600 px-2 py-0.5 text-xs">{{ row.grade }}</span></td>
+            <td class="px-4 py-3 text-end">
+              {% if row.detail_url %}
+              <a href="{{ row.detail_url }}" class="text-indigo-600 dark:text-indigo-400 text-xs font-medium hover:underline">Details</a>
+              {% else %}
+              <span class="text-slate-400 text-xs">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="7" class="px-4 py-12 text-center text-slate-500 dark:text-slate-400">
+              No marks recorded yet. Your teachers will enter scores after each exam.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
 {% endblock %}
