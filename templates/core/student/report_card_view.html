@@ -1,87 +1,407 @@
 {% extends "base.html" %}
-{% block title %}Report Card | School ERP{% endblock %}
+{% block title %}Report card — {{ report_title }} | School ERP{% endblock %}
 
 {% block content %}
 <style>
-@media print {
-  nav, .btn, .no-print { display: none !important; }
-  #report-area { box-shadow: none !important; border: 0 !important; }
-}
+  /* Screen + print: table-based layout so columns stay aligned */
+  .rc-doc {
+    max-width: 900px;
+    margin: 0;
+    margin-right: auto;
+    color: #0f172a;
+    font-size: 0.9375rem;
+  }
+  html.dark .rc-doc, body.dark-mode .rc-doc {
+    color: #f1f5f9;
+  }
+  .rc-header-table col.rc-col-logo { width: 9%; }
+  .rc-header-table col.rc-col-school { width: 53%; }
+  .rc-header-table col.rc-col-exam { width: 38%; }
+  .rc-header-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    border: 2px solid rgba(15, 23, 42, 0.12);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 1.25rem;
+    background: linear-gradient(180deg, rgba(99, 102, 241, 0.08), rgba(255,255,255,0.5));
+  }
+  html.dark .rc-header-table, body.dark-mode .rc-header-table {
+    border-color: rgba(248, 250, 252, 0.15);
+    background: linear-gradient(180deg, rgba(99, 102, 241, 0.12), rgba(15, 23, 42, 0.3));
+  }
+  .rc-header-table td {
+    padding: 1.1rem 1rem;
+    vertical-align: top;
+  }
+  .rc-logo-cell {
+    width: 9%;
+    max-width: 88px;
+    text-align: center;
+    padding-left: 0.65rem;
+    padding-right: 0.5rem;
+  }
+  .rc-school-cell {
+    width: 53%;
+    text-align: left;
+    padding-left: 0.35rem;
+    padding-right: 1.35rem;
+  }
+  .rc-school-name {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #3730a3;
+    margin: 0 0 0.35rem 0;
+    line-height: 1.25;
+    word-break: break-word;
+  }
+  html.dark .rc-school-name, body.dark-mode .rc-school-name { color: #a5b4fc; }
+  .rc-muted { color: #64748b; font-size: 0.8125rem; line-height: 1.45; }
+  html.dark .rc-muted, body.dark-mode .rc-muted { color: #94a3b8; }
+  .rc-exam-cell {
+    width: 38%;
+    border-left: 1px solid rgba(100, 116, 139, 0.25);
+    padding-left: 1.35rem !important;
+    padding-right: 1rem !important;
+  }
+  .rc-exam-title {
+    margin: 0 0 0.4rem 0;
+    font-size: 0.98rem;
+    font-weight: 600;
+    line-height: 1.35;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+  .rc-exam-meta {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    margin: 0 0 0.35rem 0;
+  }
+  .rc-exam-meta:last-child { margin-bottom: 0; }
+  html.dark .rc-exam-title, body.dark-mode .rc-exam-title { color: #f1f5f9; }
+  html.dark .rc-exam-cell, body.dark-mode .rc-exam-cell {
+    border-left-color: rgba(148, 163, 184, 0.25);
+  }
+  .rc-label-upper {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #64748b;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+  }
+  .rc-student-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    margin-bottom: 1.25rem;
+  }
+  .rc-student-table td {
+    padding: 0.5rem 0.85rem 0.5rem 0;
+    vertical-align: top;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  }
+  .rc-student-table tr:last-child td { border-bottom: none; }
+  .rc-marks-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .rc-marks-table th {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+    color: #475569;
+    background: #f1f5f9;
+    padding: 0.72rem 0.65rem;
+    text-align: left;
+    border-bottom: 2px solid #cbd5e1;
+  }
+  html.dark .rc-marks-table th, body.dark-mode .rc-marks-table th {
+    background: #1e293b;
+    color: #94a3b8;
+    border-bottom-color: #334155;
+  }
+  .rc-marks-table td {
+    padding: 0.65rem 0.65rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 0.875rem;
+  }
+  html.dark .rc-marks-table td, body.dark-mode .rc-marks-table td {
+    border-bottom-color: #334155;
+  }
+  .rc-marks-table tr:last-child td { border-bottom: none; }
+  .rc-marks-table .rc-num { text-align: right; }
+  .rc-marks-table .rc-center { text-align: center; }
+  .rc-col-subj { width: 20%; }
+  .rc-col-date { width: 14%; }
+  .rc-col-teach { width: 18%; }
+  .rc-col-mk { width: 10%; }
+  .rc-col-tot { width: 10%; }
+  .rc-col-pct { width: 10%; }
+  .rc-col-gr { width: 10%; }
+  .rc-totals-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.35);
+  }
+  .rc-totals-table td { padding: 0.5rem 0.75rem 0 0; vertical-align: top; }
+  .rc-sig-table { width: 100%; border-collapse: collapse; margin-top: 2.5rem; }
+  .rc-sig-table td { text-align: center; padding-top: 0.5rem; }
+  .rc-sig-line {
+    display: inline-block;
+    border-top: 1px solid #64748b;
+    padding-top: 0.35rem;
+    min-width: 160px;
+    font-size: 0.8125rem;
+    color: #64748b;
+  }
+
+  @media print {
+    @page { size: A4; margin: 14mm; }
+    body { background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    /* Site footer (© School ERP · EduSaaS) — hide so it does not orphan on page 2 */
+    .min-h-screen > footer { display: none !important; }
+    /* App chrome */
+    .sidebar-toggle,
+    #sidebar,
+    .sidebar-overlay,
+    .app-top-header,
+    .toast-container,
+    .no-print { display: none !important; }
+    .min-h-screen > .flex-col { display: block !important; }
+    .sidebar-main { margin: 0 !important; padding: 0 !important; width: 100% !important; max-width: 100% !important; }
+    main { overflow: visible !important; }
+    .app-content-shell {
+      padding: 0 !important;
+      margin: 0 !important;
+      max-width: 100% !important;
+    }
+    .erp-dashboard-panel {
+      padding: 0 !important;
+      margin: 0 !important;
+      border: none !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      background: #fff !important;
+      backdrop-filter: none !important;
+    }
+    .rc-doc {
+      max-width: 100%;
+      margin: 0;
+      color: #000 !important;
+    }
+    .rc-header-table,
+    .rc-marks-table {
+      border-color: #94a3b8 !important;
+    }
+    .rc-header-table {
+      background: #f8fafc !important;
+    }
+    .rc-school-name { color: #312e81 !important; }
+    .rc-muted, .rc-label-upper, .rc-sig-line { color: #475569 !important; }
+    .rc-exam-cell { border-left-color: #cbd5e1 !important; }
+    .rc-exam-title { color: #0f172a !important; }
+    .rc-marks-table th {
+      background: #e2e8f0 !important;
+      color: #334155 !important;
+    }
+    .rc-marks-table td { border-bottom-color: #e2e8f0 !important; color: #000 !important; }
+    .table-responsive { overflow: visible !important; display: block !important; }
+    #report-area.card { border: none !important; box-shadow: none !important; }
+    #report-area .card-body { padding: 0 !important; }
+    .rc-marks-table { page-break-inside: auto; }
+    .rc-marks-table tr { page-break-inside: avoid; page-break-after: auto; }
+    .rc-header-table { page-break-inside: avoid; break-inside: avoid; }
+    .rc-exam-title { font-size: 9.75pt; line-height: 1.35; }
+    .rc-exam-meta { font-size: 8.5pt; line-height: 1.45; }
+    .rc-sig-table { margin-top: 1.75rem !important; }
+    .no-print.badge { display: none !important; }
+    .rc-print-grade {
+      display: inline-block !important;
+      padding: 2px 10px;
+      border: 1px solid #6366f1;
+      border-radius: 999px;
+      font-size: 9pt;
+      font-weight: 700;
+      color: #312e81 !important;
+      background: #eef2ff !important;
+    }
+  }
+  .rc-print-grade { display: none; }
 </style>
-<div class="container-fluid px-0">
-  <div class="d-flex justify-content-between align-items-center mb-3 no-print">
-    <h1 class="h4 fw-bold mb-0">Exam Report Card</h1>
-    <div class="d-flex gap-2">
+<div class="container-fluid px-0 report-card-shell">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4 no-print">
+    <h1 class="h4 fw-bold mb-0">Report card</h1>
+    <div class="d-flex flex-wrap gap-2">
+      {% if is_session %}
+      <a class="btn btn-success btn-sm" href="{% url 'core:student_report_card_session_pdf' session.id %}">
+        <i class="bi bi-download me-1"></i>Download PDF
+      </a>
+      {% else %}
       <a class="btn btn-success btn-sm" href="{% url 'core:student_report_card_pdf' exam.id %}">
         <i class="bi bi-download me-1"></i>Download PDF
       </a>
-      <button class="btn btn-primary btn-sm" onclick="window.print()">
+      {% endif %}
+      <button type="button" class="btn btn-primary btn-sm" onclick="window.print()">
         <i class="bi bi-printer me-1"></i>Print
       </button>
     </div>
   </div>
 
-  <div id="report-area" class="card border-0 shadow-sm rounded-4">
-    <div class="card-body p-4">
-      <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 border-bottom pb-3 mb-3">
-        <div class="d-flex align-items-center gap-3">
-          {% if school and school.logo %}
-            <img src="{{ school.logo.url }}" alt="logo" style="width:64px;height:64px;object-fit:contain;">
-          {% endif %}
-          <div>
-            <h5 class="mb-1 fw-bold">{{ school.name }}</h5>
-            <div class="text-muted small">{{ school.address|default:"" }}</div>
-          </div>
-        </div>
-        <div class="text-end">
-          <div><strong>Exam:</strong> {{ exam.name }}</div>
-          <div><strong>Date:</strong> {{ exam.date|default:"-" }}</div>
-        </div>
-      </div>
+  <div id="report-area" class="card border-0 shadow-sm rounded-4 overflow-hidden">
+    <div class="card-body p-4 p-lg-5">
+      <div class="rc-doc">
 
-      <div class="row g-2 mb-3">
-        <div class="col-md-6"><strong>Name:</strong> {{ student.user.get_full_name|default:student.user.username }}</div>
-        <div class="col-md-3"><strong>Class:</strong> {{ student.classroom.name|default:"-" }}</div>
-        <div class="col-md-3"><strong>Section:</strong> {{ student.section.name|default:"-" }}</div>
-      </div>
-
-      <div class="table-responsive">
-        <table class="table table-bordered align-middle">
-          <thead class="table-light">
-            <tr>
-              <th>Subject</th>
-              <th>Marks</th>
-              <th>Total</th>
-              <th>%</th>
-              <th>Grade</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for r in rows %}
-            <tr>
-              <td>{{ r.subject }}</td>
-              <td>{{ r.marks_obtained }}</td>
-              <td>{{ r.total_marks }}</td>
-              <td>{{ r.pct }}%</td>
-              <td><span class="badge bg-primary-subtle text-primary">{{ r.grade }}</span></td>
-            </tr>
-            {% endfor %}
-          </tbody>
+        <table class="rc-header-table" role="presentation">
+          <colgroup>
+            <col class="rc-col-logo">
+            <col class="rc-col-school">
+            <col class="rc-col-exam">
+          </colgroup>
+          <tr>
+            <td class="rc-logo-cell">
+              {% if school and school.logo %}
+              <img src="{{ school.logo.url }}" alt="" width="72" height="72" style="object-fit:contain; display:block; margin:0 auto;">
+              {% endif %}
+            </td>
+            <td class="rc-school-cell">
+              <h2 class="rc-school-name">{{ school.name|default:"School" }}</h2>
+              {% if school.address %}
+              <p class="rc-muted mb-1" style="white-space:pre-line; margin:0;">{{ school.address }}</p>
+              {% endif %}
+              <p class="rc-muted mb-0">
+                {% if school.phone %}<span style="margin-right:1.1rem;">Tel: {{ school.phone }}</span>{% endif %}
+                {% if school.contact_email %}<span>Email: {{ school.contact_email }}</span>{% endif %}
+              </p>
+            </td>
+            <td class="rc-exam-cell">
+              <div class="rc-label-upper">Examination</div>
+              <p class="rc-exam-title">{{ report_title }}</p>
+              <p class="rc-muted rc-exam-meta">
+                <strong>Date:</strong>
+                {% if exam_date_display %} {{ exam_date_display|date:"F j, Y" }}
+                {% elif exam_date_range %} {{ exam_date_range.0|date:"M j, Y" }} – {{ exam_date_range.1|date:"M j, Y" }}
+                {% else %} —{% endif %}
+              </p>
+              {% if academic_year %}
+              <p class="rc-muted rc-exam-meta"><strong>Academic year:</strong> {{ academic_year }}</p>
+              {% endif %}
+              <p class="rc-muted rc-exam-meta"><strong>Issued:</strong> {{ today|date:"F j, Y" }}</p>
+            </td>
+          </tr>
         </table>
-      </div>
 
-      <div class="d-flex justify-content-between flex-wrap gap-3 mt-3">
-        <div><strong>Total:</strong> {{ total_obtained }} / {{ total_max }}</div>
-        <div><strong>Percentage:</strong> {{ overall_pct }}%</div>
-        <div><strong>Grade:</strong> {{ overall_grade }}</div>
-      </div>
+        <p class="fw-semibold mb-2" style="font-size:0.95rem;">Student details</p>
+        <table class="rc-student-table" role="presentation">
+          <tr>
+            <td style="width:32%;">
+              <span class="rc-label-upper">Student</span>
+              <div class="fw-semibold">{{ student.user.get_full_name|default:student.user.username }}</div>
+            </td>
+            <td style="width:17%;">
+              <span class="rc-label-upper">Class</span>
+              <div class="fw-semibold">{{ student.classroom.name|default:"—" }}</div>
+            </td>
+            <td style="width:17%;">
+              <span class="rc-label-upper">Section</span>
+              <div class="fw-semibold">{{ student.section.name|default:"—" }}</div>
+            </td>
+            <td style="width:17%;">
+              <span class="rc-label-upper">Roll no.</span>
+              <div class="fw-semibold">{{ student.roll_number|default:"—" }}</div>
+            </td>
+            <td style="width:17%;">
+              <span class="rc-label-upper">Admission</span>
+              <div class="fw-semibold">{{ student.admission_number|default:"—" }}</div>
+            </td>
+          </tr>
+        </table>
 
-      <div class="mt-5 d-flex justify-content-between text-muted small">
-        <div>Teacher Signature</div>
-        <div>Principal Signature</div>
+        <p class="fw-semibold mb-2" style="font-size:0.95rem;">Subject-wise performance</p>
+        <div class="table-responsive">
+          <table class="rc-marks-table">
+            <thead>
+              <tr>
+                <th class="rc-col-subj" style="padding-left:0.85rem;">Subject</th>
+                <th class="rc-col-date">Exam date</th>
+                <th class="rc-col-teach">Teacher</th>
+                <th class="rc-col-mk rc-num">Marks</th>
+                <th class="rc-col-tot rc-num">Total</th>
+                <th class="rc-col-pct rc-num">%</th>
+                <th class="rc-col-gr rc-center" style="padding-right:0.85rem;">Grade</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in rows %}
+              <tr>
+                <td class="rc-col-subj" style="padding-left:0.85rem; font-weight:500;">{{ r.subject }}</td>
+                <td class="rc-col-date rc-muted">{% if r.paper_date %}{{ r.paper_date|date:"M j, Y" }}{% else %}—{% endif %}</td>
+                <td class="rc-col-teach rc-muted" style="font-size:0.8125rem;">{{ r.teacher_name }}</td>
+                <td class="rc-col-mk rc-num">{% if r.marks_obtained is not None %}{{ r.marks_obtained }}{% else %}<span class="rc-muted">—</span>{% endif %}</td>
+                <td class="rc-col-tot rc-num rc-muted">{{ r.total_marks }}</td>
+                <td class="rc-col-pct rc-num">{% if r.pct is not None %}{{ r.pct }}%{% else %}—{% endif %}</td>
+                <td class="rc-col-gr rc-center" style="padding-right:0.85rem;">
+                  <span class="badge rounded-pill bg-primary-subtle text-primary border border-primary-subtle no-print">{{ r.grade }}</span>
+                  <span class="rc-print-grade" aria-hidden="true">{{ r.grade }}</span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <table class="rc-totals-table" role="presentation">
+          <tr>
+            <td style="width:33%;">
+              <span class="rc-label-upper">Total marks</span>
+              <div class="h5 fw-bold mb-0" style="font-size:1.15rem;">{% if total_max %}{{ total_obtained }} / {{ total_max }}{% else %}—{% endif %}</div>
+            </td>
+            <td style="width:33%;">
+              <span class="rc-label-upper">Overall %</span>
+              <div class="h5 fw-bold text-primary mb-0" style="font-size:1.15rem;">{% if overall_pct is not None %}{{ overall_pct }}%{% else %}—{% endif %}</div>
+            </td>
+            <td style="width:34%;">
+              <span class="rc-label-upper">Overall grade</span>
+              <div class="h5 fw-bold mb-0" style="font-size:1.15rem;">{{ overall_grade }}</div>
+            </td>
+          </tr>
+        </table>
+
+        <table class="rc-totals-table" role="presentation" style="border-top:none; margin-top:0.75rem; padding-top:0;">
+          <tr>
+            <td style="width:40%;" class="rc-muted">
+              <strong>Attendance</strong><br>
+              {{ attendance_pct }}% ({{ present_att_days }} / {{ total_att_days }} days)
+            </td>
+            {% if ai_remarks %}
+            <td style="width:60%;" class="rc-muted">
+              <strong>Summary</strong><br>
+              {{ ai_remarks }}
+            </td>
+            {% else %}
+            <td></td>
+            {% endif %}
+          </tr>
+        </table>
+
+        <table class="rc-sig-table" role="presentation">
+          <tr>
+            <td width="50%"><span class="rc-sig-line">Class teacher</span></td>
+            <td width="50%"><span class="rc-sig-line">Principal</span></td>
+          </tr>
+        </table>
       </div>
     </div>
   </div>
 </div>
 {% endblock %}
-

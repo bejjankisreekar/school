@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}My Timetable | School ERP{% endblock %}
+{% block title %}My Schedule | School ERP{% endblock %}
 {% block content %}
 <div class="container-fluid px-0">
-  <h1 class="h4 fw-bold mb-2">{% if classroom %}Class {{ classroom }} Weekly Timetable{% else %}My Timetable{% endif %}</h1>
+  <h1 class="h4 fw-bold mb-2">{% if classroom %}Class {{ classroom }} Weekly Schedule{% else %}My Schedule{% endif %}</h1>
   {% if not classroom %}<p class="text-muted">You are not assigned to a class.</p>
-  {% elif not grid %}<p class="text-muted">No timetable available.</p>
+  {% elif not grid %}<p class="text-muted">No schedule available.</p>
   {% else %}
   <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
     <div class="table-responsive">

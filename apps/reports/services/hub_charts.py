@@ -15,7 +15,7 @@ from apps.school_data.models import Attendance, Student
 from .students_by_class import get_students_by_class_data
 
 
-def build_hub_chart_context(school) -> dict:
+def build_hub_chart_context(school, *, user=None) -> dict:
     """
     Students-by-class (all years) + last-7-days attendance % for hub charts.
     """
@@ -26,26 +26,30 @@ def build_hub_chart_context(school) -> dict:
         "hub_attendance_full_labels": [],
         "hub_attendance_pcts": [],
         "hub_attendance_present": [],
+        "hub_attendance_day_hints": [],
         "hub_show_attendance_chart": False,
         "hub_attendance_unavailable_message": None,
     }
-    if not school or not has_feature_access(school, "reports"):
+    if not school or not has_feature_access(school, "reports", user=user):
         return empty
 
     payload = get_students_by_class_data(school, None)
     empty["hub_class_labels"] = list(payload["chart_labels"])
     empty["hub_class_counts"] = list(payload["chart_counts"])
 
-    if not has_feature_access(school, "attendance"):
-        empty["hub_attendance_unavailable_message"] = "Enable attendance in your plan to see the 7-day trend."
+    if not has_feature_access(school, "attendance", user=user):
+        empty["hub_attendance_unavailable_message"] = (
+            "Enable attendance for this school to see the 7-day trend."
+        )
         return empty
 
     today = timezone.localdate()
     total_students = Student.objects.filter(user__school=school).count()
     short_labels: list[str] = []
     full_labels: list[str] = []
-    pcts: list[float] = []
-    presents: list[int] = []
+    pcts: list[float | None] = []
+    presents: list[int | None] = []
+    attendance_day_hints: list[str] = []
 
     try:
         if getattr(connection, "needs_rollback", False):
@@ -53,20 +57,33 @@ def build_hub_chart_context(school) -> dict:
     except Exception:
         pass
 
-    def append_day(d, pct: float, present: int) -> None:
+    def append_day(
+        d,
+        pct: float | None,
+        present: int | None,
+        *,
+        hint: str = "",
+    ) -> None:
         short_labels.append(d.strftime("%a"))
         full_labels.append(d.strftime("%a %d %b"))
-        pcts.append(round(pct, 1))
+        pcts.append(round(pct, 1) if pct is not None else None)
         presents.append(present)
+        attendance_day_hints.append(hint)
 
     try:
         if not total_students:
             for i in range(6, -1, -1):
                 d = today - timedelta(days=i)
-                append_day(d, 0.0, 0)
+                if d.weekday() == 6:
+                    append_day(d, None, None, hint="No school")
+                else:
+                    append_day(d, 0.0, 0)
         else:
             for i in range(6, -1, -1):
                 d = today - timedelta(days=i)
+                if d.weekday() == 6:
+                    append_day(d, None, None, hint="No school")
+                    continue
                 pres = Attendance.objects.filter(
                     date=d,
                     status=Attendance.Status.PRESENT,
@@ -84,6 +101,7 @@ def build_hub_chart_context(school) -> dict:
         full_labels.clear()
         pcts.clear()
         presents.clear()
+        attendance_day_hints.clear()
         empty["hub_attendance_unavailable_message"] = "Could not load attendance data."
         empty["hub_show_attendance_chart"] = False
 
@@ -91,4 +109,5 @@ def build_hub_chart_context(school) -> dict:
     empty["hub_attendance_full_labels"] = full_labels
     empty["hub_attendance_pcts"] = pcts
     empty["hub_attendance_present"] = presents
+    empty["hub_attendance_day_hints"] = attendance_day_hints
     return empty

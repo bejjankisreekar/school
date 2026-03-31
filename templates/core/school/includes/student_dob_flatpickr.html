@@ -1,0 +1,211 @@
+{# Flatpickr for Student DOB — used by student_add.html & student_edit.html #}
+<style>
+  .student-wizard-form .student-dob-field-wrap {
+    position: relative;
+  }
+  .student-wizard-form .student-dob-input-icon {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #64748b;
+    font-size: 1.05rem;
+    pointer-events: none;
+    z-index: 2;
+  }
+  html.dark .student-wizard-form .student-dob-input-icon {
+    color: #94a3b8;
+  }
+  .student-wizard-form .student-dob-field-wrap .flatpickr-input.student-dob-flatpickr,
+  .student-wizard-form .student-dob-field-wrap input.student-dob-flatpickr-alt {
+    padding-right: 2.75rem !important;
+    border-radius: 14px !important;
+    min-height: 46px;
+    border: 1px solid rgba(15, 23, 42, 0.12) !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  html.dark .student-wizard-form .student-dob-field-wrap .flatpickr-input.student-dob-flatpickr,
+  html.dark .student-wizard-form .student-dob-field-wrap input.student-dob-flatpickr-alt {
+    border-color: rgba(148, 163, 184, 0.35) !important;
+    background-color: rgba(15, 23, 42, 0.5);
+    color: #f1f5f9;
+  }
+  .student-wizard-form .student-dob-field-wrap input.student-dob-flatpickr-alt:focus {
+    border-color: rgba(79, 70, 229, 0.55) !important;
+    box-shadow: 0 0 0 0.2rem rgba(79, 70, 229, 0.18);
+    outline: 0;
+  }
+  html.dark .student-wizard-form .student-dob-field-wrap input.student-dob-flatpickr-alt:focus {
+    border-color: rgba(129, 140, 248, 0.65) !important;
+    box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.22);
+  }
+  .flatpickr-calendar.student-dob-flatpickr-cal {
+    border-radius: 16px;
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    box-shadow:
+      0 25px 50px -12px rgba(15, 23, 42, 0.18),
+      0 0 0 1px rgba(15, 23, 42, 0.04);
+    z-index: 1065 !important;
+    padding: 0.35rem 0.25rem 0.5rem;
+    animation: studentDobCalIn 0.2s ease;
+  }
+  @keyframes studentDobCalIn {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  html.dark .flatpickr-calendar.student-dob-flatpickr-cal {
+    background: #1e293b;
+    border-color: rgba(148, 163, 184, 0.25);
+    color: #f1f5f9;
+    box-shadow:
+      0 25px 50px -12px rgba(0, 0, 0, 0.45),
+      0 0 0 1px rgba(148, 163, 184, 0.12);
+  }
+  .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-months {
+    padding: 0.35rem 0.25rem 0.5rem;
+    border-radius: 12px 12px 0 0;
+  }
+  .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-months .flatpickr-month {
+    height: 40px;
+  }
+  .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-current-month {
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding: 0.35rem 0;
+  }
+  .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-current-month .flatpickr-monthDropdown-months,
+  .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-current-month input.cur-year {
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 4px 6px;
+  }
+  html.dark .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-current-month .flatpickr-monthDropdown-months,
+  html.dark .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-current-month input.cur-year {
+    background: #334155;
+    color: #f1f5f9;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+  }
+  .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-weekdays {
+    padding: 0.25rem 0 0.35rem;
+  }
+  .flatpickr-calendar.student-dob-flatpickr-cal span.flatpickr-weekday {
+    font-weight: 600;
+    font-size: 0.72rem;
+    color: #64748b;
+  }
+  html.dark .flatpickr-calendar.student-dob-flatpickr-cal span.flatpickr-weekday {
+    color: #94a3b8;
+  }
+  .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-day {
+    border-radius: 10px;
+    margin: 2px;
+    max-width: 38px;
+    height: 38px;
+    line-height: 38px;
+    font-weight: 500;
+    transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-day:hover:not(.flatpickr-disabled) {
+    background: rgba(79, 70, 229, 0.12);
+    border-color: transparent;
+    color: #4338ca;
+  }
+  html.dark .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-day:hover:not(.flatpickr-disabled) {
+    background: rgba(99, 102, 241, 0.25);
+    color: #e0e7ff;
+  }
+  .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-day.today {
+    border-color: rgba(79, 70, 229, 0.45);
+    background: rgba(79, 70, 229, 0.06);
+    font-weight: 600;
+  }
+  html.dark .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-day.today {
+    border-color: rgba(129, 140, 248, 0.55);
+    background: rgba(99, 102, 241, 0.15);
+  }
+  .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-day.selected,
+  .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-day.selected:hover {
+    background: linear-gradient(135deg, #4f46e5, #6366f1);
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+  }
+  .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-prev-month,
+  .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-next-month {
+    border-radius: 10px;
+    padding: 6px;
+    transition: background 0.15s ease;
+  }
+  .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-prev-month:hover,
+  .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-next-month:hover {
+    background: rgba(79, 70, 229, 0.1);
+  }
+  html.dark .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-prev-month:hover,
+  html.dark .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-next-month:hover {
+    background: rgba(99, 102, 241, 0.2);
+  }
+  .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-prev-month svg,
+  .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-next-month svg {
+    fill: #475569;
+  }
+  html.dark .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-prev-month svg,
+  html.dark .flatpickr-calendar.student-dob-flatpickr-cal .flatpickr-next-month svg {
+    fill: #cbd5e1;
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+<script>
+(function () {
+  function initStudentDobPicker() {
+    var el = document.getElementById("id_date_of_birth");
+    if (!el || typeof flatpickr === "undefined") return;
+    if (el._flatpickr) return;
+
+    var minD = new Date(1900, 0, 1);
+    var maxD = new Date();
+
+    flatpickr(el, {
+      dateFormat: "Y-m-d",
+      altInput: true,
+      altFormat: "d/m/Y",
+      altInputClass: "form-control student-dob-flatpickr-alt",
+      allowInput: true,
+      minDate: minD,
+      maxDate: maxD,
+      monthSelectorType: "dropdown",
+      disableMobile: true,
+      animate: true,
+      appendTo: document.body,
+      position: "auto",
+      prevArrow:
+        '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+      nextArrow:
+        '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>',
+      onReady: function (selectedDates, dateStr, fp) {
+        fp.calendarContainer.classList.add("student-dob-flatpickr-cal");
+      },
+      onOpen: function (selectedDates, dateStr, fp) {
+        if (!dateStr && (!selectedDates || !selectedDates.length)) {
+          fp.jumpToDate(new Date(2010, 5, 15));
+        }
+      },
+      onChange: function () {
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initStudentDobPicker);
+  } else {
+    initStudentDobPicker();
+  }
+})();
+</script>

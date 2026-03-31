@@ -9,18 +9,52 @@
       Student List
     </h1>
     <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">
-      Students in your school.
+      Students in the classes and sections you are assigned to teach. Use filters to narrow by class, section, or name.
     </p>
   </div>
+
+  {% if class_options %}
+  <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-900/40 p-4">
+    <form method="get" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12 lg:items-end">
+      <div class="sm:col-span-1 lg:col-span-3">
+        <label for="f-class" class="block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Class</label>
+        <select name="class_name" id="f-class" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100">
+          <option value="">All classes</option>
+          {% for c in class_options %}
+          <option value="{{ c }}" {% if filters.class_name == c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="sm:col-span-1 lg:col-span-3">
+        <label for="f-section" class="block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Section</label>
+        <select name="section" id="f-section" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100">
+          <option value="">All sections</option>
+          {% for s in section_options %}
+          <option value="{{ s }}" {% if filters.section == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="sm:col-span-2 lg:col-span-4">
+        <label for="f-q" class="block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Search</label>
+        <input type="search" name="q" id="f-q" value="{{ filters.q }}" placeholder="Name or username" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100" autocomplete="off">
+      </div>
+      <div class="flex flex-wrap gap-2 lg:col-span-2">
+        <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Apply</button>
+        <a href="{% url 'core:teacher_students_list' %}" class="inline-flex items-center justify-center rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">Clear</a>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
   {% if students %}
     <div class="overflow-x-auto rounded-xl border border-slate-200/70 dark:border-slate-800/80">
       <table class="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
         <thead class="bg-slate-50 dark:bg-slate-800/50">
           <tr>
-            <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">#</th>
+            <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">S.No.</th>
             <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Name</th>
             <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Roll No</th>
-            <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Grade</th>
+            <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Class</th>
             <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Section</th>
           </tr>
         </thead>
@@ -30,15 +64,17 @@
               <td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">{{ forloop.counter }}</td>
               <td class="px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-50">{{ student.user.get_full_name|default:student.user.username }}</td>
               <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{{ student.roll_number }}</td>
-              <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{{ student.grade }}</td>
-              <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{{ student.section|default:"—" }}</td>
+              <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{% if student.classroom %}{{ student.classroom.name }}{% else %}—{% endif %}</td>
+              <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{% if student.section %}{{ student.section.name }}{% else %}—{% endif %}</td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
+  {% elif class_options %}
+    <p class="text-sm text-slate-500 dark:text-slate-400">No students match your class, section, or search. Try clearing filters or widening the search.</p>
   {% else %}
-    <p class="text-sm text-slate-500 dark:text-slate-400">No students found.</p>
+    <p class="text-sm text-slate-500 dark:text-slate-400">No students match your class and section assignments. Ask your admin to map you to subjects for classes you teach.</p>
   {% endif %}
 </div>
 {% endblock %}

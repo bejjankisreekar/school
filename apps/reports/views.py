@@ -10,6 +10,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET
 
 from apps.accounts.decorators import admin_required
+from apps.accounts.models import User
 from apps.core.utils import add_warning_once, has_feature_access
 from apps.core.views import _exam_read_qs, _school_module_check
 from apps.school_data.models import AcademicYear, Attendance, ClassRoom, Section, Student
@@ -23,13 +24,19 @@ from .services.students_by_class import (
 )
 
 
+def _reports_redirect_no_school(request):
+    if getattr(request.user, "role", None) == User.Roles.SUPERADMIN:
+        return redirect("core:super_admin_dashboard")
+    return redirect("core:admin_dashboard")
+
+
 @admin_required
 def school_reports_dashboard(request):
     """School Analytics Dashboard — KPI metrics + report shortcuts (see services/dashboard.py)."""
     school = getattr(request.user, "school", None)
     if not school:
-        return redirect("core:admin_dashboard")
-    context = build_school_reports_dashboard_context(school)
+        return _reports_redirect_no_school(request)
+    context = build_school_reports_dashboard_context(school, user=request.user)
     return render(request, "core/reports/dashboard.html", context)
 
 
@@ -38,9 +45,9 @@ def school_report_student_analytics(request):
     """Student analytics: class/section mix, admissions trend, academic-year KPIs."""
     school = getattr(request.user, "school", None)
     if not school:
-        return redirect("core:admin_dashboard")
-    if not has_feature_access(school, "reports"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+        return _reports_redirect_no_school(request)
+    if not has_feature_access(school, "reports", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
 
     ctx = build_student_analytics_context(school)
     return render(request, "core/reports/student_analytics.html", ctx)
@@ -51,9 +58,9 @@ def school_report_students_by_class(request):
     """Bar chart: student count per class; optional Academic Year filter."""
     school = request.user.school
     if not school:
-        return redirect("core:admin_dashboard")
-    if not has_feature_access(school, "reports"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+        return _reports_redirect_no_school(request)
+    if not has_feature_access(school, "reports", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
 
     raw_year = request.GET.get("academic_year")
     if raw_year is None:
@@ -91,7 +98,7 @@ def school_report_students_by_class_data(request):
     school = request.user.school
     if not school:
         return JsonResponse({"error": "Not found"}, status=404)
-    if not has_feature_access(school, "reports"):
+    if not has_feature_access(school, "reports", user=request.user):
         return JsonResponse({"error": "Forbidden"}, status=403)
 
     year_id = parse_academic_year_param(request.GET.get("academic_year"), school)
@@ -118,11 +125,11 @@ def school_report_attendance_trend(request):
     """Line chart: attendance % for last 7 days (school-scoped)."""
     school = request.user.school
     if not school:
-        return redirect("core:admin_dashboard")
-    if not has_feature_access(school, "reports"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
-    if not has_feature_access(school, "attendance"):
-        messages.warning(request, "Attendance is not enabled for your plan.")
+        return _reports_redirect_no_school(request)
+    if not has_feature_access(school, "reports", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
+    if not has_feature_access(school, "attendance", user=request.user):
+        messages.warning(request, "Attendance is not enabled for this school.")
         return redirect("reports:dashboard")
 
     try:
@@ -211,8 +218,12 @@ def school_reports_toppers(request):
     """Toppers report under Reports module with filters."""
     school = _school_module_check(request, "topper_list")
     if not school:
-        add_warning_once(request, "topper_list_not_available", "Topper list not available in your plan.")
-        return redirect("core:admin_dashboard")
+        add_warning_once(
+            request,
+            "topper_list_not_available",
+            "Topper list is not available (no school context or module disabled).",
+        )
+        return _reports_redirect_no_school(request)
     from apps.school_data.models import Marks
     import json
 

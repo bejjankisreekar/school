@@ -1,152 +1,332 @@
 {% extends "base.html" %}
-{% block title %}Bulk Attendance | School ERP{% endblock %}
+{% block title %}Mark attendance | School ERP{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-0">
-  <h1 class="h4 fw-bold mb-2">Bulk Attendance</h1>
-  <p class="text-muted mb-4">Mark attendance for an entire class in one go.</p>
+<style>
+  .att-page {
+    --att-present: #059669;
+    --att-present-bg: rgba(5, 150, 105, 0.1);
+    --att-absent: #dc2626;
+    --att-absent-bg: rgba(220, 38, 38, 0.08);
+    --att-leave: #d97706;
+    --att-leave-bg: rgba(217, 119, 6, 0.1);
+  }
+  .att-filters-card {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 1rem;
+  }
+  html.dark .att-filters-card {
+    border-color: rgba(148, 163, 184, 0.15);
+  }
+  .att-table-card {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 1rem;
+    overflow: hidden;
+  }
+  html.dark .att-table-card {
+    border-color: rgba(148, 163, 184, 0.15);
+  }
+  .att-erp-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 0;
+  }
+  .att-erp-table thead th {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    color: #64748b;
+    padding: 14px 16px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    white-space: nowrap;
+  }
+  html.dark .att-erp-table thead th {
+    background: rgba(15, 23, 42, 0.65);
+    color: #94a3b8;
+    border-bottom-color: rgba(148, 163, 184, 0.2);
+  }
+  .att-erp-table tbody td {
+    padding: 12px 16px;
+    vertical-align: middle;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  html.dark .att-erp-table tbody td {
+    border-bottom-color: rgba(148, 163, 184, 0.12);
+  }
+  .att-erp-table tbody tr:hover {
+    background: rgba(79, 70, 229, 0.04);
+  }
+  html.dark .att-erp-table tbody tr:hover {
+    background: rgba(99, 102, 241, 0.08);
+  }
+  .att-erp-table tbody tr.att-row-present { background: var(--att-present-bg); }
+  .att-erp-table tbody tr.att-row-absent { background: var(--att-absent-bg); }
+  .att-erp-table tbody tr.att-row-leave { background: var(--att-leave-bg); }
+  .att-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    object-fit: cover;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+  }
+  .att-avatar-fallback {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    background: linear-gradient(135deg, #0d9488, #6366f1);
+    color: #fff;
+  }
+  .att-status-toggle .btn {
+    font-weight: 600;
+    font-size: 0.8rem;
+    padding: 0.35rem 0.65rem;
+    border-radius: 10px;
+  }
+  .att-status-toggle .btn-check:checked + .btn-outline-success {
+    background: var(--att-present);
+    border-color: var(--att-present);
+    color: #fff;
+  }
+  .att-status-toggle .btn-check:checked + .btn-outline-danger {
+    background: var(--att-absent);
+    border-color: var(--att-absent);
+    color: #fff;
+  }
+  .att-status-toggle .btn-check:checked + .btn-outline-warning {
+    background: var(--att-leave);
+    border-color: var(--att-leave);
+    color: #fff;
+  }
+  .att-stat-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.85rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .att-stat-pill.present { background: var(--att-present-bg); color: var(--att-present); }
+  .att-stat-pill.absent { background: var(--att-absent-bg); color: var(--att-absent); }
+  .att-stat-pill.leave { background: var(--att-leave-bg); color: var(--att-leave); }
+</style>
 
-  <!-- Step 1: Load form -->
-  <div class="card border-0 shadow-sm rounded-4 mb-4">
-    <div class="card-body">
-      <h5 class="card-title mb-3"><i class="bi bi-funnel me-2"></i>Select Class & Date</h5>
-      <form method="get" action="{% url 'core:bulk_attendance' %}" id="loadForm" class="row g-3">
-        <div class="col-md-3">
-          <label for="class_name" class="form-label">Class</label>
-          <select name="class_name" id="class_name" class="form-select" required>
-            <option value="">-- Select --</option>
+<div class="container-fluid px-0 att-page">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:teacher_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Attendance</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
+    <div>
+      <h1 class="h4 fw-bold mb-1">Class attendance</h1>
+      <p class="text-muted small mb-0">Mark present, absent, or leave for your assigned classes. Pick the date on the calendar, then load the roster.</p>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm att-filters-card mb-4">
+    <div class="card-body p-3 p-lg-4">
+      <div class="d-flex align-items-center gap-2 mb-3">
+        <span class="rounded-3 d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-10 text-primary" style="width:40px;height:40px;">
+          <i class="bi bi-calendar-check"></i>
+        </span>
+        <div>
+          <h2 class="h6 fw-bold mb-0">Class &amp; date</h2>
+          <p class="text-muted small mb-0">Only classes you teach appear in the lists.</p>
+        </div>
+      </div>
+      <form method="get" action="{% url 'core:bulk_attendance' %}" id="loadForm" class="row g-3 g-lg-4 align-items-end">
+        <div class="col-12 col-md-6 col-lg-3">
+          <label for="class_name" class="form-label fw-semibold small">Class</label>
+          <select name="class_name" id="class_name" class="form-select rounded-3" required>
+            <option value="">— Select —</option>
             {% for val, label in class_choices %}
             <option value="{{ val }}" {% if class_name == val %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
         </div>
-        <div class="col-md-3">
-          <label for="section" class="form-label">Section</label>
-          <select name="section" id="section" class="form-select" required>
-            <option value="">-- Select --</option>
+        <div class="col-12 col-md-6 col-lg-3">
+          <label for="section" class="form-label fw-semibold small">Section</label>
+          <select name="section" id="section" class="form-select rounded-3" required>
+            <option value="">— Select —</option>
             {% for val, label in section_choices %}
             <option value="{{ val }}" {% if section_val == val %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
         </div>
-        <div class="col-md-3">
-          <label for="attendance_date" class="form-label">Date</label>
-          <input type="date" name="attendance_date" id="attendance_date" class="form-control" value="{{ attendance_date }}" required>
+        <div class="col-12 col-md-6 col-lg-4">
+          <label for="attendance_date" class="form-label fw-semibold small">Attendance date</label>
+          <input type="date" name="attendance_date" id="attendance_date" class="form-control" value="{{ attendance_date }}" required autocomplete="off">
           {% if future_date %}
-          <p class="text-danger small mb-0 mt-1">Cannot mark attendance for future dates.</p>
+          <p class="text-danger small mb-0 mt-1">Future dates cannot be recorded.</p>
           {% endif %}
         </div>
-        <div class="col-md-3 d-flex align-items-end">
-          <button type="submit" class="btn btn-primary">
-            <i class="bi bi-people me-1"></i> Load Students
+        <div class="col-12 col-lg-auto d-flex gap-2">
+          <button type="submit" class="btn btn-primary rounded-pill px-4">
+            <i class="bi bi-people-fill me-2"></i>Load roster
           </button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Step 2: Students table -->
+  {% include "core/includes/attendance_date_flatpickr.html" %}
+
   {% if students_with_status %}
   {% if future_date %}
-  <div class="alert alert-warning">Cannot mark attendance for future dates. Please select today or a past date.</div>
+  <div class="alert alert-warning rounded-4 border-0">Choose today or a past date to mark attendance.</div>
   {% endif %}
-  <div class="card border-0 shadow-sm rounded-4">
-    <div class="card-header bg-white border-0 pt-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
-      <h5 class="mb-0">Class {{ class_name }}-{{ section_val }} — {{ attendance_date }}</h5>
+
+  <div class="card border-0 shadow-sm att-table-card">
+    <div class="card-body border-bottom py-3 px-3 px-lg-4 d-flex flex-column flex-lg-row flex-wrap align-items-lg-center justify-content-between gap-3">
       <div>
-        <button type="button" class="btn btn-outline-success btn-sm me-2" id="markAllPresent">
-          <i class="bi bi-check-all me-1"></i> Mark All Present
-        </button>
-        <button type="button" class="btn btn-primary" id="saveAttendanceBtn" {% if future_date %}disabled{% endif %}>
-          <i class="bi bi-check-lg me-1"></i> Save Attendance
+        <h2 class="h6 fw-bold mb-1">{{ class_name }} — Section {{ section_val }}</h2>
+        <p class="text-muted small mb-0">{{ students_with_status|length }} student{{ students_with_status|length|pluralize }} · {{ attendance_date }}</p>
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-2" aria-live="polite">
+        <span class="att-stat-pill present"><i class="bi bi-check-circle-fill"></i> Present <strong id="attCountP">0</strong></span>
+        <span class="att-stat-pill absent"><i class="bi bi-x-circle-fill"></i> Absent <strong id="attCountA">0</strong></span>
+        <span class="att-stat-pill leave"><i class="bi bi-suitcase-lg"></i> Leave <strong id="attCountL">0</strong></span>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <button type="button" class="btn btn-outline-success btn-sm rounded-pill" id="markAllPresent" {% if future_date %}disabled{% endif %}>All present</button>
+        <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" id="markAllAbsent" {% if future_date %}disabled{% endif %}>All absent</button>
+        <button type="button" class="btn btn-outline-warning btn-sm rounded-pill" id="markAllLeave" {% if future_date %}disabled{% endif %}>All leave</button>
+        <button type="button" class="btn btn-primary btn-sm rounded-pill px-3" id="saveAttendanceBtn" {% if future_date %}disabled{% endif %}>
+          <i class="bi bi-cloud-upload me-1"></i>Save
         </button>
       </div>
     </div>
+
     <form method="post" action="{% url 'core:bulk_attendance' %}" id="attendanceForm">
       {% csrf_token %}
       <input type="hidden" name="class_name" value="{{ class_name }}">
       <input type="hidden" name="section" value="{{ section_val }}">
       <input type="hidden" name="attendance_date" value="{{ attendance_date }}">
-      <div class="card-body p-0">
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
-              <tr>
-                <th class="rounded-start">Roll No</th>
-                <th>Student Name</th>
-                <th>Present</th>
-                <th class="rounded-end">Absent</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for item in students_with_status %}
-              <tr class="attendance-row" data-student-id="{{ item.student.id }}">
-                <td>{{ item.student.roll_number }}</td>
-                <td>{{ item.student.user.get_full_name|default:item.student.user.username }}</td>
-                <td>
-                  <input type="radio" name="status_{{ item.student.id }}" value="PRESENT" id="present_{{ item.student.id }}"
-                         {% if item.status == 'PRESENT' %}checked{% endif %}
-                         class="form-check-input status-radio">
-                </td>
-                <td>
-                  <input type="radio" name="status_{{ item.student.id }}" value="ABSENT" id="absent_{{ item.student.id }}"
-                         {% if item.status == 'ABSENT' %}checked{% endif %}
-                         class="form-check-input status-radio">
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+      <div class="table-responsive">
+        <table class="table att-erp-table mb-0">
+          <thead>
+            <tr>
+              <th class="text-center" style="width:52px;">#</th>
+              <th style="width:56px;" class="text-center">Photo</th>
+              <th>Roll</th>
+              <th>Student</th>
+              <th style="min-width:280px;">Attendance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in students_with_status %}
+            {% with s=item.student %}
+            <tr class="attendance-row att-row-{{ item.status|lower }}" data-student-id="{{ s.id }}">
+              <td class="text-center text-muted small fw-semibold">{{ forloop.counter }}</td>
+              <td class="text-center">
+                {% if s.profile_image %}
+                <img src="{{ s.profile_image.url }}" class="att-avatar" alt="">
+                {% else %}
+                <div class="att-avatar-fallback mx-auto">
+                  {% if s.user.first_name %}{{ s.user.first_name|slice:":1"|upper }}{% if s.user.last_name %}{{ s.user.last_name|slice:":1"|upper }}{% endif %}{% else %}{{ s.user.username|slice:":2"|upper }}{% endif %}
+                </div>
+                {% endif %}
+              </td>
+              <td class="font-monospace small fw-semibold">{{ s.roll_number|default:"—" }}</td>
+              <td class="fw-semibold">{{ s.user.get_full_name|default:s.user.username }}</td>
+              <td>
+                <div class="att-status-toggle d-flex flex-wrap gap-1" role="group" aria-label="Status for {{ s.user.get_full_name|default:s.user.username }}">
+                  <input type="radio" class="btn-check" name="status_{{ s.id }}" id="tatt_{{ s.id }}_P" value="PRESENT" {% if item.status == 'PRESENT' %}checked{% endif %} {% if future_date %}disabled{% endif %}>
+                  <label class="btn btn-outline-success btn-sm" for="tatt_{{ s.id }}_P">Present</label>
+                  <input type="radio" class="btn-check" name="status_{{ s.id }}" id="tatt_{{ s.id }}_A" value="ABSENT" {% if item.status == 'ABSENT' %}checked{% endif %} {% if future_date %}disabled{% endif %}>
+                  <label class="btn btn-outline-danger btn-sm" for="tatt_{{ s.id }}_A">Absent</label>
+                  <input type="radio" class="btn-check" name="status_{{ s.id }}" id="tatt_{{ s.id }}_L" value="LEAVE" {% if item.status == 'LEAVE' %}checked{% endif %} {% if future_date %}disabled{% endif %}>
+                  <label class="btn btn-outline-warning btn-sm" for="tatt_{{ s.id }}_L">Leave</label>
+                </div>
+              </td>
+            </tr>
+            {% endwith %}
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
     </form>
   </div>
   {% elif class_name and section_val %}
-  <div class="alert alert-info">No students found for class {{ class_name }}-{{ section_val }}.</div>
+  <div class="alert alert-info rounded-4 border-0">No students found for <strong>{{ class_name }}</strong> — section <strong>{{ section_val }}</strong>.</div>
   {% else %}
-  <div class="alert alert-secondary">Select Class, Section, and Date, then click <strong>Load Students</strong>.</div>
+  <div class="alert alert-secondary border-0 shadow-sm rounded-4">Select class, section, and date, then <strong>Load roster</strong>.</div>
   {% endif %}
 </div>
 
-{% if students_with_status %}
+{% if students_with_status and not future_date %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  const form = document.getElementById('attendanceForm');
-  const saveBtn = document.getElementById('saveAttendanceBtn');
-  const markAllPresent = document.getElementById('markAllPresent');
-  const rows = document.querySelectorAll('.attendance-row');
-  const radios = document.querySelectorAll('.status-radio');
+document.addEventListener("DOMContentLoaded", function() {
+  const form = document.getElementById("attendanceForm");
+  const saveBtn = document.getElementById("saveAttendanceBtn");
+  const markAllPresent = document.getElementById("markAllPresent");
+  const markAllAbsent = document.getElementById("markAllAbsent");
+  const markAllLeave = document.getElementById("markAllLeave");
+  const rows = document.querySelectorAll(".attendance-row");
+  if (!form || !saveBtn) return;
 
-  function updateRowStyles() {
+  function currentValue(row) {
+    const c = row.querySelector("input[type=radio][name^=status_]:checked");
+    return c ? c.value : "PRESENT";
+  }
+  function rowClass(row) {
+    row.classList.remove("att-row-present", "att-row-absent", "att-row-leave");
+    const v = currentValue(row);
+    if (v === "PRESENT") row.classList.add("att-row-present");
+    else if (v === "ABSENT") row.classList.add("att-row-absent");
+    else if (v === "LEAVE") row.classList.add("att-row-leave");
+  }
+  function updateCounts() {
+    let p = 0, a = 0, l = 0;
     rows.forEach(function(row) {
-      const absentRadio = row.querySelector('input[value="ABSENT"]');
-      if (absentRadio && absentRadio.checked) {
-        row.classList.add('table-danger');
-      } else {
-        row.classList.remove('table-danger');
+      const v = currentValue(row);
+      if (v === "PRESENT") p++;
+      else if (v === "ABSENT") a++;
+      else if (v === "LEAVE") l++;
+    });
+    const ep = document.getElementById("attCountP");
+    const ea = document.getElementById("attCountA");
+    const el = document.getElementById("attCountL");
+    if (ep) ep.textContent = String(p);
+    if (ea) ea.textContent = String(a);
+    if (el) el.textContent = String(l);
+  }
+  rows.forEach(function(row) {
+    row.querySelectorAll("input[type=radio][name^=status_]").forEach(function(r) {
+      r.addEventListener("change", function() { rowClass(row); updateCounts(); });
+    });
+    rowClass(row);
+  });
+  updateCounts();
+
+  function setAll(val) {
+    rows.forEach(function(row) {
+      const inp = row.querySelector("input[type=radio][name^=status_][value=\"" + val + "\"]");
+      if (inp && !inp.disabled) {
+        inp.checked = true;
+        rowClass(row);
       }
     });
+    updateCounts();
   }
+  if (markAllPresent) markAllPresent.addEventListener("click", function() { setAll("PRESENT"); });
+  if (markAllAbsent) markAllAbsent.addEventListener("click", function() { setAll("ABSENT"); });
+  if (markAllLeave) markAllLeave.addEventListener("click", function() { setAll("LEAVE"); });
 
-  radios.forEach(function(r) {
-    r.addEventListener('change', updateRowStyles);
-  });
-  updateRowStyles();
-
-  markAllPresent.addEventListener('click', function() {
-    document.querySelectorAll('input[value="PRESENT"]').forEach(function(inp) {
-      inp.checked = true;
-    });
-    updateRowStyles();
-  });
-
-  saveBtn.addEventListener('click', function() {
-    if (confirm('Save attendance for all students? This will update existing records.')) {
-      form.submit();
-    }
+  saveBtn.addEventListener("click", function() {
+    if (confirm("Save attendance for all students in this list?")) form.submit();
   });
 });
 </script>
 {% endif %}
-
 {% endblock %}

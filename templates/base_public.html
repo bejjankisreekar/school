@@ -4,64 +4,44 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="School ERP - Modern school management platform for attendance, academics, timetables &amp; more." />
-    <title>{% block title %}School ERP | Smart School Management{% endblock %}</title>
+    <meta name="description" content="Campus ERP - Modern campus management platform for attendance, academics, scheduling &amp; more." />
+    <title>{% block title %}Campus ERP | Smart Campus Management{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="{% static 'css/landing-saas.css' %}" rel="stylesheet">
     <style>
-      :root {
-        --erp-primary: #4f46e5;
-        --erp-primary-dark: #4338ca;
-        --erp-primary-light: #eef2ff;
-      }
-      body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
-      .btn-cta { background: linear-gradient(135deg, var(--erp-primary) 0%, var(--erp-primary-dark) 100%); border: none; }
-      .btn-cta:hover { filter: brightness(1.1); transform: translateY(-1px); }
-
       .landing-nav-menu {
-        gap: 0.25rem 1.15rem;
+        gap: 0.25rem 1rem;
       }
       @media (min-width: 992px) {
-        .landing-nav-menu { gap: 0.35rem 1.25rem; }
+        .landing-nav-menu { gap: 0.35rem 1.1rem; }
       }
       .landing-marketing-nav .landing-nav-link {
         position: relative;
         text-decoration: none;
         padding: 0.5rem 0.65rem;
-        font-weight: 500;
-        color: #334155;
-        transition: color 0.2s ease;
-      }
-      .landing-marketing-nav .landing-nav-link:hover {
-        color: var(--erp-primary);
-      }
-      .landing-marketing-nav .landing-nav-link:focus-visible {
-        outline: 2px solid var(--erp-primary);
-        outline-offset: 2px;
-        border-radius: 4px;
+        transition: color 0.25s ease, text-shadow 0.25s ease;
       }
       .landing-marketing-nav .landing-nav-link::after {
         content: "";
         position: absolute;
         left: 0.65rem;
         right: 0.65rem;
-        bottom: 0.2rem;
+        bottom: 0.15rem;
         height: 2px;
-        background: linear-gradient(90deg, var(--erp-primary), var(--erp-primary-dark));
         border-radius: 2px;
         transform: scaleX(0);
         transform-origin: center;
         transition: transform 0.28s ease;
       }
+      .landing-nav-gradient .landing-nav-link::after {
+        background: linear-gradient(90deg, #fff, rgba(255, 255, 255, 0.75));
+      }
       .landing-marketing-nav .landing-nav-link:hover::after {
         transform: scaleX(1);
-      }
-      .landing-marketing-nav .landing-nav-link.active {
-        color: var(--erp-primary);
-        font-weight: 600;
       }
       .landing-marketing-nav .landing-nav-link.active::after {
         transform: scaleX(1);
@@ -69,7 +49,7 @@
       .landing-marketing-nav .landing-nav-brand {
         position: relative;
         text-decoration: none;
-        padding-bottom: 0.35rem;
+        padding-bottom: 0.25rem;
       }
       .landing-marketing-nav .landing-nav-brand::after {
         content: "";
@@ -78,11 +58,13 @@
         right: 0;
         bottom: 0;
         height: 2px;
-        background: linear-gradient(90deg, var(--erp-primary), var(--erp-primary-dark));
         border-radius: 2px;
         transform: scaleX(0);
         transform-origin: left;
         transition: transform 0.28s ease;
+      }
+      .landing-nav-gradient .landing-nav-brand::after {
+        background: linear-gradient(90deg, #fff, rgba(255, 255, 255, 0.8));
       }
       .landing-marketing-nav .landing-nav-brand:hover::after {
         transform: scaleX(1);
@@ -90,11 +72,8 @@
       .landing-marketing-nav .landing-nav-brand.active::after {
         transform: scaleX(1);
       }
-      .landing-marketing-nav .landing-nav-brand.active span:last-child {
-        color: var(--erp-primary-dark);
-      }
 
-      .public-page-messages .alert { border-radius: 10px; }
+      .public-page-messages .alert { border-radius: 12px; }
       .back-home {
         margin-top: 12px;
         text-align: center;
@@ -102,15 +81,16 @@
       .back-home a {
         text-decoration: none;
         font-weight: 500;
-        color: #334155;
+        color: var(--saas-text-muted, #64748b);
+        transition: color 0.25s ease;
       }
       .back-home a:hover {
-        color: var(--erp-primary);
+        color: var(--saas-primary, #4f46e5);
       }
     </style>
     {% block extra_head %}{% endblock %}
   </head>
-  <body class="d-flex flex-column min-vh-100 bg-light">
+  <body class="d-flex flex-column min-vh-100 landing-body">
     {% include "marketing/navbar.html" %}
     <main class="flex-grow-1 {% block public_main_class %}{% endblock %}">
       {% if messages %}

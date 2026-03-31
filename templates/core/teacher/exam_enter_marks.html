@@ -5,44 +5,60 @@
 <div class="container-fluid px-0">
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
+      {% if acting_as_admin %}
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_exams_list' %}">Exams</a></li>
+      {% else %}
       <li class="breadcrumb-item"><a href="{% url 'core:teacher_exams' %}">Exams</a></li>
       <li class="breadcrumb-item"><a href="{% url 'core:teacher_exam_summary' exam.id %}">{{ exam.name }}</a></li>
-      <li class="breadcrumb-item active">Enter Marks</li>
+      {% endif %}
+      <li class="breadcrumb-item active">Enter marks</li>
     </ol>
   </nav>
 
-  <h1 class="h4 fw-bold mb-4">Enter Marks — {{ exam.name }}</h1>
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <h1 class="h4 fw-bold mb-0">Enter marks — {{ exam.name }}</h1>
+    <a href="{{ back_url }}" class="btn btn-outline-secondary btn-sm">Back</a>
+  </div>
 
-  <!-- Step 1: Select Subject -->
+  {% if acting_as_admin %}
+  <p class="text-muted small mb-3">School admin: you can always edit marks. Use the exam session page to lock or unlock teacher editing.</p>
+  {% elif marks_readonly %}
+  <div class="alert alert-warning">
+    <strong>Marks are locked.</strong> Your school admin must allow re-editing before you can save changes again.
+  </div>
+  {% endif %}
+
   <div class="card border-0 shadow-sm rounded-4 mb-4">
     <div class="card-body">
-      <form method="get" class="row g-3 align-items-end">
+      <form method="get" action="{{ enter_marks_url }}" class="row g-3 align-items-end">
         <div class="col-md-6">
           <label for="subject" class="form-label">Subject</label>
           <select name="subject" id="subject" class="form-select" onchange="this.form.submit()">
-            <option value="">-- Select Subject --</option>
+            <option value="">-- Select subject --</option>
             {% for s in subjects %}
             <option value="{{ s.id }}" {% if subject and subject.id == s.id %}selected{% endif %}>{{ s.name }}</option>
             {% endfor %}
           </select>
         </div>
         <div class="col-md-4">
-          <button type="submit" class="btn btn-primary"><i class="bi bi-funnel me-1"></i> Load Students</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-funnel me-1"></i> Load students</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Step 2: Marks Table -->
   {% if subject and students_with_marks %}
   <div class="card border-0 shadow-sm rounded-4">
     <div class="card-header bg-white border-0 pt-4 d-flex justify-content-between align-items-center">
       <h5 class="mb-0">{{ subject.name }}</h5>
+      {% if not marks_readonly %}
       <button type="button" class="btn btn-primary" id="saveMarksBtn">
-        <i class="bi bi-check-lg me-1"></i> Save Marks
+        <i class="bi bi-check-lg me-1"></i> Save marks
       </button>
+      {% endif %}
     </div>
-    <form method="post" id="marksForm">
+    <form method="post" action="{{ enter_marks_url }}" id="marksForm">
       {% csrf_token %}
       <input type="hidden" name="subject" value="{{ subject.id }}">
       <div class="card-body p-0">
@@ -51,9 +67,9 @@
             <thead class="table-light sticky-top">
               <tr>
                 <th class="rounded-start">Roll No</th>
-                <th>Student Name</th>
-                <th>Marks Obtained</th>
-                <th class="rounded-end">Total Marks</th>
+                <th>Student name</th>
+                <th>Marks obtained</th>
+                <th class="rounded-end">Total marks</th>
               </tr>
             </thead>
             <tbody>
@@ -62,10 +78,10 @@
                 <td>{{ item.student.roll_number }}</td>
                 <td>{{ item.student.user.get_full_name|default:item.student.user.username }}</td>
                 <td>
-                  <input type="number" name="obtained_{{ item.student.id }}" value="{{ item.obtained }}" min="0" class="form-control form-control-sm" style="max-width: 100px;">
+                  <input type="number" name="obtained_{{ item.student.id }}" value="{{ item.obtained }}" min="0" class="form-control form-control-sm" style="max-width: 100px;" {% if marks_readonly %}readonly{% endif %}>
                 </td>
                 <td>
-                  <input type="number" name="total_{{ item.student.id }}" value="{{ item.total }}" min="1" class="form-control form-control-sm" style="max-width: 100px;">
+                  <input type="number" name="total_{{ item.student.id }}" value="{{ item.total }}" min="1" class="form-control form-control-sm" style="max-width: 100px;" {% if marks_readonly %}readonly{% endif %}>
                 </td>
               </tr>
               {% endfor %}
@@ -76,6 +92,7 @@
     </form>
   </div>
 
+  {% if not marks_readonly %}
   <script>
   document.getElementById('saveMarksBtn').addEventListener('click', function() {
     if (confirm('Save marks for all students?')) {
@@ -83,10 +100,11 @@
     }
   });
   </script>
+  {% endif %}
   {% elif subject %}
   <div class="alert alert-info">No students in this class.</div>
   {% else %}
-  <div class="alert alert-secondary">Select a subject and click Load Students.</div>
+  <div class="alert alert-secondary">Select a subject and click Load students.</div>
   {% endif %}
 </div>
 {% endblock %}

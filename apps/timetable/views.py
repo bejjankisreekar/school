@@ -12,17 +12,20 @@ from apps.customers.models import School
 from apps.school_data.models import ClassRoom, Subject, Teacher
 from apps.core.utils import add_warning_once, has_feature_access
 from apps.accounts.decorators import admin_required, teacher_required, student_required
-from .models import TimeSlot, Timetable
+from .models import ScheduleProfile, TimeSlot, Timetable
 
 DAYS = Timetable.DayOfWeek.choices
 
 
-def _build_timetable_grid(classroom, school):
-    """Build grid of (slot, days) for timetable display."""
-    slots = list(TimeSlot.objects.order_by("order", "start_time"))
+def _build_timetable_grid(classroom, school, profile=None):
+    """Build grid of (slot, days) for schedule display."""
+    default_profile, _ = ScheduleProfile.objects.get_or_create(name="Default")
+    profile = profile or getattr(classroom, "active_schedule_profile", None) or default_profile
+
+    slots = list(TimeSlot.objects.filter(profile=profile).order_by("order", "start_time"))
     existing = {
         (t.day_of_week, t.time_slot_id): t
-        for t in Timetable.objects.filter(classroom=classroom)
+        for t in Timetable.objects.filter(classroom=classroom, profile=profile)
         .select_related("time_slot", "subject")
         .prefetch_related("teachers__user")
     }
@@ -53,10 +56,33 @@ def school_timetable_index(request):
     if not school:
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:admin_dashboard")
-    if not has_feature_access(school, "timetable"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
-    classrooms = ClassRoom.objects.order_by("academic_year", "name")
-    return render(request, "timetable/school_timetable_index.html", {"classrooms": classrooms})
+    if not has_feature_access(school, "timetable", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
+    import re
+
+    def _grade_sort_key(c: ClassRoom):
+        """
+        Prefer higher grades first (e.g. Grade 10 before Grade 9).
+        Falls back to name ordering when no number is found.
+        """
+        name = (getattr(c, "name", "") or "").strip()
+        m = re.search(r"(\d+)", name)
+        grade_num = int(m.group(1)) if m else -1
+        # Put "current" academic years first when present.
+        ay_start = getattr(getattr(c, "academic_year", None), "start_date", None)
+        ay_key = ay_start or date.min
+        return (-ay_key.toordinal(), -grade_num, name.lower(), c.id)
+
+    default_profile, _ = ScheduleProfile.objects.get_or_create(name="Default")
+    classrooms = list(
+        ClassRoom.objects.select_related("academic_year", "active_schedule_profile").all()
+    )
+    classrooms.sort(key=_grade_sort_key)
+    return render(
+        request,
+        "timetable/school_timetable_index.html",
+        {"classrooms": classrooms, "default_profile": default_profile},
+    )
 
 
 @admin_required
@@ -65,20 +91,31 @@ def school_timeslots(request):
     if not school:
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:admin_dashboard")
-    if not has_feature_access(school, "timetable"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+    if not has_feature_access(school, "timetable", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
 
-    slots = TimeSlot.objects.order_by("order", "start_time")
+    default_profile, _ = ScheduleProfile.objects.get_or_create(name="Default")
+    profile_id = request.GET.get("profile") or request.POST.get("profile")
+    selected_profile = default_profile
+    if profile_id:
+        try:
+            selected_profile = ScheduleProfile.objects.get(id=int(profile_id))
+        except (ValueError, ScheduleProfile.DoesNotExist):
+            selected_profile = default_profile
+
+    profiles = ScheduleProfile.objects.order_by("name")
+    slots = TimeSlot.objects.filter(profile=selected_profile).order_by("order", "start_time")
 
     if request.method == "POST":
         from .forms import TimeSlotForm
         form = TimeSlotForm(request.POST)
         if form.is_valid():
             slot = form.save(commit=False)
+            slot.profile = selected_profile
             if not slot.order and slots.exists():
                 slot.order = slots.order_by("-order").first().order + 1
             slot.save()
-            return redirect("timetable:school_timeslots")
+            return redirect(f"{reverse('timetable:school_timeslots')}?profile={selected_profile.id}")
     else:
         from .forms import TimeSlotForm
         form = TimeSlotForm(initial={"order": slots.count()})
@@ -86,6 +123,8 @@ def school_timeslots(request):
     return render(request, "timetable/school_timeslots.html", {
         "slots": slots,
         "form": form,
+        "profiles": profiles,
+        "selected_profile": selected_profile,
     })
 
 
@@ -94,15 +133,22 @@ def school_timeslot_update(request, slot_id):
     """Update a time slot. Expects POST with start_time, end_time, is_break, break_type, order."""
     if not request.user.school:
         return redirect("core:admin_dashboard")
-    if not has_feature_access(request.user.school, "timetable"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+    if not has_feature_access(request.user.school, "timetable", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
     slot = get_object_or_404(TimeSlot, id=slot_id)
+    default_profile, _ = ScheduleProfile.objects.get_or_create(name="Default")
     if request.method != "POST":
         return redirect("timetable:school_timeslots")
     from .forms import TimeSlotForm
     form = TimeSlotForm(request.POST, instance=slot)
     if form.is_valid():
-        form.save()
+        updated = form.save(commit=False)
+        if not updated.profile_id:
+            updated.profile = default_profile
+        updated.save()
+    profile_id = request.POST.get("profile") or request.GET.get("profile")
+    if profile_id:
+        return redirect(f"{reverse('timetable:school_timeslots')}?profile={profile_id}")
     return redirect("timetable:school_timeslots")
 
 
@@ -111,11 +157,14 @@ def school_timeslot_delete(request, slot_id):
     """Delete a time slot. Expects POST."""
     if not request.user.school:
         return redirect("core:admin_dashboard")
-    if not has_feature_access(request.user.school, "timetable"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+    if not has_feature_access(request.user.school, "timetable", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
     slot = get_object_or_404(TimeSlot, id=slot_id)
     if request.method == "POST":
         slot.delete()
+    profile_id = request.POST.get("profile") or request.GET.get("profile")
+    if profile_id:
+        return redirect(f"{reverse('timetable:school_timeslots')}?profile={profile_id}")
     return redirect("timetable:school_timeslots")
 
 
@@ -125,17 +174,30 @@ def school_timetable(request, classroom_id):
     if not school:
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:admin_dashboard")
-    if not has_feature_access(school, "timetable"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+    if not has_feature_access(school, "timetable", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
 
+    default_profile, _ = ScheduleProfile.objects.get_or_create(name="Default")
     classroom = get_object_or_404(ClassRoom, id=classroom_id)
-    slots = list(TimeSlot.objects.order_by("order", "start_time"))
+    profiles = ScheduleProfile.objects.order_by("name")
+    active_profile = classroom.active_schedule_profile or default_profile
+
+    if request.method == "POST" and request.POST.get("set_profile"):
+        pid = request.POST.get("set_profile")
+        try:
+            classroom.active_schedule_profile = ScheduleProfile.objects.get(id=int(pid))
+            classroom.save(update_fields=["active_schedule_profile"])
+        except (ValueError, ScheduleProfile.DoesNotExist):
+            pass
+        return redirect("timetable:school_timetable", classroom_id=classroom.id)
+
+    slots = list(TimeSlot.objects.filter(profile=active_profile).order_by("order", "start_time"))
     subjects = Subject.objects.all().order_by("name")
     teachers = Teacher.objects.select_related("user")
 
     existing = {
         (t.day_of_week, t.time_slot_id): t
-        for t in Timetable.objects.filter(classroom=classroom)
+        for t in Timetable.objects.filter(classroom=classroom, profile=active_profile)
         .select_related("time_slot", "subject")
         .prefetch_related("teachers__user")
     }
@@ -175,6 +237,7 @@ def school_timetable(request, classroom_id):
                             to_update.append(rec)
                     else:
                         to_create.append(Timetable(
+                            profile=active_profile,
                             classroom=classroom,
                             day_of_week=day_val,
                             time_slot=slot,
@@ -201,7 +264,7 @@ def school_timetable(request, classroom_id):
                     through.objects.bulk_create(m2m_rows)
         return redirect("timetable:school_timetable", classroom_id=classroom.id)
 
-    grid = _build_timetable_grid(classroom, school)
+    grid = _build_timetable_grid(classroom, school, profile=active_profile)
 
     return render(request, "timetable/school_timetable.html", {
         "classroom": classroom,
@@ -210,6 +273,8 @@ def school_timetable(request, classroom_id):
         "subjects": subjects,
         "teachers": teachers,
         "classrooms": list(ClassRoom.objects.exclude(id=classroom.id).order_by("academic_year", "name")),
+        "profiles": profiles,
+        "active_profile": active_profile,
     })
 
 
@@ -237,8 +302,10 @@ def school_timetable_print(request, classroom_id):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    default_profile, _ = ScheduleProfile.objects.get_or_create(name="Default")
     classroom = get_object_or_404(ClassRoom, id=classroom_id)
-    grid = _build_timetable_grid(classroom, school)
+    active_profile = classroom.active_schedule_profile or default_profile
+    grid = _build_timetable_grid(classroom, school, profile=active_profile)
 
     academic_year = classroom.academic_year
     academic_year_name = academic_year.name if academic_year else "—"
@@ -291,6 +358,7 @@ def school_timetable_print(request, classroom_id):
 
     return render(request, "timetable/timetable_print.html", {
         "classroom": classroom,
+        "active_profile": active_profile,
         "grid": grid,
         "days": DAYS,
         "slots": slots,
@@ -312,9 +380,14 @@ def school_timetable_pdf(request, classroom_id):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    default_profile, _ = ScheduleProfile.objects.get_or_create(name="Default")
     classroom = get_object_or_404(ClassRoom, id=classroom_id)
-    grid = _build_timetable_grid(classroom, school)
-    html = render_to_string("timetable/timetable_pdf.html", {"classroom": classroom, "grid": grid, "days": DAYS})
+    active_profile = classroom.active_schedule_profile or default_profile
+    grid = _build_timetable_grid(classroom, school, profile=active_profile)
+    html = render_to_string(
+        "timetable/timetable_pdf.html",
+        {"classroom": classroom, "active_profile": active_profile, "grid": grid, "days": DAYS},
+    )
     try:
         from xhtml2pdf import pisa
         result = BytesIO()
@@ -403,8 +476,8 @@ def student_timetable(request):
         return render(request, "timetable/student_timetable.html", {"classroom": None, "grid": [], "current_day": None, "current_slot_id": None})
 
     school = request.user.school
-    if not has_feature_access(school, "timetable"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+    if not has_feature_access(school, "timetable", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
     slots = list(TimeSlot.objects.order_by("order", "start_time"))
     existing = {
         (t.day_of_week, t.time_slot_id): t
@@ -440,24 +513,73 @@ def student_timetable(request):
 
 @teacher_required
 def teacher_timetable(request):
+    """
+    Weekly grid: time slots × weekdays — same shape as the class timetable.
+    Scheduled teaching appears in cells; empty teaching periods show as leisure.
+    """
     teacher = getattr(request.user, "teacher_profile", None)
     if not teacher:
-        return render(request, "timetable/teacher_timetable.html", {"entries": []})
+        return render(
+            request,
+            "timetable/teacher_timetable.html",
+            {
+                "grid": [],
+                "current_day": None,
+                "current_slot_id": None,
+                "has_slots": False,
+                "no_teacher": True,
+            },
+        )
     school = request.user.school
-    if not has_feature_access(school, "timetable"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+    if not has_feature_access(school, "timetable", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
 
-    entries = (
+    slots = list(TimeSlot.objects.order_by("order", "start_time"))
+    entries_qs = (
         Timetable.objects.filter(teachers=teacher)
         .select_related("time_slot", "subject", "classroom")
         .prefetch_related("teachers__user")
-        .order_by("day_of_week", "time_slot__order")
-        .distinct()
+        .order_by("classroom__name", "subject__name")
     )
 
-    return render(request, "timetable/teacher_timetable.html", {
-        "entries": entries,
-    })
+    by_cell = {}
+    for t in entries_qs:
+        key = (t.day_of_week, t.time_slot_id)
+        by_cell.setdefault(key, []).append(t)
+
+    now = datetime.now().time()
+    today_weekday = datetime.now().isoweekday()
+    current_slot_id = None
+    for slot in slots:
+        if slot.start_time <= now <= slot.end_time:
+            current_slot_id = slot.id
+            break
+
+    grid = []
+    for slot in slots:
+        row = {"slot": slot, "days": []}
+        for day_val, day_name in DAYS:
+            cell_entries = by_cell.get((day_val, slot.id), [])
+            row["days"].append(
+                {
+                    "day": day_val,
+                    "day_name": day_name,
+                    "entries": cell_entries,
+                }
+            )
+        grid.append(row)
+
+    return render(
+        request,
+        "timetable/teacher_timetable.html",
+        {
+            "grid": grid,
+            "current_day": today_weekday,
+            "current_slot_id": current_slot_id,
+            "has_slots": bool(slots),
+            "no_teacher": False,
+        },
+    )
 
 
 def today_classes_student(student):

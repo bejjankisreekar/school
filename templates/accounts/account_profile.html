@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Account | School ERP{% endblock %}
+{% block content %}
+<div class="mx-auto" style="max-width: 520px;">
+  <h1 class="h5 fw-bold mb-3">Account</h1>
+  <p class="text-muted small mb-4">Your sign-in identity for this workspace.</p>
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body p-4">
+      <dl class="row mb-0 small">
+        <dt class="col-sm-4 text-muted">Name</dt>
+        <dd class="col-sm-8 fw-medium">{{ account_user.get_full_name|default:"—" }}</dd>
+        <dt class="col-sm-4 text-muted pt-2">Username</dt>
+        <dd class="col-sm-8 pt-2">{{ account_user.username }}</dd>
+        <dt class="col-sm-4 text-muted pt-2">Email</dt>
+        <dd class="col-sm-8 pt-2">{{ account_user.email|default:"—" }}</dd>
+        <dt class="col-sm-4 text-muted pt-2">Role</dt>
+        <dd class="col-sm-8 pt-2">{{ account_user.get_role_display }}</dd>
+        {% if account_user.school %}
+        <dt class="col-sm-4 text-muted pt-2">School</dt>
+        <dd class="col-sm-8 pt-2">{{ account_user.school.name }}</dd>
+        {% endif %}
+      </dl>
+    </div>
+  </div>
+  <p class="small text-muted mt-3 mb-0">
+    {% if account_user.role == "STUDENT" %}
+    For grades, badges, and photo, open <a href="{% url 'core:student_profile' %}">Student profile</a>.
+    {% endif %}
+  </p>
+</div>
+{% endblock %}

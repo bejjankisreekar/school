@@ -23,7 +23,7 @@
     {% endif %}
   </div>
 
-  {# Row 1: Students, Teachers, Fees or Classes, Attendance or Sections #}
+  {# Row 1: Students, Teachers, Billing or Classes, Attendance or Sections #}
   <div class="dashboard-kpi-grid mb-4">
       <a href="{% url 'core:school_students_list' %}" class="text-decoration-none text-reset">
         <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all">
@@ -434,10 +434,10 @@
             <span class="qa-title">Add section</span>
             <span class="qa-desc">Add a class section</span>
           </a>
-          {% if request.user.school|has_feature_access:"timetable" %}
+          {% if request|feature_access:"timetable" %}
           <a href="{% url 'timetable:school_timetable_index' %}" class="quick-action-card qa-theme-academic text-decoration-none">
             <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-calendar-week"></i></span>
-            <span class="qa-title">Timetable</span>
+            <span class="qa-title">Master Schedule</span>
             <span class="qa-desc">View and edit schedules</span>
           </a>
           {% endif %}
@@ -455,22 +455,22 @@
           <a href="{% url 'core:school_teacher_add' %}" class="quick-action-card qa-theme-teacher text-decoration-none">
             <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-person-workspace"></i></span>
             <span class="qa-title">Add teacher</span>
-            <span class="qa-desc">Onboard a staff member</span>
+            <span class="qa-desc">Onboard a faculty member</span>
           </a>
           <a href="{% url 'core:school_teachers_list' %}" class="quick-action-card qa-theme-teacher text-decoration-none">
             <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-person-lines-fill"></i></span>
             <span class="qa-title">Teachers</span>
-            <span class="qa-desc">Staff directory and roles</span>
+            <span class="qa-desc">Faculty directory and roles</span>
           </a>
           <a href="{% url 'reports:dashboard' %}" class="quick-action-card qa-theme-reports text-decoration-none">
             <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-bar-chart-line"></i></span>
-            <span class="qa-title">Reports</span>
+            <span class="qa-title">Analytics</span>
             <span class="qa-desc">School analytics</span>
           </a>
           {% if fees_enabled %}
           <a href="{% url 'core:school_fees_index' %}" class="quick-action-card qa-theme-fees text-decoration-none">
             <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-wallet2"></i></span>
-            <span class="qa-title">Fees</span>
+            <span class="qa-title">Billing</span>
             <span class="qa-desc">Collection and structures</span>
           </a>
           {% endif %}

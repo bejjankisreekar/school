@@ -41,19 +41,19 @@
 
     <!-- Pricing Cards -->
     <div class="row g-4 justify-content-center">
-      <!-- Core Plan -->
+      <!-- Starter -->
       <div class="col-md-6 col-lg-5">
         <div class="pricing-card card h-100 border shadow">
           <div class="card-body p-4 p-md-5">
-            <h2 class="h5 fw-bold mb-1">Core Plan</h2>
+            <h2 class="h5 fw-bold mb-1">Starter</h2>
             <div class="my-3">
               <span class="display-5 fw-bold">₹39</span>
               <span class="text-secondary"> / student / month</span>
             </div>
             <p class="small text-muted mb-3">Billed monthly</p>
             <div class="py-3 px-4 rounded-3 bg-light border mb-4">
-              <p class="mb-0 small text-muted">Students: <strong id="coreStudents" class="text-dark">200</strong></p>
-              <p class="mb-0 fw-bold fs-5">Total: <span id="coreTotal">₹7,800</span> / month</p>
+              <p class="mb-0 small text-muted">Students: <strong id="starterStudents" class="text-dark">200</strong></p>
+              <p class="mb-0 fw-bold fs-5">Total: <span id="starterTotal">₹7,800</span> / month</p>
             </div>
             <ul class="list-unstyled mb-4">
               <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Up to 500 Students</li>
@@ -68,20 +68,20 @@
         </div>
       </div>
 
-      <!-- Advanced Plan (Recommended) -->
+      <!-- Enterprise (Recommended) -->
       <div class="col-md-6 col-lg-5">
         <div class="pricing-card recommended card h-100 shadow position-relative">
           <span class="position-absolute top-0 start-50 translate-middle badge bg-primary py-2 px-3 rounded-pill">Recommended</span>
           <div class="card-body p-4 p-md-5 pt-5">
-            <h2 class="h5 fw-bold mb-1">Advanced Plan</h2>
+            <h2 class="h5 fw-bold mb-1">Enterprise</h2>
             <div class="my-3">
               <span class="display-5 fw-bold">₹59</span>
               <span class="text-secondary"> / student / month</span>
             </div>
             <p class="small text-muted mb-3">Billed monthly</p>
             <div class="py-3 px-4 rounded-3 border mb-4" style="background-color: rgba(79,70,229,0.08);">
-              <p class="mb-0 small text-muted">Students: <strong id="advStudents" class="text-dark">200</strong></p>
-              <p class="mb-0 fw-bold fs-5">Total: <span id="advTotal">₹11,800</span> / month</p>
+              <p class="mb-0 small text-muted">Students: <strong id="enterpriseStudents" class="text-dark">200</strong></p>
+              <p class="mb-0 fw-bold fs-5">Total: <span id="enterpriseTotal">₹11,800</span> / month</p>
             </div>
             <ul class="list-unstyled mb-4">
               <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Unlimited Students</li>
@@ -121,10 +121,10 @@
     count = Math.max(50, Math.min(5000, Math.round(count / 50) * 50));
     range.value = count;
     numInput.value = count;
-    coreStudents.textContent = count;
-    advStudents.textContent = count;
-    coreTotal.textContent = formatINR(count * CORE_PRICE);
-    advTotal.textContent = formatINR(count * ADV_PRICE);
+    starterStudents.textContent = count;
+    enterpriseStudents.textContent = count;
+    starterTotal.textContent = formatINR(count * STARTER_PRICE);
+    enterpriseTotal.textContent = formatINR(count * ENTERPRISE_PRICE);
   }
 
   range.addEventListener('input', function() {

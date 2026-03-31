@@ -10,35 +10,96 @@
     </ol>
   </nav>
 
-  <div class="card border-0 shadow-sm rounded-3" style="max-width: 32rem;">
-    <div class="card-body">
-      <h2 class="h5 fw-bold mb-3">Change Plan</h2>
-      <p class="text-muted small mb-4">{{ school.name }} ({{ school.code }})</p>
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    {% include "admin/partials/back_to_school_plans.html" %}
+  </div>
 
-      {% if messages %}
-        {% for m in messages %}
-          <div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-        {% endfor %}
-      {% endif %}
+  <div class="row g-4">
+    <div class="col-lg-7">
+      <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-body">
+          <h2 class="h5 fw-bold mb-2">Assign plan &amp; subscription</h2>
+          <p class="text-muted small mb-4">{{ school.name }} ({{ school.code }})</p>
 
-      <form method="post">
-        {% csrf_token %}
-        <div class="mb-4">
-          <label class="form-label fw-semibold">Select Plan</label>
-          <select name="plan" class="form-select">
-            <option value="">— No plan (use legacy) —</option>
-            {% for plan in plans %}
-              <option value="{{ plan.pk }}" {% if school.saas_plan_id == plan.pk %}selected{% endif %}>{{ plan.name }} — ₹{{ plan.price_per_student }}/student/month</option>
+          {% if messages %}
+            {% for m in messages %}
+              <div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
             {% endfor %}
-          </select>
-        </div>
-        <div class="d-flex gap-2">
-          <button type="submit" class="btn btn-primary">Update Plan</button>
-          <a href="{% url 'admin_manage:school_plans_list' %}" class="btn btn-outline-secondary">Cancel</a>
-        </div>
-      </form>
+          {% endif %}
 
-      <p class="mt-3 small text-muted">Changes apply immediately. Use "Manage Features" to customize features per school beyond the plan defaults.</p>
+          <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Product plan</label>
+              <select name="plan" class="form-select">
+                <option value="">— No plan —</option>
+                {% for plan in plans %}
+                  <option value="{{ plan.pk }}" {% if school.saas_plan_id == plan.pk %}selected{% endif %}>{{ plan.name }} — ₹{{ plan.price_per_student }}/student/mo ({{ plan.get_billing_cycle_display }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="row g-2 mb-3">
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold">Start date</label>
+                <input type="date" name="start_date" class="form-control" value="{% if current_sub %}{{ current_sub.start_date|date:'Y-m-d' }}{% else %}{{ today|date:'Y-m-d' }}{% endif %}">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold">End date <span class="text-muted fw-normal">(optional)</span></label>
+                <input type="date" name="end_date" class="form-control" value="{% if current_sub.end_date %}{{ current_sub.end_date|date:'Y-m-d' }}{% endif %}">
+              </div>
+            </div>
+            <div class="row g-2 mb-3">
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold">Students count <span class="text-muted fw-normal">(billing snapshot)</span></label>
+                <input type="number" name="students_count" class="form-control" min="0" value="{{ current_sub.students_count|default:0 }}">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold">Free months applied</label>
+                <input type="number" name="free_months" class="form-control" min="0" max="120" value="{{ current_sub.free_months_applied|default:0 }}">
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Subscription status</label>
+              <select name="subscription_status" class="form-select">
+                {% for val,label in subscription_status_choices %}
+                  <option value="{{ val }}" {% if current_sub and current_sub.status == val %}selected{% elif not current_sub and val == 'active' %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-4">
+              <label class="form-label fw-semibold">Coupon code <span class="text-muted fw-normal">(optional)</span></label>
+              <input type="text" name="coupon_code" class="form-control text-uppercase" placeholder="e.g. SAVE5" autocomplete="off">
+              <div class="form-text">Redeems one use when you save (if valid). Leave blank to skip.</div>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+              <button type="submit" class="btn btn-primary">Save plan &amp; subscription</button>
+              <a href="{% url 'admin_manage:school_plans_list' %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+          </form>
+          <p class="mt-3 small text-muted mb-0">Clears feature overrides for this school. Use “Manage Features” after assigning a plan if you need a custom module set.</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card border-0 shadow-sm rounded-3 bg-body-secondary">
+        <div class="card-body">
+          <h3 class="h6 fw-bold mb-3">Current subscription record</h3>
+          {% if current_sub %}
+            <dl class="row small mb-0">
+              <dt class="col-5 text-muted">Plan</dt><dd class="col-7">{{ current_sub.plan.name }}</dd>
+              <dt class="col-5 text-muted">Status</dt><dd class="col-7">{{ current_sub.get_status_display }}</dd>
+              <dt class="col-5 text-muted">Period</dt><dd class="col-7">{{ current_sub.start_date }}{% if current_sub.end_date %} → {{ current_sub.end_date }}{% else %} → open{% endif %}</dd>
+              <dt class="col-5 text-muted">Students</dt><dd class="col-7">{{ current_sub.students_count }}</dd>
+              <dt class="col-5 text-muted">Free months</dt><dd class="col-7">{{ current_sub.free_months_applied }}</dd>
+              <dt class="col-5 text-muted">Coupon</dt><dd class="col-7">{% if current_sub.coupon %}<code>{{ current_sub.coupon.code }}</code>{% else %}—{% endif %}</dd>
+            </dl>
+          {% else %}
+            <p class="small text-muted mb-0">No current subscription row yet. Saving a plan creates one (and ends any previous current row).</p>
+          {% endif %}
+          <hr>
+          <a href="{% url 'admin_manage:coupons_list' %}" class="btn btn-sm btn-outline-primary">Manage coupons</a>
+        </div>
+      </div>
     </div>
   </div>
 </div>

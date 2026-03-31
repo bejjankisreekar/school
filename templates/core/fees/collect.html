@@ -1,31 +1,78 @@
 {% extends "base.html" %}
-{% block title %}Collect Payment | School ERP{% endblock %}
+{% block title %}Collect payment | School ERP{% endblock %}
 {% block content %}
 <div class="container-fluid px-0">
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'core:school_fee_collection' %}">Fee Collection</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_fee_collection' %}">Fee collection</a></li>
       <li class="breadcrumb-item active">Collect</li>
     </ol>
   </nav>
-  <h1 class="h4 fw-bold mb-4">Collect Payment</h1>
+  <h1 class="h4 fw-bold mb-4">Collect payment</h1>
 
-  <div class="card border-0 shadow-sm mb-3">
+  <div class="card border-0 shadow-sm mb-4">
     <div class="card-body">
-      <p><strong>Student:</strong> {{ fee.student.user.get_full_name|default:fee.student.user.username }}</p>
-      <p><strong>Fee:</strong> {{ fee.fee_structure.fee_type.name }} - {{ fee.amount }}</p>
-      <p><strong>Status:</strong> {{ fee.status }}</p>
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="small text-muted text-uppercase fw-semibold">Student</div>
+          <div class="fw-semibold">{{ fee.student.user.get_full_name|default:fee.student.user.username }}</div>
+          {% if fee.student.classroom %}<div class="small text-muted">{{ fee.student.classroom.name }}{% if fee.student.section %} · {{ fee.student.section.name }}{% endif %}</div>{% endif %}
+        </div>
+        <div class="col-md-4">
+          <div class="small text-muted text-uppercase fw-semibold">Fee</div>
+          <div class="fw-semibold">{{ fee.fee_structure.fee_type.name }}</div>
+          <div class="small text-muted">Total due: {{ fee.amount }}</div>
+        </div>
+        <div class="col-md-4">
+          <div class="small text-muted text-uppercase fw-semibold">Balance due</div>
+          <div class="fs-5 fw-bold text-primary">{{ balance_due }}</div>
+          <div class="small text-muted">Status: {{ fee.status }}</div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <div class="card border-0 shadow-sm" style="max-width: 400px;">
+  <div class="card border-0 shadow-sm" style="max-width: 36rem;">
     <div class="card-body">
-      <form method="post">
+      <h2 class="h6 fw-bold mb-3">Payment details</h2>
+      <form method="post" novalidate>
         {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit" class="btn btn-primary">Record Payment</button>
-        <a href="{% url 'core:school_fee_collection' %}" class="btn btn-outline-secondary">Cancel</a>
+        {% if form.non_field_errors %}
+        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+        {% endif %}
+        <div class="mb-3">
+          <label class="form-label" for="id_amount">Amount received</label>
+          {{ form.amount }}
+          {% if form.amount.errors %}<div class="invalid-feedback d-block">{{ form.amount.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="id_payment_date">Payment date</label>
+          {{ form.payment_date }}
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="id_payment_method">Payment mode</label>
+          {{ form.payment_method }}
+          <div class="form-text">Cash, UPI, bank transfer, or online.</div>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-md-6">
+            <label class="form-label" for="id_receipt_number">{{ form.receipt_number.label }}</label>
+            {{ form.receipt_number }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_transaction_reference">{{ form.transaction_reference.label }}</label>
+            {{ form.transaction_reference }}
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="id_notes">Notes <span class="text-muted fw-normal">(optional)</span></label>
+          {{ form.notes }}
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          <button type="submit" class="btn btn-primary">Record payment</button>
+          <a href="{% url 'core:school_fee_collection' %}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
       </form>
     </div>
   </div>

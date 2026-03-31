@@ -32,23 +32,35 @@
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
           <tr>
+            <th class="text-muted small">ID</th>
             <th>Code</th>
             <th>Name</th>
-            <th>Address</th>
-            <th>Contact</th>
+            <th>Contact person</th>
+            <th>Mobile / email</th>
+            <th>Created</th>
+            <th>Status</th>
             <th class="text-center" style="width: 100px;">Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for s in schools %}
             <tr>
+              <td class="text-muted small">{{ s.pk }}</td>
               <td><span class="badge bg-primary">{{ s.code }}</span></td>
               <td>{{ s.name }}</td>
-              <td>{{ s.address|truncatewords:10|default:"—" }}</td>
-              <td>
+              <td>{{ s.contact_person|default:"—" }}</td>
+              <td class="small">
+                {% if s.phone %}<span class="text-nowrap">{{ s.phone }}</span>{% endif %}
+                {% if s.phone and s.contact_email %}<br>{% endif %}
                 {% if s.contact_email %}{{ s.contact_email }}{% endif %}
-                {% if s.phone %} · {{ s.phone }}{% endif %}
                 {% if not s.contact_email and not s.phone %}—{% endif %}
+              </td>
+              <td class="small text-muted text-nowrap">{{ s.created_on|date:"Y-m-d" }}</td>
+              <td>
+                {% if s.school_status == "active" %}<span class="badge bg-success">Active</span>
+                {% elif s.school_status == "trial" %}<span class="badge bg-info">Trial</span>
+                {% elif s.school_status == "suspended" %}<span class="badge bg-danger">Suspended</span>
+                {% else %}<span class="badge bg-secondary">Inactive</span>{% endif %}
               </td>
               <td class="text-center">
                 <a href="{% url 'admin_manage:school_view' s.code %}" class="btn btn-sm btn-outline-secondary" title="View" aria-label="View">
@@ -60,7 +72,7 @@
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="5" class="text-center text-muted py-4">No schools found.</td></tr>
+            <tr><td colspan="8" class="text-center text-muted py-4">No schools found.</td></tr>
           {% endfor %}
         </tbody>
       </table>

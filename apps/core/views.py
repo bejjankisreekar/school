@@ -2,12 +2,13 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import get_user_model
 from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import Http404, JsonResponse, HttpResponseForbidden
-from django.views.decorators.http import require_GET
-from django.views.decorators.http import require_POST
+from django.core.files.storage import default_storage
+from django.http import Http404, HttpResponse, JsonResponse, HttpResponseForbidden
+from django.views.decorators.http import require_GET, require_POST
 from django.urls import reverse
 from django.core.exceptions import PermissionDenied
 from datetime import date, timedelta
+from decimal import Decimal
 from calendar import monthrange
 from io import BytesIO
 import json
@@ -16,9 +17,21 @@ from django.utils import timezone
 
 from django.db import connection, transaction
 from django.db.models import Count, F, Max, Min, Prefetch, Q, Sum
+from django.db.models.expressions import RawSQL
 from django.core.paginator import Paginator
 from django.db.utils import DatabaseError, InternalError, OperationalError, ProgrammingError
-from apps.customers.models import School
+from apps.customers.billing_engine import (
+    ensure_invoice_for_period,
+    record_invoice_payment,
+    total_paid_for_invoice,
+)
+from apps.customers.models import (
+    PlatformBillingReceipt,
+    PlatformInvoice,
+    PlatformInvoicePayment,
+    SaaSPlatformPayment,
+    School,
+)
 from apps.school_data.models import (
     Student,
     Teacher,
@@ -71,8 +84,14 @@ from .utils import (
     apply_active_year_filter,
     tenant_migrate_cli_hint,
 )
-from .forms import ContactEnquiryForm
-from .models import ContactEnquiry
+from .forms import (
+    ContactEnquiryForm,
+    SaaSPlatformPaymentForm,
+    SchoolEnrollmentSignupForm,
+    SuperAdminEnrollmentDeclineForm,
+    SuperAdminEnrollmentProvisionForm,
+)
+from .models import ContactEnquiry, SchoolEnrollmentRequest
 from apps.accounts.decorators import (
     admin_required,
     superadmin_required,
@@ -81,6 +100,7 @@ from apps.accounts.decorators import (
     parent_required,
     feature_required,
 )
+from apps.core.pdf_utils import pdf_response, render_pdf_bytes
 
 # ======================
 # Public Pages
@@ -96,6 +116,26 @@ def pricing(request):
 
 def about(request):
     return render(request, "marketing/about.html")
+
+
+def school_enrollment_signup(request):
+    """Public signup: stores a pending enrollment for super admin to provision a tenant schema."""
+    success = request.GET.get("success") == "1"
+    if request.method == "POST":
+        form = SchoolEnrollmentSignupForm(request.POST)
+        if form.is_valid():
+            try:
+                form.save()
+            except ProgrammingError:
+                form.add_error(
+                    None,
+                    "Enrollment storage is not initialized. Run: python manage.py ensure_school_enrollment_table",
+                )
+            else:
+                return redirect(f"{reverse('core:school_enroll')}?success=1")
+    else:
+        form = SchoolEnrollmentSignupForm()
+    return render(request, "marketing/enroll.html", {"form": form, "success": success})
 
 
 def contact(request):
@@ -173,30 +213,791 @@ def enquiries_unread_count(request):
     return JsonResponse({"unread_count": unread})
 
 
+@superadmin_required
+def superadmin_enrollments(request):
+    """List school enrollment requests (public signups)."""
+    status = (request.GET.get("status") or "pending").lower()
+    qs = SchoolEnrollmentRequest.objects.select_related("school", "reviewed_by").order_by("-created_at")
+    if status == "pending":
+        qs = qs.filter(status=SchoolEnrollmentRequest.Status.PENDING)
+    elif status == "provisioned":
+        qs = qs.filter(status=SchoolEnrollmentRequest.Status.PROVISIONED)
+    elif status == "declined":
+        qs = qs.filter(status=SchoolEnrollmentRequest.Status.DECLINED)
+    else:
+        status = "all"
+    return render(
+        request,
+        "superadmin/enrollments.html",
+        {"enrollments": qs, "status": status},
+    )
+
+
+@transaction.non_atomic_requests
+@superadmin_required
+def superadmin_enrollment_detail(request, pk: int):
+    """
+    Review one enrollment. POST: create tenant (schema + migrations) or decline.
+    non_atomic_requests: School.save() runs migrate_schemas and must not run inside ATOMIC_REQUESTS.
+    """
+    from django.contrib import messages
+
+    from apps.customers.models import Plan as CustomerPlan, SubscriptionPlan
+
+    from .tenant_provisioning import (
+        mark_enrollment_declined,
+        mark_enrollment_provisioned,
+        provision_school_from_enrollment,
+    )
+
+    enrollment = get_object_or_404(SchoolEnrollmentRequest, pk=pk)
+
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip().lower()
+        if enrollment.status != SchoolEnrollmentRequest.Status.PENDING:
+            messages.warning(request, "This enrollment was already processed.")
+            return redirect("core:superadmin_enrollments")
+
+        if action == "decline":
+            df = SuperAdminEnrollmentDeclineForm(request.POST)
+            if df.is_valid():
+                mark_enrollment_declined(enrollment, request.user, df.cleaned_data.get("reason") or "")
+                messages.success(request, "Enrollment declined.")
+            return redirect("core:superadmin_enrollments")
+
+        if action == "provision":
+            pf = SuperAdminEnrollmentProvisionForm(request.POST)
+            if not pf.is_valid():
+                messages.error(request, "Invalid form.")
+            else:
+                tier = (pf.cleaned_data.get("billing_tier") or "trial").lower()
+                # Accept legacy POST values if an old form is cached
+                if tier in ("core",):
+                    tier = "starter"
+                if tier in ("advance",):
+                    tier = "enterprise"
+                trial_sp = SubscriptionPlan.objects.filter(name__iexact="trial", is_active=True).first()
+                basic_sp = SubscriptionPlan.objects.filter(name__iexact="basic", is_active=True).first()
+                pro_sp = SubscriptionPlan.objects.filter(name__iexact="pro", is_active=True).first()
+                starter_p = CustomerPlan.objects.filter(name="Starter").first()
+                enterprise_p = CustomerPlan.objects.filter(name="Enterprise").first()
+                if tier == "enterprise":
+                    sub = pro_sp or basic_sp or trial_sp
+                    saas = enterprise_p
+                elif tier == "starter":
+                    sub = basic_sp or trial_sp
+                    saas = starter_p
+                else:
+                    sub = trial_sp or basic_sp
+                    saas = starter_p
+                if sub is None:
+                    messages.error(
+                        request,
+                        "No billing rows found. Run: python manage.py seed_subscription_plans",
+                    )
+                    return redirect("core:superadmin_enrollments")
+                try:
+                    connection.set_schema_to_public()
+                    school = provision_school_from_enrollment(
+                        institution_name=enrollment.institution_name,
+                        contact_email=enrollment.email,
+                        phone=enrollment.phone or "",
+                        address_notes=enrollment.notes or "",
+                        subscription_plan=sub,
+                        saas_plan=saas,
+                    )
+                    mark_enrollment_provisioned(enrollment, school, request.user)
+                    messages.success(
+                        request,
+                        f"Tenant created: {school.name} — schema “{school.schema_name}”. "
+                        "Assign an admin user to this school in Django admin or Schools.",
+                    )
+                except Exception as exc:
+                    messages.error(request, f"Provisioning failed: {exc}")
+            return redirect("core:superadmin_enrollments")
+
+    provision_form = SuperAdminEnrollmentProvisionForm()
+    decline_form = SuperAdminEnrollmentDeclineForm()
+    return render(
+        request,
+        "superadmin/enrollment_detail.html",
+        {
+            "enrollment": enrollment,
+            "provision_form": provision_form,
+            "decline_form": decline_form,
+        },
+    )
+
+
 # ======================
 # Super Admin Dashboard
 # ======================
 
+@transaction.non_atomic_requests
 @superadmin_required
 def super_admin_dashboard(request):
-    from django_tenants.utils import tenant_context
-    from apps.customers.models import School, Plan
-    from apps.school_data.models import Teacher, Student, ClassRoom
-    total_schools = School.objects.exclude(schema_name="public").count()
-    total_teachers = total_students = total_classes = 0
-    for school in School.objects.exclude(schema_name="public"):
-        with tenant_context(school):
-            total_teachers += Teacher.objects.count()
-            total_students += Student.objects.count()
-            total_classes += ClassRoom.objects.count()
-    plans = Plan.objects.prefetch_related("features").order_by("price_per_student")
-    return render(request, "core/dashboards/super_admin_dashboard.html", {
-        "total_schools": total_schools,
-        "total_teachers": total_teachers,
-        "total_students": total_students,
-        "total_classes": total_classes,
-        "plans": plans,
-    })
+    from apps.customers.models import Plan
+
+    from .platform_financials import build_super_admin_platform_snapshot, summarize_billing_rows
+
+    snap = build_super_admin_platform_snapshot()
+    billing_summary = summarize_billing_rows(snap["billing_rows"])
+    plans = Plan.sale_tiers().prefetch_related("features")
+    pending_enrollments = SchoolEnrollmentRequest.objects.filter(
+        status=SchoolEnrollmentRequest.Status.PENDING
+    ).count()
+    return render(
+        request,
+        "core/dashboards/super_admin_dashboard.html",
+        {
+            "total_schools": snap["total_schools"],
+            "total_teachers": snap["total_teachers"],
+            "total_students": snap["total_students"],
+            "total_classes": snap["total_classes"],
+            "plans": plans,
+            "pending_enrollments": pending_enrollments,
+            "billing_summary": billing_summary,
+        },
+    )
+
+
+@transaction.non_atomic_requests
+@superadmin_required
+def superadmin_platform_footprint(request):
+    """Per-school and class/section teacher & student counts for verification."""
+    from .platform_footprint import build_class_section_footprint, build_footprint_school_rows
+
+    q = (request.GET.get("q") or "").strip()
+    mode = (request.GET.get("mode") or "all").lower()
+    if mode not in ("all", "students", "teachers"):
+        mode = "all"
+
+    raw_school = request.GET.get("school")
+    school = None
+    class_rows: list[dict] = []
+    if raw_school:
+        try:
+            school = School.objects.exclude(schema_name="public").get(pk=int(raw_school))
+            class_rows = build_class_section_footprint(school)
+        except (ValueError, School.DoesNotExist):
+            school = None
+
+    # Platform-wide totals always include every tenant; table rows respect search `q`.
+    total_teachers, total_students, total_classes, _ = build_footprint_school_rows(q=None)
+    _, _, _, school_rows = build_footprint_school_rows(q=q or None)
+
+    school_options = School.objects.exclude(schema_name="public").order_by("name")
+
+    return render(
+        request,
+        "superadmin/platform_footprint.html",
+        {
+            "total_teachers": total_teachers,
+            "total_students": total_students,
+            "total_classes": total_classes,
+            "school_rows": school_rows,
+            "school": school,
+            "class_rows": class_rows,
+            "search_q": q,
+            "mode": mode,
+            "school_options": school_options,
+        },
+    )
+
+
+@transaction.non_atomic_requests
+@superadmin_required
+def superadmin_school_financial(request, school_id: int):
+    """Single-school billing dashboard: invoices, payments, subscription, charts."""
+    from .school_financial_profile import build_school_financial_profile
+
+    school = get_object_or_404(School.objects.exclude(schema_name="public"), pk=school_id)
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "generate_invoice":
+            try:
+                y = int(request.POST.get("year", 0))
+                m = int(request.POST.get("month", 0))
+                if 1 <= m <= 12 and 2020 <= y <= 2036:
+                    ensure_invoice_for_period(school, y, m)
+                    messages.success(request, f"Invoice for {m:02d}/{y} generated or refreshed.")
+                else:
+                    messages.error(request, "Invalid month or year.")
+            except (TypeError, ValueError) as exc:
+                messages.error(request, str(exc))
+            return redirect("core:superadmin_school_financial", school_id=school.pk)
+
+    invoice_status = (request.GET.get("status") or "").strip()
+    date_from = None
+    date_to = None
+    try:
+        if request.GET.get("date_from"):
+            date_from = date.fromisoformat(request.GET["date_from"])
+        if request.GET.get("date_to"):
+            date_to = date.fromisoformat(request.GET["date_to"])
+    except ValueError:
+        date_from = date_to = None
+
+    ctx = build_school_financial_profile(
+        school,
+        invoice_status=invoice_status or None,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    ctx["school_id"] = school.pk
+    ctx["month_choices_gen"] = [
+        (1, "Jan"),
+        (2, "Feb"),
+        (3, "Mar"),
+        (4, "Apr"),
+        (5, "May"),
+        (6, "Jun"),
+        (7, "Jul"),
+        (8, "Aug"),
+        (9, "Sep"),
+        (10, "Oct"),
+        (11, "Nov"),
+        (12, "Dec"),
+    ]
+    return render(request, "superadmin/school_financial_detail.html", ctx)
+
+
+@superadmin_required
+def superadmin_platform_invoice_pdf(request, invoice_id: int):
+    """PDF for a platform SaaS invoice (superadmin)."""
+    inv = get_object_or_404(PlatformInvoice.objects.select_related("school", "subscription"), pk=invoice_id)
+    paid = total_paid_for_invoice(inv)
+    remaining = (inv.final_amount - paid).quantize(Decimal("0.01"))
+    pdf_bytes = render_pdf_bytes(
+        "pdf/saas_platform_invoice.html",
+        {
+            "invoice": inv,
+            "school": inv.school,
+            "paid": paid,
+            "remaining": remaining,
+            "generated_on": timezone.now(),
+        },
+    )
+    if not pdf_bytes:
+        messages.error(request, "Could not generate PDF.")
+        return redirect("core:superadmin_school_financial", school_id=inv.school_id)
+    safe_name = f"{inv.invoice_number}.pdf".replace(" ", "_")
+    return pdf_response(pdf_bytes, safe_name)
+
+
+@transaction.non_atomic_requests
+@superadmin_required
+def superadmin_global_students(request):
+    """All students across tenants with filters, fee columns, server-side pagination."""
+    from .global_directory import (
+        collect_global_students,
+        platform_student_totals,
+        school_filter_choices,
+        sort_student_rows,
+        tenant_dropdowns_for_school,
+    )
+
+    school_id = _parse_optional_int(request.GET.get("school"))
+    classroom_id = _parse_optional_int(request.GET.get("classroom"))
+    section_id = _parse_optional_int(request.GET.get("section"))
+    academic_year_name = (request.GET.get("ay") or "").strip()
+    status = (request.GET.get("status") or "").strip()
+    fee_filter = (request.GET.get("fee") or "").strip()
+    search = (request.GET.get("q") or "").strip()
+    sort = (request.GET.get("sort") or "name").strip()
+    if sort not in ("name", "school", "class", "fee_pending"):
+        sort = "name"
+
+    platform_total, platform_active, platform_inactive = platform_student_totals()
+
+    rows = collect_global_students(
+        school_id=school_id,
+        classroom_id=classroom_id,
+        section_id=section_id,
+        academic_year_name=academic_year_name,
+        status=status,
+        search=search,
+        fee_filter=fee_filter,
+        today=date.today(),
+    )
+    sort_student_rows(rows, sort)
+
+    filtered_count = len(rows)
+    paginator = Paginator(rows, 25)
+    page = paginator.get_page(request.GET.get("page", 1))
+
+    tenant_dd = None
+    selected_school = None
+    if school_id:
+        selected_school = get_object_or_404(School.objects.exclude(schema_name="public"), pk=school_id)
+        tenant_dd = tenant_dropdowns_for_school(selected_school)
+
+    fq = request.GET.copy()
+    fq.pop("page", None)
+    filter_query = fq.urlencode()
+
+    return render(
+        request,
+        "superadmin/global_students.html",
+        {
+            "page_obj": page,
+            "schools_qs": school_filter_choices(),
+            "selected_school_id": school_id,
+            "selected_school": selected_school,
+            "tenant_dd": tenant_dd,
+            "classroom_id": classroom_id,
+            "section_id": section_id,
+            "academic_year_name": academic_year_name,
+            "status": status,
+            "fee_filter": fee_filter,
+            "search_q": search,
+            "sort": sort,
+            "platform_total": platform_total,
+            "platform_active": platform_active,
+            "platform_inactive": platform_inactive,
+            "filtered_count": filtered_count,
+            "filter_query": filter_query,
+        },
+    )
+
+
+@transaction.non_atomic_requests
+@superadmin_required
+def superadmin_global_teachers(request):
+    """All teachers across tenants with filters and pagination."""
+    from .global_directory import (
+        collect_global_teachers,
+        platform_teacher_totals,
+        school_filter_choices,
+        sort_teacher_rows,
+    )
+
+    school_id = _parse_optional_int(request.GET.get("school"))
+    subject_q = (request.GET.get("subject") or "").strip()
+    status = (request.GET.get("status") or "").strip()
+    search = (request.GET.get("q") or "").strip()
+    sort = (request.GET.get("sort") or "name").strip()
+    if sort not in ("name", "school", "classes"):
+        sort = "name"
+
+    platform_total, platform_active, platform_inactive = platform_teacher_totals()
+
+    rows = collect_global_teachers(
+        school_id=school_id,
+        subject_q=subject_q,
+        status=status,
+        search=search,
+    )
+    sort_teacher_rows(rows, sort)
+
+    filtered_count = len(rows)
+    paginator = Paginator(rows, 25)
+    page = paginator.get_page(request.GET.get("page", 1))
+
+    fq = request.GET.copy()
+    fq.pop("page", None)
+    filter_query = fq.urlencode()
+
+    return render(
+        request,
+        "superadmin/global_teachers.html",
+        {
+            "page_obj": page,
+            "schools_qs": school_filter_choices(),
+            "selected_school_id": school_id,
+            "subject_q": subject_q,
+            "status": status,
+            "search_q": search,
+            "sort": sort,
+            "platform_total": platform_total,
+            "platform_active": platform_active,
+            "platform_inactive": platform_inactive,
+            "filtered_count": filtered_count,
+            "filter_query": filter_query,
+        },
+    )
+
+
+def _parse_optional_int(raw: str | None) -> int | None:
+    if raw is None or raw == "":
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+@transaction.non_atomic_requests
+@superadmin_required
+def superadmin_financials(request):
+    """Platform subscription / trial status per school — not school-internal fee collection."""
+    from .platform_financials import build_super_admin_platform_snapshot, summarize_billing_rows
+
+    snap = build_super_admin_platform_snapshot()
+    rows = snap["billing_rows"]
+    summary = summarize_billing_rows(rows)
+    return render(
+        request,
+        "superadmin/financials.html",
+        {
+            "billing_rows": rows,
+            "billing_summary": summary,
+        },
+    )
+
+
+@superadmin_required
+def superadmin_subscription_payments(request):
+    """Ledger of SaaS subscription money received from schools (platform operator)."""
+    qs = SaaSPlatformPayment.objects.select_related(
+        "school", "recorded_by", "subscription", "subscription__plan"
+    ).order_by("-payment_date", "-id")
+    paginator = Paginator(qs, 40)
+    page = paginator.get_page(request.GET.get("page", 1))
+    today = date.today()
+    month_start = today.replace(day=1)
+    year_start = today.replace(month=1, day=1)
+    month_total = SaaSPlatformPayment.objects.filter(
+        payment_date__gte=month_start,
+        payment_date__lte=today,
+    ).aggregate(s=Sum("amount"))["s"] or Decimal("0")
+    year_total = SaaSPlatformPayment.objects.filter(
+        payment_date__gte=year_start,
+        payment_date__lte=today,
+    ).aggregate(s=Sum("amount"))["s"] or Decimal("0")
+    all_total = SaaSPlatformPayment.objects.aggregate(s=Sum("amount"))["s"] or Decimal("0")
+    return render(
+        request,
+        "superadmin/subscription_payments.html",
+        {
+            "payments": page,
+            "month_total": month_total,
+            "year_total": year_total,
+            "all_total": all_total,
+        },
+    )
+
+
+@superadmin_required
+def superadmin_record_subscription_payment(request):
+    """Record a payment received from a school (UPI, bank, cash, etc.)."""
+    if request.method == "POST":
+        form = SaaSPlatformPaymentForm(request.POST)
+    else:
+        initial = {"payment_date": date.today()}
+        raw_school = request.GET.get("school")
+        if raw_school:
+            try:
+                initial["school"] = School.objects.get(pk=int(raw_school))
+            except (ValueError, School.DoesNotExist):
+                pass
+        form = SaaSPlatformPaymentForm(initial=initial)
+    if request.method == "POST" and form.is_valid():
+        pay = form.save(commit=False)
+        pay.recorded_by = request.user
+        pay.save()
+        receipt_bit = f" — receipt {pay.internal_receipt_no}" if pay.internal_receipt_no else ""
+        messages.success(
+            request,
+            f"Recorded ₹{pay.amount} from {pay.school.name} ({pay.get_payment_method_display()}){receipt_bit}.",
+        )
+        return redirect("core:superadmin_subscription_payments")
+    return render(request, "superadmin/record_subscription_payment.html", {"form": form})
+
+
+@superadmin_required
+def superadmin_edit_subscription_payment(request, pk: int):
+    """Update a logged SaaS subscription payment (superadmin). Totals elsewhere use live DB queries."""
+    pay = get_object_or_404(SaaSPlatformPayment, pk=pk)
+    if request.method == "POST":
+        form = SaaSPlatformPaymentForm(request.POST, instance=pay)
+        if form.is_valid():
+            saved = form.save()
+            messages.success(
+                request,
+                f"Updated payment ₹{saved.amount} for {saved.school.name} ({saved.payment_date}).",
+            )
+            return redirect("core:superadmin_subscription_payments")
+    else:
+        form = SaaSPlatformPaymentForm(instance=pay)
+    return render(
+        request,
+        "superadmin/record_subscription_payment.html",
+        {"form": form, "payment": pay},
+    )
+
+
+@superadmin_required
+@require_POST
+def superadmin_delete_subscription_payment(request, pk: int):
+    """Remove a subscription payment log entry; aggregates on Financials / billing use DB sums."""
+    pay = get_object_or_404(SaaSPlatformPayment, pk=pk)
+    summary = f"{pay.school.name} — ₹{pay.amount} on {pay.payment_date}"
+    pay.delete()
+    messages.success(request, f"Removed payment log: {summary}.")
+    return redirect("core:superadmin_subscription_payments")
+
+
+@superadmin_required
+def superadmin_billing_invoices(request):
+    """Monthly SaaS invoices (platform billing engine) and period generator."""
+    today = date.today()
+    try:
+        y = int(request.GET.get("year", today.year))
+        m = int(request.GET.get("month", today.month))
+    except (TypeError, ValueError):
+        y, m = today.year, today.month
+    y = max(2020, min(2036, y))
+    m = max(1, min(12, m))
+
+    if request.method == "POST" and request.POST.get("action") == "generate_period":
+        schools = School.objects.exclude(schema_name="public").order_by("name")
+        created = 0
+        for school in schools:
+            _, was_created = ensure_invoice_for_period(school, y, m)
+            if was_created:
+                created += 1
+        messages.success(
+            request,
+            f"Invoices for {m:02d}/{y}: {created} new; others already existed or were skipped.",
+        )
+        return redirect(f"{reverse('core:superadmin_billing_invoices')}?year={y}&month={m}")
+
+    invoices = (
+        PlatformInvoice.objects.filter(year=y, month=m)
+        .select_related("school", "subscription", "subscription__plan")
+        .prefetch_related(
+            Prefetch(
+                "invoice_payments",
+                queryset=PlatformInvoicePayment.objects.select_related(
+                    "billing_receipt",
+                ).order_by("-paid_on"),
+            )
+        )
+        .order_by("school__name")
+    )
+    rows = []
+    for inv in invoices:
+        paid = total_paid_for_invoice(inv)
+        rows.append(
+            {
+                "invoice": inv,
+                "paid": paid,
+                "remaining": (inv.final_amount - paid).quantize(Decimal("0.01")),
+            }
+        )
+
+    month_choices = [
+        (1, "January"),
+        (2, "February"),
+        (3, "March"),
+        (4, "April"),
+        (5, "May"),
+        (6, "June"),
+        (7, "July"),
+        (8, "August"),
+        (9, "September"),
+        (10, "October"),
+        (11, "November"),
+        (12, "December"),
+    ]
+    return render(
+        request,
+        "superadmin/billing_invoices.html",
+        {
+            "year": y,
+            "month": m,
+            "rows": rows,
+            "month_choices": month_choices,
+            "year_options": range(2020, 2037),
+        },
+    )
+
+
+@superadmin_required
+def superadmin_billing_invoice_pay(request, invoice_id):
+    """Record a payment against an invoice; creates receipt PDF."""
+    inv = get_object_or_404(
+        PlatformInvoice.objects.select_related("school", "subscription"),
+        pk=invoice_id,
+    )
+    paid = total_paid_for_invoice(inv)
+    remaining = (inv.final_amount - paid).quantize(Decimal("0.01"))
+
+    if request.method == "POST":
+        raw_amt = (request.POST.get("amount_paid") or "").strip()
+        try:
+            amount = Decimal(raw_amt)
+        except Exception:
+            amount = Decimal("0")
+        mode = (request.POST.get("payment_mode") or "upi").lower()
+        if mode not in ("upi", "cash", "bank"):
+            mode = "upi"
+        txn = (request.POST.get("transaction_id") or "").strip()
+        if amount <= 0:
+            messages.error(request, "Enter an amount greater than zero.")
+        else:
+            try:
+                record_invoice_payment(
+                    invoice=inv,
+                    amount_paid=amount,
+                    payment_mode=mode,
+                    transaction_id=txn,
+                    user=request.user,
+                )
+                messages.success(request, "Payment recorded. Receipt PDF generated.")
+                return redirect(f"{reverse('core:superadmin_billing_invoices')}?year={inv.year}&month={inv.month}")
+            except ValueError as exc:
+                messages.error(request, str(exc))
+
+    return render(
+        request,
+        "superadmin/billing_invoice_pay.html",
+        {
+            "invoice": inv,
+            "paid_so_far": paid,
+            "remaining": remaining,
+        },
+    )
+
+
+@superadmin_required
+def superadmin_billing_receipt_pdf(request, receipt_id):
+    """Download stored receipt PDF for a platform billing payment."""
+    receipt = get_object_or_404(
+        PlatformBillingReceipt.objects.select_related("payment", "payment__school"),
+        pk=receipt_id,
+    )
+    path = receipt.pdf_url
+    if not path or not default_storage.exists(path):
+        messages.error(request, "Receipt PDF not found. It may still be generating.")
+        inv = receipt.payment.invoice
+        return redirect(f"{reverse('core:superadmin_billing_invoices')}?year={inv.year}&month={inv.month}")
+    with default_storage.open(path, "rb") as fh:
+        data = fh.read()
+    safe_name = f"{receipt.receipt_number}.pdf".replace(" ", "_")
+    return pdf_response(data, safe_name)
+
+
+@superadmin_required
+def superadmin_billing_sales(request):
+    """
+    Sales-ready billing overview: amount due vs collected vs outstanding per school,
+    with period filter and CSV export.
+    """
+    import csv
+
+    from django.http import HttpResponse
+
+    from .platform_billing_sales import build_billing_sales_rows, summarize_billing_sales
+
+    today = date.today()
+    try:
+        y = int(request.GET.get("year", today.year))
+        m = int(request.GET.get("month", today.month))
+    except (TypeError, ValueError):
+        y, m = today.year, today.month
+    y = max(2020, min(2036, y))
+    m = max(1, min(12, m))
+
+    billing_error = False
+    try:
+        rows = build_billing_sales_rows(y, m)
+        summary = summarize_billing_sales(rows)
+    except ProgrammingError:
+        rows = []
+        summary = {
+            "total_monthly_due": Decimal("0"),
+            "total_collected_month": Decimal("0"),
+            "total_outstanding_month": Decimal("0"),
+            "total_advance_month": Decimal("0"),
+            "total_ytd": Decimal("0"),
+            "total_all_time": Decimal("0"),
+            "count_paying_schools": 0,
+            "collection_rate_pct": None,
+        }
+        billing_error = True
+
+    if request.GET.get("export") == "csv":
+        response = HttpResponse(content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = f'attachment; filename="subscription_billing_{y}_{m:02d}.csv"'
+        response.write("\ufeff")
+        w = csv.writer(response)
+        w.writerow(
+            [
+                "Code",
+                "School",
+                "Contact person",
+                "Email",
+                "Phone",
+                "Plan",
+                "Price per student (INR)",
+                "Billing cycle",
+                "Students",
+                "Monthly amount due (INR)",
+                "Status",
+                f"Paid ({m:02d}/{y}) (INR)",
+                "YTD paid (INR)",
+                "All-time paid (INR)",
+                "Outstanding month (INR)",
+                "Advance / overpay (INR)",
+                "Collection % (month)",
+            ]
+        )
+        for r in rows:
+            w.writerow(
+                [
+                    r.code,
+                    r.name,
+                    r.contact_person,
+                    r.contact_email,
+                    r.phone,
+                    r.plan_name,
+                    r.price_per_student if r.price_per_student is not None else "",
+                    r.billing_cycle,
+                    r.student_count,
+                    r.monthly_amount_due,
+                    r.status_label,
+                    r.paid_in_month,
+                    r.paid_ytd,
+                    r.paid_all_time,
+                    r.outstanding_month,
+                    r.advance_month,
+                    r.collection_pct_month if r.collection_pct_month is not None else "",
+                ]
+            )
+        return response
+
+    if m == 1:
+        prev_y, prev_m = y - 1, 12
+    else:
+        prev_y, prev_m = y, m - 1
+    if m == 12:
+        next_y, next_m = y + 1, 1
+    else:
+        next_y, next_m = y, m + 1
+
+    month_label = date(y, m, 1).strftime("%B %Y")
+    year_options = list(range(2020, 2038))
+
+    return render(
+        request,
+        "superadmin/billing_sales.html",
+        {
+            "rows": rows,
+            "summary": summary,
+            "year": y,
+            "month": m,
+            "month_label": month_label,
+            "year_options": year_options,
+            "prev_y": prev_y,
+            "prev_m": prev_m,
+            "next_y": next_y,
+            "next_m": next_m,
+            "billing_error": billing_error,
+        },
+    )
 
 
 # ======================
@@ -248,9 +1049,9 @@ def admin_dashboard(request):
     month_start = today.replace(day=1)
     week_end = today + timedelta(days=7)
 
-    has_fees = has_feature_access(school, "fees")
-    has_attendance = has_feature_access(school, "attendance")
-    has_exams = has_feature_access(school, "exams")
+    has_fees = has_feature_access(school, "fees", user=request.user)
+    has_attendance = has_feature_access(school, "attendance", user=request.user)
+    has_exams = has_feature_access(school, "exams", user=request.user)
 
     total_students = Student.objects.filter(user__school=school).count()
     total_teachers = Teacher.objects.filter(user__school=school).count()
@@ -277,30 +1078,34 @@ def admin_dashboard(request):
     fee_month_amt = 0.0
     pending_fees = 0.0
     if has_fees:
+        # Nested atomic = savepoint: if a query fails (e.g. schema drift), PostgreSQL
+        # would otherwise abort the whole request transaction (ATOMIC_REQUESTS=True).
         try:
-            fee_today_amt = float(
-                Payment.objects.filter(
-                    payment_date=today,
-                    fee__student__user__school=school,
-                ).aggregate(s=Sum("amount"))["s"]
-                or 0
-            )
-            fee_month_amt = float(
-                Payment.objects.filter(
-                    payment_date__gte=month_start,
-                    payment_date__lte=today,
-                    fee__student__user__school=school,
-                ).aggregate(s=Sum("amount"))["s"]
-                or 0
-            )
-            for fee in Fee.objects.filter(
-                status__in=["PENDING", "PARTIAL"],
-                student__user__school=school,
-            ).prefetch_related("payments"):
-                paid = sum(float(p.amount) for p in fee.payments.all())
-                pending_fees += float(fee.amount) - paid
+            with transaction.atomic():
+                fee_today_amt = float(
+                    Payment.objects.filter(
+                        payment_date=today,
+                        fee__student__user__school=school,
+                    ).aggregate(s=Sum("amount"))["s"]
+                    or 0
+                )
+                fee_month_amt = float(
+                    Payment.objects.filter(
+                        payment_date__gte=month_start,
+                        payment_date__lte=today,
+                        fee__student__user__school=school,
+                    ).aggregate(s=Sum("amount"))["s"]
+                    or 0
+                )
+                for fee in Fee.objects.filter(
+                    status__in=["PENDING", "PARTIAL"],
+                    student__user__school=school,
+                ).prefetch_related("payments"):
+                    paid = sum(float(p.amount) for p in fee.payments.all())
+                    pending_fees += float(fee.amount) - paid
         except Exception:
-            pass
+            fee_today_amt = fee_month_amt = 0.0
+            pending_fees = 0.0
 
     upcoming_exams = []
     if has_exams:
@@ -433,9 +1238,17 @@ def admin_dashboard(request):
         show_attendance_trend = False
 
     from apps.customers.subscription import PLAN_FEATURES
-    plan = school.plan
-    plan_name = (plan.name if plan else "").lower() or "basic"
-    plan_features = PLAN_FEATURES.get(plan_name, [])
+
+    saas = school.saas_plan
+    if saas:
+        current_plan = saas
+        plan_name = (saas.name or "").lower()
+        plan_features = list(saas.features.values_list("code", flat=True))
+    else:
+        sub = school.plan
+        plan_name = (sub.name if sub else "").lower() or "basic"
+        plan_features = PLAN_FEATURES.get(plan_name, [])
+        current_plan = sub
 
     return render(
         request,
@@ -468,7 +1281,7 @@ def admin_dashboard(request):
             "show_class_chart": show_class_chart,
             "show_attendance_trend": show_attendance_trend,
             "today_iso": today.isoformat(),
-            "current_plan": plan,
+            "current_plan": current_plan,
             "plan_name": plan_name,
             "plan_features": plan_features,
             "trial_expired": school.is_trial_expired(),
@@ -480,29 +1293,169 @@ def admin_dashboard(request):
 # Teacher Dashboard
 # ======================
 
+
+def _homework_queryset_for_teacher(teacher, user):
+    """
+    Homework visible to a teacher: created/assigned to them, admin assignments
+    matching any of their (class, section) teaching pairs, or legacy rows for
+    subjects they teach anywhere in the school.
+    """
+    if not teacher:
+        return Homework.objects.none()
+
+    q = Q(teacher_id=teacher.pk) | Q(assigned_by_id=user.pk)
+
+    pairs = list(
+        ClassSectionSubjectTeacher.objects.filter(teacher=teacher)
+        .values_list("class_obj_id", "section_id")
+        .distinct()
+    )
+    for cid, sid in pairs:
+        q |= Q(classes__id=cid, sections__id=sid)
+
+    subj_ids = list(
+        ClassSectionSubjectTeacher.objects.filter(teacher=teacher)
+        .values_list("subject_id", flat=True)
+        .distinct()
+    )
+    if subj_ids:
+        q |= Q(subject_id__in=subj_ids)
+
+    return (
+        Homework.objects.filter(q)
+        .distinct()
+        .select_related("subject", "assigned_by", "teacher", "teacher__user")
+        .prefetch_related("classes", "sections")
+        .order_by("-due_date", "-created_at")
+    )
+
+
+def _teacher_assigned_subject_display(teacher):
+    """
+    Dashboard KPI: align with admin teacher list — use profile subjects, legacy
+    subject FK, ClassSectionSubjectTeacher rows, then classroom M2M. Admins often
+    assign only classes or only CSST rows, leaving subjects M2M empty; the old
+    logic only read subjects M2M and showed 'Not assigned' incorrectly.
+    """
+    if not teacher:
+        return "Not assigned"
+    names = []
+    seen = set()
+    for s in teacher.subjects.all().order_by("name"):
+        if s.id not in seen:
+            seen.add(s.id)
+            names.append(s.name)
+    if getattr(teacher, "subject_id", None) and teacher.subject_id not in seen and teacher.subject:
+        seen.add(teacher.subject_id)
+        names.append(teacher.subject.name)
+    mappings = list(teacher.class_section_subject_teacher_mappings.all())
+    mappings.sort(
+        key=lambda r: (
+            (r.subject.name or "").lower(),
+            (r.class_obj.name if r.class_obj else "") or "",
+        )
+    )
+    for row in mappings:
+        if row.subject_id not in seen:
+            seen.add(row.subject_id)
+            names.append(row.subject.name)
+    if names:
+        return ", ".join(names)
+    classrooms = list(teacher.classrooms.all().order_by("name"))
+    if classrooms:
+        return "Classes: " + ", ".join(c.name for c in classrooms)
+    return "Not assigned"
+
+
 @teacher_required
 def teacher_dashboard(request):
     teacher = getattr(request.user, "teacher_profile", None)
+    if teacher:
+        teacher = (
+            Teacher.objects.filter(pk=teacher.pk)
+            .select_related("subject", "user")
+            .prefetch_related(
+                "subjects",
+                "classrooms",
+                Prefetch(
+                    "class_section_subject_teacher_mappings",
+                    queryset=ClassSectionSubjectTeacher.objects.select_related(
+                        "subject", "class_obj", "section"
+                    ),
+                ),
+            )
+            .first()
+        )
+    school = getattr(request.user, "school", None)
     assigned_subject = None
     if teacher:
         assigned_subject = teacher.subjects.first() or teacher.subject
+        if assigned_subject is None:
+            first_csst = (
+                ClassSectionSubjectTeacher.objects.filter(teacher=teacher)
+                .select_related("subject")
+                .order_by("subject__name")
+                .first()
+            )
+            if first_csst:
+                assigned_subject = first_csst.subject
+
+    has_exams = bool(school and teacher and has_feature_access(school, "exams", user=request.user))
+    upcoming_exams = []
+    upcoming_exams_count = 0
+    if has_exams and teacher:
+        today = date.today()
+        uq = (
+            Exam.objects.filter(_teacher_visible_exam_q(teacher))
+            .filter(date__gte=today)
+            .select_related("session", "subject", "teacher__user")
+            .order_by("date", "subject__name")
+        )
+        upcoming_exams_count = uq.count()
+        upcoming_exams = list(uq[:8])
+
+    has_timetable = bool(school and has_feature_access(school, "timetable", user=request.user))
     today_schedule = []
-    try:
-        from apps.timetable.views import today_schedule_teacher
-        today_schedule = today_schedule_teacher(teacher) if teacher else []
-    except Exception:
-        pass
-    assigned_subject_display = assigned_subject.name if assigned_subject else "Not assigned"
-    return render(request, "core/dashboards/teacher_dashboard.html", {
-        "assigned_subject": assigned_subject,
-        "assigned_subject_display": assigned_subject_display,
-        "today_schedule": today_schedule,
-    })
+    if teacher and has_timetable:
+        try:
+            from apps.timetable.views import today_schedule_teacher
+
+            today_schedule = today_schedule_teacher(teacher)
+        except Exception:
+            today_schedule = []
+
+    has_homework_feature = bool(school and has_feature_access(school, "homework", user=request.user))
+    homework_recent = []
+    homework_total = 0
+    if teacher and has_homework_feature:
+        qs = _homework_queryset_for_teacher(teacher, request.user)
+        homework_total = qs.count()
+        homework_recent = list(qs[:8])
+
+    assigned_subject_display = _teacher_assigned_subject_display(teacher)
+    return render(
+        request,
+        "core/dashboards/teacher_dashboard.html",
+        {
+            "assigned_subject": assigned_subject,
+            "assigned_subject_display": assigned_subject_display,
+            "today_schedule": today_schedule,
+            "today_schedule_count": len(today_schedule),
+            "has_timetable": has_timetable,
+            "has_homework_feature": has_homework_feature,
+            "homework_recent": homework_recent,
+            "homework_total": homework_total,
+            "has_exams": has_exams,
+            "upcoming_exams": upcoming_exams,
+            "upcoming_exams_count": upcoming_exams_count,
+        },
+    )
 
 
 # ======================
 # Student Dashboard
 # ======================
+
 
 @student_required
 def student_dashboard(request):
@@ -1015,8 +1968,8 @@ def _build_querystring_without_page(querydict) -> str:
 
 @student_required
 def student_attendance(request):
-    if not has_feature_access(getattr(request.user, "school", None), "attendance"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+    if not has_feature_access(getattr(request.user, "school", None), "attendance", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
     student = getattr(request.user, "student_profile", None)
     if not student:
         return render(request, "core/student/attendance.html", {
@@ -1278,37 +2231,106 @@ def student_attendance(request):
 
 def _student_exam_summaries(student):
     """
-    Build summary list of exams for a given student.
-
-    Returns list of dicts with keys:
-    exam, exam_id, exam_name, exam_date, total_subjects, overall_pct, grade.
+    Build summary list for the student: one row per exam *session* (all subjects aggregated),
+    plus one row per legacy standalone exam paper (no session).
     """
     exams = []
-    # New Exam-based marks
-    exam_marks = Marks.objects.filter(student=student, exam__isnull=False).select_related("exam", "subject")
-    by_exam = {}
+    exam_marks = (
+        Marks.objects.filter(student=student, exam__isnull=False)
+        .select_related("exam", "exam__session", "subject")
+    )
+    by_session = {}
+    standalone_by_exam = {}
     for m in exam_marks:
-        eid = m.exam_id
-        if eid not in by_exam:
-            by_exam[eid] = {"exam": m.exam, "marks": []}
-        by_exam[eid]["marks"].append(m)
-    for eid, data in by_exam.items():
+        ex = m.exam
+        if ex.session_id:
+            sid = ex.session_id
+            if sid not in by_session:
+                by_session[sid] = {"session": ex.session, "marks": []}
+            by_session[sid]["marks"].append(m)
+        else:
+            eid = ex.id
+            if eid not in standalone_by_exam:
+                standalone_by_exam[eid] = {"exam": ex, "marks": []}
+            standalone_by_exam[eid]["marks"].append(m)
+
+    for sid, data in by_session.items():
         marks = data["marks"]
+        sess = data["session"]
+        total_o = sum(x.marks_obtained for x in marks)
+        total_m = sum(x.total_marks for x in marks)
+        pct = round((total_o / total_m * 100) if total_m else 0, 1)
+        paper_dates = [x.exam.date for x in marks if x.exam and x.exam.date]
+        dmin = min(paper_dates) if paper_dates else None
+        dmax = max(paper_dates) if paper_dates else None
+        exams.append({
+            "is_session": True,
+            "session_id": sid,
+            "session": sess,
+            "exam": None,
+            "exam_id": None,
+            "exam_name": sess.name,
+            "exam_date": dmax or dmin,
+            "date_min": dmin,
+            "date_max": dmax,
+            "total_subjects": len({x.subject_id for x in marks}),
+            "overall_pct": pct,
+            "grade": _grade_from_pct(pct),
+            "has_marks": total_m > 0,
+        })
+
+    for eid, data in standalone_by_exam.items():
+        marks = data["marks"]
+        ex = data["exam"]
         total_o = sum(x.marks_obtained for x in marks)
         total_m = sum(x.total_marks for x in marks)
         pct = round((total_o / total_m * 100) if total_m else 0, 1)
         exams.append({
-            "exam": data["exam"],
+            "is_session": False,
+            "session_id": None,
+            "session": None,
+            "exam": ex,
             "exam_id": eid,
-            "exam_name": data["exam"].name,
-            "exam_date": data["exam"].date,
+            "exam_name": ex.name,
+            "exam_date": ex.date,
+            "date_min": ex.date,
+            "date_max": ex.date,
             "total_subjects": len(marks),
             "overall_pct": pct,
             "grade": _grade_from_pct(pct),
+            "has_marks": total_m > 0,
         })
 
-    # Sort by date desc
-    exams.sort(key=lambda e: (e["exam_date"] or date.min), reverse=True)
+    # Scheduled exam sessions for this class–section (no marks yet)
+    if student.classroom and student.section:
+        cn = student.classroom.name
+        sn = student.section.name
+        from_marks_session_ids = {e["session_id"] for e in exams if e.get("is_session") and e.get("session_id")}
+        scheduled = ExamSession.objects.filter(class_name__iexact=cn, section__iexact=sn).annotate(
+            paper_count=Count("papers", distinct=True),
+            dmin=Min("papers__date"),
+            dmax=Max("papers__date"),
+        ).filter(paper_count__gt=0)
+        if from_marks_session_ids:
+            scheduled = scheduled.exclude(id__in=from_marks_session_ids)
+        for sess in scheduled:
+            exams.append({
+                "is_session": True,
+                "session_id": sess.id,
+                "session": sess,
+                "exam": None,
+                "exam_id": None,
+                "exam_name": sess.name,
+                "exam_date": sess.dmax or sess.dmin,
+                "date_min": sess.dmin,
+                "date_max": sess.dmax,
+                "total_subjects": sess.paper_count,
+                "overall_pct": None,
+                "grade": "—",
+                "has_marks": False,
+            })
+
+    exams.sort(key=lambda e: e["exam_date"] or date.min, reverse=True)
     return exams
 
 
@@ -1318,8 +2340,8 @@ def student_marks(request):
     Flat results table: Exam | Subject | Marks | Total | % — only for logged-in student.
     """
     school = getattr(request.user, "school", None)
-    if not has_feature_access(school, "exams"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+    if not has_feature_access(school, "exams", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
     student = getattr(request.user, "student_profile", None)
     if not student:
         return render(
@@ -1339,6 +2361,12 @@ def student_marks(request):
         pct = round((obtained / total * 100) if total else 0, 1)
         exam_name = m.exam.name if m.exam else (m.exam_name or "—")
         exam_date = m.exam.date if m.exam else m.exam_date
+        if m.exam_id and m.exam and getattr(m.exam, "session_id", None):
+            detail_url = reverse("core:student_exam_session_detail", args=[m.exam.session_id])
+        elif m.exam_id:
+            detail_url = reverse("core:student_exam_detail_by_id", args=[m.exam_id])
+        else:
+            detail_url = None
         mark_rows.append({
             "exam_id": m.exam_id,
             "exam_name": exam_name,
@@ -1348,11 +2376,7 @@ def student_marks(request):
             "total_marks": total,
             "pct": pct,
             "grade": _grade_from_pct(pct),
-            "detail_url": (
-                reverse("core:student_exam_detail_by_id", args=[m.exam_id])
-                if m.exam_id
-                else None
-            ),
+            "detail_url": detail_url,
         })
     return render(
         request,
@@ -1366,8 +2390,8 @@ def student_marks(request):
 
 @student_required
 def student_exams_list(request):
-    if not has_feature_access(getattr(request.user, "school", None), "exams"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+    if not has_feature_access(getattr(request.user, "school", None), "exams", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
     student = getattr(request.user, "student_profile", None)
     if not student:
         return render(request, "core/student/exams_list.html", {"exams": []})
@@ -1376,14 +2400,80 @@ def student_exams_list(request):
 
 
 @student_required
+def student_exam_session_detail(request, session_id):
+    """Student: schedule + marks for all papers under one exam session."""
+    if not has_feature_access(getattr(request.user, "school", None), "exams", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
+    student = getattr(request.user, "student_profile", None)
+    if not student or not student.classroom or not student.section:
+        raise PermissionDenied
+    session_obj = get_object_or_404(
+        ExamSession.objects.select_related("classroom", "created_by"),
+        pk=session_id,
+    )
+    if (
+        student.classroom.name != session_obj.class_name
+        or student.section.name != session_obj.section
+    ):
+        raise PermissionDenied
+
+    papers = list(
+        _exam_papers_full_qs()
+        .filter(session=session_obj)
+        .order_by("date", "subject__name")
+    )
+    marks_by_exam_id = {
+        m.exam_id: m
+        for m in Marks.objects.filter(student=student, exam__session=session_obj).select_related(
+            "subject", "exam"
+        )
+    }
+    schedule_rows = []
+    total_o = total_m = 0
+    for p in papers:
+        mk = marks_by_exam_id.get(p.id)
+        if mk:
+            total_o += mk.marks_obtained
+            total_m += mk.total_marks
+        pct = (
+            round((mk.marks_obtained / mk.total_marks * 100), 1)
+            if mk and mk.total_marks
+            else None
+        )
+        schedule_rows.append({
+            "paper": p,
+            "subject": p.subject.name if p.subject else "—",
+            "date": p.date,
+            "start_time": p.start_time,
+            "end_time": p.end_time,
+            "mark": mk,
+            "pct": pct,
+            "grade": _grade_from_pct(pct) if pct is not None else "—",
+        })
+    overall_pct = round((total_o / total_m * 100), 1) if total_m else None
+    return render(
+        request,
+        "core/student/exam_session_detail.html",
+        {
+            "session": session_obj,
+            "schedule_rows": schedule_rows,
+            "overall_pct": overall_pct,
+            "grade": _grade_from_pct(overall_pct) if overall_pct is not None else "—",
+        },
+    )
+
+
+@student_required
 def student_exam_detail_by_id(request, exam_id):
-    """Detail for Exam FK-based marks."""
-    if not has_feature_access(getattr(request.user, "school", None), "exams"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+    """Detail for a single exam paper (legacy). Session-based papers redirect to session view."""
+    if not has_feature_access(getattr(request.user, "school", None), "exams", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
     student = getattr(request.user, "student_profile", None)
     if not student:
         raise PermissionDenied
     exam = get_object_or_404(_exam_read_qs(), pk=exam_id)
+    if exam.session_id:
+        return redirect("core:student_exam_session_detail", session_id=exam.session_id)
     # Student must be in the exam's class+section
     if not student.classroom or not student.section:
         raise PermissionDenied
@@ -1422,8 +2512,8 @@ def student_exam_detail_by_id(request, exam_id):
 @student_required
 def student_exam_detail(request, exam_name):
     """Detail for legacy exam_name-based marks."""
-    if not has_feature_access(getattr(request.user, "school", None), "exams"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+    if not has_feature_access(getattr(request.user, "school", None), "exams", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
     student = getattr(request.user, "student_profile", None)
     if not student:
         raise PermissionDenied
@@ -1464,8 +2554,8 @@ def student_reports(request):
     """
     Student Reports dashboard: exam summaries, attendance summary, performance summary.
     """
-    if not has_feature_access(getattr(request.user, "school", None), "reports"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+    if not has_feature_access(getattr(request.user, "school", None), "reports", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
     student = getattr(request.user, "student_profile", None)
     if not student:
         raise PermissionDenied
@@ -1553,12 +2643,33 @@ def student_reports(request):
     return render(request, "core/student/reports.html", context)
 
 
-def _student_report_card_context(student, exam):
-    marks_qs = Marks.objects.filter(student=student, exam=exam).select_related("subject")
+def _teacher_display_name(teacher):
+    if not teacher or not getattr(teacher, "user", None):
+        return "—"
+    return teacher.user.get_full_name() or teacher.user.username or "—"
+
+
+def _student_report_card_context(student, exam=None, session=None):
+    """
+    Build report card context for one exam paper or a whole exam session (multi-subject).
+    Pass exactly one of exam= or session=.
+    """
+    if (exam is None) == (session is None):
+        raise ValueError("Provide exactly one of exam= or session=")
+    if session is not None:
+        return _student_report_card_context_for_session(student, session)
+    return _student_report_card_context_for_exam(student, exam)
+
+
+def _student_report_card_context_for_exam(student, exam):
+    marks_qs = Marks.objects.filter(student=student, exam=exam).select_related(
+        "subject", "exam", "exam__teacher__user"
+    )
     marks_list = list(marks_qs)
     if not marks_list:
         raise Http404
 
+    teacher_name = _teacher_display_name(getattr(exam, "teacher", None))
     rows = []
     total_obtained = 0
     total_max = 0
@@ -1568,11 +2679,13 @@ def _student_report_card_context(student, exam):
         total_max += m.total_marks
         rows.append(
             {
-                "subject": m.subject.name,
+                "subject": m.subject.name if m.subject else "—",
                 "marks_obtained": m.marks_obtained,
                 "total_marks": m.total_marks,
                 "pct": pct,
                 "grade": _grade_from_pct(pct),
+                "teacher_name": teacher_name,
+                "paper_date": exam.date,
             }
         )
     overall_pct = round((total_obtained / total_max * 100) if total_max else 0, 1)
@@ -1584,26 +2697,19 @@ def _student_report_card_context(student, exam):
     attendance_pct = round((present_att_days / total_att_days * 100) if total_att_days else 0, 1)
 
     school = student.user.school
-    academic_year = f"{exam.date.year}-{exam.date.year + 1}" if exam.date else ""
+    ref_date = exam.date
+    academic_year = f"{ref_date.year}-{ref_date.year + 1}" if ref_date else ""
 
-    ai_remarks = ""
-    if school and school.has_feature("ai_marksheet_summaries") and rows:
-        sorted_rows = sorted(rows, key=lambda r: r["pct"])
-        strongest = sorted_rows[-1]
-        weakest = sorted_rows[0]
-        parts = []
-        if strongest["pct"] >= 80:
-            parts.append(f"excellent performance in {strongest['subject']}")
-        elif strongest["pct"] >= 60:
-            parts.append(f"good performance in {strongest['subject']}")
-        if weakest["pct"] < 50 and weakest["subject"] != strongest["subject"]:
-            parts.append(f"needs improvement in {weakest['subject']}")
-        ai_remarks = "Student shows " + " but ".join(parts) + "." if parts else ""
+    ai_remarks = _report_card_ai_remarks(school, rows)
 
     return {
         "school": school,
         "student": student,
         "exam": exam,
+        "session": None,
+        "is_session": False,
+        "report_title": exam.name,
+        "exam_date_display": ref_date,
         "academic_year": academic_year,
         "rows": rows,
         "ai_remarks": ai_remarks,
@@ -1614,7 +2720,125 @@ def _student_report_card_context(student, exam):
         "attendance_pct": attendance_pct,
         "present_att_days": present_att_days,
         "total_att_days": total_att_days,
+        "today": timezone.localdate(),
     }
+
+
+def _student_report_card_context_for_session(student, session_obj):
+    papers = list(
+        _exam_papers_full_qs()
+        .filter(session=session_obj)
+        .order_by("date", "subject__name")
+    )
+    if not papers:
+        raise Http404
+
+    marks_by = {
+        m.exam_id: m
+        for m in Marks.objects.filter(student=student, exam__session=session_obj).select_related(
+            "subject", "exam", "exam__teacher__user"
+        )
+    }
+
+    rows = []
+    total_obtained = 0
+    total_max = 0
+    dates = [p.date for p in papers if p.date]
+    for p in papers:
+        mk = marks_by.get(p.id)
+        default_total = p.total_marks if getattr(p, "total_marks", None) else 100
+        tname = _teacher_display_name(getattr(p, "teacher", None))
+        if mk:
+            pct = round((mk.marks_obtained / mk.total_marks * 100) if mk.total_marks else 0, 1)
+            total_obtained += mk.marks_obtained
+            total_max += mk.total_marks
+            rows.append(
+                {
+                    "subject": p.subject.name if p.subject else p.name,
+                    "marks_obtained": mk.marks_obtained,
+                    "total_marks": mk.total_marks,
+                    "pct": pct,
+                    "grade": _grade_from_pct(pct),
+                    "teacher_name": tname,
+                    "paper_date": p.date,
+                }
+            )
+        else:
+            rows.append(
+                {
+                    "subject": p.subject.name if p.subject else p.name,
+                    "marks_obtained": None,
+                    "total_marks": default_total,
+                    "pct": None,
+                    "grade": "—",
+                    "teacher_name": tname,
+                    "paper_date": p.date,
+                }
+            )
+
+    overall_pct = round((total_obtained / total_max * 100), 1) if total_max else None
+    overall_grade = _grade_from_pct(overall_pct) if overall_pct is not None else "—"
+
+    att_qs = Attendance.objects.filter(student=student)
+    total_att_days = att_qs.count()
+    present_att_days = att_qs.filter(status=Attendance.Status.PRESENT).count()
+    attendance_pct = round((present_att_days / total_att_days * 100) if total_att_days else 0, 1)
+
+    school = student.user.school
+    dmin, dmax = (min(dates), max(dates)) if dates else (None, None)
+    if dmin and dmax:
+        academic_year = f"{dmin.year}-{dmin.year + 1}"
+        if dmin == dmax:
+            exam_date_display = dmin
+        else:
+            exam_date_display = None
+            exam_date_range = (dmin, dmax)
+    else:
+        academic_year = ""
+        exam_date_display = None
+        exam_date_range = None
+
+    ai_rows = [r for r in rows if r["pct"] is not None]
+    ai_remarks = _report_card_ai_remarks(school, ai_rows)
+
+    ctx = {
+        "school": school,
+        "student": student,
+        "exam": None,
+        "session": session_obj,
+        "is_session": True,
+        "report_title": session_obj.name,
+        "exam_date_display": exam_date_display,
+        "exam_date_range": exam_date_range,
+        "academic_year": academic_year,
+        "rows": rows,
+        "ai_remarks": ai_remarks,
+        "total_obtained": total_obtained,
+        "total_max": total_max,
+        "overall_pct": overall_pct,
+        "overall_grade": overall_grade,
+        "attendance_pct": attendance_pct,
+        "present_att_days": present_att_days,
+        "total_att_days": total_att_days,
+        "today": timezone.localdate(),
+    }
+    return ctx
+
+
+def _report_card_ai_remarks(school, rows):
+    if not school or not school.has_feature("ai_marksheet_summaries") or not rows:
+        return ""
+    sorted_rows = sorted(rows, key=lambda r: r["pct"])
+    strongest = sorted_rows[-1]
+    weakest = sorted_rows[0]
+    parts = []
+    if strongest["pct"] >= 80:
+        parts.append(f"excellent performance in {strongest['subject']}")
+    elif strongest["pct"] >= 60:
+        parts.append(f"good performance in {strongest['subject']}")
+    if weakest["pct"] < 50 and weakest["subject"] != strongest["subject"]:
+        parts.append(f"needs improvement in {weakest['subject']}")
+    return "Student shows " + " but ".join(parts) + "." if parts else ""
 
 
 def _student_cumulative_context(student, exam_id=""):
@@ -1751,7 +2975,31 @@ def student_report_card_view(request, exam_id):
         raise PermissionDenied
     if student.classroom.name != exam.class_name or student.section.name != exam.section:
         raise PermissionDenied
-    context = _student_report_card_context(student, exam)
+    if exam.session_id:
+        return redirect("core:student_report_card_session_view", session_id=exam.session_id)
+    context = _student_report_card_context(student, exam=exam)
+    return render(request, "core/student/report_card_view.html", context)
+
+
+@student_required
+@feature_required("reports")
+def student_report_card_session_view(request, session_id):
+    """Report card for all subject papers under one exam session."""
+    student = getattr(request.user, "student_profile", None)
+    if not student:
+        raise PermissionDenied
+    session_obj = get_object_or_404(
+        ExamSession.objects.select_related("classroom", "created_by"),
+        pk=session_id,
+    )
+    if not student.classroom or not student.section:
+        raise PermissionDenied
+    if (
+        student.classroom.name != session_obj.class_name
+        or student.section.name != session_obj.section
+    ):
+        raise PermissionDenied
+    context = _student_report_card_context(student, session=session_obj)
     return render(request, "core/student/report_card_view.html", context)
 
 
@@ -1787,7 +3035,10 @@ def student_attendance_report_view(request):
 def student_report_card_pdf(request, exam_id):
     """
     Generate PDF report card for a specific exam for the logged-in student.
+    Session-based papers redirect to the session PDF (all subjects on one card).
     """
+    from django.utils.text import slugify
+
     from .pdf_utils import render_pdf_bytes, pdf_response
 
     student = getattr(request.user, "student_profile", None)
@@ -1798,12 +3049,40 @@ def student_report_card_pdf(request, exam_id):
         raise PermissionDenied
     if student.classroom.name != exam.class_name or student.section.name != exam.section:
         raise PermissionDenied
-    context = _student_report_card_context(student, exam)
+    if exam.session_id:
+        return redirect("core:student_report_card_session_pdf", session_id=exam.session_id)
+    context = _student_report_card_context(student, exam=exam)
 
     pdf = render_pdf_bytes("core/student/report_card_pdf.html", context)
     if pdf is None:
         return redirect("core:student_reports")
-    filename = f"report-card-{exam.name.replace(' ', '-')}.pdf"
+    filename = f"report-card-{slugify(exam.name)}.pdf"
+    return pdf_response(pdf, filename)
+
+
+@student_required
+@feature_required("reports")
+def student_report_card_session_pdf(request, session_id):
+    from django.utils.text import slugify
+
+    from .pdf_utils import render_pdf_bytes, pdf_response
+
+    student = getattr(request.user, "student_profile", None)
+    if not student:
+        raise PermissionDenied
+    session_obj = get_object_or_404(ExamSession.objects.all(), pk=session_id)
+    if not student.classroom or not student.section:
+        raise PermissionDenied
+    if (
+        student.classroom.name != session_obj.class_name
+        or student.section.name != session_obj.section
+    ):
+        raise PermissionDenied
+    context = _student_report_card_context(student, session=session_obj)
+    pdf = render_pdf_bytes("core/student/report_card_pdf.html", context)
+    if pdf is None:
+        return redirect("core:student_reports")
+    filename = f"report-card-{slugify(session_obj.name)}.pdf"
     return pdf_response(pdf, filename)
 
 
@@ -1860,70 +3139,274 @@ def student_cumulative_report_pdf(request):
 @admin_required
 @feature_required("students")
 def school_students_list(request):
-    """List students with filters and pagination."""
+    """List students (master details only) with filters and pagination."""
     school = request.user.school
     if not school:
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:admin_dashboard")
-    qs = (
-        Student.objects.all()
-        .select_related("user", "classroom", "section")
-        .defer("academic_year")
-    )
-    # Filters
-    classroom_id = request.GET.get("classroom")
-    if classroom_id:
-        qs = qs.filter(classroom_id=classroom_id)
-    section_id = request.GET.get("section")
-    if section_id:
-        qs = qs.filter(section_id=section_id)
-    search = request.GET.get("q", "").strip()
-    if search:
-        qs = qs.filter(
-            Q(user__first_name__icontains=search) |
-            Q(user__last_name__icontains=search) |
-            Q(user__username__icontains=search)
-        )
     from django.core.paginator import Paginator
-    paginator = Paginator(qs.order_by("classroom", "section", "roll_number"), 25)
+    from django.db.models import Count
+    from django.http import HttpResponse
+    from django.utils import timezone
+    import csv
+
+    from apps.school_data.models import Attendance, AcademicYear
+
+    # Build an optimized queryset based on actual model relations.
+    # Some deployments may not have a direct Student->ClassRoom FK named `classroom`;
+    # in that case we fall back to Section->ClassRoom (section__classroom) and expose
+    # a runtime `student.classroom` attribute for template compatibility.
+    select_related_fields = ["user", "section", "academic_year"]
+    classroom_source = None  # "student" | "section" | None
+
+    def _student_field(name: str):
+        try:
+            return Student._meta.get_field(name)
+        except Exception:
+            return None
+
+    classroom_field = _student_field("classroom")
+    if classroom_field and getattr(classroom_field, "is_relation", False) and (
+        getattr(classroom_field, "many_to_one", False) or getattr(classroom_field, "one_to_one", False)
+    ):
+        select_related_fields.append("classroom")
+        classroom_source = "student"
+    else:
+        # Fallback: Section.classroom if it exists and is FK/O2O
+        try:
+            sec_classroom_field = Section._meta.get_field("classroom")
+            if getattr(sec_classroom_field, "many_to_one", False) or getattr(sec_classroom_field, "one_to_one", False):
+                select_related_fields.append("section__classroom")
+                classroom_source = "section"
+        except Exception:
+            pass
+
+    base_qs = Student.objects.all().select_related(*select_related_fields)
+
+    # -------------------
+    # Top summary cards
+    # -------------------
+    today = timezone.localdate()
+    month_start = today.replace(day=1)
+
+    total_students = base_qs.count()
+    active_students = base_qs.filter(user__is_active=True).count()
+    withdrawn_students = base_qs.filter(user__is_active=False).count()
+
+    present_today = Attendance.objects.filter(date=today, status=Attendance.Status.PRESENT).values("student_id").distinct().count()
+    absent_today = Attendance.objects.filter(date=today, status=Attendance.Status.ABSENT).values("student_id").distinct().count()
+
+    new_admissions_month = base_qs.filter(user__date_joined__date__gte=month_start).count()
+
+    gender_counts = (
+        base_qs.values("gender")
+        .annotate(c=Count("id"))
+    )
+    gender_map = {row["gender"] or "": row["c"] for row in gender_counts}
+
+    stats = {
+        "total": total_students,
+        "active": active_students,
+        "present_today": present_today,
+        "absent_today": absent_today,
+        "new_admissions_month": new_admissions_month,
+        "withdrawn": withdrawn_students,
+        "boys": gender_map.get("M", 0),
+        "girls": gender_map.get("F", 0),
+        "other_gender": gender_map.get("O", 0),
+    }
+
+    # -------------------
+    # Filters (GET)
+    # -------------------
+    q = (request.GET.get("q") or "").strip()
+    admission = (request.GET.get("admission") or "").strip()
+    roll = (request.GET.get("roll") or "").strip()
+    classroom_id = (request.GET.get("classroom") or "").strip()
+    section_id = (request.GET.get("section") or "").strip()
+    academic_year_id = (request.GET.get("year") or "").strip()
+    gender = (request.GET.get("gender") or "").strip()
+    status = (request.GET.get("status") or "").strip().lower()  # active/inactive
+    branch = (request.GET.get("branch") or "").strip()
+    per_page_raw = (request.GET.get("per_page") or "").strip()
+
+    qs = base_qs
+    if q:
+        qs = qs.filter(
+            Q(user__first_name__icontains=q)
+            | Q(user__last_name__icontains=q)
+            | Q(user__username__icontains=q)
+        )
+    if admission:
+        qs = qs.filter(admission_number__icontains=admission)
+    if roll:
+        qs = qs.filter(roll_number__icontains=roll)
+    if classroom_id.isdigit():
+        cid = int(classroom_id)
+        if classroom_source == "student":
+            qs = qs.filter(classroom_id=cid)
+        elif classroom_source == "section":
+            qs = qs.filter(section__classroom_id=cid)
+        else:
+            # No known classroom relation; ignore this filter safely.
+            pass
+    if section_id.isdigit():
+        qs = qs.filter(section_id=int(section_id))
+    if academic_year_id.isdigit():
+        qs = qs.filter(academic_year_id=int(academic_year_id))
+    if gender in {"M", "F", "O"}:
+        qs = qs.filter(gender=gender)
+    if status == "active":
+        qs = qs.filter(user__is_active=True)
+    elif status == "inactive":
+        qs = qs.filter(user__is_active=False)
+    qs = qs.distinct()
+
+    # Export CSV (filtered set)
+    export = (request.GET.get("export") or "").strip().lower()
+    # Ordering
+    if classroom_source == "student":
+        order_by = ("classroom__name", "section__name", "roll_number")
+    elif classroom_source == "section":
+        order_by = ("section__classroom__name", "section__name", "roll_number")
+    else:
+        order_by = ("section__name", "roll_number")
+
+    if export == "csv":
+        resp = HttpResponse(content_type="text/csv")
+        resp["Content-Disposition"] = "attachment; filename=students.csv"
+        w = csv.writer(resp)
+        w.writerow(["Admission No", "Roll No", "Student Name", "Gender", "Class", "Section", "Parent Name", "Parent Phone", "Admission Date", "Status"])
+        for s in qs.order_by(*order_by):
+            if classroom_source == "section" and getattr(s, "classroom", None) is None and getattr(s, "section", None):
+                try:
+                    s.classroom = s.section.classroom
+                except Exception:
+                    pass
+            extra = getattr(s, "extra_data", {}) or {}
+            adm_date = (
+                (extra.get("academic", {}) or {}).get("admission_date")
+                or ""
+            )
+            w.writerow([
+                s.admission_number or "",
+                s.roll_number or "",
+                (s.user.get_full_name() or s.user.username),
+                (s.get_gender_display() if getattr(s, "gender", "") else ""),
+                str(getattr(s, "classroom", None) or ""),
+                (s.section.name if s.section else ""),
+                s.parent_name or "",
+                s.parent_phone or "",
+                adm_date,
+                ("Active" if s.user.is_active else "Inactive"),
+            ])
+        return resp
+
+    # Pagination: default 20, allow user to choose common sizes.
+    per_page = 20
+    if per_page_raw.isdigit():
+        per_page = int(per_page_raw)
+    if per_page not in {10, 20, 50, 100}:
+        per_page = 20
+
+    paginator = Paginator(qs.order_by(*order_by), per_page)
     page = request.GET.get("page", 1)
     students = paginator.get_page(page)
-    classrooms = ClassRoom.objects.select_related("academic_year").order_by("academic_year", "name")
+
+    for s in students.object_list:
+        if classroom_source == "section" and getattr(s, "classroom", None) is None and getattr(s, "section", None):
+            try:
+                s.classroom = s.section.classroom
+            except Exception:
+                pass
+        extra = getattr(s, "extra_data", {}) or {}
+        s.admission_date_display = (
+            (extra.get("academic", {}) or {}).get("admission_date")
+            or (s.user.date_joined.date().isoformat() if getattr(s.user, "date_joined", None) else "")
+        )
+
+    classrooms = ClassRoom.objects.select_related("academic_year").order_by("academic_year__start_date", "name")
     sections = Section.objects.all().order_by("name")
+    years = AcademicYear.objects.order_by("-start_date")
+
     return render(request, "core/school/students_list.html", {
         "students": students,
         "classrooms": classrooms,
         "sections": sections,
-        "filters": {"classroom_id": classroom_id, "section_id": section_id, "q": search},
+        "years": years,
+        "stats": stats,
+        "school": school,
+        "filters": {
+            "q": q,
+            "admission": admission,
+            "roll": roll,
+            "classroom_id": classroom_id,
+            "section_id": section_id,
+            "year": academic_year_id,
+            "gender": gender,
+            "status": status,
+            "branch": branch,
+            "per_page": str(per_page),
+        },
     })
 
 
 @admin_required
 def school_student_add(request):
-    """Add new student. Username = Admission Number. No auto-generation."""
+    """Add new student. Username = Admission Number (auto-generated if empty)."""
     school = request.user.school
     if not school:
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:admin_dashboard")
     from .forms import StudentAddForm
-    form = StudentAddForm(school, request.POST or None)
+    from apps.school_data.models import StudentDocument
+
+    def _generate_admission_number() -> str:
+        """
+        Generate a tenant-unique admission number like ADM2026-0001.
+        Keeps it predictable and sortable; avoids schema-level sequences.
+        """
+        year = timezone.localdate().year
+        prefix = f"ADM{year}-"
+        # Find max existing for this prefix and increment.
+        last = (
+            Student.objects.filter(admission_number__startswith=prefix)
+            .order_by("-admission_number")
+            .values_list("admission_number", flat=True)
+            .first()
+        )
+        next_n = 1
+        if last and isinstance(last, str) and last.startswith(prefix):
+            try:
+                next_n = int(last.replace(prefix, "").strip() or "0") + 1
+            except Exception:
+                next_n = 1
+        return f"{prefix}{next_n:04d}"
+
+    # IMPORTANT: for forms.Form, pass files via `files=` kwarg.
+    form = StudentAddForm(school, data=(request.POST or None), files=(request.FILES or None))
     if request.method == "POST" and form.is_valid():
         data = form.cleaned_data
         first_name = data["first_name"]
+        middle_name = (data.get("middle_name") or "").strip()
+        last_name = (data.get("last_name") or "").strip()
         roll_number = data["roll_number"]
-        admission_number = data["admission_number"].strip().upper()
+        admission_number = (data.get("admission_number") or "").strip().upper() or _generate_admission_number()
         password = data.get("password") or f"{first_name.capitalize()}@123"
+        record_status = (data.get("record_status") or "ACTIVE").strip().upper()
+        is_active = record_status == "ACTIVE"
 
         with transaction.atomic():
             user = User.objects.create_user(
                 username=admission_number,
                 password=password,
                 first_name=first_name,
-                last_name=data.get("last_name") or "",
-                email=data.get("email") or "",
+                last_name=(" ".join([middle_name, last_name]).strip()),
+                email=(data.get("email") or "").strip(),
                 role=User.Roles.STUDENT,
                 school=school,
                 is_first_login=True,
+                is_active=is_active,
             )
             student = Student(
                 user=user,
@@ -1935,8 +3418,99 @@ def school_student_add(request):
                 gender=data.get("gender") or "",
                 parent_name=data.get("parent_name") or "",
                 parent_phone=data.get("parent_phone") or "",
+                academic_year=data.get("academic_year"),
+                phone=(data.get("student_mobile") or "").strip() or None,
+                address=("\n".join([data.get("address_line1") or "", data.get("address_line2") or ""]).strip() or None),
+                profile_image=data.get("profile_image"),
             )
+            # Store extended admission details in flexible JSON.
+            student.extra_data = {
+                "basic": {
+                    "middle_name": middle_name,
+                    "blood_group": data.get("blood_group") or "",
+                    "id_number": data.get("id_number") or "",
+                    "nationality": data.get("nationality") or "",
+                    "religion": data.get("religion") or "",
+                    "mother_tongue": data.get("mother_tongue") or "",
+                },
+                "academic": {
+                    "admission_date": str(data.get("admission_date") or ""),
+                    "registration_number": data.get("registration_number") or "",
+                    "course_branch": data.get("course_branch") or "",
+                    "semester_year": data.get("semester_year") or "",
+                    "stream": data.get("stream") or "",
+                    "student_type": data.get("student_type") or "",
+                    "previous_institution": data.get("previous_institution") or "",
+                    "previous_marks": data.get("previous_marks") or "",
+                },
+                "parents": {
+                    "father_name": data.get("father_name") or "",
+                    "father_mobile": data.get("father_mobile") or "",
+                    "father_occupation": data.get("father_occupation") or "",
+                    "mother_name": data.get("mother_name") or "",
+                    "mother_mobile": data.get("mother_mobile") or "",
+                    "mother_occupation": data.get("mother_occupation") or "",
+                    "guardian_name": data.get("guardian_name") or "",
+                    "guardian_relation": data.get("guardian_relation") or "",
+                    "guardian_phone": data.get("guardian_phone") or "",
+                    "student_email": (data.get("student_email") or "").strip(),
+                },
+                "contact": {
+                    "city": data.get("city") or "",
+                    "district": data.get("district") or "",
+                    "state": data.get("state") or "",
+                    "pincode": data.get("pincode") or "",
+                    "country": data.get("country") or "",
+                },
+                "medical": {
+                    "emergency_contact_name": data.get("emergency_contact_name") or "",
+                    "emergency_phone": data.get("emergency_phone") or "",
+                    "allergies": data.get("allergies") or "",
+                    "medical_conditions": data.get("medical_conditions") or "",
+                    "doctor_name": data.get("doctor_name") or "",
+                    "hospital": data.get("hospital") or "",
+                    "insurance_details": data.get("insurance_details") or "",
+                },
+                "transport_hostel": {
+                    "transport_required": data.get("transport_required") or "NO",
+                    "route_id": (data.get("route").id if data.get("route") else None),
+                    "pickup_point": data.get("pickup_point") or "",
+                    "hostel_required": data.get("hostel_required") or "NO",
+                    "hostel_room_id": (data.get("hostel_room").id if data.get("hostel_room") else None),
+                },
+                "billing": {
+                    "scholarship": data.get("scholarship") or "",
+                    "discount_percent": str(data.get("discount_percent") or ""),
+                    "installment_type": data.get("installment_type") or "",
+                    "first_payment_amount": str(data.get("first_payment_amount") or ""),
+                    "payment_due_date": str(data.get("payment_due_date") or ""),
+                },
+                "status": {
+                    "record_status": record_status,
+                },
+            }
             student.save_with_audit(request.user)
+
+            # Store uploaded documents (optional).
+            doc_map = [
+                ("doc_birth_certificate", StudentDocument.DocType.BIRTH_CERT, "Birth Certificate"),
+                ("doc_transfer_certificate", StudentDocument.DocType.TRANSFER_CERT, "Transfer Certificate"),
+                ("doc_id_proof", StudentDocument.DocType.OTHER, "Aadhar / ID Proof"),
+                ("doc_previous_marks", StudentDocument.DocType.OTHER, "Previous Marks Memo"),
+                ("doc_passport_photo", StudentDocument.DocType.PHOTO, "Passport Photo"),
+                ("doc_parent_id", StudentDocument.DocType.OTHER, "Parent ID"),
+            ]
+            for field_name, doc_type, title in doc_map:
+                f = request.FILES.get(field_name)
+                if not f:
+                    continue
+                StudentDocument.objects.create(
+                    student=student,
+                    doc_type=doc_type,
+                    title=title,
+                    file=f,
+                    uploaded_by=request.user,
+                )
 
         # Send credentials email (best-effort)
         email_sent = False
@@ -1946,14 +3520,14 @@ def school_student_add(request):
                 from django.conf import settings
 
                 from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@schoolerp.local")
-                subject = "Your School Login Credentials"
+                subject = "Your Campus ERP Login Credentials"
                 body = (
                     f"Hello {first_name},\n\n"
                     f"Your student account has been created.\n\n"
                     f"Username: Your Admission Number ({admission_number})\n"
                     f"Password: {password}\n\n"
                     "Please change your password after first login.\n\n"
-                    "— School Admin"
+                    "— Campus Admin"
                 )
                 send_mail(subject, body, from_email, [data["email"]], fail_silently=True)
                 email_sent = True
@@ -1970,14 +3544,111 @@ def school_student_add(request):
     return render(request, "core/school/student_add.html", {"form": form})
 
 
+def _student_record_letterhead_context(request, school, student):
+    """
+    Letterhead data for student record (HTML print view + PDF).
+    School model carries address (multiline), phone, email, custom_domain, header_text (board/affiliation), logo.
+    """
+    lines = [ln.strip() for ln in (school.address or "").splitlines() if ln.strip()]
+    street = lines[0] if lines else ""
+    rest = lines[1:] if len(lines) > 1 else []
+    dom = (school.custom_domain or "").strip()
+    website = None
+    if dom:
+        website = dom if dom.lower().startswith(("http://", "https://")) else f"https://{dom}"
+    logo_url = None
+    if school.logo:
+        try:
+            logo_url = request.build_absolute_uri(school.logo.url)
+        except Exception:
+            logo_url = school.logo.url or None
+    affiliation = (school.header_text or "").strip() or None
+    return {
+        "school": school,
+        "letterhead_address_street": street or None,
+        "letterhead_address_rest": rest,
+        "letterhead_website": website,
+        "letterhead_logo_url": logo_url,
+        "letterhead_affiliation": affiliation,
+    }
+
+
 @admin_required
 def school_student_view(request, student_id):
-    """View student details (read-only)."""
+    """View student details (read-only) — all profile fields including extra_data."""
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
-    student = get_object_or_404(Student, id=student_id)
-    return render(request, "core/school/student_view.html", {"student": student})
+    student = get_object_or_404(
+        Student.objects.select_related(
+            "user",
+            "classroom",
+            "section",
+            "academic_year",
+            "created_by",
+            "modified_by",
+        ),
+        id=student_id,
+    )
+    from apps.school_data.models import HostelRoom, Route, StudentDocument
+
+    extra = student.extra_data or {}
+    basic = extra.get("basic") or {}
+    academic = extra.get("academic") or {}
+    parents = extra.get("parents") or {}
+    contact = extra.get("contact") or {}
+    medical = extra.get("medical") or {}
+    th = extra.get("transport_hostel") or {}
+    billing = extra.get("billing") or {}
+    status_block = extra.get("status") or {}
+
+    route = Route.objects.filter(id=th.get("route_id")).first() if th.get("route_id") else None
+    hostel_room = HostelRoom.objects.filter(id=th.get("hostel_room_id")).first() if th.get("hostel_room_id") else None
+
+    addr_lines = (student.address or "").split("\n") if student.address else []
+    address_line1 = addr_lines[0] if len(addr_lines) > 0 else ""
+    address_line2 = addr_lines[1] if len(addr_lines) > 1 else ""
+
+    att_qs = Attendance.objects.filter(student=student)
+    if student.academic_year_id:
+        att_qs = att_qs.filter(
+            Q(academic_year_id=student.academic_year_id) | Q(academic_year__isnull=True)
+        )
+    att_total = att_qs.count()
+    att_present = att_qs.filter(status=Attendance.Status.PRESENT).count()
+    stats_attendance = {
+        "total": att_total,
+        "present": att_present,
+        "pct": round((att_present / att_total * 100), 1) if att_total else None,
+    }
+    mark_pct_vals = []
+    for m in Marks.objects.filter(student=student).only("marks_obtained", "total_marks"):
+        if m.total_marks:
+            mark_pct_vals.append((m.marks_obtained / m.total_marks) * 100)
+    stats_exams = {
+        "pct": round(sum(mark_pct_vals) / len(mark_pct_vals), 1) if mark_pct_vals else None,
+        "count": len(mark_pct_vals),
+    }
+
+    ctx = {
+        "student": student,
+        "basic": basic,
+        "academic": academic,
+        "parents": parents,
+        "contact": contact,
+        "medical": medical,
+        "th": th,
+        "billing": billing,
+        "status_block": status_block,
+        "address_line1": address_line1,
+        "address_line2": address_line2,
+        "route_obj": route,
+        "hostel_room_obj": hostel_room,
+        "documents": StudentDocument.objects.filter(student=student).select_related("uploaded_by"),
+        "stats_attendance": stats_attendance,
+        "stats_exams": stats_exams,
+    }
+    return render(request, "core/school/student_view.html", ctx)
 
 
 @admin_required
@@ -1987,33 +3658,230 @@ def school_student_edit(request, student_id):
     if not school:
         return redirect("core:admin_dashboard")
     student = get_object_or_404(Student, id=student_id)
-    from .forms import StudentEditForm
+    from .forms import StudentMasterEditForm
+    from apps.school_data.models import StudentDocument
+
+    extra = student.extra_data or {}
+    basic = extra.get("basic", {}) or {}
+    academic = extra.get("academic", {}) or {}
+    parents = extra.get("parents", {}) or {}
+    contact = extra.get("contact", {}) or {}
+    medical = extra.get("medical", {}) or {}
+    th = extra.get("transport_hostel", {}) or {}
+    billing = extra.get("billing", {}) or {}
+    status_block = extra.get("status", {}) or {}
+
     initial = {
+        # Basic
         "first_name": student.user.first_name,
+        "middle_name": basic.get("middle_name") or "",
         "last_name": student.user.last_name,
+        "date_of_birth": student.date_of_birth,
+        "gender": student.gender or "",
+        "blood_group": basic.get("blood_group") or "",
+        "id_number": basic.get("id_number") or "",
+        "nationality": basic.get("nationality") or "",
+        "religion": basic.get("religion") or "",
+        "mother_tongue": basic.get("mother_tongue") or "",
+
+        # Academic
+        "academic_year": student.academic_year,
+        "admission_date": academic.get("admission_date") or "",
         "classroom": student.classroom,
         "section": student.section,
-        "roll_number": student.roll_number,
         "admission_number": student.admission_number or "",
-        "date_of_birth": student.date_of_birth,
+        "roll_number": student.roll_number,
+        "registration_number": academic.get("registration_number") or "",
+        "course_branch": academic.get("course_branch") or "",
+        "semester_year": academic.get("semester_year") or "",
+        "previous_institution": academic.get("previous_institution") or "",
+        "previous_marks": academic.get("previous_marks") or "",
+        "stream": academic.get("stream") or "",
+        "student_type": academic.get("student_type") or "",
+
+        # Parents
+        "father_name": parents.get("father_name") or "",
+        "father_mobile": parents.get("father_mobile") or "",
+        "father_occupation": parents.get("father_occupation") or "",
+        "mother_name": parents.get("mother_name") or "",
+        "mother_mobile": parents.get("mother_mobile") or "",
+        "mother_occupation": parents.get("mother_occupation") or "",
+        "guardian_name": parents.get("guardian_name") or "",
+        "guardian_relation": parents.get("guardian_relation") or "",
+        "guardian_phone": parents.get("guardian_phone") or "",
         "parent_name": student.parent_name or "",
         "parent_phone": student.parent_phone or "",
+        "email": student.user.email or "",
+
+        # Contact
+        "student_mobile": student.phone or "",
+        "student_email": parents.get("student_email") or "",
+        "address_line1": (student.address or "").split("\n")[0] if student.address else "",
+        "address_line2": (student.address or "").split("\n")[1] if student.address and "\n" in student.address else "",
+        "city": contact.get("city") or "",
+        "district": contact.get("district") or "",
+        "state": contact.get("state") or "",
+        "pincode": contact.get("pincode") or "",
+        "country": contact.get("country") or "",
+
+        # Medical
+        "emergency_contact_name": medical.get("emergency_contact_name") or "",
+        "emergency_phone": medical.get("emergency_phone") or "",
+        "allergies": medical.get("allergies") or "",
+        "medical_conditions": medical.get("medical_conditions") or "",
+        "doctor_name": medical.get("doctor_name") or "",
+        "hospital": medical.get("hospital") or "",
+        "insurance_details": medical.get("insurance_details") or "",
+
+        # Transport / hostel
+        "transport_required": th.get("transport_required") or "NO",
+        "route": (Route.objects.filter(id=th.get("route_id")).first() if th.get("route_id") else None),
+        "pickup_point": th.get("pickup_point") or "",
+        "hostel_required": th.get("hostel_required") or "NO",
+        "hostel_room": (HostelRoom.objects.filter(id=th.get("hostel_room_id")).first() if th.get("hostel_room_id") else None),
+
+        # Billing prefs (kept optional)
+        "scholarship": billing.get("scholarship") or "",
+        "discount_percent": billing.get("discount_percent") or "",
+        "installment_type": billing.get("installment_type") or "",
+        "first_payment_amount": billing.get("first_payment_amount") or "",
+        "payment_due_date": billing.get("payment_due_date") or "",
+
+        # Status
+        "record_status": status_block.get("record_status") or ("ACTIVE" if student.user.is_active else "INACTIVE"),
     }
-    form = StudentEditForm(school, student=student, data=request.POST or None, initial=initial)
+
+    form = StudentMasterEditForm(
+        school,
+        student=student,
+        data=(request.POST or None),
+        files=(request.FILES or None),
+        initial=initial,
+    )
+
     if request.method == "POST" and form.is_valid():
+        data = form.cleaned_data
+        record_status = (data.get("record_status") or "ACTIVE").strip().upper()
+        is_active = record_status == "ACTIVE"
+
+        new_adm = (data.get("admission_number") or "").strip().upper()
         with transaction.atomic():
-            student.user.first_name = form.cleaned_data["first_name"]
-            student.user.last_name = form.cleaned_data["last_name"]
+            # User
+            student.user.first_name = data.get("first_name") or ""
+            student.user.last_name = " ".join([(data.get("middle_name") or "").strip(), (data.get("last_name") or "").strip()]).strip()
+            student.user.email = (data.get("email") or "").strip()
+            student.user.is_active = is_active
+            if new_adm and new_adm != (student.user.username or ""):
+                student.user.username = new_adm
             student.user.save()
-            student.classroom = form.cleaned_data.get("classroom")
-            student.section = form.cleaned_data.get("section")
-            student.roll_number = form.cleaned_data["roll_number"]
-            student.admission_number = form.cleaned_data.get("admission_number") or None
-            student.date_of_birth = form.cleaned_data.get("date_of_birth")
-            student.parent_name = form.cleaned_data.get("parent_name") or ""
-            student.parent_phone = form.cleaned_data.get("parent_phone") or ""
+
+            # Student core
+            student.classroom = data.get("classroom")
+            student.section = data.get("section")
+            student.academic_year = data.get("academic_year")
+            student.roll_number = data.get("roll_number")
+            if new_adm:
+                student.admission_number = new_adm
+            student.date_of_birth = data.get("date_of_birth")
+            student.gender = data.get("gender") or ""
+            student.parent_name = data.get("parent_name") or ""
+            student.parent_phone = data.get("parent_phone") or ""
+            student.phone = (data.get("student_mobile") or "").strip() or None
+            student.address = ("\n".join([data.get("address_line1") or "", data.get("address_line2") or ""]).strip() or None)
+            if data.get("profile_image"):
+                student.profile_image = data.get("profile_image")
+
+            student.extra_data = {
+                "basic": {
+                    "middle_name": (data.get("middle_name") or "").strip(),
+                    "blood_group": data.get("blood_group") or "",
+                    "id_number": data.get("id_number") or "",
+                    "nationality": data.get("nationality") or "",
+                    "religion": data.get("religion") or "",
+                    "mother_tongue": data.get("mother_tongue") or "",
+                },
+                "academic": {
+                    "admission_date": str(data.get("admission_date") or ""),
+                    "registration_number": data.get("registration_number") or "",
+                    "course_branch": data.get("course_branch") or "",
+                    "semester_year": data.get("semester_year") or "",
+                    "stream": data.get("stream") or "",
+                    "student_type": data.get("student_type") or "",
+                    "previous_institution": data.get("previous_institution") or "",
+                    "previous_marks": data.get("previous_marks") or "",
+                },
+                "parents": {
+                    "father_name": data.get("father_name") or "",
+                    "father_mobile": data.get("father_mobile") or "",
+                    "father_occupation": data.get("father_occupation") or "",
+                    "mother_name": data.get("mother_name") or "",
+                    "mother_mobile": data.get("mother_mobile") or "",
+                    "mother_occupation": data.get("mother_occupation") or "",
+                    "guardian_name": data.get("guardian_name") or "",
+                    "guardian_relation": data.get("guardian_relation") or "",
+                    "guardian_phone": data.get("guardian_phone") or "",
+                    "student_email": (data.get("student_email") or "").strip(),
+                },
+                "contact": {
+                    "city": data.get("city") or "",
+                    "district": data.get("district") or "",
+                    "state": data.get("state") or "",
+                    "pincode": data.get("pincode") or "",
+                    "country": data.get("country") or "",
+                },
+                "medical": {
+                    "emergency_contact_name": data.get("emergency_contact_name") or "",
+                    "emergency_phone": data.get("emergency_phone") or "",
+                    "allergies": data.get("allergies") or "",
+                    "medical_conditions": data.get("medical_conditions") or "",
+                    "doctor_name": data.get("doctor_name") or "",
+                    "hospital": data.get("hospital") or "",
+                    "insurance_details": data.get("insurance_details") or "",
+                },
+                "transport_hostel": {
+                    "transport_required": data.get("transport_required") or "NO",
+                    "route_id": (data.get("route").id if data.get("route") else None),
+                    "pickup_point": data.get("pickup_point") or "",
+                    "hostel_required": data.get("hostel_required") or "NO",
+                    "hostel_room_id": (data.get("hostel_room").id if data.get("hostel_room") else None),
+                },
+                "billing": {
+                    "scholarship": data.get("scholarship") or "",
+                    "discount_percent": str(data.get("discount_percent") or ""),
+                    "installment_type": data.get("installment_type") or "",
+                    "first_payment_amount": str(data.get("first_payment_amount") or ""),
+                    "payment_due_date": str(data.get("payment_due_date") or ""),
+                },
+                "status": {
+                    "record_status": record_status,
+                },
+            }
             student.save_with_audit(request.user)
-        return redirect("core:school_students_list")
+
+            # Optional documents uploaded during edit
+            doc_map = [
+                ("doc_birth_certificate", StudentDocument.DocType.BIRTH_CERT, "Birth Certificate"),
+                ("doc_transfer_certificate", StudentDocument.DocType.TRANSFER_CERT, "Transfer Certificate"),
+                ("doc_id_proof", StudentDocument.DocType.OTHER, "Aadhar / ID Proof"),
+                ("doc_previous_marks", StudentDocument.DocType.OTHER, "Previous Marks Memo"),
+                ("doc_passport_photo", StudentDocument.DocType.PHOTO, "Passport Photo"),
+                ("doc_parent_id", StudentDocument.DocType.OTHER, "Parent ID"),
+            ]
+            for field_name, doc_type, title in doc_map:
+                f = request.FILES.get(field_name)
+                if not f:
+                    continue
+                StudentDocument.objects.create(
+                    student=student,
+                    doc_type=doc_type,
+                    title=title,
+                    file=f,
+                    uploaded_by=request.user,
+                )
+
+        messages.success(request, "Student updated successfully.")
+        return redirect("core:school_student_view", student_id=student.id)
+
     return render(request, "core/school/student_edit.html", {"form": form, "student": student})
 
 
@@ -2115,85 +3983,220 @@ def school_teachers_list(request):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
-    teachers = Teacher.objects.all().select_related("user", "user__school").prefetch_related("subjects", "classrooms")
-    return render(request, "core/school/teachers_list.html", {"teachers": teachers})
+    from django.utils import timezone
+    from django.db.models import Q
+    from apps.school_data.models import Subject, ClassRoom
+
+    base_qs = (
+        Teacher.objects.all()
+        .select_related("user", "user__school")
+        .prefetch_related("subjects", "classrooms")
+    )
+
+    # -------- Filters (GET) --------
+    q = (request.GET.get("q") or "").strip()
+    employee_id = (request.GET.get("employee_id") or "").strip()
+    subject_id = (request.GET.get("subject") or "").strip()
+    class_id = (request.GET.get("classroom") or "").strip()
+    status = (request.GET.get("status") or "").strip().lower()  # active/inactive
+
+    qs = base_qs
+    if q:
+        qs = qs.filter(
+            Q(user__first_name__icontains=q)
+            | Q(user__last_name__icontains=q)
+            | Q(user__username__icontains=q)
+        )
+    if employee_id:
+        qs = qs.filter(employee_id__icontains=employee_id)
+    if subject_id.isdigit():
+        qs = qs.filter(subjects__id=int(subject_id))
+    if class_id.isdigit():
+        qs = qs.filter(classrooms__id=int(class_id))
+    if status == "active":
+        qs = qs.filter(user__is_active=True)
+    elif status == "inactive":
+        qs = qs.filter(user__is_active=False)
+
+    teachers = qs.distinct()
+
+    # -------- Top Summary Stats (School-wide, not filtered) --------
+    now = timezone.now()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    stats = {
+        "total": base_qs.count(),
+        "active": base_qs.filter(user__is_active=True).count(),
+        "inactive": base_qs.filter(user__is_active=False).count(),
+        "class_teachers": base_qs.filter(classrooms__isnull=False).distinct().count(),
+        "subject_teachers": base_qs.filter(subjects__isnull=False).distinct().count(),
+        "new_joiners_month": base_qs.filter(user__date_joined__gte=month_start).count(),
+        # "on_leave_today": None  # Only add when leave/attendance model is wired.
+    }
+
+    filter_options = {
+        "subjects": Subject.objects.order_by("name"),
+        "classrooms": ClassRoom.objects.select_related("academic_year").order_by("academic_year__start_date", "name"),
+    }
+
+    filters = {
+        "q": q,
+        "employee_id": employee_id,
+        "subject": subject_id,
+        "classroom": class_id,
+        "status": status,
+    }
+
+    return render(
+        request,
+        "core/school/teachers_list.html",
+        {
+            "teachers": teachers,
+            "stats": stats,
+            "filters": filters,
+            "filter_options": filter_options,
+        },
+    )
 
 
 @admin_required
 def school_teacher_add(request):
-    """Add new teacher."""
+    """Add new teacher (extended profile, same structure as student master)."""
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
-    from .forms import TeacherAddForm
-    form = TeacherAddForm(school, request.POST or None)
+    from .teacher_forms import TeacherMasterForm
+
+    form = TeacherMasterForm(
+        school,
+        teacher=None,
+        data=request.POST or None,
+        files=request.FILES or None,
+    )
     if request.method == "POST" and form.is_valid():
+        data = form.cleaned_data
+        record_status = (data.get("record_status") or "ACTIVE").strip().upper()
+        is_active = record_status == "ACTIVE"
         with transaction.atomic():
             user = User.objects.create_user(
-                username=form.cleaned_data["username"],
-                password=form.cleaned_data["password"],
-                first_name=form.cleaned_data["first_name"],
-                last_name=form.cleaned_data["last_name"],
+                username=data["username"],
+                password=data["password"],
+                first_name=data.get("first_name") or "",
+                last_name=data.get("last_name") or "",
                 role=User.Roles.TEACHER,
                 school=school,
             )
+            user.email = (data.get("email") or "").strip()
+            user.is_active = is_active
+            user.save()
+            addr = "\n".join([data.get("address_line1") or "", data.get("address_line2") or ""]).strip() or None
             teacher = Teacher(
                 user=user,
-                employee_id=form.cleaned_data.get("employee_id") or "",
-                phone_number=form.cleaned_data.get("phone_number") or "",
+                employee_id=data.get("employee_id") or "",
+                phone_number=data.get("phone_number") or "",
+                qualification=data.get("qualification") or "",
+                experience=data.get("experience") or "",
+                date_of_birth=data.get("date_of_birth"),
+                gender=data.get("gender") or "",
+                address=addr,
+                extra_data=TeacherMasterForm.build_extra_data(data),
             )
+            if data.get("profile_image"):
+                teacher.profile_image = data["profile_image"]
             teacher.save_with_audit(request.user)
-            teacher.subjects.set(form.cleaned_data.get("subjects") or [])
-            teacher.classrooms.set(form.cleaned_data.get("classrooms") or [])
-        return redirect("core:school_teachers_list")
-    return render(request, "core/school/teacher_add.html", {"form": form})
+            teacher.subjects.set(data.get("subjects") or [])
+            teacher.classrooms.set(data.get("classrooms") or [])
+        messages.success(request, "Teacher created.")
+        return redirect("core:school_teacher_view", teacher_id=teacher.id)
+    return render(request, "core/school/teacher_master_form.html", {"form": form, "teacher": None})
 
 
 @admin_required
 def school_teacher_view(request, teacher_id):
-    """View teacher details (read-only)."""
+    """View teacher profile (read-only, card layout)."""
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
-    teacher = get_object_or_404(Teacher, id=teacher_id)
-    return render(request, "core/school/teacher_view.html", {"teacher": teacher})
+    teacher = get_object_or_404(
+        Teacher.objects.select_related("user", "created_by", "modified_by").prefetch_related("subjects", "classrooms"),
+        id=teacher_id,
+    )
+    extra = teacher.extra_data or {}
+    basic = extra.get("basic") or {}
+    contact = extra.get("contact") or {}
+    professional = extra.get("professional") or {}
+    family = extra.get("family") or {}
+    medical = extra.get("medical") or {}
+    payroll = extra.get("payroll") or {}
+    status_block = extra.get("status") or {}
+    addr_lines = (teacher.address or "").split("\n") if teacher.address else []
+    address_line1 = addr_lines[0] if addr_lines else ""
+    address_line2 = addr_lines[1] if len(addr_lines) > 1 else ""
+    return render(
+        request,
+        "core/school/teacher_view.html",
+        {
+            "teacher": teacher,
+            "basic": basic,
+            "contact": contact,
+            "professional": professional,
+            "family": family,
+            "medical": medical,
+            "payroll": payroll,
+            "status_block": status_block,
+            "address_line1": address_line1,
+            "address_line2": address_line2,
+        },
+    )
 
 
 @admin_required
 def school_teacher_edit(request, teacher_id):
-    """Edit teacher. Only teachers of logged-in user's school."""
+    """Edit teacher extended profile."""
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
     teacher = get_object_or_404(Teacher, id=teacher_id)
-    from .forms import TeacherEditForm
-    initial = {
-        "first_name": teacher.user.first_name,
-        "last_name": teacher.user.last_name,
-        "email": teacher.user.email or "",
-        "phone_number": teacher.phone_number or "",
-        "qualification": teacher.qualification or "",
-        "experience": teacher.experience or "",
-        "role": teacher.user.role,
-        "subjects": list(teacher.subjects.all()),
-        "classrooms": list(teacher.classrooms.all()),
-    }
-    form = TeacherEditForm(school, teacher=teacher, data=request.POST or None, initial=initial)
+    from .teacher_forms import TeacherMasterForm
+
+    form = TeacherMasterForm(
+        school,
+        teacher=teacher,
+        data=request.POST or None,
+        files=request.FILES or None,
+    )
     if request.method == "POST" and form.is_valid():
+        data = form.cleaned_data
+        record_status = (data.get("record_status") or "ACTIVE").strip().upper()
+        is_active = record_status == "ACTIVE"
         with transaction.atomic():
-            teacher.user.first_name = form.cleaned_data["first_name"]
-            teacher.user.last_name = form.cleaned_data["last_name"]
-            teacher.user.email = form.cleaned_data.get("email") or ""
-            teacher.user.role = form.cleaned_data["role"]
+            teacher.user.first_name = data.get("first_name") or ""
+            teacher.user.last_name = data.get("last_name") or ""
+            teacher.user.email = (data.get("email") or "").strip()
+            teacher.user.role = data.get("role")
+            teacher.user.is_active = is_active
+            pwd = (data.get("password") or "").strip()
+            if pwd:
+                teacher.user.set_password(pwd)
             teacher.user.save()
-            teacher.phone_number = form.cleaned_data.get("phone_number") or ""
-            teacher.qualification = form.cleaned_data.get("qualification") or ""
-            teacher.experience = form.cleaned_data.get("experience") or ""
+
+            teacher.employee_id = data.get("employee_id") or ""
+            teacher.phone_number = data.get("phone_number") or ""
+            teacher.qualification = data.get("qualification") or ""
+            teacher.experience = data.get("experience") or ""
+            teacher.date_of_birth = data.get("date_of_birth")
+            teacher.gender = data.get("gender") or ""
+            teacher.address = (
+                "\n".join([data.get("address_line1") or "", data.get("address_line2") or ""]).strip() or None
+            )
+            teacher.extra_data = TeacherMasterForm.build_extra_data(data)
+            if data.get("profile_image"):
+                teacher.profile_image = data["profile_image"]
             teacher.save_with_audit(request.user)
-            teacher.subjects.set(form.cleaned_data.get("subjects") or [])
-            teacher.classrooms.set(form.cleaned_data.get("classrooms") or [])
-        return redirect("core:school_teachers_list")
-    return render(request, "core/school/teacher_edit.html", {"form": form, "teacher": teacher})
+            teacher.subjects.set(data.get("subjects") or [])
+            teacher.classrooms.set(data.get("classrooms") or [])
+        messages.success(request, "Teacher updated.")
+        return redirect("core:school_teacher_view", teacher_id=teacher.id)
+    return render(request, "core/school/teacher_master_form.html", {"form": form, "teacher": teacher})
 
 
 @admin_required
@@ -2296,7 +4299,6 @@ def school_academic_years(request):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
-    from .forms import AcademicYearForm
     from django.core.paginator import Paginator
 
     # PostgreSQL: clear aborted transaction state before running list queries.
@@ -2305,12 +4307,6 @@ def school_academic_years(request):
             connection.rollback()
     except Exception:
         pass
-
-    form = AcademicYearForm(request.POST or None)
-    if request.method == "POST" and form.is_valid():
-        obj = form.save(commit=False)
-        obj.save_with_audit(request.user)
-        return redirect("core:school_academic_years")
 
     # Resolve active year + optional promotion stats first; rollback if promotion
     # schema is missing so paginator/template queries are not run in a bad txn.
@@ -2342,13 +4338,41 @@ def school_academic_years(request):
         else AcademicYear.objects.order_by("start_date")
     )
     return render(request, "core/school/academic_year/list.html", {
-        "form": form,
         "academic_years": academic_years,
         "filters": {"q": search},
         "active_year": active_year,
         "next_year_candidates": next_year_candidates,
         "promo_counts": promo_counts,
     })
+
+
+@admin_required
+def school_academic_year_add(request):
+    """Dedicated create page (replaces modal POST on list, which was easy to break)."""
+    school = request.user.school
+    if not school:
+        return redirect("core:admin_dashboard")
+    from .forms import AcademicYearForm
+
+    if request.method == "POST":
+        form = AcademicYearForm(request.POST)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            obj.save_with_audit(request.user)
+            messages.success(request, f'Academic year "{obj.name}" was created successfully.')
+            return redirect("core:school_academic_years")
+    else:
+        form = AcademicYearForm()
+    return render(
+        request,
+        "core/school/academic_year/form.html",
+        {
+            "form": form,
+            "title": "Add Academic Year",
+            "academic_year": None,
+            "is_add": True,
+        },
+    )
 
 
 @admin_required
@@ -2377,8 +4401,18 @@ def school_academic_year_edit(request, year_id):
         obj = form.save(commit=False)
         obj.modified_by = request.user
         obj.save()
+        messages.success(request, f'Academic year "{obj.name}" was saved.')
         return redirect("core:school_academic_years")
-    return render(request, "core/school/academic_year/form.html", {"form": form, "academic_year": ay, "title": "Edit Academic Year"})
+    return render(
+        request,
+        "core/school/academic_year/form.html",
+        {
+            "form": form,
+            "academic_year": ay,
+            "title": "Edit Academic Year",
+            "is_add": False,
+        },
+    )
 
 
 @admin_required
@@ -2701,7 +4735,24 @@ def school_classes(request):
     qs = ClassRoom.objects.all().select_related("academic_year").annotate(
         section_count=Count("sections", distinct=True),
         student_count=Count("students", distinct=True),
-    ).order_by("academic_year", "name")
+    )
+    # Newest academic year first; within a year, higher grades first (Grade 10 … Grade 1) using digits in name.
+    if connection.vendor == "postgresql":
+        meta = ClassRoom._meta
+        tbl = connection.ops.quote_name(meta.db_table)
+        col = connection.ops.quote_name(meta.get_field("name").column)
+        grade_sql = (
+            f"CAST(COALESCE(NULLIF(regexp_replace({tbl}.{col}, '[^0-9]', '', 'g'), ''), '0') AS INTEGER)"
+        )
+        qs = qs.annotate(_class_grade_sort=RawSQL(grade_sql, [])).order_by(
+            F("academic_year__start_date").desc(nulls_last=True),
+            "-_class_grade_sort",
+        )
+    else:
+        qs = qs.order_by(
+            F("academic_year__start_date").desc(nulls_last=True),
+            "-name",
+        )
     academic_year_id = request.GET.get("academic_year")
     if academic_year_id:
         qs = qs.filter(academic_year_id=academic_year_id)
@@ -2844,6 +4895,55 @@ def students_list(request):
 
 @login_required
 def teachers_list(request):
+    # Teacher view: school directory of all teachers and their subjects.
+    if getattr(request.user, "role", None) == "TEACHER":
+        school = getattr(request.user, "school", None)
+        if not school:
+            return render(
+                request,
+                "core/teacher/teachers_directory.html",
+                {"teachers_rows": [], "no_school": True},
+            )
+        teachers_qs = (
+            Teacher.objects.filter(user__school=school)
+            .select_related("user")
+            .prefetch_related(
+                "subjects",
+                "classrooms",
+                Prefetch(
+                    "class_section_subject_teacher_mappings",
+                    queryset=ClassSectionSubjectTeacher.objects.select_related(
+                        "subject", "class_obj", "section"
+                    ),
+                ),
+            )
+            .order_by("user__first_name", "user__last_name", "id")
+        )
+        teachers_rows = []
+        for t in teachers_qs:
+            subj_names = {s.name for s in t.subjects.all()}
+            grade_names = set()
+            for c in t.classrooms.all():
+                if c.name:
+                    grade_names.add(c.name.strip())
+            for m in t.class_section_subject_teacher_mappings.all():
+                if m.subject_id:
+                    subj_names.add(m.subject.name)
+                if m.class_obj and m.class_obj.name:
+                    grade_names.add(m.class_obj.name.strip())
+            teachers_rows.append(
+                {
+                    "teacher": t,
+                    "subjects_display": ", ".join(sorted(subj_names)) if subj_names else "—",
+                    "grades_display": ", ".join(sorted(grade_names)) if grade_names else "—",
+                }
+            )
+        return render(
+            request,
+            "core/teacher/teachers_directory.html",
+            {"teachers_rows": teachers_rows, "no_school": False},
+        )
+
     # Student view: show only teachers/subjects relevant to student's class+section.
     if getattr(request.user, "role", None) == "STUDENT":
         student = getattr(request.user, "student_profile", None)
@@ -2890,8 +4990,8 @@ def attendance_list(request):
     if not school:
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:admin_dashboard")
-    if not has_feature_access(school, "attendance"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+    if not has_feature_access(school, "attendance", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
 
     # Recover from a poisoned connection (e.g. prior query error in same request/thread).
     try:
@@ -2919,7 +5019,7 @@ def attendance_list(request):
         except (TypeError, ValueError):
             return None
 
-    def _redirect_with_params(cid, sid, d_str, q_str):
+    def _redirect_with_params(cid, sid, d_str, q_str, focus_sid=None):
         params = {"attendance_date": d_str}
         if cid:
             params["classroom_id"] = cid
@@ -2927,6 +5027,8 @@ def attendance_list(request):
             params["section_id"] = sid
         if q_str:
             params["q"] = q_str
+        if focus_sid:
+            params["student_id"] = focus_sid
         return redirect(reverse("core:attendance_list") + "?" + urlencode(params))
 
     if request.method == "POST":
@@ -2934,6 +5036,7 @@ def attendance_list(request):
         section_id = _parse_int(request.POST.get("section_id"))
         date_str = request.POST.get("attendance_date", "").strip()
         search_q = request.POST.get("q", "").strip()
+        post_focus_sid = _parse_int(request.POST.get("student_id"))
 
         if not classroom_id or not section_id or not date_str:
             messages.error(request, "Please select class, section, and date before saving.")
@@ -2947,7 +5050,7 @@ def attendance_list(request):
 
         if att_date > today:
             messages.error(request, "Cannot mark attendance for a future date.")
-            return _redirect_with_params(classroom_id, section_id, date_str, search_q)
+            return _redirect_with_params(classroom_id, section_id, date_str, search_q, post_focus_sid)
 
         classroom = ClassRoom.objects.filter(pk=classroom_id).first()
         if not classroom or not classroom.sections.filter(pk=section_id).exists():
@@ -2971,7 +5074,7 @@ def attendance_list(request):
                 "Student list could not be loaded (database schema may be outdated). Run "
                 f"{tenant_migrate_cli_hint(school)} then refresh.",
             )
-            return _redirect_with_params(classroom_id, section_id, date_str, search_q)
+            return _redirect_with_params(classroom_id, section_id, date_str, search_q, post_focus_sid)
         if search_q:
             sq = search_q.strip()
             stud_qs = stud_qs.filter(
@@ -2985,7 +5088,7 @@ def attendance_list(request):
 
         if not students:
             messages.error(request, "No students match the current filters.")
-            return _redirect_with_params(classroom_id, section_id, date_str, search_q)
+            return _redirect_with_params(classroom_id, section_id, date_str, search_q, post_focus_sid)
 
         valid_status = set(Attendance.Status.values)
         active_ay = get_active_academic_year_obj()
@@ -3026,7 +5129,7 @@ def attendance_list(request):
                     "Attendance could not be saved due to a database error. If this persists, run "
                     f"{tenant_migrate_cli_hint(school)} and try again.",
                 )
-            return _redirect_with_params(classroom_id, section_id, date_str, search_q)
+            return _redirect_with_params(classroom_id, section_id, date_str, search_q, post_focus_sid)
         except (InternalError, DatabaseError):
             # Do not call rollback() inside atomic(); outer handler after block exit.
             try:
@@ -3038,19 +5141,48 @@ def attendance_list(request):
                 "Attendance could not be saved (database error—often a failed transaction or outdated schema). "
                 f"Run {tenant_migrate_cli_hint(school)} then try again.",
             )
-            return _redirect_with_params(classroom_id, section_id, date_str, search_q)
+            return _redirect_with_params(classroom_id, section_id, date_str, search_q, post_focus_sid)
 
         messages.success(
             request,
             f"Attendance saved for {len(students)} student(s) on {att_date}.",
         )
-        return _redirect_with_params(classroom_id, section_id, date_str, search_q)
+        return _redirect_with_params(classroom_id, section_id, date_str, search_q, post_focus_sid)
 
     # GET
+    focus_student = None
+    focus_student_id = _parse_int(request.GET.get("student_id"))
+    if focus_student_id:
+        focus_student = (
+            Student.objects.select_related("user", "classroom", "section")
+            .filter(pk=focus_student_id)
+            .first()
+        )
+
     classroom_id = _parse_int(request.GET.get("classroom_id"))
     section_id = _parse_int(request.GET.get("section_id"))
     date_str = request.GET.get("attendance_date", today.isoformat()).strip()
     search_q = request.GET.get("q", "").strip()
+
+    if focus_student and focus_student.classroom_id and focus_student.section_id:
+        classroom_id = focus_student.classroom_id
+        section_id = focus_student.section_id
+        if not search_q:
+            search_q = (
+                (focus_student.admission_number or "").strip()
+                or (focus_student.roll_number or "").strip()
+                or focus_student.user.username
+                or ""
+            )
+    elif focus_student_id:
+        if not focus_student:
+            messages.error(request, "Student not found.")
+        elif not focus_student.classroom_id or not focus_student.section_id:
+            messages.warning(
+                request,
+                "This student has no class or section assigned. Assign class and section before recording attendance.",
+            )
+        focus_student = None
 
     try:
         att_date = date.fromisoformat(date_str)
@@ -3128,6 +5260,7 @@ def attendance_list(request):
             "future_date": future_date,
             "section_valid_for_class": section_valid_for_class,
             "status_choices": Attendance.Status.choices,
+            "focus_student": focus_student,
         },
     )
 
@@ -3184,8 +5317,8 @@ def student_fees(request):
 
 @login_required
 def homework_list(request):
-    if not has_feature_access(getattr(request.user, "school", None), "homework"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+    if not has_feature_access(getattr(request.user, "school", None), "homework", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
 
     # Admin: redirect to school homework list
     if getattr(request.user, "role", None) == "ADMIN":
@@ -3281,9 +5414,30 @@ def homework_list(request):
             },
         )
 
-    # Teacher or other: redirect to create or dashboard
     if getattr(request.user, "role", None) == "TEACHER":
-        return redirect("core:create_homework")
+        teacher = getattr(request.user, "teacher_profile", None)
+        qs = _homework_queryset_for_teacher(teacher, request.user)
+        classroom_filter = request.GET.get("classroom", "").strip()
+        if classroom_filter.isdigit():
+            qs = qs.filter(classes__id=int(classroom_filter))
+        homework_list = qs.distinct()
+        class_ids = list(
+            ClassSectionSubjectTeacher.objects.filter(teacher=teacher).values_list(
+                "class_obj_id", flat=True
+            ).distinct()
+        ) if teacher else []
+        classrooms = list(ClassRoom.objects.filter(id__in=class_ids).order_by("name"))
+        return render(
+            request,
+            "core/teacher/homework_list.html",
+            {
+                "homework_list": homework_list,
+                "classrooms": classrooms,
+                "filters": {"classroom": classroom_filter},
+                "today": date.today(),
+            },
+        )
+
     return render(request, "core/placeholders/coming_soon.html", {"title": "Homework"})
 
 
@@ -3390,8 +5544,8 @@ def school_homework_create(request):
 @login_required
 def reports_list(request):
     """Legacy reports entry (student/general)."""
-    if not has_feature_access(getattr(request.user, "school", None), "reports"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+    if not has_feature_access(getattr(request.user, "school", None), "reports", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
     return render(request, "core/placeholders/coming_soon.html", {"title": "Reports"})
 
 
@@ -3401,12 +5555,70 @@ def reports_list(request):
 
 @teacher_required
 def teacher_students_list(request):
+    """Students in class–sections this teacher is assigned to (via subject mapping)."""
     school = request.user.school
-    if not school:
-        students = []
-    else:
-        students = Student.objects.all().select_related("user")
-    return render(request, "core/teacher/students_list.html", {"students": students})
+    teacher = getattr(request.user, "teacher_profile", None)
+    students = []
+    pairs = []
+    class_options = []
+    section_options = []
+    if school and teacher:
+        from .utils import teacher_class_section_pairs_display
+
+        pairs = teacher_class_section_pairs_display(teacher)
+        q = Q()
+        for cn, sn in pairs:
+            q |= Q(classroom__name__iexact=cn, section__name__iexact=sn)
+        pairs_csst = (
+            ClassSectionSubjectTeacher.objects.filter(teacher=teacher)
+            .values_list("class_obj_id", "section_id")
+            .distinct()
+        )
+        for cid, sid in pairs_csst:
+            if cid and sid:
+                q |= Q(classroom_id=cid, section_id=sid)
+        if q:
+            qs = (
+                Student.objects.filter(q)
+                .select_related("user", "classroom", "section")
+                .distinct()
+            )
+            class_name = (request.GET.get("class_name") or "").strip()
+            section_name = (request.GET.get("section") or "").strip()
+            search = (request.GET.get("q") or "").strip()
+            if class_name:
+                qs = qs.filter(classroom__name__iexact=class_name)
+            if section_name:
+                qs = qs.filter(section__name__iexact=section_name)
+            if search:
+                qs = qs.filter(
+                    Q(user__first_name__icontains=search)
+                    | Q(user__last_name__icontains=search)
+                    | Q(user__username__icontains=search)
+                )
+            students = list(
+                qs.order_by("classroom__name", "section__name", "roll_number", "user__first_name")
+            )
+        class_options = sorted({c for c, _ in pairs if c})
+        sel_class = (request.GET.get("class_name") or "").strip()
+        if sel_class:
+            section_options = sorted({s for c, s in pairs if c.lower() == sel_class.lower()})
+        else:
+            section_options = sorted({s for _, s in pairs if s})
+    return render(
+        request,
+        "core/teacher/students_list.html",
+        {
+            "students": students,
+            "filters": {
+                "class_name": (request.GET.get("class_name") or "").strip(),
+                "section": (request.GET.get("section") or "").strip(),
+                "q": (request.GET.get("q") or "").strip(),
+            },
+            "class_options": class_options,
+            "section_options": section_options,
+        },
+    )
 
 
 @teacher_required
@@ -3424,10 +5636,11 @@ def create_homework(request):
         if form.is_valid():
             hw = form.save(commit=False)
             hw.assigned_by = request.user
+            hw.teacher = teacher
             hw.save()
             form.save_m2m()
             messages.success(request, "Homework created successfully.")
-            return redirect("core:create_homework")
+            return redirect("core:homework_list")
     else:
         form = HomeworkCreateForm(user=request.user)
 
@@ -3481,44 +5694,63 @@ def enter_marks(request):
                 )
             form.fields["student"].queryset = Student.objects.filter(students_q).select_related("user", "classroom", "section")
 
-        mapped_subject_ids = ClassSectionSubjectTeacher.objects.filter(teacher=teacher).values_list("subject_id", flat=True).distinct()
+        mapped_subject_ids = set(
+            ClassSectionSubjectTeacher.objects.filter(teacher=teacher).values_list("subject_id", flat=True).distinct()
+        )
+        mapped_subject_ids.update(teacher.subjects.values_list("id", flat=True))
+        if teacher.subject_id:
+            mapped_subject_ids.add(teacher.subject_id)
         form.fields["subject"].queryset = Subject.objects.filter(id__in=mapped_subject_ids).order_by("name")
 
     return render(request, "core/teacher/marks_form.html", {"form": form, "title": "Enter Marks"})
 
 
 def _teacher_allowed_class_section_pairs(teacher):
-    """Return allowed (class_name, section_name) pairs for this teacher."""
-    if not teacher:
-        return set()
+    """Return allowed (class_name, section_name) pairs for this teacher (lowercased)."""
+    from .utils import teacher_allowed_class_section_pairs_lower
 
-    pairs = set()
-    # Source of truth: explicit mappings only.
-    for class_name, section_name in (
-        ClassSectionSubjectTeacher.objects.filter(teacher=teacher)
-        .values_list("class_obj__name", "section__name")
-        .distinct()
-    ):
-        if class_name and section_name:
-            pairs.add((class_name.lower(), section_name.lower()))
-    return pairs
+    return teacher_allowed_class_section_pairs_lower(teacher)
 
 
 def _teacher_exam_access(exam, school, teacher):
     """
-    Teacher may access an exam only if:
+    Teacher may access an exam if:
     - exam.teacher is set and matches this teacher, OR
-    - exam.teacher is unset and (class_name, section) is in their ClassSectionSubjectTeacher scope.
-    Other teachers' assigned exams are never accessible.
+    - exam.teacher is unset and they teach this exam's subject in that class–section, OR
+    - exam has no subject (legacy): class–section is in their mapping scope.
+    If another teacher is assigned (exam.teacher), only that teacher may access.
     """
     if exam is None or not teacher:
         return False
-    if getattr(exam, "teacher_id", None) and exam.teacher_id:
+    if getattr(exam, "teacher_id", None):
         return exam.teacher_id == teacher.id
-    allowed_pairs = _teacher_allowed_class_section_pairs(teacher)
     if not exam.class_name or not exam.section:
         return False
+    if getattr(exam, "subject_id", None):
+        if ClassSectionSubjectTeacher.objects.filter(
+            teacher=teacher,
+            class_obj__name__iexact=exam.class_name,
+            section__name__iexact=exam.section,
+            subject_id=exam.subject_id,
+        ).exists():
+            return True
+        pair_ok = (exam.class_name.lower(), exam.section.lower()) in _teacher_allowed_class_section_pairs(teacher)
+        subj_ids = set(teacher.subjects.values_list("id", flat=True))
+        if teacher.subject_id:
+            subj_ids.add(teacher.subject_id)
+        return pair_ok and exam.subject_id in subj_ids
+    allowed_pairs = _teacher_allowed_class_section_pairs(teacher)
     return (exam.class_name.lower(), exam.section.lower()) in allowed_pairs
+
+
+def _teacher_exam_session_access(session_obj, school, teacher):
+    """True if teacher may view this session (any paper passes _teacher_exam_access)."""
+    if not session_obj or not teacher:
+        return False
+    for paper in Exam.objects.filter(session=session_obj).select_related("teacher"):
+        if _teacher_exam_access(paper, school, teacher):
+            return True
+    return False
 
 
 @teacher_required
@@ -3529,31 +5761,92 @@ def teacher_exams(request):
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:teacher_dashboard")
     teacher = getattr(request.user, "teacher_profile", None)
-    # Teacher sees exams: assigned to them OR (class+section in scope when no teacher assigned).
     if teacher:
-        assigned_q = Q(teacher=teacher)
-        allowed_pairs = _teacher_allowed_class_section_pairs(teacher)
-        scope_q = Q()
-        for class_name, section_name in allowed_pairs:
-            scope_q |= Q(class_name__iexact=class_name, section__iexact=section_name)
         qs = (
-            _exam_read_qs()
-            .filter(assigned_q | (Q(teacher__isnull=True) & scope_q))
-            .select_related("subject")
+            Exam.objects.filter(_teacher_visible_exam_q(teacher))
+            .distinct()
+            .select_related("session", "session__created_by", "subject", "teacher__user")
         )
     else:
         qs = Exam.objects.none()
-    exam_objs = list(qs.order_by("-date"))
-    return render(request, "core/teacher/exams.html", {
-        "exams": exam_objs,
-    })
+
+    papers = list(qs.order_by("-session_id", "-date", "subject__name"))
+    session_groups = []
+    seen_session = set()
+    standalone_papers = []
+    for p in papers:
+        if p.session_id:
+            if p.session_id in seen_session:
+                continue
+            seen_session.add(p.session_id)
+            sess = p.session
+            if not sess:
+                continue
+            sess_papers = [x for x in papers if x.session_id == p.session_id]
+            sess_papers.sort(key=lambda x: (x.date or date.min, x.subject_id or 0))
+            # Papers are already limited to this teacher via _teacher_visible_exam_q; do not
+            # gate again on _teacher_exam_session_access (can drop rows if checks diverge).
+            if sess_papers:
+                dts = [x.date for x in sess_papers if x.date]
+                session_groups.append({
+                    "session": sess,
+                    "papers": sess_papers,
+                    "date_min": min(dts) if dts else None,
+                    "date_max": max(dts) if dts else None,
+                })
+        else:
+            standalone_papers.append(p)
+
+    session_groups.sort(key=lambda g: (g["session"].created_at, g["session"].pk), reverse=True)
+    standalone_papers.sort(key=lambda x: (x.date or date.min), reverse=True)
+
+    return render(
+        request,
+        "core/teacher/exams.html",
+        {
+            "exam_session_groups": session_groups,
+            "standalone_papers": standalone_papers,
+        },
+    )
+
+
+@teacher_required
+@feature_required("exams")
+def teacher_exam_session_detail(request, session_id):
+    school = request.user.school
+    if not school:
+        add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
+        return redirect("core:teacher_dashboard")
+    if not has_feature_access(school, "exams", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
+    teacher = getattr(request.user, "teacher_profile", None)
+    session_obj = get_object_or_404(
+        ExamSession.objects.select_related("classroom", "created_by"),
+        pk=session_id,
+    )
+    if not _teacher_exam_session_access(session_obj, school, teacher):
+        raise PermissionDenied
+    papers = list(
+        _exam_papers_full_qs()
+        .filter(session=session_obj)
+        .order_by("date", "subject__name")
+    )
+    papers = [p for p in papers if _teacher_exam_access(p, school, teacher)]
+    return render(
+        request,
+        "core/teacher/exam_session_detail.html",
+        {
+            "session": session_obj,
+            "papers": papers,
+        },
+    )
 
 
 @admin_required
 @feature_required("exams")
 def school_exams_list(request):
     """
-    School Admin: exam sessions (multi-subject) + legacy single papers without a session.
+    School Admin: exam sessions (multi-subject papers).
     Filter by class, section, teacher, subject, search.
     """
     school = request.user.school
@@ -3583,7 +5876,7 @@ def school_exams_list(request):
                 date_min=Min("papers__date"),
                 date_max=Max("papers__date"),
             )
-            .order_by("-created_at", "-id")
+            .order_by("-created_at", "-id", "name", "class_name", "section")
         )
 
         if class_id:
@@ -3614,48 +5907,6 @@ def school_exams_list(request):
         # Tenant schema has not run the ExamSession/session_id migration yet.
         exam_sessions_enabled = False
         exam_sessions = []
-        try:
-            connection.rollback()
-        except Exception:
-            pass
-
-    legacy_qs = (
-        _exam_read_qs()
-        .filter(date__isnull=False)
-        .exclude(section="")
-        .select_related("teacher__user", "created_by", "subject")
-        .order_by("-date", "-id")
-    )
-    if exam_sessions_enabled:
-        legacy_qs = legacy_qs.filter(session__isnull=True)
-
-    if class_id:
-        try:
-            classroom_obj = ClassRoom.objects.get(id=class_id)
-            legacy_qs = legacy_qs.filter(class_name=classroom_obj.name)
-        except ClassRoom.DoesNotExist:
-            legacy_qs = legacy_qs.none()
-
-    if section_id:
-        try:
-            sec = Section.objects.get(id=section_id)
-            legacy_qs = legacy_qs.filter(section__iexact=sec.name)
-        except Section.DoesNotExist:
-            legacy_qs = legacy_qs.none()
-
-    if teacher_id.isdigit():
-        legacy_qs = legacy_qs.filter(teacher_id=int(teacher_id))
-
-    if subject_id.isdigit():
-        legacy_qs = legacy_qs.filter(marks__subject_id=int(subject_id)).distinct()
-
-    if q:
-        legacy_qs = legacy_qs.filter(name__icontains=q)
-
-    try:
-        legacy_exams = list(legacy_qs)
-    except (ProgrammingError, InternalError, DatabaseError):
-        legacy_exams = []
         try:
             connection.rollback()
         except Exception:
@@ -3694,7 +5945,6 @@ def school_exams_list(request):
         {
             "exam_sessions": exam_sessions,
             "exam_sessions_enabled": exam_sessions_enabled,
-            "legacy_exams": legacy_exams,
             "classrooms": classrooms,
             "sections": sections,
             "teachers": teachers,
@@ -3724,9 +5974,8 @@ def school_exam_session_detail(request, session_id):
         pk=session_id,
     )
     papers = list(
-        _exam_read_qs()
+        _exam_papers_full_qs()
         .filter(session=session_obj)
-        .select_related("subject", "teacher__user", "created_by")
         .order_by("date", "subject__name")
     )
     return render(
@@ -3743,6 +5992,66 @@ def _exam_teacher_for_school(school, teacher_id):
     if not teacher_id:
         return None
     return Teacher.objects.filter(id=teacher_id, user__school=school).first()
+
+
+def _default_teacher_for_class_section_subject(school, classroom, class_name, section_name, subject):
+    """
+    If exactly one teacher is mapped to this class, section, and subject in the school, return them.
+    Otherwise None (subject teachers resolve via ClassSectionSubjectTeacher; no global exam owner).
+    """
+    if not subject or not school:
+        return None
+    sn = (section_name or "").strip()
+    qs = ClassSectionSubjectTeacher.objects.filter(
+        subject=subject,
+        teacher__user__school=school,
+        section__name__iexact=sn,
+    )
+    if classroom is not None:
+        qs = qs.filter(class_obj=classroom)
+    elif class_name:
+        qs = qs.filter(class_obj__name__iexact=(class_name or "").strip())
+    else:
+        return None
+    qs = qs.select_related("teacher")
+    if qs.count() == 1:
+        return qs.first().teacher
+    return None
+
+
+def _teacher_visible_exam_q(teacher):
+    """Exams this teacher may see: assigned to them, or unassigned and they teach that subject in that class–section."""
+    from .utils import teacher_class_section_pairs_display
+
+    q = Q(teacher=teacher)
+    for row in ClassSectionSubjectTeacher.objects.filter(teacher=teacher).select_related(
+        "class_obj", "section"
+    ):
+        cname = (row.class_obj.name if row.class_obj_id else "") or ""
+        sname = (row.section.name if row.section_id else "") or ""
+        if not cname or not sname or not row.subject_id:
+            continue
+        q |= Q(
+            teacher__isnull=True,
+            class_name__iexact=cname,
+            section__iexact=sname,
+            subject_id=row.subject_id,
+        )
+    # Profile subjects + class/section from CSST or Teacher.classrooms × class.sections
+    subj_ids = set(teacher.subjects.values_list("id", flat=True))
+    if teacher.subject_id:
+        subj_ids.add(teacher.subject_id)
+    for cname, sname in teacher_class_section_pairs_display(teacher):
+        if not cname or not sname:
+            continue
+        for sid in subj_ids:
+            q |= Q(
+                teacher__isnull=True,
+                class_name__iexact=cname,
+                section__iexact=sname,
+                subject_id=sid,
+            )
+    return q
 
 
 def _exam_duplicate(class_name, section_name, dt, subject, exclude_pk=None):
@@ -3784,6 +6093,11 @@ def _exam_read_qs():
     return Exam.objects.defer("start_time", "end_time", "session", "academic_year")
 
 
+def _exam_papers_full_qs():
+    """Exam papers with session and times for schedule / detail screens."""
+    return Exam.objects.select_related("subject", "teacher__user", "created_by", "session")
+
+
 def _parse_exam_calendar_date(value):
     """Parse FullCalendar startStr / API payload to a date."""
     from datetime import datetime as _dt
@@ -3814,11 +6128,8 @@ def _exam_events_queryset(request):
     elif role == "TEACHER":
         teacher = getattr(request.user, "teacher_profile", None)
         if teacher:
-            assigned_q = Q(teacher=teacher)
-            scope_q = Q()
-            for class_name, section_name in _teacher_allowed_class_section_pairs(teacher):
-                scope_q |= Q(class_name__iexact=class_name, section__iexact=section_name)
-            qs = qs.filter(assigned_q | (Q(teacher__isnull=True) & scope_q))
+            # Same rules as teacher_exams / marks: assigned paper OR unassigned + mapped subject
+            qs = qs.filter(_teacher_visible_exam_q(teacher)).distinct()
         else:
             qs = Exam.objects.none()
     elif role == "STUDENT":
@@ -3943,7 +6254,6 @@ def school_exam_create(request):
                 subject_ids = [int(x) for x in request.POST.getlist("subject_include") if str(x).isdigit()]
                 tm = scheduler_form.cleaned_data["total_marks"]
                 exam_name_base = (scheduler_form.cleaned_data.get("exam_name") or "").strip()
-                teacher_obj = _exam_teacher_for_school(school, scheduler_form.cleaned_data.get("teacher"))
 
                 if not class_ids:
                     messages.error(request, "Select at least one class.")
@@ -4023,7 +6333,14 @@ def school_exam_create(request):
                                                 f"{cn} {sn} {dt} ({subj.name}) — duplicate exam"
                                             )
                                             continue
-                                        paper_name = f"{exam_name_base} - {subj.name}"[:100]
+                                        paper_name = subj.name[:100]
+                                        raw_tid = (request.POST.get(f"exam_teacher_{subj_id}") or "").strip()
+                                        chosen_teacher = None
+                                        if raw_tid.isdigit():
+                                            chosen_teacher = _exam_teacher_for_school(school, int(raw_tid))
+                                        paper_teacher = chosen_teacher or _default_teacher_for_class_section_subject(
+                                            school, classroom, cn, sn, subj
+                                        )
                                         Exam.objects.create(
                                             session=session,
                                             name=paper_name,
@@ -4033,7 +6350,7 @@ def school_exam_create(request):
                                             date=dt,
                                             subject=subj,
                                             total_marks=tm,
-                                            teacher=teacher_obj,
+                                            teacher=paper_teacher,
                                             created_by=request.user,
                                         )
                                         papers_created += 1
@@ -4069,19 +6386,38 @@ def school_exam_create(request):
                         .order_by("-academic_year__start_date", "id")
                         .first()
                     )
-                    Exam.objects.create(
-                        name=single_form.cleaned_data["name"][:100],
-                        classroom=classroom_obj,
-                        class_name=cn,
-                        section=sn,
-                        date=dt,
-                        subject=subj,
-                        total_marks=tm,
-                        teacher=_exam_teacher_for_school(school, single_form.cleaned_data.get("teacher")),
-                        created_by=request.user,
+                    session_name = single_form.cleaned_data["name"].strip()[:100]
+                    with transaction.atomic():
+                        session = ExamSession.objects.create(
+                            name=session_name,
+                            class_name=cn,
+                            section=sn,
+                            classroom=classroom_obj,
+                            created_by=request.user,
+                        )
+                        chosen = _exam_teacher_for_school(
+                            school, single_form.cleaned_data.get("teacher")
+                        )
+                        paper_teacher = chosen or _default_teacher_for_class_section_subject(
+                            school, classroom_obj, cn, sn, subj
+                        )
+                        Exam.objects.create(
+                            session=session,
+                            name=(subj.name[:100] if subj else session_name),
+                            classroom=classroom_obj,
+                            class_name=cn,
+                            section=sn,
+                            date=dt,
+                            subject=subj,
+                            total_marks=tm,
+                            teacher=paper_teacher,
+                            created_by=request.user,
+                        )
+                    messages.success(
+                        request,
+                        "Exam session created with one subject paper. Add more papers from Create exam (scheduler) or edit workflow.",
                     )
-                    messages.success(request, "Exam created successfully.")
-                    return redirect("core:school_exams_list")
+                    return redirect("core:school_exam_session_detail", session_id=session.pk)
 
     class_sections = {}
     for c in ClassRoom.objects.prefetch_related("sections").order_by("name"):
@@ -4105,12 +6441,19 @@ def school_exam_create(request):
         .order_by("-date")[:500]
     )
 
+    scheduler_teachers = list(
+        Teacher.objects.filter(user__school=school)
+        .select_related("user")
+        .order_by("user__first_name", "user__last_name", "id")
+    )
+
     return render(
         request,
         "core/school/exam_create.html",
         {
             "single_form": single_form,
             "scheduler_form": scheduler_form,
+            "scheduler_teachers": scheduler_teachers,
             "all_subjects": Subject.objects.order_by("name"),
             "all_classrooms": ClassRoom.objects.select_related("academic_year").order_by(
                 "academic_year__start_date", "name"
@@ -4271,38 +6614,77 @@ def teacher_exam_create(request):
     if not school:
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:teacher_dashboard")
-    if not has_feature_access(school, "exams"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+    if not has_feature_access(school, "exams", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
     teacher = getattr(request.user, "teacher_profile", None)
-    allowed_pairs = (
-        list(
-            ClassSectionSubjectTeacher.objects.filter(teacher=teacher)
-            .values_list("class_obj__name", "section__name")
-            .distinct()
-        )
-        if teacher
-        else []
-    )
-    allowed_pairs = [(c, s) for c, s in allowed_pairs if c and s]
+    from .utils import teacher_class_section_pairs_display
+
+    allowed_pairs = teacher_class_section_pairs_display(teacher) if teacher else []
     if not allowed_pairs:
         messages.warning(
             request,
             "You have no class/section assignments. Contact admin to assign you to subjects before creating exams.",
         )
         return redirect("core:teacher_exams")
+    from .forms import TeacherExamSessionPaperForm
+
     if request.method == "POST":
-        from .forms import ExamCreateForm
-        form = ExamCreateForm(request.POST, allowed_pairs=allowed_pairs)
+        form = TeacherExamSessionPaperForm(
+            request.POST, allowed_pairs=allowed_pairs, teacher=teacher
+        )
         if form.is_valid():
-            exam = form.save(commit=False)
-            exam.created_by = request.user
-            if not _teacher_exam_access(exam, school, teacher):
-                raise PermissionDenied
-            exam.save()
-            return redirect("core:teacher_exam_summary", exam_id=exam.id)
+            cn = form.cleaned_data["class_name"].strip()
+            sn = form.cleaned_data["section"].strip()
+            subj = form.cleaned_data["subject"]
+            dt = form.cleaned_data["date"]
+            tm = form.cleaned_data["total_marks"]
+            session_name = form.cleaned_data["session_name"].strip()[:100]
+            if _exam_duplicate(cn, sn, dt, subj):
+                messages.error(
+                    request,
+                    "A paper already exists for this class, section, date, and subject.",
+                )
+            elif _exam_class_section_date_conflict(cn, sn, dt):
+                messages.error(
+                    request,
+                    "This class and section already have another exam on that date.",
+                )
+            elif _exam_teacher_date_conflict(teacher.id if teacher else None, dt):
+                messages.error(request, "You already have another exam on that date.")
+            else:
+                classroom_obj = (
+                    ClassRoom.objects.filter(name__iexact=cn)
+                    .select_related("academic_year")
+                    .order_by("-academic_year__start_date", "id")
+                    .first()
+                )
+                with transaction.atomic():
+                    session = ExamSession.objects.create(
+                        name=session_name,
+                        class_name=cn,
+                        section=sn,
+                        classroom=classroom_obj,
+                        created_by=request.user,
+                    )
+                    paper = Exam.objects.create(
+                        session=session,
+                        name=subj.name[:100],
+                        classroom=classroom_obj,
+                        class_name=cn,
+                        section=sn,
+                        date=dt,
+                        subject=subj,
+                        total_marks=tm,
+                        teacher=teacher,
+                        created_by=request.user,
+                    )
+                messages.success(
+                    request,
+                    "Exam session and subject paper created. Use the same session name to add more subjects (admin scheduler) or create another session.",
+                )
+                return redirect("core:teacher_exam_session_detail", session_id=session.pk)
     else:
-        from .forms import ExamCreateForm
-        form = ExamCreateForm(allowed_pairs=allowed_pairs)
+        form = TeacherExamSessionPaperForm(allowed_pairs=allowed_pairs, teacher=teacher)
     return render(request, "core/teacher/exam_create.html", {"form": form})
 
 
@@ -4312,8 +6694,8 @@ def teacher_exam_summary(request, exam_id):
     if not school:
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:teacher_dashboard")
-    if not has_feature_access(school, "exams"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+    if not has_feature_access(school, "exams", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
     exam = get_object_or_404(_exam_read_qs(), pk=exam_id)
     teacher = getattr(request.user, "teacher_profile", None)
     if not _teacher_exam_access(exam, school, teacher):
@@ -4360,41 +6742,51 @@ def teacher_exam_summary(request, exam_id):
     })
 
 
-@teacher_required
-def teacher_exam_enter_marks(request, exam_id):
+def _exam_enter_marks_view(request, exam_id, *, acting_as_admin):
+    """Shared marks entry for teachers (subject-scoped, may lock after save) and school admins (full access)."""
     school = request.user.school
     if not school:
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
-        return redirect("core:teacher_dashboard")
-    if not has_feature_access(school, "exams"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+        return redirect("core:admin_dashboard" if acting_as_admin else "core:teacher_dashboard")
+    if not has_feature_access(school, "exams", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
     exam = get_object_or_404(_exam_read_qs(), pk=exam_id)
-    teacher = getattr(request.user, "teacher_profile", None)
-    if not _teacher_exam_access(exam, school, teacher):
-        raise PermissionDenied
+    teacher = getattr(request.user, "teacher_profile", None) if not acting_as_admin else None
 
-    # Subjects allowed by mapping for this exam class+section.
-    subject_ids = list(
-        ClassSectionSubjectTeacher.objects.filter(
-            teacher=teacher,
-            class_obj__name__iexact=exam.class_name,
-            section__name__iexact=exam.section,
-        ).values_list("subject_id", flat=True).distinct()
-    )
-    subject_id_set = set(subject_ids)
-    if exam.subject_id:
-        if exam.subject_id in subject_id_set or (exam.teacher_id and exam.teacher_id == teacher.id):
-            subjects = Subject.objects.filter(id=exam.subject_id).order_by("name")
-        else:
-            subjects = Subject.objects.none()
+    if acting_as_admin:
+        subjects = (
+            Subject.objects.filter(id=exam.subject_id).order_by("name")
+            if exam.subject_id
+            else Subject.objects.none()
+        )
+        subject_id_set = set()
     else:
-        subjects = Subject.objects.filter(id__in=subject_ids).order_by("name")
+        if not _teacher_exam_access(exam, school, teacher):
+            raise PermissionDenied
+        subject_ids = list(
+            ClassSectionSubjectTeacher.objects.filter(
+                teacher=teacher,
+                class_obj__name__iexact=exam.class_name,
+                section__name__iexact=exam.section,
+            ).values_list("subject_id", flat=True).distinct()
+        )
+        subject_id_set = set(subject_ids)
+        if exam.subject_id:
+            if exam.subject_id in subject_id_set or (exam.teacher_id and exam.teacher_id == teacher.id):
+                subjects = Subject.objects.filter(id=exam.subject_id).order_by("name")
+            else:
+                subjects = Subject.objects.none()
+        else:
+            subjects = Subject.objects.filter(id__in=subject_ids).order_by("name")
 
+    enter_marks_url = reverse(
+        "core:school_exam_paper_enter_marks" if acting_as_admin else "core:teacher_exam_enter_marks",
+        args=[exam.id],
+    )
     subject_id = request.GET.get("subject") or request.POST.get("subject")
     if request.method == "GET" and not subject_id and subjects.count() == 1:
-        return redirect(f"{reverse('core:teacher_exam_enter_marks', args=[exam.id])}?subject={subjects.first().id}")
+        return redirect(f"{enter_marks_url}?subject={subjects.first().id}")
 
-    # Students in exam's class+section
     students = list(
         Student.objects.filter(
             classroom__name__iexact=exam.class_name,
@@ -4409,13 +6801,25 @@ def teacher_exam_enter_marks(request, exam_id):
         subject = subjects.filter(id=subject_id).first()
 
     if request.method == "POST" and subject:
-        if exam.subject_id:
-            if subject.id != exam.subject_id:
+        if not acting_as_admin:
+            exam.refresh_from_db(fields=["marks_teacher_edit_locked"])
+            if exam.marks_teacher_edit_locked:
+                messages.error(
+                    request,
+                    "Marks are locked. Ask your school admin to allow re-editing before you can save changes again.",
+                )
+                return redirect(f"{enter_marks_url}?subject={subject.id}")
+        if acting_as_admin:
+            if exam.subject_id and subject.id != exam.subject_id:
                 raise PermissionDenied
-            if subject.id not in subject_id_set and exam.teacher_id != teacher.id:
+        else:
+            if exam.subject_id:
+                if subject.id != exam.subject_id:
+                    raise PermissionDenied
+                if subject.id not in subject_id_set and exam.teacher_id != teacher.id:
+                    raise PermissionDenied
+            elif subject.id not in subject_id_set:
                 raise PermissionDenied
-        elif subject.id not in subject_id_set:
-            raise PermissionDenied
         with transaction.atomic():
             existing = {
                 (m.student_id, m.subject_id): m
@@ -4454,9 +6858,15 @@ def teacher_exam_enter_marks(request, exam_id):
                 Marks.objects.bulk_create(to_create)
             if to_update:
                 Marks.objects.bulk_update(to_update, ["marks_obtained", "total_marks", "entered_by"])
-        return redirect("core:teacher_exam_summary", exam_id=exam.id)
+        if not acting_as_admin:
+            Exam.objects.filter(pk=exam.pk).update(marks_teacher_edit_locked=True)
+            messages.success(request, "Marks saved. Further edits require school admin approval (marks are now locked).")
+            return redirect("core:teacher_exam_summary", exam_id=exam.id)
+        messages.success(request, "Marks saved.")
+        if exam.session_id:
+            return redirect("core:school_exam_session_detail", session_id=exam.session_id)
+        return redirect("core:school_exams_list")
 
-    # GET: show form
     existing_marks = {}
     if subject:
         for m in Marks.objects.filter(exam=exam, subject=subject):
@@ -4472,12 +6882,104 @@ def teacher_exam_enter_marks(request, exam_id):
             "total": em["total"],
         })
 
-    return render(request, "core/teacher/exam_enter_marks.html", {
-        "exam": exam,
-        "subjects": subjects,
-        "subject": subject,
-        "students_with_marks": students_with_marks,
-    })
+    exam.refresh_from_db(fields=["marks_teacher_edit_locked"])
+    marks_readonly = not acting_as_admin and bool(exam.marks_teacher_edit_locked)
+    back_url = (
+        reverse("core:school_exam_session_detail", args=[exam.session_id])
+        if acting_as_admin and exam.session_id
+        else reverse("core:school_exams_list")
+        if acting_as_admin
+        else reverse("core:teacher_exam_summary", args=[exam.id])
+    )
+
+    return render(
+        request,
+        "core/teacher/exam_enter_marks.html",
+        {
+            "exam": exam,
+            "subjects": subjects,
+            "subject": subject,
+            "students_with_marks": students_with_marks,
+            "acting_as_admin": acting_as_admin,
+            "enter_marks_url": enter_marks_url,
+            "marks_readonly": marks_readonly,
+            "back_url": back_url,
+        },
+    )
+
+
+@teacher_required
+def teacher_exam_enter_marks(request, exam_id):
+    return _exam_enter_marks_view(request, exam_id, acting_as_admin=False)
+
+
+@admin_required
+@feature_required("exams")
+def school_exam_paper_enter_marks(request, exam_id):
+    return _exam_enter_marks_view(request, exam_id, acting_as_admin=True)
+
+
+@admin_required
+@feature_required("exams")
+@require_POST
+def school_exam_paper_set_marks_lock(request, exam_id):
+    school = request.user.school
+    if not school:
+        add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
+        return redirect("core:admin_dashboard")
+    exam = get_object_or_404(Exam.objects.only("id", "session_id"), pk=exam_id)
+    raw = (request.POST.get("marks_teacher_edit_locked") or "").strip().lower()
+    if raw == "1":
+        locked = True
+    elif raw == "0":
+        locked = False
+    else:
+        messages.error(request, "Invalid lock action.")
+        if exam.session_id:
+            return redirect("core:school_exam_session_detail", session_id=exam.session_id)
+        return redirect("core:school_exams_list")
+    Exam.objects.filter(pk=exam.pk).update(marks_teacher_edit_locked=locked)
+    messages.success(
+        request,
+        "Teachers cannot edit marks for this paper until you allow re-editing."
+        if locked
+        else "Teachers can save mark changes again for this paper.",
+    )
+    if exam.session_id:
+        return redirect("core:school_exam_session_detail", session_id=exam.session_id)
+    return redirect("core:school_exams_list")
+
+
+@admin_required
+@feature_required("exams")
+@require_POST
+def school_exam_session_set_all_marks_lock(request, session_id):
+    """Lock or unlock teacher mark editing for every paper in this exam session."""
+    school = request.user.school
+    if not school:
+        add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
+        return redirect("core:admin_dashboard")
+    session_obj = get_object_or_404(ExamSession.objects.only("id"), pk=session_id)
+    raw = (request.POST.get("marks_teacher_edit_locked") or "").strip().lower()
+    if raw == "1":
+        locked = True
+    elif raw == "0":
+        locked = False
+    else:
+        messages.error(request, "Invalid lock action.")
+        return redirect("core:school_exam_session_detail", session_id=session_id)
+    n = Exam.objects.filter(session=session_obj).update(marks_teacher_edit_locked=locked)
+    if locked:
+        messages.success(
+            request,
+            f"Locked mark editing for teachers on all {n} subject paper(s) in this session.",
+        )
+    else:
+        messages.success(
+            request,
+            f"Teachers can save mark changes again on all {n} subject paper(s) in this session.",
+        )
+    return redirect("core:school_exam_session_detail", session_id=session_id)
 
 
 @teacher_required
@@ -4582,23 +7084,19 @@ def bulk_attendance(request):
     if not school:
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:teacher_dashboard")
-    if not has_feature_access(school, "attendance"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+    if not has_feature_access(school, "attendance", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
 
     today = date.today()
     teacher = getattr(request.user, "teacher_profile", None)
-    allowed_pairs_raw = []
-    if teacher:
-        allowed_pairs_raw = list(
-            ClassSectionSubjectTeacher.objects.filter(teacher=teacher)
-            .values_list("class_obj__name", "section__name")
-            .distinct()
-        )
-    allowed_pairs_lower = {(c.lower(), s.lower()) for c, s in allowed_pairs_raw if c and s}
+    from .utils import teacher_class_section_pairs_display, teacher_allowed_class_section_pairs_lower
 
-    # Populate dropdowns from teacher mappings only.
-    class_choices = sorted({c for c, _ in allowed_pairs_raw if c})
-    section_choices = sorted({s for _, s in allowed_pairs_raw if s})
+    allowed_pairs_raw = teacher_class_section_pairs_display(teacher) if teacher else []
+    allowed_pairs_lower = teacher_allowed_class_section_pairs_lower(teacher) if teacher else set()
+
+    # Populate dropdowns from teacher mappings only (value, label) tuples for the template.
+    class_choices = [(n, n) for n in sorted({c for c, _ in allowed_pairs_raw if c})]
+    section_choices = [(n, n) for n in sorted({s for _, s in allowed_pairs_raw if s})]
 
     # POST: Save attendance
     if request.method == "POST":
@@ -4743,19 +7241,14 @@ def mark_attendance(request):
     if not school:
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:teacher_dashboard")
-    if not has_feature_access(school, "attendance"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+    if not has_feature_access(school, "attendance", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
 
     teacher = getattr(request.user, "teacher_profile", None)
-    allowed_pairs_raw = []
-    allowed_pairs_lower = set()
-    if teacher:
-        allowed_pairs_raw = list(
-            ClassSectionSubjectTeacher.objects.filter(teacher=teacher)
-            .values_list("class_obj__name", "section__name")
-            .distinct()
-        )
-        allowed_pairs_lower = {(c.lower(), s.lower()) for c, s in allowed_pairs_raw if c and s}
+    from .utils import teacher_class_section_pairs_display, teacher_allowed_class_section_pairs_lower
+
+    allowed_pairs_raw = teacher_class_section_pairs_display(teacher) if teacher else []
+    allowed_pairs_lower = teacher_allowed_class_section_pairs_lower(teacher) if teacher else set()
 
     if request.method == "POST":
         form = AttendanceForm(request.POST)
@@ -4799,14 +7292,25 @@ def _school_fee_check(request):
 
 def _school_module_check(request, feature: str):
     """Ensure school has access to feature. Return school or None."""
-    school = request.user.school
+    from apps.accounts.models import User
+
+    school = getattr(request.user, "school", None)
     if not school:
         return None
+    if getattr(request.user, "role", None) == User.Roles.SUPERADMIN:
+        return school
     if school.is_trial_expired():
         return None
     if not school.has_feature(feature):
         return None
     return school
+
+
+def _fee_balance_remaining(fee):
+    from decimal import Decimal
+
+    paid = Payment.objects.filter(fee=fee).aggregate(s=Sum("amount"))["s"] or Decimal("0")
+    return fee.amount - paid
 
 
 @admin_required
@@ -4864,11 +7368,104 @@ def school_fee_structure(request):
 
 @admin_required
 def school_fee_add(request):
-    """Create fee dues for students from fee structure."""
+    """Generate fee dues from structure, and record student-wise payments (same page)."""
+    from decimal import Decimal
+
+    from .forms import PaymentForm
+
     school = _school_fee_check(request)
     if not school:
         return redirect("core:admin_dashboard")
-    if request.method == "POST":
+
+    students_qs = Student.objects.select_related("user", "classroom", "section").order_by(
+        "user__last_name", "user__first_name", "user__username"
+    )
+
+    selected_student = None
+    pending_fees = []
+    record_form = None
+    preselected_fee_id = None
+
+    student_param = request.POST.get("record_student") or request.GET.get("student")
+    if student_param:
+        try:
+            selected_student = students_qs.get(pk=int(student_param))
+        except (ValueError, Student.DoesNotExist):
+            selected_student = None
+        if selected_student:
+            pending_fees = list(
+                Fee.objects.filter(
+                    student=selected_student,
+                    status__in=["PENDING", "PARTIAL"],
+                )
+                .select_related("fee_structure__fee_type")
+                .order_by("due_date")
+            )
+
+    fee_qs = request.GET.get("fee") or request.POST.get("record_fee")
+    if fee_qs:
+        try:
+            preselected_fee_id = int(fee_qs)
+        except (TypeError, ValueError):
+            preselected_fee_id = None
+
+    if pending_fees:
+        valid_fee_ids = {f.id for f in pending_fees}
+        if preselected_fee_id not in valid_fee_ids:
+            preselected_fee_id = pending_fees[0].id
+
+    if request.method == "POST" and request.POST.get("record_payment"):
+        fee_obj = None
+        sid = request.POST.get("record_student")
+        fid = request.POST.get("record_fee")
+        if sid and fid:
+            try:
+                fee_obj = Fee.objects.select_related("student").get(
+                    pk=int(fid),
+                    student_id=int(sid),
+                    status__in=["PENDING", "PARTIAL"],
+                )
+            except (ValueError, Fee.DoesNotExist):
+                fee_obj = None
+        if fee_obj:
+            record_form = PaymentForm(request.POST, fee=fee_obj)
+            if record_form.is_valid():
+                with transaction.atomic():
+                    p = record_form.save(commit=False)
+                    p.fee = fee_obj
+                    p.received_by = request.user
+                    p.save()
+                    paid = Payment.objects.filter(fee=fee_obj).aggregate(s=Sum("amount"))["s"] or Decimal("0")
+                    if paid >= fee_obj.amount:
+                        fee_obj.status = "PAID"
+                    else:
+                        fee_obj.status = "PARTIAL"
+                    fee_obj.save(update_fields=["status"])
+                messages.success(
+                    request,
+                    f"Recorded {p.amount} from {fee_obj.student.user.get_full_name() or fee_obj.student.user.username} "
+                    f"({p.payment_method}).",
+                )
+                return redirect(f"{reverse('core:school_fee_add')}?student={fee_obj.student_id}")
+        else:
+            record_form = PaymentForm(request.POST, fee=None)
+            messages.error(request, "Select a student and a pending fee due, then try again.")
+    elif request.method == "GET" and selected_student and pending_fees:
+        target_fee = None
+        if preselected_fee_id:
+            for pf in pending_fees:
+                if pf.id == preselected_fee_id:
+                    target_fee = pf
+                    break
+        if target_fee is None:
+            target_fee = pending_fees[0]
+        remaining = _fee_balance_remaining(target_fee)
+        record_form = PaymentForm(
+            fee=target_fee,
+            initial={"payment_date": date.today(), "amount": remaining},
+        )
+
+    if request.method == "POST" and not request.POST.get("record_payment"):
         structure_id = request.POST.get("fee_structure")
         classroom_id = request.POST.get("classroom")
         due_date_str = request.POST.get("due_date")
@@ -4890,12 +7487,30 @@ def school_fee_add(request):
                     )
                     if created_flag:
                         created += 1
+                messages.success(request, f"Generated {created} new fee due(s).")
             except (ValueError, FeeStructure.DoesNotExist):
-                pass
+                messages.error(request, "Could not generate fees. Check the form and try again.")
         return redirect("core:school_fee_collection")
+
     structures = FeeStructure.objects.all().select_related("fee_type", "classroom")
     classrooms = ClassRoom.objects.all()
-    return render(request, "core/fees/fee_add.html", {"structures": structures, "classrooms": classrooms})
+    pending_rows = []
+    for f in pending_fees:
+        pending_rows.append({"fee": f, "balance": _fee_balance_remaining(f)})
+
+    return render(
+        request,
+        "core/fees/fee_add.html",
+        {
+            "structures": structures,
+            "classrooms": classrooms,
+            "students": students_qs,
+            "selected_student": selected_student,
+            "pending_rows": pending_rows,
+            "record_form": record_form,
+            "preselected_fee_id": preselected_fee_id,
+        },
+    )
 
 
 @admin_required
@@ -4903,10 +7518,29 @@ def school_fee_collection(request):
     school = _school_fee_check(request)
     if not school:
         return redirect("core:admin_dashboard")
-    dues = Fee.objects.filter( status__in=["PENDING", "PARTIAL"]).select_related(
+    dues = Fee.objects.filter(status__in=["PENDING", "PARTIAL"]).select_related(
         "student__user", "fee_structure__fee_type"
     ).order_by("due_date")
-    return render(request, "core/fees/fee_collection.html", {"dues": dues})
+    students = Student.objects.select_related("user").order_by("user__last_name", "user__first_name")
+    student_filter = (request.GET.get("student") or "").strip()
+    filtered_student = None
+    if student_filter:
+        try:
+            fid = int(student_filter)
+            filtered_student = Student.objects.select_related("user").filter(pk=fid).first()
+            dues = dues.filter(student_id=fid)
+        except ValueError:
+            pass
+    return render(
+        request,
+        "core/fees/fee_collection.html",
+        {
+            "dues": dues,
+            "students": students,
+            "student_filter": student_filter,
+            "filtered_student": filtered_student,
+        },
+    )
 
 
 @admin_required
@@ -4916,8 +7550,10 @@ def school_fee_collect(request, fee_id):
         return redirect("core:admin_dashboard")
     fee = get_object_or_404(Fee, id=fee_id)
     from .forms import PaymentForm
+
+    balance_due = _fee_balance_remaining(fee)
     if request.method == "POST":
-        form = PaymentForm(request.POST)
+        form = PaymentForm(request.POST, fee=fee)
         if form.is_valid():
             with transaction.atomic():
                 p = form.save(commit=False)
@@ -4930,10 +7566,22 @@ def school_fee_collect(request, fee_id):
                 else:
                     fee.status = "PARTIAL"
                 fee.save(update_fields=["status"])
+            messages.success(request, "Payment recorded.")
+            fee_student_id = fee.student_id
+            base = reverse("core:school_fee_collection")
+            if fee_student_id:
+                return redirect(f"{base}?{urlencode({'student': fee_student_id})}")
             return redirect("core:school_fee_collection")
     else:
-        form = PaymentForm(initial={"payment_date": date.today(), "amount": fee.amount})
-    return render(request, "core/fees/collect.html", {"form": form, "fee": fee})
+        form = PaymentForm(
+            fee=fee,
+            initial={"payment_date": date.today(), "amount": balance_due},
+        )
+    return render(
+        request,
+        "core/fees/collect.html",
+        {"form": form, "fee": fee, "balance_due": balance_due},
+    )
 
 
 @admin_required
@@ -5052,6 +7700,49 @@ def parent_announcements(request):
         "announcements": hw,
         "title": "Homework / Announcements",
     })
+
+
+# ======================
+# Student profile PDF (full profile summary)
+# ======================
+
+
+@admin_required
+def school_student_profile_pdf(request, student_id):
+    """Download student profile as PDF (xhtml2pdf). Filename: student_<id>.pdf."""
+    school = request.user.school
+    if not school:
+        raise PermissionDenied
+    student = get_object_or_404(
+        Student.objects.select_related("user", "classroom", "section", "academic_year"),
+        id=student_id,
+    )
+    extra = student.extra_data or {}
+    basic = extra.get("basic") or {}
+    academic = extra.get("academic") or {}
+    parents = extra.get("parents") or {}
+    contact = extra.get("contact") or {}
+    status_block = extra.get("status") or {}
+    addr_lines = (student.address or "").split("\n") if student.address else []
+    address_line1 = addr_lines[0] if addr_lines else ""
+    address_line2 = addr_lines[1] if len(addr_lines) > 1 else ""
+    ctx = {
+        "student": student,
+        "school": school,
+        "basic": basic,
+        "academic": academic,
+        "parents": parents,
+        "contact": contact,
+        "status_block": status_block,
+        "address_line1": address_line1,
+        "address_line2": address_line2,
+        "generated_on": timezone.now(),
+    }
+    ctx.update(_student_record_letterhead_context(request, school, student))
+    pdf_bytes = render_pdf_bytes("core/school/student_profile_pdf.html", ctx)
+    if not pdf_bytes:
+        raise Http404("PDF could not be generated. Ensure xhtml2pdf is installed.")
+    return pdf_response(pdf_bytes, f"student_{student_id}.pdf")
 
 
 # ======================
@@ -5504,7 +8195,7 @@ def school_support_create(request):
 
 
 def online_admission_apply(request, school_code):
-    """Public admission form. School must have online_admission feature (Pro plan)."""
+    """Public admission form. School must have online_admission (Enterprise tier)."""
     school = get_object_or_404(School, code=school_code)
     if not school.has_feature("online_admission"):
         raise Http404("Online admissions not available for this school.")

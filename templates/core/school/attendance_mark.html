@@ -2,7 +2,309 @@
 {% block title %}Student Attendance | School ERP{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-0">
+<style>
+  .att-page {
+    --att-brand: #4f46e5;
+    --att-brand-soft: rgba(79, 70, 229, 0.12);
+    --att-surface: #ffffff;
+    --att-surface-2: #f8fafc;
+    --att-border: #e2e8f0;
+    --att-muted: #64748b;
+    --att-present: #059669;
+    --att-present-bg: rgba(5, 150, 105, 0.1);
+    --att-absent: #dc2626;
+    --att-absent-bg: rgba(220, 38, 38, 0.08);
+    --att-leave: #ca8a04;
+    --att-leave-bg: rgba(234, 179, 8, 0.14);
+    background: linear-gradient(165deg, #eef2f6 0%, #f4f6f9 35%, #f8fafc 100%);
+    margin: -0.5rem -1rem 0;
+    padding: 1rem 1rem 2.5rem;
+    min-height: calc(100vh - 120px);
+  }
+  @media (min-width: 992px) {
+    .att-page { margin: -0.5rem -1.5rem 0; padding: 1.25rem 1.5rem 2.5rem; }
+  }
+  html.dark .att-page {
+    --att-surface: rgba(30, 41, 59, 0.94);
+    --att-surface-2: rgba(15, 23, 42, 0.6);
+    --att-border: rgba(148, 163, 184, 0.2);
+    --att-muted: #94a3b8;
+    background: linear-gradient(165deg, #0f172a 0%, #1e293b 45%, #0f172a 100%);
+  }
+  .att-page .att-page-title {
+    color: #0f172a;
+    letter-spacing: -0.02em;
+  }
+  html.dark .att-page .att-page-title { color: #f1f5f9; }
+  .att-filters-card {
+    background: var(--att-surface);
+    border: 1px solid var(--att-border);
+    border-radius: 1rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 40px rgba(15, 23, 42, 0.06);
+  }
+  html.dark .att-filters-card {
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  }
+  .att-table-card {
+    background: var(--att-surface);
+    border: 1px solid var(--att-border);
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 40px rgba(15, 23, 42, 0.06);
+  }
+  html.dark .att-table-card {
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  }
+  /* One-line filter bar: horizontal scroll on narrow viewports */
+  .att-filter-scroll {
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -0.25rem;
+    padding: 0 0.25rem;
+  }
+  .att-filter-row {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    gap: 0.65rem 1rem;
+    min-width: min(100%, 56rem);
+  }
+  .att-filter-cell .form-label {
+    margin-bottom: 0.2rem;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-weight: 700;
+    color: var(--att-muted);
+    white-space: nowrap;
+  }
+  .att-filter-cell .form-select,
+  .att-filter-cell .form-control {
+    min-height: 40px;
+    font-size: 0.875rem;
+    border-radius: 10px;
+    border-color: var(--att-border);
+    background: var(--att-surface-2);
+  }
+  html.dark .att-filter-cell .form-select,
+  html.dark .att-filter-cell .form-control {
+    background: rgba(15, 23, 42, 0.55);
+    color: #f1f5f9;
+  }
+  .att-filter-class { flex: 0 0 9.25rem; min-width: 7.5rem; }
+  .att-filter-section { flex: 0 0 9.25rem; min-width: 7.5rem; }
+  .att-filter-date { flex: 0 0 15rem; min-width: 13rem; }
+  .att-filter-search { flex: 1 1 12rem; min-width: 11rem; max-width: 24rem; }
+  .att-filter-action { flex: 0 0 auto; }
+  .att-filter-action .btn {
+    min-height: 40px;
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+    font-weight: 600;
+    border-radius: 10px;
+    background: var(--att-brand);
+    border-color: var(--att-brand);
+  }
+  .att-filter-action .btn:hover {
+    background: #4338ca;
+    border-color: #4338ca;
+  }
+  .att-erp-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 0;
+  }
+  .att-erp-table thead th {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-weight: 700;
+    color: var(--att-muted);
+    padding: 14px 16px;
+    background: var(--att-surface-2);
+    border-bottom: 1px solid var(--att-border);
+    white-space: nowrap;
+  }
+  html.dark .att-erp-table thead th {
+    background: rgba(15, 23, 42, 0.75);
+    border-bottom-color: var(--att-border);
+  }
+  .att-erp-table tbody td {
+    padding: 12px 16px;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--att-border);
+  }
+  html.dark .att-erp-table tbody td {
+    border-bottom-color: rgba(148, 163, 184, 0.1);
+  }
+  .att-erp-table tbody tr {
+    transition: background-color 0.15s ease;
+  }
+  .att-erp-table tbody tr:hover {
+    background: var(--att-brand-soft);
+  }
+  html.dark .att-erp-table tbody tr:hover {
+    background: rgba(99, 102, 241, 0.12);
+  }
+  .att-erp-table tbody tr.att-row-present {
+    background: var(--att-present-bg);
+  }
+  .att-erp-table tbody tr.att-row-absent {
+    background: var(--att-absent-bg);
+  }
+  .att-erp-table tbody tr.att-row-leave {
+    background: var(--att-leave-bg);
+  }
+  .att-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    object-fit: cover;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+  }
+  .att-avatar-fallback {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+  }
+  /* Unselected = neutral grey; selected = green / red / yellow */
+  .att-pill {
+    margin: 0;
+    cursor: pointer;
+    display: inline-block;
+    font-weight: 600;
+    font-size: 0.8125rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 10px;
+    border: 1px solid #cbd5e1 !important;
+    background: #e2e8f0 !important;
+    color: #64748b !important;
+    transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+  }
+  html.dark .att-pill {
+    border-color: #475569 !important;
+    background: #334155 !important;
+    color: #94a3b8 !important;
+  }
+  .att-pill:hover {
+    background: #cbd5e1 !important;
+    color: #475569 !important;
+  }
+  html.dark .att-pill:hover {
+    background: #475569 !important;
+    color: #e2e8f0 !important;
+  }
+  .btn-check:focus-visible + .att-pill {
+    outline: 2px solid var(--att-brand);
+    outline-offset: 2px;
+  }
+  .btn-check:checked + .att-pill-present {
+    background: #10b981 !important;
+    border-color: var(--att-present) !important;
+    color: #fff !important;
+    box-shadow: 0 2px 8px rgba(5, 150, 105, 0.35);
+  }
+  .btn-check:checked + .att-pill-absent {
+    background: #ef4444 !important;
+    border-color: var(--att-absent) !important;
+    color: #fff !important;
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.35);
+  }
+  .btn-check:checked + .att-pill-leave {
+    background: #eab308 !important;
+    border-color: #ca8a04 !important;
+    color: #422006 !important;
+    box-shadow: 0 2px 8px rgba(202, 138, 4, 0.35);
+  }
+  .btn-check:disabled + .att-pill {
+    opacity: 0.45;
+    pointer-events: none;
+  }
+  .att-stat-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.85rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .att-stat-pill.present { background: var(--att-present-bg); color: var(--att-present); }
+  .att-stat-pill.absent { background: var(--att-absent-bg); color: var(--att-absent); }
+  .att-stat-pill.leave { background: var(--att-leave-bg); color: #854d0e; }
+  html.dark .att-stat-pill.leave { color: #fbbf24; }
+  .att-toolbar-border { border-color: var(--att-border) !important; }
+  .att-bulk-btn {
+    background: #e2e8f0;
+    border: 1px solid #cbd5e1;
+    color: #475569;
+    font-weight: 600;
+    border-radius: 10px;
+  }
+  html.dark .att-bulk-btn {
+    background: #334155;
+    border-color: #475569;
+    color: #cbd5e1;
+  }
+  .att-bulk-btn:hover:not(:disabled) {
+    background: #cbd5e1;
+    border-color: #94a3b8;
+  }
+  html.dark .att-bulk-btn:hover:not(:disabled) {
+    background: #475569;
+  }
+  #markAllPresent:hover:not(:disabled) {
+    background: var(--att-present-bg) !important;
+    color: var(--att-present) !important;
+    border-color: var(--att-present) !important;
+  }
+  #markAllAbsent:hover:not(:disabled) {
+    background: var(--att-absent-bg) !important;
+    color: var(--att-absent) !important;
+    border-color: var(--att-absent) !important;
+  }
+  #markAllLeave:hover:not(:disabled) {
+    background: var(--att-leave-bg) !important;
+    color: #854d0e !important;
+    border-color: #ca8a04 !important;
+  }
+  .att-save-btn {
+    background: var(--att-brand) !important;
+    font-weight: 600;
+    border-radius: 10px;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  .att-save-btn:hover:not(:disabled) {
+    background: #4338ca !important;
+  }
+  .att-roll-toolbar {
+    background: var(--att-surface-2);
+    border-color: var(--att-border) !important;
+  }
+  html.dark .att-roll-toolbar {
+    background: rgba(15, 23, 42, 0.5);
+  }
+  .att-filters-card .attendance-date-field input.attendance-fp-alt,
+  .att-filters-card .flatpickr-input.attendance-fp-native {
+    background: var(--att-surface-2) !important;
+    border-color: var(--att-border) !important;
+  }
+  html.dark .att-filters-card .attendance-date-field input.attendance-fp-alt {
+    color: #f1f5f9 !important;
+  }
+</style>
+
+<div class="container-fluid px-0 att-page">
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
@@ -10,157 +312,238 @@
     </ol>
   </nav>
 
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 pb-2 border-bottom att-toolbar-border">
     <div>
-      <h1 class="h4 fw-bold mb-1">Student Attendance</h1>
-      <p class="text-muted small mb-0">Filter by class and section, then mark or update attendance for the selected date.</p>
+      <h1 class="h4 fw-bold mb-1 att-page-title">{% if focus_student %}Attendance — one student{% else %}Student attendance{% endif %}</h1>
+      <p class="small mb-0" style="color: var(--att-muted);">
+        {% if focus_student %}
+        One row — pick date, load, update status, save.
+        {% else %}
+        Filters in one row below · grey buttons turn green / red / yellow when chosen.
+        {% endif %}
+      </p>
     </div>
   </div>
 
-  <div class="card border-0 shadow-sm rounded-4 mb-4">
-    <div class="card-body">
-      <h5 class="card-title mb-3"><i class="bi bi-funnel me-2"></i>Filters</h5>
-      <form method="get" action="{% url 'core:attendance_list' %}" id="loadForm" class="row g-3 align-items-end">
-        <div class="col-lg-2 col-md-4">
-          <label for="classroom_id" class="form-label">Class</label>
-          <select name="classroom_id" id="classroom_id" class="form-select" required>
-            <option value="">— Select —</option>
-            {% for c in class_sections_data %}
-            <option value="{{ c.id }}" {% if classroom_id == c.id %}selected{% endif %}>{{ c.name }}</option>
-            {% endfor %}
-          </select>
+  {% if focus_student %}
+  <div class="alert alert-light border shadow-sm rounded-4 mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div>
+      <strong>{{ focus_student.user.get_full_name|default:focus_student.user.username }}</strong>
+      <span class="text-muted small ms-2">{{ focus_student.classroom.name }} · Section {{ focus_student.section.name }}</span>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="{% url 'core:school_student_view' focus_student.id %}" class="btn btn-sm btn-outline-secondary">Profile</a>
+      <a href="{% url 'core:attendance_list' %}" class="btn btn-sm btn-outline-primary">All classes</a>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card border-0 att-filters-card mb-4">
+    <div class="card-body py-3 px-3 px-lg-4">
+      <div class="d-flex align-items-center gap-2 mb-2 pb-2 border-bottom" style="border-color: var(--att-border) !important;">
+        <span class="rounded-2 d-inline-flex align-items-center justify-content-center text-white" style="width:32px;height:32px;background:var(--att-brand);font-size:0.9rem;">
+          <i class="bi bi-funnel-fill"></i>
+        </span>
+        <h2 class="h6 fw-bold mb-0 att-page-title">Session filters</h2>
+      </div>
+      <form method="get" action="{% url 'core:attendance_list' %}" id="loadForm">
+        {% if focus_student %}
+        <input type="hidden" name="student_id" value="{{ focus_student.id }}">
+        <input type="hidden" name="classroom_id" value="{{ classroom_id }}">
+        <input type="hidden" name="section_id" value="{{ section_id }}">
+        <input type="hidden" name="q" value="{{ search_q }}">
+        <div class="att-filter-scroll pt-1">
+          <div class="att-filter-row">
+            <div class="att-filter-cell att-filter-class">
+              <span class="form-label d-block">Class &amp; section</span>
+              <p class="fw-semibold mb-0 small">{{ focus_student.classroom.name }} — {{ focus_student.section.name }}</p>
+            </div>
+            <div class="att-filter-cell att-filter-date">
+              <label for="attendance_date" class="form-label">Attendance date</label>
+              <input type="date" name="attendance_date" id="attendance_date" class="form-control" value="{{ attendance_date }}" required autocomplete="off">
+            </div>
+            <div class="att-filter-cell att-filter-action">
+              <label class="form-label d-block opacity-0 user-select-none">Go</label>
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-people-fill me-1"></i>Load
+              </button>
+            </div>
+          </div>
         </div>
-        <div class="col-lg-2 col-md-4">
-          <label for="section_id" class="form-label">Section</label>
-          <select name="section_id" id="section_id" class="form-select" required>
-            <option value="">— Select —</option>
-          </select>
+        {% else %}
+        <div class="att-filter-scroll pt-1">
+          <div class="att-filter-row">
+            <div class="att-filter-cell att-filter-class">
+              <label for="classroom_id" class="form-label">Class</label>
+              <select name="classroom_id" id="classroom_id" class="form-select" required>
+                <option value="">— Select —</option>
+                {% for c in class_sections_data %}
+                <option value="{{ c.id }}" {% if classroom_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="att-filter-cell att-filter-section">
+              <label for="section_id" class="form-label">Section</label>
+              <select name="section_id" id="section_id" class="form-select" required>
+                <option value="">— Select —</option>
+              </select>
+            </div>
+            <div class="att-filter-cell att-filter-date">
+              <label for="attendance_date" class="form-label">Attendance date</label>
+              <input type="date" name="attendance_date" id="attendance_date" class="form-control" value="{{ attendance_date }}" required autocomplete="off">
+            </div>
+            <div class="att-filter-cell att-filter-search">
+              <label for="q" class="form-label">Search <span class="fw-normal opacity-75">(optional)</span></label>
+              <input type="search" name="q" id="q" class="form-control" placeholder="Name, admission or roll no." value="{{ search_q }}" autocomplete="off">
+            </div>
+            <div class="att-filter-cell att-filter-action">
+              <label class="form-label d-block opacity-0 user-select-none">Load</label>
+              <button type="submit" class="btn btn-primary text-nowrap">
+                <i class="bi bi-people-fill me-1"></i>Load students
+              </button>
+            </div>
+          </div>
         </div>
-        <div class="col-lg-2 col-md-4">
-          <label for="attendance_date" class="form-label">Date</label>
-          <input type="date" name="attendance_date" id="attendance_date" class="form-control" value="{{ attendance_date }}" required>
-          {% if future_date %}
-          <p class="text-danger small mb-0 mt-1">Attendance cannot be recorded for future dates.</p>
-          {% endif %}
-        </div>
-        <div class="col-lg-3 col-md-6">
-          <label for="q" class="form-label">Search <span class="text-muted fw-normal">(optional)</span></label>
-          <input type="search" name="q" id="q" class="form-control" placeholder="Name or admission / roll no." value="{{ search_q }}" autocomplete="off">
-        </div>
-        <div class="col-lg-3 col-md-6 d-flex gap-2 flex-wrap">
-          <button type="submit" class="btn btn-primary">
-            <i class="bi bi-people me-1"></i> Load Students
-          </button>
-        </div>
+        {% endif %}
+        {% if future_date %}
+        <p class="text-danger small mb-0 mt-2">Future dates cannot be recorded.</p>
+        {% endif %}
       </form>
     </div>
   </div>
 
+  {% include "core/includes/attendance_date_flatpickr.html" %}
+
   {% if classroom_id and section_id and not section_valid_for_class %}
-  <div class="alert alert-warning">The selected section does not belong to this class. Choose a valid class and section.</div>
+  <div class="alert alert-warning rounded-4 border-0">The selected section does not belong to this class. Choose a valid combination.</div>
   {% elif classroom_id and section_id and section_valid_for_class and not students_with_status %}
-  <div class="alert alert-info">No students found for this class, section, and search. Adjust filters or add students.</div>
+  <div class="alert alert-info rounded-4 border-0">No students match these filters. Adjust search or enroll students.</div>
   {% elif students_with_status %}
   {% if future_date %}
-  <div class="alert alert-warning">Cannot mark attendance for future dates. Pick today or an earlier date.</div>
+  <div class="alert alert-warning rounded-4 border-0">Pick today or an earlier date to mark attendance.</div>
   {% endif %}
-  <div class="card border-0 shadow-sm rounded-4">
-    <div class="card-header bg-white border-0 pt-4 pb-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
-      <h5 class="mb-0">Students</h5>
-      <div class="d-flex flex-wrap gap-2">
-        <button type="button" class="btn btn-outline-success btn-sm" id="markAllPresent" {% if future_date %}disabled{% endif %}>
-          <i class="bi bi-check-all me-1"></i> Mark all present
+
+  <div class="card border-0 shadow-sm att-table-card">
+    <div class="card-body border-bottom py-3 px-3 px-lg-4 d-flex flex-column flex-lg-row flex-wrap align-items-lg-center justify-content-between gap-3 att-roll-toolbar">
+      <div>
+        <h2 class="h6 fw-bold mb-1">Roll call</h2>
+        <p class="text-muted small mb-0">{{ students_with_status|length }} student{{ students_with_status|length|pluralize }} · Tap a status for each row, then save.</p>
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-2" id="attStatBar" aria-live="polite">
+        <span class="att-stat-pill present"><i class="bi bi-check-circle-fill"></i> Present <strong id="attCountP">0</strong></span>
+        <span class="att-stat-pill absent"><i class="bi bi-x-circle-fill"></i> Absent <strong id="attCountA">0</strong></span>
+        <span class="att-stat-pill leave"><i class="bi bi-suitcase-lg"></i> Leave <strong id="attCountL">0</strong></span>
+      </div>
+      <div class="d-flex flex-wrap gap-2 att-bulk-actions">
+        <button type="button" class="btn btn-sm att-bulk-btn" id="markAllPresent" {% if future_date %}disabled{% endif %} title="Set every row to Present">
+          <i class="bi bi-check-all me-1"></i>All present
         </button>
-        <button type="button" class="btn btn-primary btn-sm" id="saveAttendanceBtn" {% if future_date %}disabled{% endif %}>
-          <i class="bi bi-save me-1"></i> Save attendance
+        <button type="button" class="btn btn-sm att-bulk-btn" id="markAllAbsent" {% if future_date %}disabled{% endif %} title="Set every row to Absent">
+          <i class="bi bi-x-lg me-1"></i>All absent
+        </button>
+        <button type="button" class="btn btn-sm att-bulk-btn" id="markAllLeave" {% if future_date %}disabled{% endif %} title="Set every row to Leave">
+          <i class="bi bi-suitcase-lg me-1"></i>All leave
+        </button>
+        <button type="button" class="btn btn-sm text-white border-0 att-save-btn" id="saveAttendanceBtn" {% if future_date %}disabled{% endif %}>
+          <i class="bi bi-cloud-upload me-1"></i>Save attendance
         </button>
       </div>
     </div>
+
     <form method="post" action="{% url 'core:attendance_list' %}" id="attendanceForm">
       {% csrf_token %}
       <input type="hidden" name="classroom_id" value="{{ classroom_id }}">
       <input type="hidden" name="section_id" value="{{ section_id }}">
       <input type="hidden" name="attendance_date" value="{{ attendance_date }}">
       {% if search_q %}<input type="hidden" name="q" value="{{ search_q }}">{% endif %}
-      <div class="card-body p-0">
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
-              <tr>
-                <th style="width: 48px;" class="text-muted small">#</th>
-                <th>Admission no.</th>
-                <th>Name</th>
-                <th style="min-width: 180px;">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for item in students_with_status %}
-              <tr class="attendance-row" data-student-id="{{ item.student.id }}">
-                <td class="text-muted small">{{ forloop.counter }}</td>
-                <td class="font-monospace">{{ item.student.admission_number|default:item.student.roll_number }}</td>
-                <td>{{ item.student.user.get_full_name|default:item.student.user.username }}</td>
-                <td>
-                  <select name="status_{{ item.student.id }}" class="form-select form-select-sm status-select" {% if future_date %}disabled{% endif %}>
-                    {% for val, label in status_choices %}
-                    <option value="{{ val }}" {% if item.status == val %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                  </select>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+      {% if focus_student %}<input type="hidden" name="student_id" value="{{ focus_student.id }}">{% endif %}
+      <div class="table-responsive">
+        <table class="table att-erp-table mb-0">
+          <thead>
+            <tr>
+              <th class="text-center" style="width:52px;">#</th>
+              <th style="width:56px;" class="text-center">Photo</th>
+              <th>Roll</th>
+              <th>Admission</th>
+              <th>Student</th>
+              <th style="min-width:280px;">Attendance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in students_with_status %}
+            {% with s=item.student %}
+            <tr class="attendance-row att-row-{{ item.status|lower }}" data-student-id="{{ s.id }}">
+              <td class="text-center text-muted small fw-semibold">{{ forloop.counter }}</td>
+              <td class="text-center">
+                {% if s.profile_image %}
+                <img src="{{ s.profile_image.url }}" class="att-avatar" alt="">
+                {% else %}
+                <div class="att-avatar-fallback mx-auto">
+                  {% if s.user.first_name %}{{ s.user.first_name|slice:":1"|upper }}{% if s.user.last_name %}{{ s.user.last_name|slice:":1"|upper }}{% endif %}{% else %}{{ s.user.username|slice:":2"|upper }}{% endif %}
+                </div>
+                {% endif %}
+              </td>
+              <td class="font-monospace small fw-semibold">{{ s.roll_number|default:"—" }}</td>
+              <td class="font-monospace small">{{ s.admission_number|default:"—" }}</td>
+              <td>
+                <div class="fw-semibold text-body">{{ s.user.get_full_name|default:s.user.username }}</div>
+                {% if s.user.email %}<div class="small text-muted d-none d-md-block text-truncate" style="max-width:14rem;">{{ s.user.email }}</div>{% endif %}
+              </td>
+              <td>
+                <div class="att-status-toggle d-flex flex-wrap gap-1" role="group" aria-label="Status for {{ s.user.get_full_name|default:s.user.username }}">
+                  <input type="radio" class="btn-check" name="status_{{ s.id }}" id="att_{{ s.id }}_P" value="PRESENT" {% if item.status == 'PRESENT' %}checked{% endif %} {% if future_date %}disabled{% endif %}>
+                  <label class="att-pill att-pill-present" for="att_{{ s.id }}_P">Present</label>
+                  <input type="radio" class="btn-check" name="status_{{ s.id }}" id="att_{{ s.id }}_A" value="ABSENT" {% if item.status == 'ABSENT' %}checked{% endif %} {% if future_date %}disabled{% endif %}>
+                  <label class="att-pill att-pill-absent" for="att_{{ s.id }}_A">Absent</label>
+                  <input type="radio" class="btn-check" name="status_{{ s.id }}" id="att_{{ s.id }}_L" value="LEAVE" {% if item.status == 'LEAVE' %}checked{% endif %} {% if future_date %}disabled{% endif %}>
+                  <label class="att-pill att-pill-leave" for="att_{{ s.id }}_L">Leave</label>
+                </div>
+              </td>
+            </tr>
+            {% endwith %}
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
     </form>
   </div>
   {% else %}
-  <div class="alert alert-secondary border-0 shadow-sm rounded-4">Select <strong>Class</strong>, <strong>Section</strong>, and <strong>Date</strong>, then click <strong>Load Students</strong>.</div>
+  <div class="alert alert-secondary border-0 shadow-sm rounded-4">Choose <strong>class</strong>, <strong>section</strong>, and <strong>date</strong>, then <strong>Load students</strong>.</div>
   {% endif %}
 </div>
 
 {{ class_sections_data|json_script:"class-sections-data" }}
 <script>
 (function() {
-  const dataEl = document.getElementById('class-sections-data');
+  const dataEl = document.getElementById("class-sections-data");
   if (!dataEl) return;
   const classSections = JSON.parse(dataEl.textContent);
-  const classSel = document.getElementById('classroom_id');
-  const sectionSel = document.getElementById('section_id');
+  const classSel = document.getElementById("classroom_id");
+  const sectionSel = document.getElementById("section_id");
+  if (!classSel || !sectionSel) return;
   const selectedClassId = {% if classroom_id %}{{ classroom_id }}{% else %}null{% endif %};
   const selectedSectionId = {% if section_id %}{{ section_id }}{% else %}null{% endif %};
 
   function fillSections(preserveSectionId) {
     const cid = classSel.value;
-    sectionSel.innerHTML = '<option value="">— Select —</option>';
+    sectionSel.innerHTML = "<option value=\"\">— Select —</option>";
     if (!cid) return;
     const row = classSections.find(function(c) { return String(c.id) === String(cid); });
     if (!row || !row.sections) return;
     row.sections.forEach(function(sec) {
-      const opt = document.createElement('option');
+      const opt = document.createElement("option");
       opt.value = sec.id;
       opt.textContent = sec.name;
-      if (preserveSectionId != null && String(sec.id) === String(preserveSectionId)) {
-        opt.selected = true;
-      }
+      if (preserveSectionId != null && String(sec.id) === String(preserveSectionId)) opt.selected = true;
       sectionSel.appendChild(opt);
     });
   }
-
-  classSel.addEventListener('change', function() {
-    fillSections(null);
-  });
-
+  classSel.addEventListener("change", function() { fillSections(null); });
   function initSections() {
-    if (selectedClassId != null) {
-      fillSections(selectedSectionId);
-    }
+    if (selectedClassId != null) fillSections(selectedSectionId);
   }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initSections);
-  } else {
-    initSections();
-  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initSections);
+  else initSections();
 })();
 </script>
 
@@ -168,46 +551,68 @@
 <script>
 (function() {
   function bindAttendanceActions() {
-    const form = document.getElementById('attendanceForm');
-    const saveBtn = document.getElementById('saveAttendanceBtn');
-    const markAllPresent = document.getElementById('markAllPresent');
-    const rows = document.querySelectorAll('.attendance-row');
-    if (!form || !saveBtn || !markAllPresent) return;
+    const form = document.getElementById("attendanceForm");
+    const saveBtn = document.getElementById("saveAttendanceBtn");
+    const markAllPresent = document.getElementById("markAllPresent");
+    const markAllAbsent = document.getElementById("markAllAbsent");
+    const markAllLeave = document.getElementById("markAllLeave");
+    const rows = document.querySelectorAll(".attendance-row");
+    if (!form || !saveBtn) return;
 
-    function rowStyle(row) {
-      const sel = row.querySelector('.status-select');
-      if (!sel) return;
-      row.classList.remove('table-danger', 'table-warning');
-      if (sel.value === 'ABSENT') row.classList.add('table-danger');
-      else if (sel.value === 'LEAVE') row.classList.add('table-warning');
+    function currentValue(row) {
+      const c = row.querySelector("input[type=radio][name^=status_]:checked");
+      return c ? c.value : "PRESENT";
+    }
+    function rowClass(row) {
+      row.classList.remove("att-row-present", "att-row-absent", "att-row-leave");
+      const v = currentValue(row);
+      if (v === "PRESENT") row.classList.add("att-row-present");
+      else if (v === "ABSENT") row.classList.add("att-row-absent");
+      else if (v === "LEAVE") row.classList.add("att-row-leave");
+    }
+    function updateCounts() {
+      let p = 0, a = 0, l = 0;
+      rows.forEach(function(row) {
+        const v = currentValue(row);
+        if (v === "PRESENT") p++;
+        else if (v === "ABSENT") a++;
+        else if (v === "LEAVE") l++;
+      });
+      const ep = document.getElementById("attCountP");
+      const ea = document.getElementById("attCountA");
+      const el = document.getElementById("attCountL");
+      if (ep) ep.textContent = String(p);
+      if (ea) ea.textContent = String(a);
+      if (el) el.textContent = String(l);
     }
     rows.forEach(function(row) {
-      const sel = row.querySelector('.status-select');
-      if (sel) {
-        sel.addEventListener('change', function() { rowStyle(row); });
-        rowStyle(row);
-      }
-    });
-
-    markAllPresent.addEventListener('click', function() {
-      document.querySelectorAll('.status-select').forEach(function(s) {
-        s.value = 'PRESENT';
-        const row = s.closest('.attendance-row');
-        if (row) rowStyle(row);
+      row.querySelectorAll("input[type=radio][name^=status_]").forEach(function(r) {
+        r.addEventListener("change", function() { rowClass(row); updateCounts(); });
       });
+      rowClass(row);
     });
+    updateCounts();
 
-    saveBtn.addEventListener('click', function() {
-      if (confirm('Save attendance for all students shown? Existing records for this date will be updated.')) {
-        form.submit();
-      }
+    function setAll(val) {
+      rows.forEach(function(row) {
+        const inp = row.querySelector("input[type=radio][name^=status_][value=\"" + val + "\"]");
+        if (inp && !inp.disabled) {
+          inp.checked = true;
+          rowClass(row);
+        }
+      });
+      updateCounts();
+    }
+    if (markAllPresent) markAllPresent.addEventListener("click", function() { setAll("PRESENT"); });
+    if (markAllAbsent) markAllAbsent.addEventListener("click", function() { setAll("ABSENT"); });
+    if (markAllLeave) markAllLeave.addEventListener("click", function() { setAll("LEAVE"); });
+
+    saveBtn.addEventListener("click", function() {
+      if (confirm("Save attendance for all students shown? Existing records for this date will be updated.")) form.submit();
     });
   }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bindAttendanceActions);
-  } else {
-    bindAttendanceActions();
-  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bindAttendanceActions);
+  else bindAttendanceActions();
 })();
 </script>
 {% endif %}

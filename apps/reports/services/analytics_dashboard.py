@@ -24,7 +24,7 @@ def _trend_new_this_month(
     return (zero_label, False)
 
 
-def build_analytics_summary_metrics(school) -> dict:
+def build_analytics_summary_metrics(school, *, user=None) -> dict:
     """
     Four top KPIs: students, teachers, classes, attendance today.
     Each includes value display string, trend line, icon, theme.
@@ -57,9 +57,12 @@ def build_analytics_summary_metrics(school) -> dict:
         classes_month, noun="classes", zero_label="No new classes this month"
     )
 
-    attendance_on = has_feature_access(school, "attendance")
+    def fmt_int(n: int) -> str:
+        return f"{n:,}"
+
+    attendance_on = has_feature_access(school, "attendance", user=user)
     att_value = "—"
-    att_trend = "Enable attendance in your plan to track daily presence."
+    att_trend = "Enable attendance for this school to track daily presence."
     att_pos = False
     present_count = 0
 
@@ -84,28 +87,36 @@ def build_analytics_summary_metrics(school) -> dict:
             att_trend = "Could not load attendance data."
             att_pos = False
 
+    def trend_icon(positive: bool, *, muted: bool = False) -> str:
+        if muted:
+            return "bi-dash-lg"
+        return "bi-graph-up-arrow" if positive else "bi-dash"
+
     metrics = [
         {
             "label": "Total Students",
-            "value": str(total_students),
+            "value": fmt_int(total_students),
             "trend": st_trend,
             "trend_positive": st_pos,
+            "trend_icon": trend_icon(st_pos),
             "icon": "bi-people-fill",
             "theme": "primary",
         },
         {
             "label": "Total Teachers",
-            "value": str(total_teachers),
+            "value": fmt_int(total_teachers),
             "trend": te_trend,
             "trend_positive": te_pos,
+            "trend_icon": trend_icon(te_pos),
             "icon": "bi-person-badge-fill",
             "theme": "info",
         },
         {
-            "label": "Classes Running",
-            "value": str(total_classes),
+            "label": "Total Classes",
+            "value": fmt_int(total_classes),
             "trend": cl_trend,
             "trend_positive": cl_pos,
+            "trend_icon": trend_icon(cl_pos),
             "icon": "bi-grid-3x3-gap-fill",
             "theme": "success",
         },
@@ -114,6 +125,7 @@ def build_analytics_summary_metrics(school) -> dict:
             "value": att_value,
             "trend": att_trend,
             "trend_positive": att_pos,
+            "trend_icon": trend_icon(att_pos, muted=not attendance_on),
             "icon": "bi-calendar-check",
             "theme": "warning",
             "muted": not attendance_on,

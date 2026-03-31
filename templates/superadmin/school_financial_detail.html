@@ -1,0 +1,465 @@
+{% extends "base.html" %}
+{% block title %}{{ school.name }} — Financial | Super Admin{% endblock %}
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  .sf-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 1020;
+    background: var(--bs-body-bg);
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+    padding: 0.75rem 0;
+    margin-bottom: 1rem;
+  }
+  .sf-kpi { border-radius: 0.875rem; border: 1px solid var(--bs-border-color-translucent); }
+  .sf-section-title { font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--bs-secondary-color); font-weight: 600; }
+  .table-invoice .badge-paid { background: rgba(25,135,84,0.15); color: #198754; }
+  .table-invoice .badge-partial { background: rgba(255,193,7,0.2); color: #997404; }
+  .table-invoice .badge-pending { background: rgba(220,53,69,0.12); color: #b02a37; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container-fluid px-0 sf-page">
+  <nav aria-label="breadcrumb" class="mb-2">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'core:super_admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'admin_manage:school_plans_list' %}">School plans</a></li>
+      <li class="breadcrumb-item active">Financial</li>
+    </ol>
+  </nav>
+
+  <div class="sf-sticky">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div>
+        <h1 class="h5 fw-bold mb-0">{{ school.name }}</h1>
+        <span class="badge rounded-pill bg-primary-subtle text-primary-emphasis">{{ school.code }}</span>
+        <span class="text-muted small ms-1">{{ status_label }}</span>
+      </div>
+      <div class="d-flex flex-wrap gap-1">
+        <a href="{% url 'admin_manage:school_change_plan' school.code %}" class="btn btn-sm btn-primary rounded-pill">Change plan</a>
+        <a href="{% url 'core:superadmin_record_subscription_payment' %}?school={{ school.pk }}" class="btn btn-sm btn-outline-primary rounded-pill">Record payment</a>
+        <a href="{% url 'core:superadmin_billing_invoices' %}" class="btn btn-sm btn-outline-secondary rounded-pill">All invoices</a>
+      </div>
+    </div>
+  </div>
+
+  {# Summary KPIs #}
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="card sf-kpi border-0 shadow-sm h-100">
+        <div class="card-body py-3">
+          <p class="sf-section-title mb-1">Live students</p>
+          <p class="h4 fw-bold mb-0">{{ live_students }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card sf-kpi border-0 shadow-sm h-100">
+        <div class="card-body py-3">
+          <p class="sf-section-title mb-1">Total billed (filtered)</p>
+          <p class="h4 fw-bold mb-0">₹{{ total_billed }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card sf-kpi border-0 shadow-sm h-100 border-success border-opacity-25">
+        <div class="card-body py-3">
+          <p class="sf-section-title mb-1">Total paid</p>
+          <p class="h4 fw-bold mb-0 text-success">₹{{ total_paid_combined }}</p>
+          <p class="small text-muted mb-0">Ledger + invoice-linked</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card sf-kpi border-0 shadow-sm h-100 {% if advance_credit > 0 %}border-success border-opacity-25{% else %}border-warning border-opacity-50{% endif %}">
+        <div class="card-body py-3">
+          <p class="sf-section-title mb-1">Outstanding (cash net)</p>
+          <p class="h4 fw-bold mb-0 {% if outstanding > 0 %}text-warning-emphasis{% else %}text-success{% endif %}">₹{{ outstanding }}</p>
+          {% if advance_credit > 0 %}
+          <p class="small text-success mb-0 fw-semibold">Advance / credit: ₹{{ advance_credit }}</p>
+          <p class="small text-muted mb-0">Cash received exceeds total invoiced (lifetime).{% if last_payment_date %} Last pay: {{ last_payment_date }}.{% endif %}</p>
+          {% else %}
+          <p class="small text-muted mb-0">max(0, invoiced − all payments). {% if last_payment_date %}Last pay: {{ last_payment_date }}{% else %}No payments yet{% endif %}</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% if invoice_remaining_sum != outstanding %}
+  <p class="small text-muted mb-4 mb-md-3 px-1">
+    <i class="bi bi-info-circle me-1"></i>
+    Invoice-line balance (₹{{ invoice_remaining_sum }}) can differ when payments are logged under <strong>Payments received</strong> but not applied to an invoice row — top KPI uses total cash vs total invoiced.
+  </p>
+  {% endif %}
+
+  {# Charts #}
+  <div class="row g-3 mb-4">
+    <div class="col-lg-8">
+      <div class="card border-0 shadow-sm rounded-3 h-100">
+        <div class="card-body">
+          <p class="sf-section-title mb-2">Monthly billed vs payments (12 mo)</p>
+          <div style="height: 260px;"><canvas id="sfChartLine"></canvas></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm rounded-3 mb-3">
+        <div class="card-body">
+          <p class="sf-section-title mb-2">Paid vs pending (₹)</p>
+          <div style="height: 200px;"><canvas id="sfChartBar"></canvas></div>
+        </div>
+      </div>
+      <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-body">
+          <p class="sf-section-title mb-2">Invoice status (count)</p>
+          <div style="height: 200px;"><canvas id="sfChartPie"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Subscription #}
+  <div class="row g-3 mb-4">
+    <div class="col-lg-8">
+      <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-body">
+          <p class="sf-section-title mb-3">Current subscription</p>
+          {% if sub_current %}
+          <div class="row g-2 small">
+            <div class="col-md-6"><strong>Plan</strong><br>{{ sub_current.plan.name }}</div>
+            <div class="col-md-6"><strong>Price / student</strong><br>₹{{ sub_current.plan.price_per_student }}</div>
+            <div class="col-md-6"><strong>Billing cycle</strong><br>{{ sub_current.plan.get_billing_cycle_display }}</div>
+            <div class="col-md-6"><strong>Snapshot students</strong><br>{{ sub_current.students_count }}</div>
+            <div class="col-md-6"><strong>Period</strong><br>{{ sub_current.start_date }}{% if sub_current.end_date %} → {{ sub_current.end_date }}{% endif %}</div>
+            <div class="col-md-6"><strong>Free months applied</strong><br>{{ sub_current.free_months_applied }}</div>
+            <div class="col-md-6"><strong>Coupon</strong><br>
+              {% if sub_current.coupon %}
+                <code>{{ sub_current.coupon.code }}</code> — {{ sub_current.coupon.get_discount_type_display }} {{ sub_current.coupon.discount_value }}
+              {% else %}—{% endif %}
+            </div>
+          </div>
+          {% else %}
+          <p class="text-muted mb-0">No current subscription row.</p>
+          {% endif %}
+          <div class="d-flex flex-wrap gap-2 mt-3 pt-3 border-top">
+            <a href="{% url 'admin_manage:school_change_plan' school.code %}" class="btn btn-sm btn-outline-primary rounded-pill">Change plan</a>
+            <a href="{% url 'admin_manage:coupon_create' %}" class="btn btn-sm btn-outline-secondary rounded-pill">New coupon</a>
+            <a href="{% url 'admin_manage:coupons_list' %}" class="btn btn-sm btn-outline-secondary rounded-pill">Browse coupons</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm rounded-3 h-100">
+        <div class="card-body">
+          <p class="sf-section-title mb-2">SaaS plan (tenant)</p>
+          {% if plan %}
+          <p class="mb-1 fw-semibold">{{ plan.name }}</p>
+          <p class="small text-muted mb-0">₹{{ price_per_student }}/student · {{ billing_cycle }}</p>
+          {% else %}
+          <p class="text-muted small">No plan assigned on school record.</p>
+          {% endif %}
+          <hr>
+          <p class="sf-section-title mb-2">Generate invoice</p>
+          <form method="post" class="row g-2 align-items-end">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="generate_invoice">
+            <div class="col-6">
+              <label class="form-label small mb-0">Month</label>
+              <select name="month" class="form-select form-select-sm">
+                {% for mo, lab in month_choices_gen %}
+                <option value="{{ mo }}" {% if mo == today.month %}selected{% endif %}>{{ lab }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label small mb-0">Year</label>
+              <input type="number" name="year" class="form-control form-control-sm" value="{{ today.year }}" min="2020" max="2036">
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-sm btn-dark w-100 rounded-pill">Generate / refresh</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Filters #}
+  <div class="card border-0 shadow-sm rounded-3 mb-3">
+    <div class="card-body py-3">
+      <form method="get" class="row g-2 align-items-end flex-wrap">
+        <div class="col-auto">
+          <label class="form-label small mb-0">Invoice status</label>
+          <select name="status" class="form-select form-select-sm">
+            <option value="">All</option>
+            <option value="pending" {% if invoice_status == 'pending' %}selected{% endif %}>Pending</option>
+            <option value="partial" {% if invoice_status == 'partial' %}selected{% endif %}>Partial</option>
+            <option value="paid" {% if invoice_status == 'paid' %}selected{% endif %}>Paid</option>
+          </select>
+        </div>
+        <div class="col-auto">
+          <label class="form-label small mb-0">From (month)</label>
+          <input type="date" name="date_from" class="form-control form-control-sm" value="{% if date_from %}{{ date_from|date:'Y-m-d' }}{% endif %}">
+        </div>
+        <div class="col-auto">
+          <label class="form-label small mb-0">To (month)</label>
+          <input type="date" name="date_to" class="form-control form-control-sm" value="{% if date_to %}{{ date_to|date:'Y-m-d' }}{% endif %}">
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-sm btn-primary">Apply</button>
+          <a href="{% url 'core:superadmin_school_financial' school.pk %}" class="btn btn-sm btn-outline-secondary">Reset</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {# Invoices #}
+  <div class="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
+    <div class="card-header bg-body-secondary border-0 py-3 d-flex justify-content-between">
+      <span class="fw-semibold">Invoice history</span>
+      <span class="small text-muted">{{ invoice_rows|length }} row{{ invoice_rows|length|pluralize }}</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0 small table-invoice">
+        <thead class="table-light">
+          <tr>
+            <th>Invoice #</th>
+            <th>Period</th>
+            <th class="text-end">Students</th>
+            <th class="text-end">Amount</th>
+            <th class="text-end">Discount</th>
+            <th class="text-end">Final</th>
+            <th>Paid</th>
+            <th>Status</th>
+            <th>Due</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in invoice_rows %}
+          {% with inv=row.invoice %}
+          <tr>
+            <td><code>{{ inv.invoice_number }}</code></td>
+            <td>{{ inv.month|stringformat:"02d" }}/{{ inv.year }}</td>
+            <td class="text-end">{{ inv.students_count }}</td>
+            <td class="text-end">₹{{ inv.gross_amount }}</td>
+            <td class="text-end">₹{{ inv.discount_amount }}</td>
+            <td class="text-end fw-semibold">₹{{ inv.final_amount }}</td>
+            <td class="text-end text-success">₹{{ row.paid }}</td>
+            <td>
+              {% if inv.status == 'paid' %}<span class="badge rounded-pill badge-paid">Paid</span>
+              {% elif inv.status == 'partial' %}<span class="badge rounded-pill badge-partial">Partial</span>
+              {% else %}<span class="badge rounded-pill badge-pending">Pending</span>{% endif %}
+            </td>
+            <td class="{% if inv.due_date < today and inv.status != 'paid' %}text-danger fw-semibold{% endif %}">{{ inv.due_date }}</td>
+            <td class="text-end text-nowrap">
+              <a href="{% url 'core:superadmin_platform_invoice_pdf' inv.pk %}" class="btn btn-sm btn-outline-secondary py-0" title="PDF">PDF</a>
+              {% if inv.status != 'paid' %}
+              <a href="{% url 'core:superadmin_billing_invoice_pay' inv.pk %}" class="btn btn-sm btn-primary py-0">Pay</a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endwith %}
+          {% empty %}
+          <tr><td colspan="10" class="text-center text-muted py-4">No invoices in range. Generate one above.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# Payments #}
+  <div class="row g-3 mb-4">
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm rounded-3 h-100">
+        <div class="card-header bg-body-secondary border-0 py-2 small fw-semibold">Invoice-linked payments</div>
+        <div class="table-responsive" style="max-height: 320px;">
+          <table class="table table-sm mb-0 small">
+            <thead><tr><th>ID</th><th>Invoice</th><th class="text-end">₹</th><th>Mode</th><th>Date</th></tr></thead>
+            <tbody>
+              {% for p in invoice_payments %}
+              <tr>
+                <td>{{ p.pk }}</td>
+                <td><code>{{ p.invoice.invoice_number }}</code></td>
+                <td class="text-end">₹{{ p.amount_paid }}</td>
+                <td>{{ p.get_payment_mode_display }}</td>
+                <td>{{ p.paid_on|date:"Y-m-d" }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="5" class="text-muted text-center py-3">None</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm rounded-3 h-100">
+        <div class="card-header bg-body-secondary border-0 py-2 small fw-semibold">Legacy payments log</div>
+        <div class="table-responsive" style="max-height: 320px;">
+          <table class="table table-sm mb-0 small">
+            <thead><tr><th>ID</th><th class="text-end">₹</th><th>Method</th><th>Ref</th><th>Date</th></tr></thead>
+            <tbody>
+              {% for p in legacy_payments %}
+              <tr>
+                <td>{{ p.pk }}</td>
+                <td class="text-end">₹{{ p.amount }}</td>
+                <td>{{ p.get_payment_method_display }}</td>
+                <td class="text-truncate" style="max-width:6rem;">{{ p.reference|default:"—" }}</td>
+                <td>{{ p.payment_date }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="5" class="text-muted text-center py-3">None</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Aging #}
+  <div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body">
+      <p class="sf-section-title mb-3">Pending &amp; aging (unpaid balance)</p>
+      <div class="row g-2">
+        <div class="col-md-4">
+          <div class="p-3 rounded-3 bg-danger bg-opacity-10 border border-danger border-opacity-25">
+            <div class="small text-muted">Overdue invoices</div>
+            <div class="h5 mb-0">{{ overdue_count }}</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="p-3 rounded-3 bg-warning bg-opacity-10">
+            <div class="small text-muted">0–30 days past due</div>
+            <div class="h5 mb-0">₹{{ aging_0_30 }}</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="p-3 rounded-3 bg-warning bg-opacity-25">
+            <div class="small text-muted">30–60 days</div>
+            <div class="h5 mb-0">₹{{ aging_30_60 }}</div>
+          </div>
+        </div>
+        <div class="col-md-4 mt-2">
+          <div class="p-3 rounded-3 bg-danger bg-opacity-25">
+            <div class="small text-muted">60+ days</div>
+            <div class="h5 mb-0">₹{{ aging_60_plus }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Coupons #}
+  <div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-header bg-body-secondary border-0 py-2 fw-semibold small">Coupons on subscription history</div>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0 small">
+        <thead><tr><th>Code</th><th>Type</th><th>Value</th><th>Period</th><th>Plan</th></tr></thead>
+        <tbody>
+          {% for row in coupon_history %}
+          <tr>
+            <td><code>{{ row.coupon.code }}</code></td>
+            <td>{{ row.coupon.get_discount_type_display }}</td>
+            <td>{{ row.coupon.discount_value }}</td>
+            <td>{{ row.start_date }} — {{ row.end_date|default:"—" }}</td>
+            <td>{{ row.plan.name }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="text-muted text-center py-3">No coupons recorded on past subscriptions.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# Free months / snapshots #}
+  <div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-header bg-body-secondary border-0 py-2 fw-semibold small">Subscription history (free months)</div>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0 small">
+        <thead><tr><th>Start</th><th>Status</th><th>Free months</th><th>Plan</th></tr></thead>
+        <tbody>
+          {% for row in sub_snapshots %}
+          <tr>
+            <td>{{ row.start_date }}</td>
+            <td>{{ row.get_status_display }}</td>
+            <td>{{ row.free_months_applied }}</td>
+            <td>{{ row.plan.name }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="text-muted text-center py-3">No rows.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-body small text-muted border-top">
+      Grant free months or coupons via <strong>Change plan</strong>. Detailed history is stored on subscription rows.
+    </div>
+  </div>
+
+  {# Profit #}
+  <div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body">
+      <p class="sf-section-title mb-2">Revenue snapshot (platform)</p>
+      <div class="row g-2 small">
+        <div class="col-md-4"><strong>Total paid (combined)</strong><br>₹{{ total_paid_combined }}</div>
+        <div class="col-md-4"><strong>Discounts on invoices</strong><br>₹{{ total_discounts_on_invoices }}</div>
+        <div class="col-md-4"><strong>Net (paid − invoice discounts)</strong><br><span class="fs-5 fw-bold">₹{{ net_revenue_estimate }}</span></div>
+      </div>
+    </div>
+  </div>
+
+  {# Quick actions #}
+  <div class="card border-0 bg-body-secondary rounded-3 mb-5">
+    <div class="card-body py-3 d-flex flex-wrap gap-2">
+      <a href="{% url 'core:superadmin_billing_invoices' %}" class="btn btn-sm btn-dark rounded-pill">Billing invoices</a>
+      <a href="{% url 'core:superadmin_record_subscription_payment' %}?school={{ school.pk }}" class="btn btn-sm btn-outline-dark rounded-pill">Mark payment</a>
+      <a href="{% url 'admin_manage:school_change_plan' school.code %}" class="btn btn-sm btn-outline-dark rounded-pill">Apply coupon / free months</a>
+      <a href="{% url 'admin_manage:school_edit' school.code %}" class="btn btn-sm btn-outline-danger rounded-pill">Edit school (status)</a>
+    </div>
+  </div>
+</div>
+
+{{ chart|json_script:"sf-chart-data" }}
+<script>
+(function() {
+  const el = document.getElementById('sf-chart-data');
+  if (!el || !window.Chart) return;
+  const chart = JSON.parse(el.textContent);
+  const common = { responsive: true, maintainAspectRatio: false };
+  new Chart(document.getElementById('sfChartLine'), {
+    type: 'line',
+    data: {
+      labels: chart.labels,
+      datasets: [
+        { label: 'Billed', data: chart.billed, borderColor: '#0d6efd', backgroundColor: 'rgba(13,110,253,0.1)', tension: 0.25, fill: true },
+        { label: 'Paid', data: chart.paid, borderColor: '#198754', tension: 0.25, fill: false },
+      ],
+    },
+    options: { ...common, scales: { y: { beginAtZero: true } } },
+  });
+  new Chart(document.getElementById('sfChartBar'), {
+    type: 'bar',
+    data: {
+      labels: ['Paid', 'Pending'],
+      datasets: [{ data: [chart.bar_paid, chart.bar_pending], backgroundColor: ['#198754', '#ffc107'] }],
+    },
+    options: { ...common, plugins: { legend: { display: false } } },
+  });
+  const pieSum = chart.pie_data.reduce((a,b) => a+b, 0);
+  const pieData = pieSum === 0 ? [1,0,0] : chart.pie_data;
+  new Chart(document.getElementById('sfChartPie'), {
+    type: 'doughnut',
+    data: {
+      labels: chart.pie_labels,
+      datasets: [{ data: pieData, backgroundColor: ['#dc3545', '#ffc107', '#198754'] }],
+    },
+    options: { ...common },
+  });
+})();
+</script>
+{% endblock %}

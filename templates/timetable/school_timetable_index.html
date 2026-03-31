@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Timetable | School ERP{% endblock %}
+{% block title %}Schedules | School ERP{% endblock %}
 {% block content %}
 <div class="container-fluid px-0">
-  <h1 class="h4 fw-bold mb-2">Timetable Management</h1>
-  <p class="text-muted mb-4">Select a class to edit timetable.</p>
+  <h1 class="h4 fw-bold mb-2">Schedule Management</h1>
+  <p class="text-muted mb-4">Select a class to edit the master schedule.</p>
   <div class="d-flex gap-2 mb-4">
     <a href="{% url 'timetable:school_timeslots' %}" class="btn btn-outline-primary">Time Slots</a>
   </div>
@@ -15,7 +15,7 @@
         style="background-color:#f3f4f6; border:2px solid #4b5563;">
         <div class="card-body">
           <h5 class="card-title">{{ c }}</h5>
-          <p class="text-muted small mb-0">Edit timetable</p>
+          <p class="text-muted small mb-0">Edit schedule</p>
         </div>
       </a>
     </div>

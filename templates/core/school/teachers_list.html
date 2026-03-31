@@ -1,7 +1,170 @@
 {% extends "base.html" %}
-{% block title %}Teachers | School ERP{% endblock %}
+{% block title %}Teachers | Campus ERP{% endblock %}
 {% block content %}
 <div class="container-fluid px-0">
+  <style>
+    /* Match Students list: premium dashboard interactions */
+    .teachers-stats-card {
+      cursor: pointer;
+      transition: transform 220ms cubic-bezier(.2,.8,.2,1), box-shadow 220ms cubic-bezier(.2,.8,.2,1), border-color 220ms ease;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+    }
+    .teachers-stats-card:hover {
+      transform: translateY(-4px) scale(1.02);
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.10);
+      border-color: rgba(79, 70, 229, 0.25);
+    }
+    .teachers-stats-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(79, 70, 229, 0.10);
+      color: #4f46e5;
+    }
+
+    /* Spacious SaaS-style data table (shared pattern with Students list) */
+    .erp-data-table {
+      border-collapse: separate;
+      border-spacing: 0;
+      --erp-table-row-border: #f1f5f9;
+      --erp-table-head-bg: #f8fafc;
+    }
+    .erp-data-table.table > :not(caption) > * > * {
+      box-shadow: none;
+    }
+    html.dark .erp-data-table {
+      --erp-table-row-border: rgba(148, 163, 184, 0.18);
+      --erp-table-head-bg: rgba(15, 23, 42, 0.55);
+    }
+    .erp-data-table thead th {
+      font-weight: 600;
+      color: #374151;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+      padding: 12px 16px;
+      vertical-align: middle;
+      border-bottom: 1px solid #e2e8f0;
+      background: var(--erp-table-head-bg);
+      white-space: nowrap;
+    }
+    html.dark .erp-data-table thead th {
+      color: #cbd5e1;
+      border-bottom-color: rgba(148, 163, 184, 0.22);
+    }
+    .erp-data-table tbody td {
+      padding: 12px 16px;
+      vertical-align: middle;
+      border-bottom: 1px solid var(--erp-table-row-border);
+    }
+    .erp-data-table tbody tr {
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+    .erp-data-table tbody tr:nth-child(even) {
+      background-color: #fafafa;
+    }
+    html.dark .erp-data-table tbody tr:nth-child(even) {
+      background-color: rgba(30, 41, 59, 0.45);
+    }
+    .erp-data-table tbody tr:hover {
+      background-color: #f9fafb !important;
+    }
+    html.dark .erp-data-table tbody tr:hover {
+      background-color: rgba(79, 70, 229, 0.10) !important;
+    }
+    .teachers-table.erp-data-table th:nth-child(3),
+    .teachers-table.erp-data-table td:nth-child(3),
+    .teachers-table.erp-data-table th:nth-child(8),
+    .teachers-table.erp-data-table td:nth-child(8) {
+      white-space: nowrap;
+    }
+    .teachers-table.erp-data-table th:nth-child(4),
+    .teachers-table.erp-data-table td:nth-child(4) {
+      min-width: 11rem;
+    }
+    .teachers-table.erp-data-table th:nth-child(5),
+    .teachers-table.erp-data-table td:nth-child(5),
+    .teachers-table.erp-data-table th:nth-child(6),
+    .teachers-table.erp-data-table td:nth-child(6) {
+      min-width: 9rem;
+    }
+    .erp-data-table .teachers-actions-btn {
+      width: 40px;
+      height: 40px;
+    }
+
+    .teachers-actions-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      background: rgba(255, 255, 255, 0.75);
+      transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+    }
+    .teachers-actions-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 20px rgba(15, 23, 42, 0.10);
+      border-color: rgba(79, 70, 229, 0.25);
+    }
+    .teachers-actions-menu {
+      border-radius: 16px;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+      padding: 0.35rem;
+      overflow: hidden;
+      animation: teachersMenuIn 120ms ease;
+    }
+    @keyframes teachersMenuIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .teachers-actions-menu .dropdown-item {
+      border-radius: 12px;
+      padding: 0.5rem 0.75rem;
+    }
+
+    /* Same as Students: icon-only filter actions */
+    .students-filter-action-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      background: rgba(255, 255, 255, 0.90);
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+      color: #0f172a;
+      text-decoration: none;
+      transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease;
+      user-select: none;
+    }
+    .students-filter-action-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+      box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
+      border-color: rgba(79, 70, 229, 0.25);
+      background: rgba(79, 70, 229, 0.06);
+      color: #1e293b;
+    }
+    .students-filter-action-btn:focus-visible {
+      outline: 0;
+      box-shadow: 0 0 0 0.2rem rgba(79, 70, 229, 0.18), 0 14px 28px rgba(15, 23, 42, 0.12);
+    }
+    @media (max-width: 991.98px) {
+      .students-filter-action-btn {
+        width: 44px;
+        height: 44px;
+      }
+    }
+  </style>
+
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
@@ -9,29 +172,170 @@
     </ol>
   </nav>
 
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-    <h1 class="h4 fw-bold mb-0">Teachers</h1>
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div>
+      <h1 class="h4 fw-bold mb-0">Teachers</h1>
+      <div class="text-muted small mt-1">Quick visibility + clean filters for teacher management.</div>
+    </div>
     <a href="{% url 'core:school_teacher_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Teacher</a>
+  </div>
+
+  {% if stats %}
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-2">
+      <div class="card border-0 shadow-sm rounded-4 h-100 teachers-stats-card">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between gap-2">
+            <div class="text-muted small">Total</div>
+            <div class="teachers-stats-icon"><i class="bi bi-people"></i></div>
+          </div>
+          <div class="fw-bold fs-4">{{ stats.total|default:0 }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="card border-0 shadow-sm rounded-4 h-100 teachers-stats-card">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between gap-2">
+            <div class="text-muted small">Active</div>
+            <div class="teachers-stats-icon"><i class="bi bi-check2-circle"></i></div>
+          </div>
+          <div class="fw-bold fs-4">{{ stats.active|default:0 }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="card border-0 shadow-sm rounded-4 h-100 teachers-stats-card">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between gap-2">
+            <div class="text-muted small">Inactive</div>
+            <div class="teachers-stats-icon"><i class="bi bi-pause-circle"></i></div>
+          </div>
+          <div class="fw-bold fs-4">{{ stats.inactive|default:0 }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="card border-0 shadow-sm rounded-4 h-100 teachers-stats-card">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between gap-2">
+            <div class="text-muted small">Class teachers</div>
+            <div class="teachers-stats-icon"><i class="bi bi-mortarboard"></i></div>
+          </div>
+          <div class="fw-bold fs-4">{{ stats.class_teachers|default:0 }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="card border-0 shadow-sm rounded-4 h-100 teachers-stats-card">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between gap-2">
+            <div class="text-muted small">Subject teachers</div>
+            <div class="teachers-stats-icon"><i class="bi bi-book"></i></div>
+          </div>
+          <div class="fw-bold fs-4">{{ stats.subject_teachers|default:0 }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="card border-0 shadow-sm rounded-4 h-100 teachers-stats-card">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between gap-2">
+            <div class="text-muted small">New joiners</div>
+            <div class="teachers-stats-icon"><i class="bi bi-person-plus"></i></div>
+          </div>
+          <div class="fw-bold fs-4">{{ stats.new_joiners_month|default:0 }}</div>
+          <div class="small text-muted mt-1">This month</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-3 p-lg-4">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-12 col-lg-4">
+          <label class="form-label small text-muted mb-1">Search</label>
+          <input type="text" name="q" value="{{ filters.q|default:'' }}" class="form-control" placeholder="Name / username">
+        </div>
+        <div class="col-6 col-lg-3">
+          <label class="form-label small text-muted mb-1">Subject</label>
+          <select name="subject" class="form-select">
+            <option value="">All</option>
+            {% for s in filter_options.subjects %}
+              <option value="{{ s.id }}" {% if filters.subject|stringformat:"s" == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-lg-3">
+          <label class="form-label small text-muted mb-1">Status</label>
+          <select name="status" class="form-select">
+            <option value="" {% if not filters.status %}selected{% endif %}>All</option>
+            <option value="active" {% if filters.status == 'active' %}selected{% endif %}>Active</option>
+            <option value="inactive" {% if filters.status == 'inactive' %}selected{% endif %}>Inactive</option>
+          </select>
+        </div>
+        <div class="col-12 col-lg-2 d-flex align-items-end gap-2 flex-nowrap">
+          <button
+            type="submit"
+            class="students-filter-action-btn"
+            data-bs-toggle="tooltip"
+            data-bs-title="Apply Filters"
+            aria-label="Apply Filters"
+          >
+            <i class="bi bi-funnel"></i>
+          </button>
+          <a
+            class="students-filter-action-btn"
+            href="{% url 'core:school_teachers_list' %}"
+            data-bs-toggle="tooltip"
+            data-bs-title="Clear Filters"
+            aria-label="Clear Filters"
+            role="button"
+          >
+            <i class="bi bi-arrow-clockwise"></i>
+          </a>
+        </div>
+      </form>
+    </div>
   </div>
 
   <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
     <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
+      <table class="table table-hover align-middle mb-0 teachers-table erp-data-table">
         <thead class="table-light sticky-top">
           <tr>
+            <th class="text-center text-nowrap" style="width:3.5rem;">S.No.</th>
+            <th style="width: 52px;">Photo</th>
             <th>Employee ID</th>
             <th>Name</th>
             <th>Subjects</th>
             <th>Assigned Classes</th>
             <th>Phone</th>
+            <th>Status</th>
             <th class="text-center" style="width: 140px;">Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for t in teachers %}
             <tr>
+              <td class="text-center text-muted small">{{ forloop.counter }}</td>
+              <td>
+                {% if t.profile_image %}
+                  <img src="{{ t.profile_image.url }}" class="rounded-circle border" style="width:40px;height:40px;object-fit:cover;" alt="Photo">
+                {% else %}
+                  <div class="rounded-circle bg-light border d-flex align-items-center justify-content-center text-muted" style="width:40px;height:40px;">
+                    <i class="bi bi-person"></i>
+                  </div>
+                {% endif %}
+              </td>
               <td>{{ t.employee_id|default:"—" }}</td>
-              <td>{{ t.user.get_full_name|default:t.user.username }}</td>
+              <td>
+                <a class="text-decoration-none fw-semibold text-body" href="{% url 'core:school_teacher_view' t.id %}">
+                  {{ t.user.get_full_name|default:t.user.username }}
+                </a>
+              </td>
               <td>
                 {% for s in t.subjects.all %}
                   <span class="badge bg-primary bg-opacity-25 text-primary me-1">{{ s.name }}</span>
@@ -47,44 +351,87 @@
                 {% endfor %}
               </td>
               <td>{{ t.phone_number|default:"—" }}</td>
-              <td class="text-center" style="width: 180px;">
-                <a href="{% url 'core:school_teacher_view' t.id %}" class="btn btn-sm btn-outline-secondary" title="View" aria-label="View">
-                  <i class="bi bi-eye"></i>
-                </a>
-                <a href="{% url 'core:school_teacher_edit' t.id %}" class="btn btn-sm btn-outline-primary" title="Edit" aria-label="Edit">
-                  <i class="bi bi-pencil"></i>
-                </a>
-                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteTeacher{{ t.id }}" title="Delete" aria-label="Delete">
-                  <i class="bi bi-trash"></i>
-                </button>
+              <td>
+                {% if t.user.is_active %}
+                  <span class="badge rounded-pill text-bg-success">Active</span>
+                {% else %}
+                  <span class="badge rounded-pill text-bg-secondary">Inactive</span>
+                {% endif %}
+              </td>
+              <td class="text-center" style="width: 200px;">
+                <a href="{% url 'core:school_teacher_view' t.id %}" class="teachers-actions-btn me-1 text-decoration-none text-body" title="View profile" aria-label="View profile"><i class="bi bi-eye"></i></a>
+                <div class="dropdown d-inline-block">
+                  <button class="teachers-actions-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Teacher actions">
+                    <i class="bi bi-gear"></i>
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end teachers-actions-menu">
+                    <li><a class="dropdown-item" href="{% url 'core:school_teacher_view' t.id %}"><i class="bi bi-eye me-2"></i>View</a></li>
+                    <li><a class="dropdown-item" href="{% url 'core:school_teacher_edit' t.id %}"><i class="bi bi-pencil me-2"></i>Edit</a></li>
+                    <li><button class="dropdown-item" type="button" disabled><i class="bi bi-diagram-3 me-2"></i>Assign class</button></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                      <button
+                        type="button"
+                        class="dropdown-item text-danger"
+                        data-bs-toggle="modal"
+                        data-bs-target="#deleteTeacherModal"
+                        data-delete-url="{% url 'core:school_teacher_delete' t.id %}"
+                        data-teacher-name="{{ t.user.get_full_name|default:t.user.username }}"
+                      ><i class="bi bi-trash me-2"></i>Delete</button>
+                    </li>
+                  </ul>
+                </div>
               </td>
             </tr>
-            <div class="modal fade" id="deleteTeacher{{ t.id }}" tabindex="-1" aria-hidden="true">
-              <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                  <div class="modal-header">
-                    <h5 class="modal-title">Delete Teacher</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                  </div>
-                  <div class="modal-body">
-                    Delete <strong>{{ t.user.get_full_name|default:t.user.username }}</strong>? If assigned in timetable, deletion is blocked.
-                  </div>
-                  <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <form method="post" action="{% url 'core:school_teacher_delete' t.id %}">
-                      {% csrf_token %}
-                      <button type="submit" class="btn btn-danger">Delete</button>
-                    </form>
-                  </div>
-                </div>
-              </div>
-            </div>
           {% empty %}
-            <tr><td colspan="6" class="text-center text-muted py-4">No teachers found.</td></tr>
+            <tr><td colspan="9" class="text-center text-muted py-4">No teachers found.</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   </div>
+
+  <div class="modal fade" id="deleteTeacherModal" tabindex="-1" aria-labelledby="deleteTeacherModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="deleteTeacherModalLabel">Delete Teacher</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="deleteTeacherForm" method="post" action="">
+          {% csrf_token %}
+          <div class="modal-body">
+            Delete <strong id="deleteTeacherName"></strong>? If assigned in timetable, deletion may be blocked.
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-danger">Delete</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById("deleteTeacherModal")?.addEventListener("show.bs.modal", function (event) {
+      var btn = event.relatedTarget;
+      if (!btn) return;
+      var url = btn.getAttribute("data-delete-url");
+      var name = btn.getAttribute("data-teacher-name") || "";
+      var form = document.getElementById("deleteTeacherForm");
+      var nameEl = document.getElementById("deleteTeacherName");
+      if (form && url) form.action = url;
+      if (nameEl) nameEl.textContent = name;
+    });
+  </script>
 </div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    if (!(window.bootstrap && bootstrap.Tooltip)) return;
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+      bootstrap.Tooltip.getOrCreateInstance(el, { container: "body" });
+    });
+  });
+</script>
 {% endblock %}

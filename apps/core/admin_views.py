@@ -1,17 +1,56 @@
 """Admin frontend management: Schools, Teachers, Students — SuperAdmin only."""
 import re
+from datetime import date
+from urllib.parse import urlencode
+
 from django.contrib.auth import get_user_model
+from django.db import connection, transaction
+from django.db.utils import DatabaseError
 from django.shortcuts import render, redirect, get_object_or_404
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Count, Prefetch, Q
 from django.contrib import messages
+from django.urls import reverse
 
 from apps.accounts.decorators import superadmin_required
-from apps.customers.models import School, Plan, Feature
-from apps.school_data.models import Teacher, Student, ClassRoom, Section
-from .forms import AdminSchoolForm, AdminTeacherForm, AdminStudentForm
+from apps.core.tenant_provisioning import allocate_unique_schema_name
+from apps.customers.models import Coupon, Feature, Plan, School, SchoolSubscription, SubscriptionPlan
+from apps.school_data.models import Teacher, Student, ClassRoom, Section, Subject
+from .forms import AdminCouponForm, AdminSchoolForm, AdminTeacherForm, AdminStudentForm
 
 User = get_user_model()
+
+
+def _parse_optional_date(value: str) -> date | None:
+    v = (value or "").strip()
+    if not v:
+        return None
+    try:
+        return date.fromisoformat(v)
+    except ValueError:
+        return None
+
+
+def _sync_school_subscription_from_saas(school: School) -> None:
+    """
+    Keep internal billing row (customers.SubscriptionPlan) aligned with Starter / Enterprise.
+    Does not override an active trial.
+    """
+    if school.plan and (school.plan.name or "").lower() == "trial":
+        end = getattr(school, "trial_end_date", None)
+        if end and end >= date.today():
+            return
+    if not school.saas_plan:
+        return
+    tier = (school.saas_plan.name or "").strip().lower()
+    if tier in ("enterprise", "advance"):  # advance: legacy plan name
+        sp = SubscriptionPlan.objects.filter(name__iexact="pro", is_active=True).first()
+    else:
+        sp = SubscriptionPlan.objects.filter(name__iexact="basic", is_active=True).first()
+    if sp:
+        school.plan = sp
+        if (sp.name or "").lower() != "trial":
+            school.trial_end_date = None
 
 
 def _generate_school_code(name):
@@ -20,6 +59,54 @@ def _generate_school_code(name):
     initials = "".join(p[:1].upper() for p in parts[:3]) or "SCH"
     count = School.objects.filter(code__startswith=initials).count() + 1
     return f"{initials}{count:03d}"
+
+
+def _rollback_safe():
+    try:
+        if not connection.in_atomic_block:
+            connection.rollback()
+    except Exception:
+        pass
+
+
+def _platform_school_teacher_student_cards():
+    """
+    Per-tenant teacher/student counts for Super Admin overview (school cards + totals).
+    """
+    from django_tenants.utils import tenant_context
+
+    schools = School.objects.exclude(schema_name="public").order_by("name")
+    cards = []
+    total_teachers = total_students = 0
+    for school in schools:
+        tc = sc = 0
+        try:
+            with tenant_context(school):
+                with transaction.atomic():
+                    tc = Teacher.objects.count()
+                    sc = Student.objects.count()
+        except DatabaseError:
+            _rollback_safe()
+        cards.append({"school": school, "teacher_count": tc, "student_count": sc})
+        total_teachers += tc
+        total_students += sc
+    return cards, total_teachers, total_students
+
+
+def _filter_query(request, exclude=("page",)):
+    return urlencode([(k, v) for k, v in request.GET.items() if k not in exclude and v != ""])
+
+
+def _materialize_page_object_list(page):
+    """
+    Evaluate Page.object_list while still inside tenant_context.
+
+    django-tenants: Paginator.get_page() keeps a lazy queryset slice; the template
+    iterates after the context manager exits, so queries run on the public schema
+    where tenant tables (e.g. school_data_student) do not exist.
+    """
+    page.object_list = list(page.object_list)
+    return page
 
 
 @superadmin_required
@@ -36,18 +123,18 @@ def admin_schools_list(request):
     return render(request, "admin/schools_list.html", {"schools": page, "search": search})
 
 
+@transaction.non_atomic_requests
 @superadmin_required
 def admin_school_create(request):
-    """Create a new school."""
+    """Create a new school (tenant schema + migrations; avoid ATOMIC_REQUESTS conflict)."""
     form = AdminSchoolForm(request.POST or None)
     if form.is_valid():
-        from datetime import date, timedelta
-
         school = form.save(commit=False)
         school.code = _generate_school_code(school.name)
-        plan = school.plan
-        if plan and (plan.name or "").lower() == "trial":
-            school.trial_end_date = date.today() + timedelta(days=plan.duration_days)
+        school.schema_name = allocate_unique_schema_name(school.code)
+        if not school.saas_plan_id:
+            school.saas_plan = Plan.objects.filter(name="Starter").first()
+        _sync_school_subscription_from_saas(school)
         school.save()
         return redirect("admin_manage:schools_list")
     return render(request, "admin/school_form.html", {"form": form, "title": "Create School"})
@@ -66,47 +153,103 @@ def admin_school_edit(request, school_code):
     school = get_object_or_404(School, code=school_code)
     form = AdminSchoolForm(request.POST or None, instance=school)
     if form.is_valid():
-        form.save()
+        school = form.save(commit=False)
+        _sync_school_subscription_from_saas(school)
+        school.save()
         return redirect("admin_manage:schools_list")
     return render(request, "admin/school_form.html", {"form": form, "school": school, "title": "Edit School"})
 
 
 @superadmin_required
 def admin_teachers_list(request):
-    """List teachers for a school. Requires ?school=<code>."""
+    """Overview: totals + school cards. Detail: ?school=<code> with filters and paginated table."""
     from django_tenants.utils import tenant_context
+
     school_code = request.GET.get("school", "").strip()
-    schools = School.objects.all().order_by("name")
-    teachers = []
-    if school_code:
-        school = School.objects.filter(code=school_code).first()
-        if school:
-            with tenant_context(school):
-                qs = Teacher.objects.select_related("user", "user__school").order_by("user__first_name", "user__last_name")
-                search = request.GET.get("q", "").strip()
-                if search:
-                    qs = qs.filter(
-                        Q(user__first_name__icontains=search)
-                        | Q(user__last_name__icontains=search)
-                        | Q(user__email__icontains=search)
-                        | Q(user__username__icontains=search)
-                    )
-                paginator = Paginator(qs, 20)
-                page = paginator.get_page(request.GET.get("page", 1))
-                return render(request, "admin/teachers_list.html", {
-                    "teachers": page,
-                    "search": search,
-                    "school_code": school_code,
-                    "schools": schools,
-                })
-    paginator = Paginator(teachers, 20)
-    page = paginator.get_page(1)
-    return render(request, "admin/teachers_list.html", {
-        "teachers": page,
-        "search": "",
-        "school_code": school_code,
-        "schools": schools,
-    })
+    schools = School.objects.exclude(schema_name="public").order_by("name")
+
+    if not school_code:
+        cards, total_teachers, total_students = _platform_school_teacher_student_cards()
+        return render(
+            request,
+            "admin/teachers_list.html",
+            {
+                "overview": True,
+                "school_cards": cards,
+                "total_teachers": total_teachers,
+                "total_students": total_students,
+                "schools": schools,
+                "school_code": "",
+                "filter_query": _filter_query(request),
+            },
+        )
+
+    school = School.objects.filter(code=school_code).exclude(schema_name="public").first()
+    if not school:
+        messages.error(request, "School not found.")
+        return redirect("admin_manage:teachers_list")
+
+    search = request.GET.get("q", "").strip()
+    subject_id = request.GET.get("subject", "").strip()
+    status = request.GET.get("status", "").strip()
+
+    try:
+        with tenant_context(school):
+            qs = (
+                Teacher.objects.select_related("user", "user__school", "subject")
+                .prefetch_related("subjects")
+                .order_by("user__first_name", "user__last_name")
+            )
+            if search:
+                qs = qs.filter(
+                    Q(user__first_name__icontains=search)
+                    | Q(user__last_name__icontains=search)
+                    | Q(user__email__icontains=search)
+                    | Q(user__username__icontains=search)
+                    | Q(employee_id__icontains=search)
+                )
+            if subject_id.isdigit():
+                sid = int(subject_id)
+                qs = qs.filter(Q(subjects__id=sid) | Q(subject_id=sid)).distinct()
+            if status == "active":
+                qs = qs.filter(user__is_active=True)
+            elif status == "inactive":
+                qs = qs.filter(user__is_active=False)
+
+            qs = qs.annotate(assignments_count=Count("class_section_subject_teacher_mappings", distinct=True))
+
+            subject_choices = list(Subject.objects.order_by("name").values_list("id", "name"))
+
+            paginator = Paginator(qs, 20)
+            _ = paginator.count  # cache total COUNT while tenant schema is active
+            page = _materialize_page_object_list(
+                paginator.get_page(request.GET.get("page", 1))
+            )
+    except DatabaseError:
+        _rollback_safe()
+        messages.error(
+            request,
+            f"Could not load teachers for {school.name}: tenant schema may be missing tables. "
+            "Run migrations for this school’s schema.",
+        )
+        return redirect("admin_manage:teachers_list")
+
+    return render(
+        request,
+        "admin/teachers_list.html",
+        {
+            "overview": False,
+            "teachers": page,
+            "search": search,
+            "subject_filter": subject_id,
+            "status_filter": status,
+            "subject_choices": subject_choices,
+            "school_code": school_code,
+            "school_obj": school,
+            "schools": schools,
+            "filter_query": _filter_query(request),
+        },
+    )
 
 
 @superadmin_required
@@ -139,7 +282,7 @@ def admin_teacher_create(request):
                 qualification=data.get("qualification") or "",
             )
             teacher.save_with_audit(request.user)
-        return redirect("admin_manage:teachers_list")
+        return redirect(f"{reverse('admin_manage:teachers_list')}?school={school.code}")
     return render(request, "admin/teacher_form.html", {"form": form, "title": "Create Teacher"})
 
 
@@ -184,46 +327,106 @@ def admin_teacher_edit(request, school_code, teacher_id):
         teacher.phone_number = data.get("phone") or ""
         teacher.qualification = data.get("qualification") or ""
         teacher.save_with_audit(request.user)
-        return redirect("admin_manage:teachers_list")
+        return redirect(f"{reverse('admin_manage:teachers_list')}?school={school.code}")
     return render(request, "admin/teacher_form.html", {"form": form, "teacher": teacher, "title": "Edit Teacher"})
 
 
 @superadmin_required
 def admin_students_list(request):
-    """List students for a school. Requires ?school=<code>."""
+    """Overview: totals + school cards. Detail: ?school=<code> with filters and paginated table."""
     from django_tenants.utils import tenant_context
+
     school_code = request.GET.get("school", "").strip()
-    schools = School.objects.all().order_by("name")
-    if school_code:
-        school = School.objects.filter(code=school_code).first()
-        if school:
-            with tenant_context(school):
-                qs = Student.objects.select_related(
-                    "user", "user__school", "classroom", "section"
-                ).order_by("user__first_name", "user__last_name")
-                search = request.GET.get("q", "").strip()
-                if search:
-                    qs = qs.filter(
-                        Q(user__first_name__icontains=search)
-                        | Q(user__last_name__icontains=search)
-                        | Q(admission_number__icontains=search)
-                    )
-                paginator = Paginator(qs, 20)
-                page = paginator.get_page(request.GET.get("page", 1))
-                return render(request, "admin/students_list.html", {
-                    "students": page,
-                    "search": search,
-                    "school_code": school_code,
-                    "schools": schools,
-                })
-    paginator = Paginator([], 20)
-    page = paginator.get_page(1)
-    return render(request, "admin/students_list.html", {
-        "students": page,
-        "search": "",
-        "school_code": school_code,
-        "schools": schools,
-    })
+    schools = School.objects.exclude(schema_name="public").order_by("name")
+
+    if not school_code:
+        cards, total_teachers, total_students = _platform_school_teacher_student_cards()
+        return render(
+            request,
+            "admin/students_list.html",
+            {
+                "overview": True,
+                "school_cards": cards,
+                "total_teachers": total_teachers,
+                "total_students": total_students,
+                "schools": schools,
+                "school_code": "",
+                "filter_query": _filter_query(request),
+            },
+        )
+
+    school = School.objects.filter(code=school_code).exclude(schema_name="public").first()
+    if not school:
+        messages.error(request, "School not found.")
+        return redirect("admin_manage:students_list")
+
+    search = request.GET.get("q", "").strip()
+    classroom_id = request.GET.get("classroom", "").strip()
+    section_id = request.GET.get("section", "").strip()
+    gender = request.GET.get("gender", "").strip()
+    status = request.GET.get("status", "").strip()
+
+    try:
+        with tenant_context(school):
+            qs = Student.objects.select_related(
+                "user", "user__school", "classroom", "section", "academic_year"
+            ).order_by("user__first_name", "user__last_name")
+            if search:
+                qs = qs.filter(
+                    Q(user__first_name__icontains=search)
+                    | Q(user__last_name__icontains=search)
+                    | Q(admission_number__icontains=search)
+                    | Q(roll_number__icontains=search)
+                    | Q(phone__icontains=search)
+                    | Q(parent_phone__icontains=search)
+                )
+            if classroom_id.isdigit():
+                qs = qs.filter(classroom_id=int(classroom_id))
+            if section_id.isdigit():
+                qs = qs.filter(section_id=int(section_id))
+            if gender in ("M", "F", "O"):
+                qs = qs.filter(gender=gender)
+            if status == "active":
+                qs = qs.filter(user__is_active=True)
+            elif status == "inactive":
+                qs = qs.filter(user__is_active=False)
+
+            classroom_choices = list(ClassRoom.objects.order_by("name").values_list("id", "name"))
+            section_choices = list(Section.objects.order_by("name").values_list("id", "name"))
+
+            paginator = Paginator(qs, 20)
+            _ = paginator.count  # cache total COUNT while tenant schema is active
+            page = _materialize_page_object_list(
+                paginator.get_page(request.GET.get("page", 1))
+            )
+    except DatabaseError:
+        _rollback_safe()
+        messages.error(
+            request,
+            f"Could not load students for {school.name}: tenant schema may be missing tables. "
+            "Run migrations for this school’s schema.",
+        )
+        return redirect("admin_manage:students_list")
+
+    return render(
+        request,
+        "admin/students_list.html",
+        {
+            "overview": False,
+            "students": page,
+            "search": search,
+            "classroom_filter": classroom_id,
+            "section_filter": section_id,
+            "gender_filter": gender,
+            "status_filter": status,
+            "classroom_choices": classroom_choices,
+            "section_choices": section_choices,
+            "school_code": school_code,
+            "school_obj": school,
+            "schools": schools,
+            "filter_query": _filter_query(request),
+        },
+    )
 
 
 @superadmin_required
@@ -261,7 +464,7 @@ def admin_student_create(request):
                 section=section,
             )
             student.save_with_audit(request.user)
-        return redirect("admin_manage:students_list")
+        return redirect(f"{reverse('admin_manage:students_list')}?school={school.code}")
     return render(request, "admin/student_form.html", {"form": form, "title": "Create Student"})
 
 
@@ -308,49 +511,206 @@ def admin_student_edit(request, school_code, student_id):
         student.section = data.get("section")
         with tenant_context(school):
             student.save_with_audit(request.user)
-        return redirect("admin_manage:students_list")
+        return redirect(f"{reverse('admin_manage:students_list')}?school={school.code}")
     return render(request, "admin/student_form.html", {"form": form, "student": student, "title": "Edit Student"})
 
 
 # ======================
-# School Plans (SaaS)
+# School Plans (Starter / Enterprise)
 # ======================
 
 
 @superadmin_required
 def admin_school_plans_list(request):
     """School Plans section: list schools with current plan and enabled features."""
-    schools = School.objects.exclude(schema_name="public").select_related("saas_plan").order_by("name")
-    plans = Plan.objects.prefetch_related("features").order_by("price_per_student")
-    return render(request, "admin/school_plans_list.html", {
-        "schools": schools,
-        "plans": plans,
-    })
+    search_q = request.GET.get("q", "").strip()
+    plan_filter = request.GET.get("plan", "").strip()
+
+    schools = (
+        School.objects.exclude(schema_name="public")
+        .select_related("saas_plan")
+        .prefetch_related(
+            "saas_plan__features",
+            Prefetch(
+                "subscription_records",
+                queryset=SchoolSubscription.objects.filter(is_current=True).select_related(
+                    "plan", "coupon"
+                ),
+                to_attr="current_subscription_rows",
+            ),
+        )
+    )
+    if search_q:
+        schools = schools.filter(
+            Q(name__icontains=search_q) | Q(code__icontains=search_q)
+        )
+    if plan_filter == "none":
+        schools = schools.filter(saas_plan__isnull=True)
+    elif plan_filter.isdigit():
+        schools = schools.filter(saas_plan_id=int(plan_filter))
+
+    schools = schools.order_by("name")
+    plans = Plan.sale_tiers().prefetch_related("features")
+    sale_plan_ids = list(plans.values_list("pk", flat=True))
+    return render(
+        request,
+        "admin/school_plans_list.html",
+        {
+            "schools": schools,
+            "plans": plans,
+            "search_q": search_q,
+            "plan_filter": plan_filter,
+            "sale_plan_ids": sale_plan_ids,
+        },
+    )
 
 
 @superadmin_required
 def admin_school_change_plan(request, school_code):
-    """Change a school's plan. Upgrade/downgrade applies immediately."""
+    """Change a school's SaaS plan; optional coupon and subscription audit row (one current per school)."""
+    from apps.customers.billing_coupons import coupon_error_message, redeem_coupon_for_subscription
+
     school = get_object_or_404(School, code=school_code)
-    plans = Plan.objects.prefetch_related("features").order_by("price_per_student")
+    plans = Plan.sale_tiers().prefetch_related("features")
+    current_list = list(
+        SchoolSubscription.objects.filter(school=school, is_current=True).select_related("plan", "coupon")
+    )
+    current_sub = current_list[0] if current_list else None
+
     if request.method == "POST":
         plan_id = request.POST.get("plan")
         if plan_id:
-            plan = get_object_or_404(Plan, pk=plan_id)
-            school.saas_plan = plan
-            school.enabled_features_override = None  # Reset override when changing plan
-            school.save()
-            messages.success(request, f"Plan updated to {plan.name}. Changes apply immediately.")
+            plan = get_object_or_404(Plan.sale_tiers(), pk=plan_id)
+            start_d = _parse_optional_date(request.POST.get("start_date") or "") or date.today()
+            end_d = _parse_optional_date(request.POST.get("end_date") or "")
+            try:
+                students_count = max(0, int(request.POST.get("students_count") or 0))
+            except ValueError:
+                students_count = 0
+            try:
+                free_months = min(120, max(0, int(request.POST.get("free_months") or 0)))
+            except ValueError:
+                free_months = 0
+            sub_status = (request.POST.get("subscription_status") or "").strip()
+            if sub_status not in {c[0] for c in SchoolSubscription.Status.choices}:
+                sub_status = SchoolSubscription.Status.ACTIVE
+            coupon_code = (request.POST.get("coupon_code") or "").strip().upper()
+
+            if coupon_code:
+                c0 = Coupon.objects.filter(code__iexact=coupon_code).first()
+                err_pre = coupon_error_message(c0, code=coupon_code)
+                if err_pre:
+                    messages.error(request, err_pre)
+                    return render(
+                        request,
+                        "admin/school_change_plan.html",
+                        {
+                            "school": school,
+                            "plans": plans,
+                            "current_sub": current_sub,
+                            "today": date.today(),
+                            "subscription_status_choices": SchoolSubscription.Status.choices,
+                        },
+                    )
+
+            coupon_locked = None
+            try:
+                with transaction.atomic():
+                    if coupon_code:
+                        coupon_locked = Coupon.objects.select_for_update().get(code__iexact=coupon_code)
+                        err2 = coupon_error_message(coupon_locked, code=coupon_code)
+                        if err2:
+                            raise ValueError(err2)
+                        redeem_coupon_for_subscription(coupon_locked)
+                    SchoolSubscription.objects.filter(school=school, is_current=True).update(is_current=False)
+                    SchoolSubscription.objects.create(
+                        school=school,
+                        plan=plan,
+                        start_date=start_d,
+                        end_date=end_d,
+                        students_count=students_count,
+                        coupon=coupon_locked,
+                        free_months_applied=free_months,
+                        status=sub_status,
+                        is_current=True,
+                    )
+                    school.saas_plan = plan
+                    school.enabled_features_override = None
+                    _sync_school_subscription_from_saas(school)
+                    school.save()
+            except (ValueError, Coupon.DoesNotExist) as e:
+                messages.error(request, str(e) if str(e) else "Coupon could not be applied.")
+                return render(
+                    request,
+                    "admin/school_change_plan.html",
+                    {
+                        "school": school,
+                        "plans": plans,
+                        "current_sub": current_sub,
+                        "today": date.today(),
+                        "subscription_status_choices": SchoolSubscription.Status.choices,
+                    },
+                )
+            msg = f"Plan updated to {plan.name}."
+            if coupon_locked:
+                msg += f" Coupon {coupon_locked.code} applied."
+            messages.success(request, msg)
         else:
-            school.saas_plan = None
-            school.enabled_features_override = None
-            school.save()
-            messages.success(request, "Plan cleared. School will use legacy plan if any.")
+            with transaction.atomic():
+                SchoolSubscription.objects.filter(school=school, is_current=True).update(is_current=False)
+                school.saas_plan = None
+                school.enabled_features_override = None
+                school.save()
+            messages.success(
+                request,
+                "Plan cleared. Assign Starter or Enterprise under School Plans so modules are available.",
+            )
         return redirect("admin_manage:school_plans_list")
-    return render(request, "admin/school_change_plan.html", {
-        "school": school,
-        "plans": plans,
-    })
+    return render(
+        request,
+        "admin/school_change_plan.html",
+        {
+            "school": school,
+            "plans": plans,
+            "current_sub": current_sub,
+            "today": date.today(),
+            "subscription_status_choices": SchoolSubscription.Status.choices,
+        },
+    )
+
+
+@superadmin_required
+def admin_billing_plans_list(request):
+    """Subscription product plans (customers.Plan): pricing, billing cycle, active flag."""
+    plan_qs = Plan.objects.prefetch_related("features").order_by("price_per_student", "name")
+    return render(request, "admin/billing_plans_list.html", {"plans": plan_qs})
+
+
+@superadmin_required
+def admin_coupons_list(request):
+    coupons = Coupon.objects.all().order_by("-created_at")
+    return render(request, "admin/coupons_list.html", {"coupons": coupons})
+
+
+@superadmin_required
+def admin_coupon_create(request):
+    form = AdminCouponForm(request.POST or None)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Coupon created.")
+        return redirect("admin_manage:coupons_list")
+    return render(request, "admin/coupon_form.html", {"form": form, "title": "Create coupon"})
+
+
+@superadmin_required
+def admin_coupon_edit(request, pk: int):
+    coupon = get_object_or_404(Coupon, pk=pk)
+    form = AdminCouponForm(request.POST or None, instance=coupon)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Coupon updated.")
+        return redirect("admin_manage:coupons_list")
+    return render(request, "admin/coupon_form.html", {"form": form, "coupon": coupon, "title": "Edit coupon"})
 
 
 @superadmin_required

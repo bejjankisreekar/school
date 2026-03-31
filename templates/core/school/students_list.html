@@ -1,7 +1,177 @@
 {% extends "base.html" %}
-{% block title %}Students | School ERP{% endblock %}
+{% block title %}Students | Campus ERP{% endblock %}
 {% block content %}
 <div class="container-fluid px-0">
+  <style>
+    /* Premium dashboard interactions */
+    .students-stats-card {
+      cursor: pointer;
+      transition: transform 220ms cubic-bezier(.2,.8,.2,1), box-shadow 220ms cubic-bezier(.2,.8,.2,1), border-color 220ms ease;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+    }
+    .students-stats-card:hover {
+      transform: translateY(-4px) scale(1.02);
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.10);
+      border-color: rgba(79, 70, 229, 0.25);
+    }
+    .students-stats-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(79, 70, 229, 0.10);
+      color: #4f46e5;
+    }
+
+    /* Spacious SaaS-style data table (shared pattern with Teachers list) */
+    .erp-data-table {
+      border-collapse: separate;
+      border-spacing: 0;
+      --erp-table-row-border: #f1f5f9;
+      --erp-table-head-bg: #f8fafc;
+    }
+    .erp-data-table.table > :not(caption) > * > * {
+      box-shadow: none;
+    }
+    html.dark .erp-data-table {
+      --erp-table-row-border: rgba(148, 163, 184, 0.18);
+      --erp-table-head-bg: rgba(15, 23, 42, 0.55);
+    }
+    .erp-data-table thead th {
+      font-weight: 600;
+      color: #374151;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+      padding: 12px 16px;
+      vertical-align: middle;
+      border-bottom: 1px solid #e2e8f0;
+      background: var(--erp-table-head-bg);
+      white-space: nowrap;
+    }
+    html.dark .erp-data-table thead th {
+      color: #cbd5e1;
+      border-bottom-color: rgba(148, 163, 184, 0.22);
+    }
+    .erp-data-table tbody td {
+      padding: 12px 16px;
+      vertical-align: middle;
+      border-bottom: 1px solid var(--erp-table-row-border);
+    }
+    .erp-data-table tbody tr {
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+    .erp-data-table tbody tr:nth-child(even) {
+      background-color: #fafafa;
+    }
+    html.dark .erp-data-table tbody tr:nth-child(even) {
+      background-color: rgba(30, 41, 59, 0.45);
+    }
+    .erp-data-table tbody tr:hover {
+      background-color: #f9fafb !important;
+    }
+    html.dark .erp-data-table tbody tr:hover {
+      background-color: rgba(79, 70, 229, 0.10) !important;
+    }
+    /* Column breathing room */
+    .students-table.erp-data-table th:nth-child(3),
+    .students-table.erp-data-table td:nth-child(3),
+    .students-table.erp-data-table th:nth-child(4),
+    .students-table.erp-data-table td:nth-child(4) {
+      white-space: nowrap;
+    }
+    .students-table.erp-data-table th:nth-child(5),
+    .students-table.erp-data-table td:nth-child(5) {
+      min-width: 11rem;
+    }
+    .students-table.erp-data-table th:nth-child(9),
+    .students-table.erp-data-table td:nth-child(9),
+    .students-table.erp-data-table th:nth-child(10),
+    .students-table.erp-data-table td:nth-child(10) {
+      min-width: 8.5rem;
+    }
+    .students-table.erp-data-table th:nth-child(11),
+    .students-table.erp-data-table td:nth-child(11) {
+      white-space: nowrap;
+    }
+    .erp-data-table .students-actions-btn {
+      width: 40px;
+      height: 40px;
+    }
+
+    /* Dropdown polish */
+    .students-actions-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      background: rgba(255, 255, 255, 0.75);
+      transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+    }
+    .students-actions-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 20px rgba(15, 23, 42, 0.10);
+      border-color: rgba(79, 70, 229, 0.25);
+    }
+    .students-actions-menu {
+      border-radius: 16px;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+      padding: 0.35rem;
+      overflow: hidden;
+      animation: studentsMenuIn 120ms ease;
+    }
+    @keyframes studentsMenuIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .students-actions-menu .dropdown-item {
+      border-radius: 12px;
+      padding: 0.5rem 0.75rem;
+    }
+
+    /* Filter actions (icon-only) */
+    .students-filter-action-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      background: rgba(255, 255, 255, 0.90);
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+      color: #0f172a;
+      text-decoration: none;
+      transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease;
+      user-select: none;
+    }
+    .students-filter-action-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+      box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
+      border-color: rgba(79, 70, 229, 0.25);
+      background: rgba(79, 70, 229, 0.06);
+      color: #1e293b;
+    }
+    .students-filter-action-btn:focus-visible {
+      outline: 0;
+      box-shadow: 0 0 0 0.2rem rgba(79, 70, 229, 0.18), 0 14px 28px rgba(15, 23, 42, 0.12);
+    }
+    @media (max-width: 991.98px) {
+      /* On mobile, keep the action buttons from awkward full-width stacking */
+      .students-filter-action-btn {
+        width: 44px;
+        height: 44px;
+      }
+    }
+  </style>
+
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
@@ -9,43 +179,151 @@
     </ol>
   </nav>
 
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-    <h1 class="h4 fw-bold mb-0">Students</h1>
-    <div class="d-flex gap-2">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div>
+      <h1 class="h4 fw-bold mb-0">Students</h1>
+      <div class="text-muted small mt-1">Student master list with fast filters and clean actions.</div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
       <a href="{% url 'core:school_sections' %}" class="btn btn-outline-info btn-sm"><i class="bi bi-diagram-3"></i> Sections</a>
-      <a href="{% url 'core:school_students_import' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-upload"></i> Import CSV</a>
+      <a href="{% url 'core:school_students_import' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-upload"></i> Bulk Upload</a>
+      <a href="{% url 'core:school_students_list' %}?export=csv{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.admission %}&admission={{ filters.admission }}{% endif %}{% if filters.roll %}&roll={{ filters.roll }}{% endif %}{% if filters.classroom_id %}&classroom={{ filters.classroom_id }}{% endif %}{% if filters.section_id %}&section={{ filters.section_id }}{% endif %}{% if filters.year %}&year={{ filters.year }}{% endif %}{% if filters.gender %}&gender={{ filters.gender }}{% endif %}{% if filters.status %}&status={{ filters.status }}{% endif %}"
+         class="btn btn-outline-primary btn-sm"><i class="bi bi-filetype-csv"></i> Export CSV</a>
       <a href="{% url 'core:school_student_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Student</a>
     </div>
   </div>
 
-  <div class="card border-0 shadow-sm rounded-3 mb-4">
-    <div class="card-body">
-      <form method="get" class="row g-3">
-        <div class="col-md-3">
-          <label class="form-label small">Class</label>
-          <select name="classroom" class="form-select form-select-sm">
+  {% if stats %}
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-2">
+      <div class="card border-0 shadow-sm rounded-4 h-100 students-stats-card">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between gap-2">
+            <div class="text-muted small">Total students</div>
+            <div class="students-stats-icon"><i class="bi bi-people"></i></div>
+          </div>
+          <div class="fw-bold fs-4">{{ stats.total|default:0 }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="card border-0 shadow-sm rounded-4 h-100 students-stats-card">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between gap-2">
+            <div class="text-muted small">Active</div>
+            <div class="students-stats-icon"><i class="bi bi-check2-circle"></i></div>
+          </div>
+          <div class="fw-bold fs-4">{{ stats.active|default:0 }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="card border-0 shadow-sm rounded-4 h-100 students-stats-card">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between gap-2">
+            <div class="text-muted small">Present today</div>
+            <div class="students-stats-icon"><i class="bi bi-calendar-check"></i></div>
+          </div>
+          <div class="fw-bold fs-4">{{ stats.present_today|default:0 }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="card border-0 shadow-sm rounded-4 h-100 students-stats-card">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between gap-2">
+            <div class="text-muted small">Absent today</div>
+            <div class="students-stats-icon"><i class="bi bi-exclamation-triangle"></i></div>
+          </div>
+          <div class="fw-bold fs-4">{{ stats.absent_today|default:0 }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="card border-0 shadow-sm rounded-4 h-100 students-stats-card">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between gap-2">
+            <div class="text-muted small">New admissions</div>
+            <div class="students-stats-icon"><i class="bi bi-person-plus"></i></div>
+          </div>
+          <div class="fw-bold fs-4">{{ stats.new_admissions_month|default:0 }}</div>
+          <div class="small text-muted mt-1">This month</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body">
+          <div class="text-muted small">Withdrawn</div>
+          <div class="fw-bold fs-4">{{ stats.withdrawn|default:0 }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-3 p-lg-4">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-12 col-lg-3">
+          <label class="form-label small text-muted mb-1">Search student</label>
+          <input type="text" name="q" value="{{ filters.q|default:'' }}" class="form-control" placeholder="Name / username">
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label small text-muted mb-1">Class</label>
+          <select name="classroom" class="form-select">
             <option value="">All</option>
             {% for c in classrooms %}
               <option value="{{ c.id }}" {% if filters.classroom_id == c.id|stringformat:"s" %}selected{% endif %}>{{ c }}</option>
             {% endfor %}
           </select>
         </div>
-        <div class="col-md-3">
-          <label class="form-label small">Section</label>
-          <select name="section" class="form-select form-select-sm">
+        <div class="col-6 col-lg-2">
+          <label class="form-label small text-muted mb-1">Section</label>
+          <select name="section" class="form-select">
             <option value="">All</option>
             {% for s in sections %}
-              <option value="{{ s.id }}" {% if filters.section_id == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }} ({{ s.classroom.name }})</option>
+              <option value="{{ s.id }}" {% if filters.section_id == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}{% if s.classroom %} ({{ s.classroom.name }}){% endif %}</option>
             {% endfor %}
           </select>
         </div>
-        <div class="col-md-3">
-          <label class="form-label small">Search</label>
-          <input type="text" name="q" class="form-control form-control-sm" placeholder="Name / username" value="{{ filters.q }}">
+        <div class="col-6 col-lg-2">
+          <label class="form-label small text-muted mb-1">Status</label>
+          <select name="status" class="form-select">
+            <option value="" {% if not filters.status %}selected{% endif %}>All</option>
+            <option value="active" {% if filters.status == "active" %}selected{% endif %}>Active</option>
+            <option value="inactive" {% if filters.status == "inactive" %}selected{% endif %}>Inactive</option>
+          </select>
         </div>
-        <div class="col-md-3 d-flex align-items-end gap-2">
-          <button type="submit" class="btn btn-outline-primary btn-sm">Filter</button>
-          <a href="{% url 'core:school_students_list' %}" class="btn btn-outline-secondary btn-sm">Clear</a>
+        <div class="col-6 col-lg-2">
+          <label class="form-label small text-muted mb-1">Per page</label>
+          <select name="per_page" class="form-select" onchange="this.form.submit()">
+            <option value="10" {% if filters.per_page == "10" %}selected{% endif %}>10</option>
+            <option value="20" {% if filters.per_page == "20" or not filters.per_page %}selected{% endif %}>20</option>
+            <option value="50" {% if filters.per_page == "50" %}selected{% endif %}>50</option>
+            <option value="100" {% if filters.per_page == "100" %}selected{% endif %}>100</option>
+          </select>
+        </div>
+        <div class="col-12 col-lg-1 d-flex align-items-end justify-content-start justify-content-lg-end gap-2 flex-nowrap">
+          <button
+            type="submit"
+            class="students-filter-action-btn"
+            data-bs-toggle="tooltip"
+            data-bs-title="Apply Filters"
+            aria-label="Apply Filters"
+          >
+            <i class="bi bi-funnel"></i>
+          </button>
+          <a
+            class="students-filter-action-btn"
+            href="{% url 'core:school_students_list' %}"
+            data-bs-toggle="tooltip"
+            data-bs-title="Clear Filters"
+            aria-label="Clear Filters"
+            role="button"
+          >
+            <i class="bi bi-arrow-clockwise"></i>
+          </a>
         </div>
       </form>
     </div>
@@ -53,24 +331,45 @@
 
   <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
     <div class="table-responsive">
-      <table class="table table-hover table-striped align-middle mb-0">
+      <table class="table table-hover align-middle mb-0 students-table erp-data-table">
         <thead class="table-light sticky-top">
           <tr>
-            <th>Roll No</th>
+            <th class="text-center text-nowrap" style="width:3.5rem;">S.No.</th>
+            <th style="width: 52px;">Photo</th>
             <th>Admission No</th>
-            <th>Student Name</th>
+            <th>Roll No</th>
+            <th>Full name</th>
+            <th>Gender</th>
             <th>Class</th>
             <th>Section</th>
+            <th>Parent / guardian</th>
             <th>Parent Phone</th>
+            <th>Admission date</th>
+            <th>Status</th>
             <th class="text-center" style="width: 140px;">Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for s in students %}
             <tr>
-              <td>{{ s.roll_number }}</td>
+              <td class="text-center text-muted small">{{ students.start_index|add:forloop.counter0 }}</td>
+              <td>
+                {% if s.profile_image %}
+                  <img src="{{ s.profile_image.url }}" class="rounded-circle border" style="width:40px;height:40px;object-fit:cover;" alt="Photo">
+                {% else %}
+                  <div class="rounded-circle bg-light border d-flex align-items-center justify-content-center text-muted" style="width:40px;height:40px;">
+                    <i class="bi bi-person"></i>
+                  </div>
+                {% endif %}
+              </td>
               <td>{{ s.admission_number|default:"—" }}</td>
-              <td>{{ s.user.get_full_name|default:s.user.username }}</td>
+              <td>{{ s.roll_number }}</td>
+              <td>
+                <a class="text-decoration-none fw-semibold" href="{% url 'core:school_student_view' s.id %}">
+                  {{ s.user.get_full_name|default:s.user.username }}
+                </a>
+              </td>
+              <td>{{ s.get_gender_display|default:"—" }}</td>
               <td>{{ s.classroom|default:"—" }}</td>
               <td>
                 {% if s.section %}
@@ -79,30 +378,43 @@
                   —
                 {% endif %}
               </td>
+              <td>{{ s.parent_name|default:"—" }}</td>
               <td>{{ s.parent_phone|default:"—" }}</td>
+              <td class="text-nowrap">{{ s.admission_date_display|default:"—" }}</td>
+              <td>
+                {% if s.user.is_active %}
+                  <span class="badge rounded-pill text-bg-success">Active</span>
+                {% else %}
+                  <span class="badge rounded-pill text-bg-secondary">Inactive</span>
+                {% endif %}
+              </td>
               <td class="text-center" style="width: 180px;">
-                <a href="{% url 'core:school_student_view' s.id %}" class="btn btn-sm btn-outline-secondary" title="View" aria-label="View">
-                  <i class="bi bi-eye"></i>
-                </a>
-                <a href="{% url 'core:school_student_edit' s.id %}" class="btn btn-sm btn-outline-primary" title="Edit" aria-label="Edit">
-                  <i class="bi bi-pencil"></i>
-                </a>
-                <button
-                  type="button"
-                  class="btn btn-sm btn-outline-danger"
-                  title="Delete"
-                  aria-label="Delete"
-                  data-bs-toggle="modal"
-                  data-bs-target="#deleteStudentModal"
-                  data-delete-url="{% url 'core:school_student_delete' s.id %}"
-                  data-student-name="{{ s.user.get_full_name|default:s.user.username }}"
-                >
-                  <i class="bi bi-trash"></i>
-                </button>
+                <div class="dropdown">
+                  <button class="students-actions-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Student actions">
+                    <i class="bi bi-gear"></i>
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end students-actions-menu">
+                    <li><a class="dropdown-item" href="{% url 'core:school_student_view' s.id %}"><i class="bi bi-eye me-2"></i>View</a></li>
+                    <li><a class="dropdown-item" href="{% url 'core:school_student_edit' s.id %}"><i class="bi bi-pencil me-2"></i>Edit</a></li>
+                    <li><button class="dropdown-item" type="button" disabled><i class="bi bi-mortarboard me-2"></i>Promote</button></li>
+                    <li><button class="dropdown-item" type="button" disabled><i class="bi bi-receipt me-2"></i>Fee details</button></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                      <button
+                        type="button"
+                        class="dropdown-item text-danger"
+                        data-bs-toggle="modal"
+                        data-bs-target="#deleteStudentModal"
+                        data-delete-url="{% url 'core:school_student_delete' s.id %}"
+                        data-student-name="{{ s.user.get_full_name|default:s.user.username }}"
+                      ><i class="bi bi-trash me-2"></i>Delete</button>
+                    </li>
+                  </ul>
+                </div>
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="7" class="text-center text-muted py-4">No students found.</td></tr>
+            <tr><td colspan="13" class="text-center text-muted py-4">No students found.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -149,17 +461,27 @@
       <ul class="pagination pagination-sm justify-content-center">
         {% if students.has_previous %}
           <li class="page-item">
-            <a class="page-link" href="?page={{ students.previous_page_number }}{% if filters.classroom_id %}&classroom={{ filters.classroom_id }}{% endif %}{% if filters.section_id %}&section={{ filters.section_id }}{% endif %}{% if filters.q %}&q={{ filters.q }}{% endif %}">Previous</a>
+            <a class="page-link" href="?page={{ students.previous_page_number }}{% if filters.per_page %}&per_page={{ filters.per_page }}{% endif %}{% if filters.classroom_id %}&classroom={{ filters.classroom_id }}{% endif %}{% if filters.section_id %}&section={{ filters.section_id }}{% endif %}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.status %}&status={{ filters.status }}{% endif %}">Previous</a>
           </li>
         {% endif %}
         <li class="page-item disabled"><span class="page-link">Page {{ students.number }} of {{ students.paginator.num_pages }}</span></li>
         {% if students.has_next %}
           <li class="page-item">
-            <a class="page-link" href="?page={{ students.next_page_number }}{% if filters.classroom_id %}&classroom={{ filters.classroom_id }}{% endif %}{% if filters.section_id %}&section={{ filters.section_id }}{% endif %}{% if filters.q %}&q={{ filters.q }}{% endif %}">Next</a>
+            <a class="page-link" href="?page={{ students.next_page_number }}{% if filters.per_page %}&per_page={{ filters.per_page }}{% endif %}{% if filters.classroom_id %}&classroom={{ filters.classroom_id }}{% endif %}{% if filters.section_id %}&section={{ filters.section_id }}{% endif %}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.status %}&status={{ filters.status }}{% endif %}">Next</a>
           </li>
         {% endif %}
       </ul>
     </nav>
   {% endif %}
 </div>
+
+<script>
+  // Enable Bootstrap tooltips for icon-only filter buttons.
+  document.addEventListener("DOMContentLoaded", function () {
+    if (!(window.bootstrap && bootstrap.Tooltip)) return;
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+      bootstrap.Tooltip.getOrCreateInstance(el, { container: "body" });
+    });
+  });
+</script>
 {% endblock %}

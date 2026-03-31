@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page { size: a4; margin: 18mm; }
+    body { font-family: DejaVu Sans, Helvetica, Arial, sans-serif; font-size: 11pt; color: #222; }
+    h1 { font-size: 16pt; margin: 0 0 8px 0; color: #0d6efd; }
+    .muted { color: #666; font-size: 9pt; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    th, td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; }
+    th { background: #f0f4f8; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.04em; }
+    .amt { font-size: 14pt; font-weight: bold; color: #198754; }
+    .footer { margin-top: 24px; font-size: 8pt; color: #888; border-top: 1px solid #ddd; padding-top: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Payment receipt</h1>
+  <p class="muted">Platform subscription (SaaS)</p>
+  <p><strong>Receipt no.</strong> {{ receipt_number }}</p>
+  <p><strong>School</strong> {{ school_name }} <span class="muted">({{ school_code }})</span></p>
+  <table>
+    <tr><th>Invoice reference</th><td>{{ invoice_ref }}</td></tr>
+    <tr><th>Billing period (month/year)</th><td>{{ invoice_period }}</td></tr>
+    <tr><th>Amount paid</th><td class="amt">₹ {{ paid_amount }}</td></tr>
+    <tr><th>Payment date</th><td>{{ paid_on|date:"M j, Y, H:i" }}</td></tr>
+    <tr><th>Payment mode</th><td>{{ payment_mode }}</td></tr>
+    <tr><th>Transaction / reference ID</th><td>{{ transaction_id }}</td></tr>
+  </table>
+  <p class="footer">Generated {{ generated_on|date:"M j, Y H:i" }} — This is a system-generated receipt for platform billing records.</p>
+</body>
+</html>

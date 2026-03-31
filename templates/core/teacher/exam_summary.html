@@ -10,13 +10,36 @@
     </ol>
   </nav>
 
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-    <div>
-      <h1 class="h4 fw-bold mb-1">{{ exam.name }}</h1>
-      <p class="text-muted small mb-0">{{ exam.class_name }} - {{ exam.section }} - {{ exam.date }}</p>
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+    <div class="d-flex flex-column gap-2">
+      {% if exam.session_id %}
+      <a href="{% url 'core:teacher_exam_session_detail' exam.session_id %}" class="btn btn-outline-secondary btn-sm align-self-start">
+        <i class="bi bi-arrow-left me-1"></i> Back to session
+      </a>
+      {% else %}
+      <a href="{% url 'core:teacher_exams' %}" class="btn btn-outline-secondary btn-sm align-self-start">
+        <i class="bi bi-arrow-left me-1"></i> Back to exams
+      </a>
+      {% endif %}
+      <div>
+        <h1 class="h4 fw-bold mb-1">{{ exam.name }}</h1>
+        <p class="text-muted small mb-0">{{ exam.class_name }} - {{ exam.section }} - {{ exam.date }}</p>
+      </div>
     </div>
-    <a href="{% url 'core:teacher_exam_enter_marks' exam.id %}" class="btn btn-primary">Enter Marks</a>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+    {% if exam.marks_teacher_edit_locked %}
+    <a href="{% url 'core:teacher_exam_enter_marks' exam.id %}" class="btn btn-outline-secondary">View marks (locked — ask admin to re-open)</a>
+    {% else %}
+    <a href="{% url 'core:teacher_exam_enter_marks' exam.id %}" class="btn btn-primary">Enter / edit marks</a>
+    {% endif %}
+    </div>
   </div>
+
+  {% if exam.marks_teacher_edit_locked %}
+  <div class="alert alert-warning py-2 small mb-4">
+    Saving mark changes is locked. Your school admin can allow re-editing from the exam session page.
+  </div>
+  {% endif %}
 
   <div class="card border-0 shadow-sm rounded-4 mb-4">
     <div class="card-body">

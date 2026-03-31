@@ -12,14 +12,18 @@ def add_warning_once(request, session_key: str, message: str):
     pass
 
 
-def has_feature_access(school, feature_code: str) -> bool:
+def has_feature_access(school, feature_code: str, *, user=None) -> bool:
     """
     DB-driven feature check for templates and views.
 
-    - Uses `school.get_enabled_feature_codes()` (SaaS plan + optional per-school override).
-    - Strict behavior: if school has no plan/features, returns False.
+    - Platform superadmin always has access (owner / operations).
+    - Otherwise uses `school.get_enabled_feature_codes()` (plan + per-school override).
     """
-    if not school or not feature_code:
+    if not feature_code:
+        return False
+    if user is not None and getattr(user, "role", None) == "SUPERADMIN":
+        return True
+    if not school:
         return False
     try:
         codes = school.get_enabled_feature_codes()
@@ -72,6 +76,54 @@ def apply_active_year_filter(qs, field_name: str = "academic_year"):
         return qs.filter(**{f"{field_name}_id": ay.id})
     except Exception:
         return qs
+
+
+def teacher_class_section_pairs_display(teacher):
+    """
+    Class + section pairs a teacher may use for homework, exams, attendance, etc.
+
+    Combines ClassSectionSubjectTeacher with Teacher.classrooms × each class's
+    linked sections. Admins often assign only "Assigned classes" on the teacher
+    profile without creating CSST rows; those teachers were incorrectly blocked.
+    """
+    if not teacher:
+        return []
+    from apps.school_data.models import ClassSectionSubjectTeacher
+
+    seen = set()
+    out = []
+
+    def _add(cn, sn):
+        if cn is None or sn is None:
+            return
+        cn = str(cn).strip()
+        sn = str(sn).strip()
+        if not cn or not sn:
+            return
+        key = (cn.lower(), sn.lower())
+        if key in seen:
+            return
+        seen.add(key)
+        out.append((cn, sn))
+
+    for cn, sn in (
+        ClassSectionSubjectTeacher.objects.filter(teacher=teacher)
+        .values_list("class_obj__name", "section__name")
+        .distinct()
+    ):
+        _add(cn, sn)
+
+    for classroom in teacher.classrooms.all().prefetch_related("sections"):
+        cn = classroom.name
+        for sec in classroom.sections.all():
+            _add(cn, sec.name)
+
+    return out
+
+
+def teacher_allowed_class_section_pairs_lower(teacher):
+    """Set of (class_name.lower(), section_name.lower()) for permission checks."""
+    return {(c.lower(), s.lower()) for c, s in teacher_class_section_pairs_display(teacher)}
 
 
 def tenant_migrate_cli_hint(school=None) -> str:

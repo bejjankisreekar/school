@@ -1,5 +1,37 @@
 {% extends "base.html" %}
-{% block title %}Students | Admin{% endblock %}
+{% block title %}{% if overview %}Students — All schools{% else %}Students — {{ school_obj.name }}{% endif %} | Admin{% endblock %}
+{% block extra_head %}
+<style>
+  .sa-admin-kpi {
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid var(--bs-border-color-translucent);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    background: var(--bs-body-bg);
+  }
+  .sa-school-card {
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid var(--bs-border-color-translucent);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    transition: box-shadow 0.15s ease, transform 0.12s ease;
+    height: 100%;
+  }
+  .sa-school-card:hover {
+    box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+    transform: translateY(-2px);
+  }
+  .sa-filter-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bs-body-bg);
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+  }
+</style>
+{% endblock %}
 {% block content %}
 <div class="container-fluid px-0">
   <nav aria-label="breadcrumb" class="mb-3">
@@ -9,55 +41,166 @@
     </ol>
   </nav>
 
+  {% if overview %}
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-    <h1 class="h4 fw-bold mb-0">Students</h1>
-    <a href="{% url 'admin_manage:student_create' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Create Student</a>
+    <div>
+      <h1 class="h4 fw-bold mb-1">Students — all schools</h1>
+      <p class="text-muted small mb-0">Totals across every tenant. Open a school to view and filter its students.</p>
+    </div>
+    <a href="{% url 'admin_manage:student_create' %}" class="btn btn-primary btn-sm rounded-pill"><i class="bi bi-plus-lg"></i> Create Student</a>
   </div>
 
-  <div class="card border-0 shadow-sm rounded-3 mb-3">
-    <div class="card-body">
-      <form method="get" class="row g-2 align-items-end">
-        <div class="col-auto">
-          <label class="form-label small mb-0">Search</label>
-          <input type="text" name="q" class="form-control form-control-sm" placeholder="Name or admission#" value="{{ search }}">
+  <div class="row g-3 mb-4">
+    <div class="col-sm-4">
+      <div class="sa-admin-kpi">
+        <p class="text-muted small text-uppercase mb-1" style="letter-spacing:0.04em;">Total students</p>
+        <p class="h4 fw-bold mb-0 text-primary">{{ total_students }}</p>
+      </div>
+    </div>
+    <div class="col-sm-4">
+      <div class="sa-admin-kpi">
+        <p class="text-muted small text-uppercase mb-1" style="letter-spacing:0.04em;">Total teachers</p>
+        <p class="h4 fw-bold mb-0">{{ total_teachers }}</p>
+      </div>
+    </div>
+    <div class="col-sm-4">
+      <div class="sa-admin-kpi">
+        <p class="text-muted small text-uppercase mb-1" style="letter-spacing:0.04em;">Schools</p>
+        <p class="h4 fw-bold mb-0">{{ school_cards|length }}</p>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="h6 fw-semibold text-secondary mb-3">Schools</h2>
+  {% if school_cards %}
+  <div class="row g-3">
+    {% for card in school_cards %}
+    <div class="col-sm-6 col-lg-4">
+      <a href="{% url 'admin_manage:students_list' %}?school={{ card.school.code }}" class="text-decoration-none text-body">
+        <div class="sa-school-card bg-body">
+          <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+            <span class="badge rounded-pill bg-primary-subtle text-primary-emphasis">{{ card.school.code }}</span>
+            <i class="bi bi-chevron-right text-muted"></i>
+          </div>
+          <h3 class="h6 fw-bold mb-2">{{ card.school.name }}</h3>
+          <p class="mb-0 small">
+            <span class="fw-semibold">{{ card.student_count }}</span> students
+            <span class="text-muted"> · </span>
+            <span class="text-muted">{{ card.teacher_count }} teachers</span>
+          </p>
         </div>
-        <div class="col-auto">
-          <label class="form-label small mb-0">School</label>
-          <select name="school" class="form-select form-select-sm">
-            <option value="">All</option>
-            {% for s in schools %}
-              <option value="{{ s.code }}" {% if school_code == s.code %}selected{% endif %}>{{ s.name }}</option>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="alert alert-light border shadow-sm rounded-3">No schools found.</div>
+  {% endif %}
+
+  {% else %}
+
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div>
+      <a href="{% url 'admin_manage:students_list' %}" class="btn btn-outline-secondary btn-sm rounded-pill mb-2">
+        <i class="bi bi-arrow-left"></i> All schools
+      </a>
+      <h1 class="h4 fw-bold mb-1">{{ school_obj.name }}</h1>
+      <p class="text-muted small mb-0">
+        <span class="badge rounded-pill bg-primary-subtle text-primary-emphasis">{{ school_obj.code }}</span>
+        Showing {{ students.paginator.count }} student{{ students.paginator.count|pluralize }} (filtered).
+      </p>
+    </div>
+    <a href="{% url 'admin_manage:student_create' %}" class="btn btn-primary btn-sm rounded-pill"><i class="bi bi-plus-lg"></i> Create Student</a>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-3 mb-3 sa-filter-sticky">
+    <div class="card-body py-3">
+      <form method="get" class="row g-2 align-items-end">
+        <input type="hidden" name="school" value="{{ school_code }}">
+        <div class="col-lg-2 col-md-4">
+          <label class="form-label small mb-0">Search</label>
+          <input type="text" name="q" class="form-control form-control-sm" placeholder="Name, admission, phone…" value="{{ search }}">
+        </div>
+        <div class="col-lg-2 col-md-4">
+          <label class="form-label small mb-0">Class</label>
+          <select name="classroom" class="form-select form-select-sm">
+            <option value="">All classes</option>
+            {% for cid, cname in classroom_choices %}
+            <option value="{{ cid }}" {% if classroom_filter == cid|stringformat:"d" %}selected{% endif %}>{{ cname }}</option>
             {% endfor %}
           </select>
         </div>
-        <div class="col-auto">
-          <button type="submit" class="btn btn-outline-primary btn-sm">Filter</button>
+        <div class="col-lg-2 col-md-4">
+          <label class="form-label small mb-0">Section</label>
+          <select name="section" class="form-select form-select-sm">
+            <option value="">All sections</option>
+            {% for sid, sname in section_choices %}
+            <option value="{{ sid }}" {% if section_filter == sid|stringformat:"d" %}selected{% endif %}>{{ sname }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-lg-2 col-md-4">
+          <label class="form-label small mb-0">Gender</label>
+          <select name="gender" class="form-select form-select-sm">
+            <option value="" {% if not gender_filter %}selected{% endif %}>All</option>
+            <option value="M" {% if gender_filter == "M" %}selected{% endif %}>Male</option>
+            <option value="F" {% if gender_filter == "F" %}selected{% endif %}>Female</option>
+            <option value="O" {% if gender_filter == "O" %}selected{% endif %}>Other</option>
+          </select>
+        </div>
+        <div class="col-lg-2 col-md-4">
+          <label class="form-label small mb-0">Account</label>
+          <select name="status" class="form-select form-select-sm">
+            <option value="" {% if not status_filter %}selected{% endif %}>All</option>
+            <option value="active" {% if status_filter == "active" %}selected{% endif %}>Active</option>
+            <option value="inactive" {% if status_filter == "inactive" %}selected{% endif %}>Inactive</option>
+          </select>
+        </div>
+        <div class="col-lg-1 col-md-6">
+          <button type="submit" class="btn btn-primary btn-sm w-100 rounded-pill">Apply</button>
+        </div>
+        <div class="col-lg-1 col-md-6">
+          <a href="{% url 'admin_manage:students_list' %}?school={{ school_code }}" class="btn btn-outline-secondary btn-sm w-100 rounded-pill">Reset</a>
         </div>
       </form>
     </div>
   </div>
 
   <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
-    <div class="table-responsive">
+    <div class="table-responsive" style="max-height: 70vh;">
       <table class="table table-hover align-middle mb-0">
-        <thead class="table-light">
+        <thead class="table-light" style="position: sticky; top: 0; z-index: 1;">
           <tr>
+            <th class="text-center text-nowrap" style="width:3.5rem;">S.No.</th>
             <th>Name</th>
             <th>Admission #</th>
-            <th>School</th>
+            <th>Roll</th>
             <th>Class</th>
             <th>Section</th>
+            <th>Gender</th>
+            <th>Phone</th>
+            <th>Status</th>
             <th class="text-center" style="width: 100px;">Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for s in students %}
             <tr>
+              <td class="text-center text-muted small">{{ students.start_index|add:forloop.counter0 }}</td>
               <td>{{ s.user.get_full_name|default:s.user.username }}</td>
-              <td>{{ s.admission_number|default:"—" }}</td>
-              <td>{{ s.user.school.name|default:"—" }}</td>
+              <td class="small font-monospace">{{ s.admission_number|default:"—" }}</td>
+              <td class="small">{{ s.roll_number|default:"—" }}</td>
               <td>{{ s.classroom|default:"—" }}</td>
               <td>{% if s.section %}{{ s.section.name }}{% else %}—{% endif %}</td>
+              <td class="small">{% if s.gender == "M" %}Male{% elif s.gender == "F" %}Female{% elif s.gender == "O" %}Other{% else %}—{% endif %}</td>
+              <td class="small">{% firstof s.phone s.parent_phone "—" %}</td>
+              <td>
+                {% if s.user.is_active %}
+                <span class="badge rounded-pill bg-success-subtle text-success-emphasis">Active</span>
+                {% else %}
+                <span class="badge rounded-pill bg-secondary-subtle text-secondary-emphasis">Inactive</span>
+                {% endif %}
+              </td>
               <td class="text-center">
                 <a href="{% url 'admin_manage:student_view' s.user.school.code s.id %}" class="btn btn-sm btn-outline-secondary" title="View" aria-label="View">
                   <i class="bi bi-eye"></i>
@@ -68,20 +211,30 @@
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="6" class="text-center text-muted py-4">No students found.</td></tr>
+            <tr>
+              <td colspan="10" class="text-center text-muted py-5">
+                No students match these filters.
+                <a href="{% url 'admin_manage:students_list' %}?school={{ school_code }}">Reset filters</a>
+              </td>
+            </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
     {% if students.has_other_pages %}
-    <div class="card-footer d-flex justify-content-between align-items-center">
+    <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
       <span class="small text-muted">Page {{ students.number }} of {{ students.paginator.num_pages }}</span>
       <ul class="pagination pagination-sm mb-0">
-        {% if students.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ students.previous_page_number }}{% if search %}&q={{ search }}{% endif %}{% if school_code %}&school={{ school_code }}{% endif %}">Previous</a></li>{% endif %}
-        {% if students.has_next %}<li class="page-item"><a class="page-link" href="?page={{ students.next_page_number }}{% if search %}&q={{ search }}{% endif %}{% if school_code %}&school={{ school_code }}{% endif %}">Next</a></li>{% endif %}
+        {% if students.has_previous %}
+        <li class="page-item"><a class="page-link" href="?{% if filter_query %}{{ filter_query }}&{% endif %}page={{ students.previous_page_number }}">Previous</a></li>
+        {% endif %}
+        {% if students.has_next %}
+        <li class="page-item"><a class="page-link" href="?{% if filter_query %}{{ filter_query }}&{% endif %}page={{ students.next_page_number }}">Next</a></li>
+        {% endif %}
       </ul>
     </div>
     {% endif %}
   </div>
+  {% endif %}
 </div>
 {% endblock %}

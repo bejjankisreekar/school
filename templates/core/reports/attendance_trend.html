@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Attendance Trend (Last 7 Days) | Reports | School ERP{% endblock %}
+{% block title %}Attendance Trend (Last 7 Days) | Analytics | School ERP{% endblock %}
 {% block extra_head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
@@ -23,7 +23,7 @@
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'reports:dashboard' %}">Reports</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'reports:dashboard' %}">Analytics</a></li>
       <li class="breadcrumb-item active">Attendance trend</li>
     </ol>
   </nav>
@@ -33,7 +33,7 @@
       <h1 class="h4 fw-bold text-body mb-1">Attendance Trend (Last 7 Days)</h1>
       <p class="text-muted small mb-0">Line chart — weekday on the horizontal axis; share of enrolled students present each day.</p>
     </div>
-    <a href="{% url 'reports:dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill">← All reports</a>
+    <a href="{% url 'reports:dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill">← All analytics</a>
   </div>
 
   {% if error_msg %}

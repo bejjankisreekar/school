@@ -1,37 +1,569 @@
 {% extends "base.html" %}
-{% block title %}{{ student.user.get_full_name|default:student.user.username }} | View Student{% endblock %}
+{% block title %}{{ student.user.get_full_name|default:student.user.username }} | Student Profile{% endblock %}
 {% block content %}
-<div class="container-fluid px-0">
-  <nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb">
-      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'core:school_students_list' %}">Students</a></li>
-      <li class="breadcrumb-item active">{{ student.user.get_full_name|default:student.user.username }}</li>
+<style>
+  .student-profile-dash {
+    --sp-primary: #4f46e5;
+    --sp-primary-soft: rgba(79, 70, 229, 0.1);
+    --sp-bg: #f8fafc;
+    --sp-card: #ffffff;
+    --sp-label: #64748b;
+    --sp-value: #0f172a;
+    --sp-empty: #94a3b8;
+    --sp-radius: 1rem;
+    --sp-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 10px 28px rgba(15, 23, 42, 0.06);
+    --sp-shadow-hover: 0 14px 36px rgba(15, 23, 42, 0.1);
+    background: var(--sp-bg);
+    margin: -0.5rem -1rem 0;
+    padding: 1.25rem 1rem 2rem;
+    border-radius: var(--sp-radius);
+  }
+  @media (min-width: 992px) {
+    .student-profile-dash { margin: -0.5rem -1.5rem 0; padding: 1.5rem 1.5rem 2.25rem; }
+  }
+  html.dark .student-profile-dash {
+    --sp-bg: rgba(15, 23, 42, 0.5);
+    --sp-card: rgba(30, 41, 59, 0.85);
+    --sp-label: #94a3b8;
+    --sp-value: #f1f5f9;
+    --sp-empty: #64748b;
+    --sp-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 10px 28px rgba(0, 0, 0, 0.25);
+    --sp-shadow-hover: 0 14px 36px rgba(0, 0, 0, 0.35);
+  }
+  .student-profile-dash .sp-card {
+    background: var(--sp-card);
+    border-radius: var(--sp-radius);
+    box-shadow: var(--sp-shadow);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+  }
+  html.dark .student-profile-dash .sp-card {
+    border-color: rgba(148, 163, 184, 0.15);
+  }
+  .student-profile-dash .sp-card:hover {
+    box-shadow: var(--sp-shadow-hover);
+  }
+  .student-profile-dash .sp-hero {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, var(--sp-card) 48%);
+    border: 1px solid rgba(79, 70, 229, 0.12);
+  }
+  html.dark .student-profile-dash .sp-hero {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.2) 0%, var(--sp-card) 50%);
+  }
+  .student-profile-dash .sp-avatar {
+    width: 112px;
+    height: 112px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #fff;
+    box-shadow: 0 8px 24px rgba(79, 70, 229, 0.2);
+  }
+  html.dark .student-profile-dash .sp-avatar { border-color: rgba(30, 41, 59, 0.9); }
+  .student-profile-dash .sp-avatar-fallback {
+    width: 112px;
+    height: 112px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, var(--sp-primary), #6366f1);
+    color: #fff;
+    font-size: 2rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 24px rgba(79, 70, 229, 0.35);
+  }
+  .student-profile-dash .sp-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--sp-value);
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+  .student-profile-dash .sp-section-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--sp-value);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .student-profile-dash .sp-section-title i {
+    color: var(--sp-primary);
+    font-size: 1.1rem;
+  }
+  .student-profile-dash .sp-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--sp-label);
+    margin-bottom: 0.2rem;
+  }
+  .student-profile-dash .sp-value {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--sp-value);
+    line-height: 1.35;
+  }
+  .student-profile-dash .sp-empty {
+    color: var(--sp-empty);
+    font-weight: 500;
+    font-style: normal;
+  }
+  .student-profile-dash .sp-quick {
+    background: rgba(79, 70, 229, 0.06);
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid rgba(79, 70, 229, 0.08);
+  }
+  html.dark .student-profile-dash .sp-quick {
+    background: rgba(79, 70, 229, 0.12);
+    border-color: rgba(99, 102, 241, 0.25);
+  }
+  .student-profile-dash .sp-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.35), transparent);
+    margin: 0.25rem 0 1rem;
+  }
+  .student-profile-dash .sp-subcard {
+    background: rgba(248, 250, 252, 0.9);
+    border-radius: 0.75rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    height: 100%;
+  }
+  html.dark .student-profile-dash .sp-subcard {
+    background: rgba(15, 23, 42, 0.45);
+    border-color: rgba(148, 163, 184, 0.12);
+  }
+  .student-profile-dash .sp-primary-highlight {
+    background: var(--sp-primary-soft);
+    border: 1px solid rgba(79, 70, 229, 0.2);
+    border-radius: 0.75rem;
+    padding: 0.85rem 1rem;
+  }
+  .student-profile-dash .sp-doc-card {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 0.75rem;
+    padding: 0.85rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  html.dark .student-profile-dash .sp-doc-card {
+    border-color: rgba(148, 163, 184, 0.15);
+  }
+  .student-profile-dash .sp-doc-card:hover {
+    border-color: rgba(79, 70, 229, 0.35);
+    background: rgba(79, 70, 229, 0.04);
+  }
+  .student-profile-dash .sp-btn-primary {
+    background: var(--sp-primary);
+    border: none;
+    color: #fff;
+    font-weight: 600;
+    border-radius: 0.65rem;
+    padding: 0.45rem 1rem;
+  }
+  .student-profile-dash .sp-btn-primary:hover {
+    background: #4338ca;
+    color: #fff;
+  }
+  .student-profile-dash .sp-btn-ghost {
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    background: var(--sp-card);
+    color: var(--sp-value);
+    font-weight: 600;
+    border-radius: 0.65rem;
+    padding: 0.45rem 0.85rem;
+  }
+  html.dark .student-profile-dash .sp-btn-ghost {
+    border-color: rgba(148, 163, 184, 0.25);
+  }
+  .student-profile-dash .sp-btn-ghost:hover {
+    border-color: var(--sp-primary);
+    color: var(--sp-primary);
+  }
+  .student-profile-dash .sp-stat-row { margin-top: 0.35rem; }
+  .student-profile-dash .sp-stat-card {
+    background: linear-gradient(145deg, rgba(79, 70, 229, 0.07), rgba(255, 255, 255, 0.95));
+    border: 1px solid rgba(79, 70, 229, 0.14);
+    border-radius: 1rem;
+    padding: 1rem 1.15rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    height: 100%;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .student-profile-dash .sp-stat-card:hover {
+    border-color: rgba(79, 70, 229, 0.28);
+    box-shadow: 0 8px 24px rgba(79, 70, 229, 0.1);
+  }
+  html.dark .student-profile-dash .sp-stat-card {
+    background: linear-gradient(145deg, rgba(79, 70, 229, 0.15), rgba(30, 41, 59, 0.85));
+    border-color: rgba(99, 102, 241, 0.3);
+  }
+  .student-profile-dash .sp-stat-ring {
+    --prog: 0;
+    width: 4.5rem;
+    height: 4.5rem;
+    border-radius: 50%;
+    background: conic-gradient(var(--sp-primary) calc(var(--prog) * 1%), #e2e8f0 0);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+  html.dark .student-profile-dash .sp-stat-ring {
+    background: conic-gradient(#818cf8 calc(var(--prog) * 1%), rgba(51, 65, 85, 0.9) 0);
+  }
+  .student-profile-dash .sp-stat-ring-inner {
+    width: 3.2rem;
+    height: 3.2rem;
+    border-radius: 50%;
+    background: var(--sp-card);
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    font-size: 0.82rem;
+    color: var(--sp-value);
+    line-height: 1.1;
+    text-align: center;
+    padding: 0.2rem;
+  }
+  .student-profile-dash .sp-stat-title {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--sp-value);
+    margin-bottom: 0.2rem;
+  }
+  .student-profile-dash .sp-stat-meta {
+    font-size: 0.75rem;
+    color: var(--sp-label);
+    line-height: 1.35;
+  }
+</style>
+
+<div class="student-profile-dash">
+  <nav aria-label="breadcrumb" class="mb-3 sp-no-print">
+    <ol class="breadcrumb mb-0 small">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_students_list' %}" class="text-decoration-none">Students</a></li>
+      <li class="breadcrumb-item active">Profile</li>
     </ol>
   </nav>
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-    <h1 class="h4 fw-bold mb-0">{{ student.user.get_full_name|default:student.user.username }}</h1>
-    <div class="d-flex gap-2">
-      <a href="{% url 'core:school_student_id_card_pdf' student.id %}" class="btn btn-outline-primary btn-sm" target="_blank"><i class="bi bi-card-image"></i> ID Card (PDF)</a>
-      <a href="{% url 'core:school_student_edit' student.id %}" class="btn btn-primary btn-sm" title="Edit" aria-label="Edit">
-        <i class="bi bi-pencil"></i>
-      </a>
+
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 sp-no-print">
+    <a href="{% url 'core:school_students_list' %}" class="btn btn-sm sp-btn-ghost"><i class="bi bi-arrow-left me-1"></i> Back</a>
+    <div class="d-flex flex-wrap align-items-center gap-2 justify-content-end ms-md-auto">
+      <a href="{% url 'core:school_student_edit' student.id %}" class="btn btn-sm sp-btn-primary"><i class="bi bi-pencil me-1"></i> Edit</a>
+      <a href="{% url 'core:school_fee_collection' %}?student={{ student.id }}" class="btn btn-sm sp-btn-ghost"><i class="bi bi-wallet2 me-1"></i> Fees</a>
+      <a href="{% url 'core:attendance_list' %}?student_id={{ student.id }}" class="btn btn-sm sp-btn-ghost"><i class="bi bi-calendar-check me-1"></i> Attendance</a>
     </div>
   </div>
-  <div class="card border-0 shadow-sm rounded-3">
-    <div class="card-body">
-      <dl class="row mb-0">
-        <dt class="col-sm-3">Roll No</dt>
-        <dd class="col-sm-9">{{ student.roll_number|default:"—" }}</dd>
-        <dt class="col-sm-3">Admission No</dt>
-        <dd class="col-sm-9">{{ student.admission_number|default:"—" }}</dd>
-        <dt class="col-sm-3">Class</dt>
-        <dd class="col-sm-9">{{ student.classroom|default:"—" }}</dd>
-        <dt class="col-sm-3">Section</dt>
-        <dd class="col-sm-9">{{ student.section.name|default:"—" }}</dd>
-        <dt class="col-sm-3">Parent Phone</dt>
-        <dd class="col-sm-9">{{ student.parent_phone|default:"—" }}</dd>
-      </dl>
+
+  {# ——— Hero ——— #}
+  <div class="sp-card sp-hero p-4 p-lg-4 mb-4">
+    <div class="row g-4 align-items-center">
+      <div class="col-auto">
+        {% if student.profile_image %}
+          <img src="{{ student.profile_image.url }}" class="sp-avatar" alt="">
+        {% else %}
+          <div class="sp-avatar-fallback" aria-hidden="true">
+            {% with u=student.user %}
+              {% if u.first_name and u.last_name %}
+                {{ u.first_name|slice:":1"|upper }}{{ u.last_name|slice:":1"|upper }}
+              {% elif u.first_name %}
+                {{ u.first_name|slice:":2"|upper }}
+              {% else %}
+                {{ u.username|slice:":2"|upper }}
+              {% endif %}
+            {% endwith %}
+          </div>
+        {% endif %}
+      </div>
+      <div class="col min-w-0">
+        <h1 class="sp-title mb-2">{{ student.user.get_full_name|default:student.user.username }}</h1>
+        <div class="d-flex flex-wrap gap-3 small mb-2">
+          <span class="text-muted">Admission</span>
+          <span class="fw-semibold" style="color: var(--sp-value);">{{ student.admission_number|default:"" }}{% if not student.admission_number %}<span class="sp-empty">Not Provided</span>{% endif %}</span>
+        </div>
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+          <span class="badge rounded-pill px-3 py-2" style="background: var(--sp-primary-soft); color: var(--sp-primary); font-weight: 600;">
+            <i class="bi bi-mortarboard me-1"></i>
+            {% if student.classroom %}{{ student.classroom.name }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}
+            {% if student.section %} · {{ student.section.name }}{% endif %}
+          </span>
+          <span class="text-muted small">Academic year</span>
+          <span class="fw-semibold small" style="color: var(--sp-value);">{% if student.academic_year %}{{ student.academic_year.name }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</span>
+        </div>
+        <div class="row g-2 g-md-3">
+          <div class="col-12 col-md-4">
+            <div class="sp-quick">
+              <div class="sp-label">Phone</div>
+              <div class="sp-value">{% if student.parent_phone or student.phone %}{{ student.parent_phone|default:student.phone }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div>
+            </div>
+          </div>
+          <div class="col-12 col-md-4">
+            <div class="sp-quick">
+              <div class="sp-label">Email</div>
+              <div class="sp-value text-break">{% if student.user.email %}{{ student.user.email }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div>
+            </div>
+          </div>
+          <div class="col-12 col-md-4">
+            <div class="sp-quick">
+              <div class="sp-label">Date of birth</div>
+              <div class="sp-value">{% if student.date_of_birth %}{{ student.date_of_birth|date:"F j, Y" }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div>
+            </div>
+          </div>
+        </div>
+        <div class="row g-3 sp-stat-row">
+          <div class="col-12 col-sm-6">
+            <div class="sp-stat-card">
+              <div class="sp-stat-ring" style="--prog: {% if stats_attendance.pct is not None %}{{ stats_attendance.pct }}{% else %}0{% endif %};">
+                <div class="sp-stat-ring-inner">{% if stats_attendance.pct is not None %}{{ stats_attendance.pct }}%{% else %}<span class="sp-empty small">—</span>{% endif %}</div>
+              </div>
+              <div class="min-w-0">
+                <div class="sp-stat-title"><i class="bi bi-calendar-check me-1" style="color: var(--sp-primary);"></i>Attendance rate</div>
+                <div class="sp-stat-meta">
+                  {% if stats_attendance.total %}
+                    <strong>{{ stats_attendance.present }}</strong> present of <strong>{{ stats_attendance.total }}</strong> recorded day{{ stats_attendance.total|pluralize }}
+                    {% if student.academic_year %}<span class="d-block mt-1">Scoped to this student’s academic year when attendance rows are linked to a year.</span>{% endif %}
+                  {% else %}
+                    No attendance records yet for this profile.
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-sm-6">
+            <div class="sp-stat-card">
+              <div class="sp-stat-ring" style="--prog: {% if stats_exams.pct is not None %}{{ stats_exams.pct }}{% else %}0{% endif %};">
+                <div class="sp-stat-ring-inner">{% if stats_exams.pct is not None %}{{ stats_exams.pct }}%{% else %}<span class="sp-empty small">—</span>{% endif %}</div>
+              </div>
+              <div class="min-w-0">
+                <div class="sp-stat-title"><i class="bi bi-journal-richtext me-1" style="color: var(--sp-primary);"></i>Exams average</div>
+                <div class="sp-stat-meta">
+                  {% if stats_exams.count %}
+                    Mean percentage across <strong>{{ stats_exams.count }}</strong> mark record{{ stats_exams.count|pluralize }} (obtained ÷ total per entry).
+                  {% else %}
+                    No exam marks on file yet.
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-auto text-lg-end">
+        <div class="d-flex flex-column gap-2 align-items-lg-end">
+          {% if student.user.is_active %}
+            <span class="badge rounded-pill text-bg-success px-3 py-2">Record active</span>
+          {% else %}
+            <span class="badge rounded-pill text-bg-secondary px-3 py-2">Record inactive</span>
+          {% endif %}
+          <span class="badge rounded-pill bg-light text-dark border px-3 py-2">Account: {% if student.user.is_active %}Active{% else %}Inactive{% endif %}</span>
+          <div class="small">
+            <span class="text-muted d-block sp-label" style="margin-bottom:0;">Username</span>
+            <span class="fw-semibold font-monospace" style="color: var(--sp-value);">{{ student.user.username }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% if student.parent_name or student.parent_phone %}
+    <div class="sp-divider"></div>
+    <div class="sp-primary-highlight">
+      <div class="sp-label mb-1"><i class="bi bi-person-hearts me-1"></i> Primary guardian</div>
+      <div class="sp-value">{{ student.parent_name|default:"" }}{% if student.parent_phone %} <span class="text-muted fw-normal">·</span> {{ student.parent_phone }}{% endif %}{% if not student.parent_name and not student.parent_phone %}<span class="sp-empty">Not Provided</span>{% endif %}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ——— Academic ——— #}
+  <div class="sp-card p-4 mb-4">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+      <h2 class="sp-section-title mb-0"><i class="bi bi-journal-bookmark"></i> Academic details</h2>
+    </div>
+    <div class="sp-divider"></div>
+    <div class="row g-3 g-lg-4">
+      <div class="col-6 col-md-4 col-lg-3"><div class="sp-label">Class</div><div class="sp-value">{% if student.classroom %}{{ student.classroom.name }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4 col-lg-3"><div class="sp-label">Section</div><div class="sp-value">{% if student.section %}{{ student.section.name }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4 col-lg-3"><div class="sp-label">Roll number</div><div class="sp-value">{% if student.roll_number %}{{ student.roll_number }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4 col-lg-3"><div class="sp-label">Admission number</div><div class="sp-value">{% if student.admission_number %}{{ student.admission_number }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4 col-lg-3"><div class="sp-label">Academic year</div><div class="sp-value">{% if student.academic_year %}{{ student.academic_year.name }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4 col-lg-3"><div class="sp-label">Admission date</div><div class="sp-value">{% if academic.admission_date %}{{ academic.admission_date }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4 col-lg-3"><div class="sp-label">Stream</div><div class="sp-value">{% if academic.stream %}{{ academic.stream }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4 col-lg-3"><div class="sp-label">Course / branch</div><div class="sp-value">{% if academic.course_branch %}{{ academic.course_branch }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4 col-lg-3"><div class="sp-label">Semester / year</div><div class="sp-value">{% if academic.semester_year %}{{ academic.semester_year }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-12 col-md-6"><div class="sp-label">Previous institution</div><div class="sp-value">{% if academic.previous_institution %}{{ academic.previous_institution }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-12 col-md-6"><div class="sp-label">Previous marks / result</div><div class="sp-value">{% if academic.previous_marks %}{{ academic.previous_marks }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4 col-lg-3"><div class="sp-label">Registration number</div><div class="sp-value">{% if academic.registration_number %}{{ academic.registration_number }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4 col-lg-3"><div class="sp-label">Student type</div><div class="sp-value">{% if academic.student_type %}{{ academic.student_type }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      {% if status_block.record_status %}
+      <div class="col-6 col-md-4 col-lg-3"><div class="sp-label">Record status</div><div class="sp-value">{{ status_block.record_status }}</div></div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ——— Parents ——— #}
+  <div class="sp-card p-4 mb-4">
+    <h2 class="sp-section-title mb-3"><i class="bi bi-people"></i> Parents &amp; guardians</h2>
+    <div class="sp-divider"></div>
+    <div class="row g-3 mb-3">
+      <div class="col-md-4">
+        <div class="sp-subcard">
+          <div class="fw-bold small mb-3" style="color: var(--sp-primary);"><i class="bi bi-gender-male me-1"></i> Father</div>
+          <div class="mb-2"><div class="sp-label">Name</div><div class="sp-value">{% if parents.father_name %}{{ parents.father_name }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+          <div class="mb-2"><div class="sp-label">Mobile</div><div class="sp-value">{% if parents.father_mobile %}{{ parents.father_mobile }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+          <div><div class="sp-label">Occupation</div><div class="sp-value">{% if parents.father_occupation %}{{ parents.father_occupation }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="sp-subcard">
+          <div class="fw-bold small mb-3" style="color: var(--sp-primary);"><i class="bi bi-gender-female me-1"></i> Mother</div>
+          <div class="mb-2"><div class="sp-label">Name</div><div class="sp-value">{% if parents.mother_name %}{{ parents.mother_name }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+          <div class="mb-2"><div class="sp-label">Mobile</div><div class="sp-value">{% if parents.mother_mobile %}{{ parents.mother_mobile }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+          <div><div class="sp-label">Occupation</div><div class="sp-value">{% if parents.mother_occupation %}{{ parents.mother_occupation }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="sp-subcard">
+          <div class="fw-bold small mb-3" style="color: var(--sp-primary);"><i class="bi bi-shield-check me-1"></i> Guardian</div>
+          <div class="mb-2"><div class="sp-label">Name</div><div class="sp-value">{% if parents.guardian_name %}{{ parents.guardian_name }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+          <div class="mb-2"><div class="sp-label">Relation</div><div class="sp-value">{% if parents.guardian_relation %}{{ parents.guardian_relation }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+          <div><div class="sp-label">Phone</div><div class="sp-value">{% if parents.guardian_phone %}{{ parents.guardian_phone }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+        </div>
+      </div>
+    </div>
+    {% if student.parent_name or student.parent_phone %}
+    <div class="sp-primary-highlight">
+      <div class="sp-label">Primary guardian (on record)</div>
+      <div class="sp-value">{% if student.parent_name %}{{ student.parent_name }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}{% if student.parent_phone %} <span class="fw-normal text-muted">·</span> {{ student.parent_phone }}{% endif %}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ——— Contact ——— #}
+  <div class="sp-card p-4 mb-4">
+    <h2 class="sp-section-title mb-3"><i class="bi bi-geo-alt"></i> Contact &amp; address</h2>
+    <div class="sp-divider"></div>
+    <div class="row g-3 g-lg-4">
+      <div class="col-6 col-md-4"><div class="sp-label">Student mobile</div><div class="sp-value">{% if student.phone %}{{ student.phone }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-12 col-md-8"><div class="sp-label">Email</div><div class="sp-value text-break">{% if student.user.email %}{{ student.user.email }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-12"><div class="sp-label">Address</div><div class="sp-value">{% if address_line1 or address_line2 %}{{ address_line1 }}{% if address_line2 %}<br>{{ address_line2 }}{% endif %}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">City</div><div class="sp-value">{% if contact.city %}{{ contact.city }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">District</div><div class="sp-value">{% if contact.district %}{{ contact.district }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">State</div><div class="sp-value">{% if contact.state %}{{ contact.state }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">PIN code</div><div class="sp-value">{% if contact.pincode %}{{ contact.pincode }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">Country</div><div class="sp-value">{% if contact.country %}{{ contact.country }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+    </div>
+  </div>
+
+  {# ——— Personal ——— #}
+  <div class="sp-card p-4 mb-4">
+    <h2 class="sp-section-title mb-3"><i class="bi bi-person-badge"></i> Personal &amp; identity</h2>
+    <div class="sp-divider"></div>
+    <div class="row g-3 g-lg-4">
+      <div class="col-6 col-md-4"><div class="sp-label">First name</div><div class="sp-value">{% if student.user.first_name %}{{ student.user.first_name }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">Middle name</div><div class="sp-value">{% if basic.middle_name %}{{ basic.middle_name }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">Last name</div><div class="sp-value">{% if student.user.last_name %}{{ student.user.last_name }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">Date of birth</div><div class="sp-value">{% if student.date_of_birth %}{{ student.date_of_birth|date:"F j, Y" }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">Gender</div><div class="sp-value">{% if student.gender %}{{ student.get_gender_display }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">Blood group</div><div class="sp-value">{% if basic.blood_group %}{{ basic.blood_group }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">Aadhar / ID</div><div class="sp-value">{% if basic.id_number %}{{ basic.id_number }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">Nationality</div><div class="sp-value">{% if basic.nationality %}{{ basic.nationality }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">Religion</div><div class="sp-value">{% if basic.religion %}{{ basic.religion }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">Mother tongue</div><div class="sp-value">{% if basic.mother_tongue %}{{ basic.mother_tongue }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+    </div>
+  </div>
+
+  {# ——— Medical ——— #}
+  <div class="sp-card p-4 mb-4">
+    <h2 class="sp-section-title mb-3"><i class="bi bi-heart-pulse text-danger"></i> Medical information</h2>
+    <div class="sp-divider"></div>
+    <div class="row g-3 g-lg-4">
+      <div class="col-12 col-md-6"><div class="sp-label">Emergency contact</div><div class="sp-value">{% if medical.emergency_contact_name %}{{ medical.emergency_contact_name }}{% if medical.emergency_phone %} · {{ medical.emergency_phone }}{% endif %}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-12 col-md-6"><div class="sp-label">Emergency phone</div><div class="sp-value">{% if medical.emergency_phone %}{{ medical.emergency_phone }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-12 col-md-6"><div class="sp-label">Allergies</div><div class="sp-value">{% if medical.allergies %}{{ medical.allergies }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-12 col-md-6"><div class="sp-label">Medical conditions</div><div class="sp-value">{% if medical.medical_conditions %}{{ medical.medical_conditions }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">Doctor</div><div class="sp-value">{% if medical.doctor_name %}{{ medical.doctor_name }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">Hospital</div><div class="sp-value">{% if medical.hospital %}{{ medical.hospital }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-12 col-md-4"><div class="sp-label">Insurance</div><div class="sp-value">{% if medical.insurance_details %}{{ medical.insurance_details }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+    </div>
+  </div>
+
+  {# ——— Transport ——— #}
+  <div class="sp-card p-4 mb-4">
+    <h2 class="sp-section-title mb-3"><i class="bi bi-bus-front"></i> Transport &amp; hostel</h2>
+    <div class="sp-divider"></div>
+    <div class="row g-3 g-lg-4">
+      <div class="col-6 col-md-4"><div class="sp-label">Transport required</div><div class="sp-value">{% if th.transport_required %}{{ th.transport_required }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">Route</div><div class="sp-value">{% if route_obj %}{{ route_obj }}{% elif th.route_id %}#{{ th.route_id }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-12 col-md-4"><div class="sp-label">Pickup point</div><div class="sp-value">{% if th.pickup_point %}{{ th.pickup_point }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">Hostel required</div><div class="sp-value">{% if th.hostel_required %}{{ th.hostel_required }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">Hostel room</div><div class="sp-value">{% if hostel_room_obj %}{{ hostel_room_obj }}{% elif th.hostel_room_id %}#{{ th.hostel_room_id }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+    </div>
+  </div>
+
+  {# ——— Billing ——— #}
+  <div class="sp-card p-4 mb-4">
+    <h2 class="sp-section-title mb-3"><i class="bi bi-wallet2"></i> Billing preferences</h2>
+    <div class="sp-divider"></div>
+    <div class="row g-3 g-lg-4">
+      <div class="col-6 col-md-4"><div class="sp-label">Scholarship</div><div class="sp-value">{% if billing.scholarship %}{{ billing.scholarship }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">Discount %</div><div class="sp-value">{% if billing.discount_percent %}{{ billing.discount_percent }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">Installment type</div><div class="sp-value">{% if billing.installment_type %}{{ billing.installment_type }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">First payment</div><div class="sp-value">{% if billing.first_payment_amount %}{{ billing.first_payment_amount }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="sp-label">Payment due date</div><div class="sp-value">{% if billing.payment_due_date %}{{ billing.payment_due_date }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+    </div>
+  </div>
+
+  {# ——— Documents ——— #}
+  <div class="sp-card p-4 mb-4">
+    <h2 class="sp-section-title mb-3"><i class="bi bi-folder2-open"></i> Documents</h2>
+    <div class="sp-divider"></div>
+    {% if documents %}
+      <div class="row g-3">
+        {% for doc in documents %}
+        <div class="col-12 col-md-6 col-lg-4">
+          <div class="sp-doc-card h-100">
+            <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0" style="width:48px;height:48px;background: var(--sp-primary-soft); color: var(--sp-primary);">
+              {% if doc.file.name %}
+                {% if ".pdf" in doc.file.name|lower %}<i class="bi bi-file-earmark-pdf fs-4"></i>{% else %}<i class="bi bi-file-earmark-image fs-4"></i>{% endif %}
+              {% else %}
+                <i class="bi bi-file-earmark fs-4"></i>
+              {% endif %}
+            </div>
+            <div class="min-w-0 flex-grow-1">
+              <div class="fw-semibold text-truncate" style="color: var(--sp-value);">{{ doc.title|default:"Document" }}</div>
+              <div class="small text-muted">{{ doc.get_doc_type_display }} · {{ doc.uploaded_at|date:"M j, Y" }}</div>
+            </div>
+            {% if doc.file %}<a href="{{ doc.file.url }}" class="btn btn-sm btn-outline-primary rounded-pill flex-shrink-0" target="_blank" rel="noopener">Open</a>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="text-center py-5 px-3">
+        <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3" style="width:88px;height:88px;background: var(--sp-primary-soft); color: var(--sp-primary);">
+          <i class="bi bi-cloud-arrow-up fs-1"></i>
+        </div>
+        <p class="fw-semibold mb-1" style="color: var(--sp-value);">No documents uploaded</p>
+        <p class="small sp-empty mb-0">Upload certificates and files from the student edit screen.</p>
+      </div>
+    {% endif %}
+  </div>
+
+  {# ——— Audit ——— #}
+  <div class="sp-card p-3 p-md-4 mb-0">
+    <h2 class="sp-section-title mb-3"><i class="bi bi-clock-history"></i> Audit</h2>
+    <div class="sp-divider"></div>
+    <div class="row g-3 small">
+      <div class="col-6 col-md-3"><div class="sp-label">Created on</div><div class="sp-value">{% if student.created_on %}{{ student.created_on|date:"M j, Y, g:i A" }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-3"><div class="sp-label">Created by</div><div class="sp-value">{% if student.created_by %}{{ student.created_by.get_full_name|default:student.created_by.username }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-3"><div class="sp-label">Last modified</div><div class="sp-value">{% if student.modified_on %}{{ student.modified_on|date:"M j, Y, g:i A" }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-3"><div class="sp-label">Modified by</div><div class="sp-value">{% if student.modified_by %}{{ student.modified_by.get_full_name|default:student.modified_by.username }}{% else %}<span class="sp-empty">Not Provided</span>{% endif %}</div></div>
     </div>
   </div>
 </div>

@@ -3,7 +3,7 @@ Tenant-schema models for School ERP. Each school has its own PostgreSQL schema.
 These models have no school FK - the schema defines the tenant.
 User FK to accounts.User is kept (User lives in public schema).
 """
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Q
 
 # BaseModel for audit - uses accounts.User (public schema)
@@ -11,7 +11,7 @@ from apps.core.models import BaseModel
 
 
 class AcademicYear(BaseModel):
-    """Academic year (e.g. 2025-2026). Only one can be active per school."""
+    """Academic year (e.g. 2025-2026). When saving as active, other years are cleared first (app-level)."""
     name = models.CharField(max_length=50, db_index=True)
     start_date = models.DateField()
     end_date = models.DateField()
@@ -19,21 +19,20 @@ class AcademicYear(BaseModel):
 
     class Meta:
         ordering = ["start_date"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["is_active"],
-                condition=Q(is_active=True),
-                name="unique_active_academic_year",
-            ),
-        ]
 
     def __str__(self) -> str:
         return self.name
 
     def save(self, *args, **kwargs):
-        if self.is_active:
-            AcademicYear.objects.filter(is_active=True).exclude(pk=self.pk).update(is_active=False)
-        super().save(*args, **kwargs)
+        # If DB still has legacy partial unique on is_active=True, we must clear others before INSERT.
+        # Never .exclude(pk=self.pk) when pk is None — that can yield zero rows updated on some setups.
+        with transaction.atomic():
+            if self.is_active:
+                qs = AcademicYear.objects.select_for_update().filter(is_active=True)
+                if self.pk is not None:
+                    qs = qs.exclude(pk=self.pk)
+                qs.update(is_active=False)
+            super().save(*args, **kwargs)
 
 
 class Section(BaseModel):
@@ -53,6 +52,13 @@ class ClassRoom(BaseModel):
     name = models.CharField(max_length=50, db_index=True)
     description = models.TextField(blank=True)
     capacity = models.PositiveIntegerField(null=True, blank=True)
+    active_schedule_profile = models.ForeignKey(
+        "timetable.ScheduleProfile",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="active_for_classrooms",
+    )
     academic_year = models.ForeignKey(
         AcademicYear,
         on_delete=models.CASCADE,
@@ -105,6 +111,12 @@ class Subject(BaseModel):
 
 class Teacher(BaseModel):
     """Teacher profile linked to User."""
+
+    class Gender(models.TextChoices):
+        MALE = "M", "Male"
+        FEMALE = "F", "Female"
+        OTHER = "O", "Other"
+
     user = models.OneToOneField(
         "accounts.User",
         on_delete=models.CASCADE,
@@ -131,6 +143,21 @@ class Teacher(BaseModel):
     phone_number = models.CharField(max_length=20, blank=True)
     qualification = models.CharField(max_length=200, blank=True)
     experience = models.CharField(max_length=100, blank=True)
+    date_of_birth = models.DateField(null=True, blank=True)
+    gender = models.CharField(
+        max_length=1,
+        choices=Gender.choices,
+        blank=True,
+        default="",
+        db_index=True,
+    )
+    address = models.TextField(blank=True, null=True)
+    profile_image = models.ImageField(upload_to="teacher_profiles/", blank=True, null=True)
+    extra_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Extended profile: contact, professional, family, medical, payroll, etc.",
+    )
 
     class Meta:
         constraints = [
@@ -239,6 +266,11 @@ class Student(BaseModel):
     phone = models.CharField(max_length=15, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
     profile_image = models.ImageField(upload_to="profiles/", blank=True, null=True)
+    extra_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Flexible admission/profile fields (course/branch, documents metadata, medical, billing preferences, etc.).",
+    )
 
     class Meta:
         constraints = [
@@ -327,11 +359,26 @@ class StudentDocument(models.Model):
 
 
 class ExamSession(models.Model):
-    """Logical multi-subject exam; each paper is an `Exam` with `session` set."""
+    """
+    Exam session (e.g. Annual Exam 2026) for one class–section.
+    Subject-wise schedules are stored as `Exam` rows with `session` set (exam papers).
+    """
 
     name = models.CharField(max_length=100)
-    class_name = models.CharField(max_length=50, db_index=True)
-    section = models.CharField(max_length=10, db_index=True)
+    class_name = models.CharField(
+        max_length=50,
+        db_index=True,
+        default="",
+        blank=True,
+        help_text="Legacy denormalized classroom name (kept for backward compatibility).",
+    )
+    section = models.CharField(
+        max_length=10,
+        db_index=True,
+        default="",
+        blank=True,
+        help_text="Legacy denormalized section name (kept for backward compatibility).",
+    )
     classroom = models.ForeignKey(
         "ClassRoom",
         on_delete=models.SET_NULL,
@@ -348,13 +395,18 @@ class ExamSession(models.Model):
 
     class Meta:
         ordering = ["-created_at", "-id"]
+        verbose_name = "exam session"
+        verbose_name_plural = "exam sessions"
 
     def __str__(self) -> str:
         return f"{self.name} ({self.class_name} · {self.section})"
 
 
 class Exam(models.Model):
-    """Exam assigned to a specific class+section (tenant-scoped)."""
+    """
+    Exam paper: one subject (and date/time) within a class–section.
+    When `session` is set, this row is a paper under that exam session; otherwise legacy standalone.
+    """
     name = models.CharField(max_length=100)
     # DB column is still `start_date` from initial migrations; ORM field name stays `date`.
     date = models.DateField(db_index=True, db_column="start_date")
@@ -385,8 +437,20 @@ class Exam(models.Model):
         db_column="classroom_id",
         help_text="Legacy column; set from class when saving if missing.",
     )
-    class_name = models.CharField(max_length=50, db_index=True)
-    section = models.CharField(max_length=10, db_index=True)
+    class_name = models.CharField(
+        max_length=50,
+        db_index=True,
+        default="",
+        blank=True,
+        help_text="Legacy denormalized classroom name (kept for backward compatibility).",
+    )
+    section = models.CharField(
+        max_length=10,
+        db_index=True,
+        default="",
+        blank=True,
+        help_text="Legacy denormalized section name (kept for backward compatibility).",
+    )
     subject = models.ForeignKey(
         "Subject",
         on_delete=models.CASCADE,
@@ -403,7 +467,9 @@ class Exam(models.Model):
     )
     created_by = models.ForeignKey(
         "accounts.User",
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="exams_created",
         db_index=True,
     )
@@ -430,6 +496,14 @@ class Exam(models.Model):
         blank=True,
         related_name="exams",
     )
+    marks_teacher_edit_locked = models.BooleanField(
+        default=False,
+        help_text="When true, teachers cannot save mark changes until an admin allows re-editing.",
+    )
+
+    class Meta:
+        verbose_name = "exam paper"
+        verbose_name_plural = "exam papers"
 
     def save(self, *args, **kwargs):
         if self.date is not None and self.end_date is None:
@@ -801,7 +875,16 @@ class Payment(BaseModel):
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     payment_date = models.DateField()
     payment_method = models.CharField(max_length=50, default="Cash")
-    receipt_number = models.CharField(max_length=50, blank=True)
+    receipt_number = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="School receipt / voucher number (optional).",
+    )
+    transaction_reference = models.CharField(
+        max_length=120,
+        blank=True,
+        help_text="UPI ref., bank ref., or online payment id (optional).",
+    )
     notes = models.TextField(blank=True)
     received_by = models.ForeignKey(
         "accounts.User",
@@ -1302,3 +1385,52 @@ class StudentRouteAssignment(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.student} -> {self.route}"
+
+
+class InternalChatThread(models.Model):
+    """
+    One thread per pair of users (tenant-scoped). user_low.id is always < user_high.id.
+    School admin ↔ teacher, or teacher ↔ student (same school).
+    """
+
+    user_low = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.CASCADE,
+        related_name="internal_chat_threads_low",
+    )
+    user_high = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.CASCADE,
+        related_name="internal_chat_threads_high",
+    )
+    last_message_at = models.DateTimeField(db_index=True)
+    user_low_last_read_at = models.DateTimeField(null=True, blank=True)
+    user_high_last_read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = [("user_low", "user_high")]
+        ordering = ["-last_message_at"]
+
+    def __str__(self) -> str:
+        return f"Chat {self.user_low_id}–{self.user_high_id}"
+
+
+class InternalChatMessage(models.Model):
+    thread = models.ForeignKey(
+        InternalChatThread,
+        on_delete=models.CASCADE,
+        related_name="messages",
+    )
+    sender = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.CASCADE,
+        related_name="internal_chat_messages_sent",
+    )
+    body = models.TextField(max_length=5000)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self) -> str:
+        return f"Msg {self.pk} from {self.sender_id}"

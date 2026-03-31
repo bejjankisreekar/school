@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page { margin: 14mm 14mm; size: A4; }
+    body {
+      font-family: DejaVu Sans, Helvetica, Arial, sans-serif;
+      font-size: 9.5pt;
+      color: #1e293b;
+      line-height: 1.35;
+      margin: 0;
+      padding: 0;
+    }
+    .letterhead-wrap {
+      page-break-inside: avoid;
+      page-break-after: avoid;
+      margin-bottom: 12pt;
+      padding-bottom: 4pt;
+    }
+    .letterhead-grid {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .letterhead-cell {
+      padding: 0 8pt 0 0;
+      vertical-align: top;
+    }
+    .letterhead-cell-logo {
+      width: 22%;
+    }
+    .letterhead-cell-right {
+      width: 28%;
+      text-align: right;
+      padding-right: 0;
+    }
+    .letterhead-logo-img {
+      width: 64pt;
+      height: 64pt;
+      border: 1.5pt solid #cbd5e1;
+      border-radius: 6pt;
+    }
+    .letterhead-logo-fallback {
+      width: 64pt;
+      height: 64pt;
+      border-radius: 6pt;
+      background-color: #0c2461;
+      color: #ffffff;
+      font-size: 18pt;
+      font-weight: bold;
+      text-align: center;
+      line-height: 64pt;
+    }
+    .letterhead-school-name {
+      font-size: 21pt;
+      font-weight: bold;
+      color: #0c2461;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      line-height: 1.15;
+      margin: 0 0 6pt 0;
+    }
+    .letterhead-line {
+      font-size: 8.5pt;
+      color: #64748b;
+      margin: 0 0 2pt 0;
+      line-height: 1.4;
+    }
+    .letterhead-line-contact {
+      margin-top: 5pt;
+      color: #475569;
+      font-weight: bold;
+    }
+    .letterhead-line-web {
+      font-size: 8pt;
+      margin-top: 2pt;
+    }
+    .letterhead-locality-heading {
+      font-size: 7pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #94a3b8;
+      margin: 5pt 0 2pt 0;
+    }
+    .letterhead-side-label {
+      font-size: 7pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #94a3b8;
+      margin: 4pt 0 1pt 0;
+    }
+    .letterhead-side-label:first-child {
+      margin-top: 0;
+    }
+    .letterhead-side-value {
+      font-size: 8.5pt;
+      font-weight: bold;
+      color: #334155;
+      margin-bottom: 2pt;
+    }
+    .letterhead-rule {
+      border: none;
+      border-bottom: 3pt double #0c2461;
+      margin: 10pt 0 8pt 0;
+      height: 0;
+      line-height: 0;
+    }
+    .letterhead-doc-title {
+      text-align: center;
+      font-size: 11pt;
+      font-weight: bold;
+      letter-spacing: 0.12em;
+      color: #0f172a;
+      margin: 0 0 4pt 0;
+    }
+    .letterhead-generated {
+      text-align: center;
+      font-size: 7.5pt;
+      color: #94a3b8;
+      margin: 0 0 10pt 0;
+    }
+    h2 {
+      font-size: 10pt;
+      font-weight: bold;
+      color: #3730a3;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin: 14pt 0 8pt 0;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    h2:first-of-type { margin-top: 0; }
+    table.data {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 4px;
+    }
+    table.data td {
+      padding: 5px 8px 5px 0;
+      vertical-align: top;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    table.data td.lbl {
+      width: 32%;
+      color: #64748b;
+      font-size: 8pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    table.data td.val {
+      font-weight: normal;
+      color: #0f172a;
+    }
+    .muted { color: #94a3b8; font-style: italic; }
+    .subsection {
+      font-size: 9pt;
+      font-weight: bold;
+      color: #4338ca;
+      margin: 12px 0 6px 0;
+    }
+    .footer {
+      margin-top: 22px;
+      padding-top: 10px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 7.5pt;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  {% include "core/school/includes/student_record_letterhead.html" %}
+
+  <h2>Basic information</h2>
+  <table class="data">
+    <tr><td class="lbl">Full name</td><td class="val">{{ student.user.get_full_name|default:student.user.username }}</td></tr>
+    <tr><td class="lbl">Username</td><td class="val">{{ student.user.username }}</td></tr>
+    <tr><td class="lbl">Admission no.</td><td class="val">{% if student.admission_number %}{{ student.admission_number }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Roll number</td><td class="val">{% if student.roll_number %}{{ student.roll_number }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Class</td><td class="val">{% if student.classroom %}{{ student.classroom.name }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Section</td><td class="val">{% if student.section %}{{ student.section.name }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Academic year</td><td class="val">{% if student.academic_year %}{{ student.academic_year.name }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Date of birth</td><td class="val">{% if student.date_of_birth %}{{ student.date_of_birth|date:"F j, Y" }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Gender</td><td class="val">{% if student.gender %}{{ student.get_gender_display }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Student mobile</td><td class="val">{% if student.phone %}{{ student.phone }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Email</td><td class="val">{% if student.user.email %}{{ student.user.email }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Address</td><td class="val">{% if address_line1 or address_line2 %}{{ address_line1 }}{% if address_line2 %}<br/>{{ address_line2 }}{% endif %}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">City / State / PIN</td><td class="val">{% if contact.city or contact.state or contact.pincode %}{{ contact.city|default:"" }}{% if contact.city and contact.state %}, {% endif %}{{ contact.state|default:"" }}{% if contact.pincode %} — {{ contact.pincode }}{% endif %}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Primary guardian (record)</td><td class="val">{% if student.parent_name or student.parent_phone %}{{ student.parent_name|default:"" }}{% if student.parent_phone %}{% if student.parent_name %} · {% endif %}{{ student.parent_phone }}{% endif %}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Blood group</td><td class="val">{% if basic.blood_group %}{{ basic.blood_group }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">ID / Aadhar</td><td class="val">{% if basic.id_number %}{{ basic.id_number }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+  </table>
+
+  <h2>Academic details</h2>
+  <table class="data">
+    <tr><td class="lbl">Admission date</td><td class="val">{% if academic.admission_date %}{{ academic.admission_date }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Stream</td><td class="val">{% if academic.stream %}{{ academic.stream }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Course / branch</td><td class="val">{% if academic.course_branch %}{{ academic.course_branch }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Semester / year</td><td class="val">{% if academic.semester_year %}{{ academic.semester_year }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Previous institution</td><td class="val">{% if academic.previous_institution %}{{ academic.previous_institution }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Previous marks</td><td class="val">{% if academic.previous_marks %}{{ academic.previous_marks }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Registration no.</td><td class="val">{% if academic.registration_number %}{{ academic.registration_number }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Student type</td><td class="val">{% if academic.student_type %}{{ academic.student_type }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    {% if status_block.record_status %}
+    <tr><td class="lbl">Record status</td><td class="val">{{ status_block.record_status }}</td></tr>
+    {% endif %}
+  </table>
+
+  <h2>Parents &amp; guardians</h2>
+  <p class="subsection">Father</p>
+  <table class="data">
+    <tr><td class="lbl">Name</td><td class="val">{% if parents.father_name %}{{ parents.father_name }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Mobile</td><td class="val">{% if parents.father_mobile %}{{ parents.father_mobile }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Occupation</td><td class="val">{% if parents.father_occupation %}{{ parents.father_occupation }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+  </table>
+  <p class="subsection">Mother</p>
+  <table class="data">
+    <tr><td class="lbl">Name</td><td class="val">{% if parents.mother_name %}{{ parents.mother_name }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Mobile</td><td class="val">{% if parents.mother_mobile %}{{ parents.mother_mobile }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Occupation</td><td class="val">{% if parents.mother_occupation %}{{ parents.mother_occupation }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+  </table>
+  <p class="subsection">Guardian</p>
+  <table class="data">
+    <tr><td class="lbl">Name</td><td class="val">{% if parents.guardian_name %}{{ parents.guardian_name }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Relation</td><td class="val">{% if parents.guardian_relation %}{{ parents.guardian_relation }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Phone</td><td class="val">{% if parents.guardian_phone %}{{ parents.guardian_phone }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+  </table>
+
+  <p class="footer">This document was generated from the school ERP for administrative use. Information is accurate as of the generation time above.</p>
+</body>
+</html>

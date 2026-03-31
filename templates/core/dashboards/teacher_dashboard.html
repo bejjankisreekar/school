@@ -1,75 +1,434 @@
 {% extends "base.html" %}
+{% load nav_tags %}
 
 {% block title %}Teacher Dashboard | School ERP{% endblock %}
 
-{% block content %}
-<div class="space-y-6">
-  <div>
-    <h1 class="text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
-      Teacher Dashboard
-    </h1>
-    <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">
-      Manage your classes and student performance.
-    </p>
-  </div>
+{% block extra_head %}
+<style>
+  .hover-shadow:hover { box-shadow: 0 .5rem 1rem rgba(0,0,0,.08) !important; }
+  html.dark .hover-shadow:hover { box-shadow: 0 .5rem 1.25rem rgba(0,0,0,.35) !important; }
 
-  <div class="row g-3 mb-4">
-    <div class="col-sm-6 col-lg-4">
-      {% include "components/dashboard_card.html" with label="Assigned Subject" value=assigned_subject_display icon="bi-book" icon_color="primary" %}
+  .teacher-dashboard-page { max-width: 100%; }
+
+  .dashboard-card-body { padding: 1.5rem 1.5rem; }
+  @media (min-width: 992px) {
+    .dashboard-card-body { padding: 1.75rem 2rem; }
+  }
+
+  .dashboard-kpi-grid {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: repeat(2, 1fr);
+  }
+  @media (min-width: 576px) {
+    .dashboard-kpi-grid {
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+  }
+
+  .dashboard-two-col-grid {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 768px) {
+    .dashboard-two-col-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .quick-actions-panel {
+    --qa-radius: 12px;
+    --qa-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+    --qa-shadow-hover: 0 12px 28px rgba(0, 0, 0, 0.14);
+  }
+  html.dark .quick-actions-panel {
+    --qa-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+    --qa-shadow-hover: 0 14px 36px rgba(0, 0, 0, 0.45);
+  }
+
+  .quick-actions-grid {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: repeat(2, 1fr);
+  }
+  @media (min-width: 768px) {
+    .quick-actions-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  }
+  @media (min-width: 1200px) {
+    .quick-actions-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+
+  .quick-action-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+    background: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    border-radius: var(--qa-radius);
+    padding: 1.15rem 1.15rem 1.25rem;
+    box-shadow: var(--qa-shadow);
+    border: 1px solid var(--bs-border-color-translucent);
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.2s ease;
+    cursor: pointer;
+    min-height: 120px;
+    position: relative;
+    overflow: hidden;
+  }
+  .quick-action-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+    border-radius: inherit;
+  }
+  .quick-action-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--qa-shadow-hover);
+    border-color: rgba(0, 0, 0, 0.06);
+  }
+  html.dark .quick-action-card:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+  .quick-action-card:hover::before { opacity: 1; }
+  .quick-action-card:hover .qa-icon-wrap i { transform: scale(1.1); }
+  .qa-icon-wrap {
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+    margin-bottom: 0.65rem;
+    transition: transform 0.25s ease;
+  }
+  .qa-icon-wrap i { display: block; transition: transform 0.25s ease; }
+  .qa-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    line-height: 1.25;
+    margin-bottom: 0.25rem;
+    color: inherit;
+  }
+  .qa-desc {
+    font-size: 0.78rem;
+    line-height: 1.35;
+    color: var(--bs-secondary-color);
+    margin: 0;
+  }
+
+  .qa-theme-academic .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.18), rgba(34, 211, 238, 0.22));
+    color: #0e7490;
+  }
+  html.dark .qa-theme-academic .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.25), rgba(34, 211, 238, 0.12));
+    color: #67e8f9;
+  }
+  .qa-theme-academic:hover::before {
+    background: radial-gradient(120% 80% at 100% 0%, rgba(6, 182, 212, 0.1), transparent 55%);
+  }
+
+  .qa-theme-student .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(79, 140, 255, 0.2), rgba(122, 168, 255, 0.28));
+    color: #2563eb;
+  }
+  html.dark .qa-theme-student .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(96, 165, 250, 0.2));
+    color: #93c5fd;
+  }
+  .qa-theme-student:hover::before {
+    background: radial-gradient(120% 80% at 100% 0%, rgba(79, 140, 255, 0.12), transparent 55%);
+  }
+
+  .qa-theme-exam .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.22), rgba(251, 146, 60, 0.28));
+    color: #c2410c;
+  }
+  html.dark .qa-theme-exam .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.28), rgba(251, 146, 60, 0.15));
+    color: #fdba74;
+  }
+  .qa-theme-exam:hover::before {
+    background: radial-gradient(120% 80% at 100% 0%, rgba(249, 115, 22, 0.12), transparent 55%);
+  }
+
+  .qa-theme-teacher .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(167, 139, 250, 0.28));
+    color: #7c3aed;
+  }
+  html.dark .qa-theme-teacher .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.28), rgba(167, 139, 250, 0.15));
+    color: #c4b5fd;
+  }
+  .qa-theme-teacher:hover::before {
+    background: radial-gradient(120% 80% at 100% 0%, rgba(139, 92, 246, 0.12), transparent 55%);
+  }
+
+  .qa-theme-attendance .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(74, 222, 128, 0.25));
+    color: #15803d;
+  }
+  html.dark .qa-theme-attendance .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.25), rgba(74, 222, 128, 0.12));
+    color: #86efac;
+  }
+  .qa-theme-attendance:hover::before {
+    background: radial-gradient(120% 80% at 100% 0%, rgba(34, 197, 94, 0.12), transparent 55%);
+  }
+
+  .qa-theme-reports .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.22), rgba(129, 140, 248, 0.28));
+    color: #4f46e5;
+  }
+  html.dark .qa-theme-reports .qa-icon-wrap {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(129, 140, 248, 0.15));
+    color: #a5b4fc;
+  }
+  .qa-theme-reports:hover::before {
+    background: radial-gradient(120% 80% at 100% 0%, rgba(99, 102, 241, 0.12), transparent 55%);
+  }
+
+  .teacher-schedule-row {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+    font-size: 0.875rem;
+  }
+  .teacher-schedule-row:last-child { border-bottom: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="teacher-dashboard-page w-100">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h1 class="h4 fw-bold text-body mb-1">Teacher Dashboard</h1>
+      <p class="text-muted small mb-0">Your classes, timetable, homework, and quick teaching tools.</p>
     </div>
   </div>
 
-  {% if today_schedule %}
-  <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 p-4 shadow-sm mb-4">
-    <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-3">Today's Schedule</h2>
-    <ul class="space-y-2">
-      {% for t in today_schedule %}
-      <li class="flex justify-between text-sm">
-        <span class="text-slate-700 dark:text-slate-200">{{ t.time_slot.start_time|time:"H:i" }}-{{ t.time_slot.end_time|time:"H:i" }} — {{ t.classroom }} — {{ t.subject.name|default:"—" }}</span>
-      </li>
-      {% endfor %}
-    </ul>
-    <a href="{% url 'timetable:teacher_timetable' %}" class="text-sm text-indigo-600 dark:text-indigo-400 mt-2 inline-block">View full schedule</a>
-  </div>
-  {% endif %}
+  <div class="dashboard-kpi-grid mb-4">
+    <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all">
+      <div class="card-body dashboard-card-body">
+        <div class="d-flex align-items-center gap-3">
+          <div class="rounded-3 bg-primary bg-opacity-10 p-3 text-primary"><i class="bi bi-book fs-3"></i></div>
+          <div>
+            <div class="text-uppercase small text-muted fw-semibold">Subjects &amp; classes</div>
+            <div class="fs-5 fw-bold text-body">{{ assigned_subject_display }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-  <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-    <a href="{% url 'core:create_homework' %}" class="flex items-center gap-3 rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 p-4 shadow-sm hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-700 transition">
-      <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600 text-white">
-        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-      </span>
-      <span class="font-medium text-slate-900 dark:text-slate-50">Add Homework</span>
+    {% if has_exams %}
+    <a href="{% url 'core:teacher_exams' %}" class="text-decoration-none text-reset">
+      <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all">
+        <div class="card-body dashboard-card-body">
+          <div class="d-flex align-items-center gap-3">
+            <div class="rounded-3 bg-warning bg-opacity-10 p-3 text-warning"><i class="bi bi-clipboard2-data fs-3"></i></div>
+            <div>
+              <div class="text-uppercase small text-muted fw-semibold">Upcoming exams</div>
+              <div class="fs-5 fw-bold text-body">{{ upcoming_exams_count }} scheduled</div>
+            </div>
+          </div>
+          <p class="small text-muted mb-0 mt-2">Papers assigned to you or your subjects.</p>
+        </div>
+      </div>
     </a>
-    <a href="{% url 'core:enter_marks' %}" class="flex items-center gap-3 rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 p-4 shadow-sm hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-700 transition">
-      <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-600 text-white">
-        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-      </span>
-      <span class="font-medium text-slate-900 dark:text-slate-50">Enter Marks</span>
+    {% endif %}
+
+    {% if has_homework_feature %}
+    <a href="{% url 'core:homework_list' %}" class="text-decoration-none text-reset">
+      <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all">
+        <div class="card-body dashboard-card-body">
+          <div class="d-flex align-items-center gap-3">
+            <div class="rounded-3 bg-info bg-opacity-10 p-3 text-info"><i class="bi bi-journal-text fs-3"></i></div>
+            <div>
+              <div class="text-uppercase small text-muted fw-semibold">Homework</div>
+              <div class="fs-5 fw-bold text-body">{{ homework_total }} assignment{{ homework_total|pluralize }}</div>
+            </div>
+          </div>
+          <p class="small text-muted mb-0 mt-2">Yours and admin-assigned for your classes.</p>
+        </div>
+      </div>
     </a>
-    <a href="{% url 'core:teacher_exams' %}" class="flex items-center gap-3 rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 p-4 shadow-sm hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-700 transition">
-      <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-violet-600 text-white">
-        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
-      </span>
-      <span class="font-medium text-slate-900 dark:text-slate-50">Exam Management</span>
-    </a>
-    <a href="{% url 'core:teacher_students_list' %}" class="flex items-center gap-3 rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 p-4 shadow-sm hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-700 transition">
-      <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-sky-600 text-white">
-        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-      </span>
-      <span class="font-medium text-slate-900 dark:text-slate-50">View Student List</span>
-    </a>
-    <a href="{% url 'core:bulk_attendance' %}" class="flex items-center gap-3 rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 p-4 shadow-sm hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-700 transition">
-      <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-amber-600 text-white">
-        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-      </span>
-      <span class="font-medium text-slate-900 dark:text-slate-50">Mark Attendance</span>
-    </a>
-    <a href="{% url 'core:teacher_class_analytics' %}" class="flex items-center gap-3 rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 p-4 shadow-sm hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-700 transition">
-      <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-rose-600 text-white">
-        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-      </span>
-      <span class="font-medium text-slate-900 dark:text-slate-50">Class Analytics</span>
-    </a>
+    {% endif %}
+
+    <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all">
+      <div class="card-body dashboard-card-body">
+        <div class="d-flex align-items-center gap-3">
+          <div class="rounded-3 bg-success bg-opacity-10 p-3 text-success"><i class="bi bi-calendar3 fs-3"></i></div>
+          <div>
+            <div class="text-uppercase small text-muted fw-semibold">Today&rsquo;s schedule</div>
+            <div class="fs-5 fw-bold text-body">
+              {% if has_timetable %}{{ today_schedule_count }} period{{ today_schedule_count|pluralize }}{% else %}—{% endif %}
+            </div>
+          </div>
+        </div>
+        {% if not has_timetable %}
+        <p class="small text-muted mb-0 mt-2">Schedules are not enabled on your plan.</p>
+        {% elif today_schedule_count == 0 %}
+        <p class="small text-muted mb-0 mt-2">No entries for today — check the full grid below or your schedule.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="dashboard-two-col-grid mb-4">
+    {% if has_exams %}
+    <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card-body dashboard-card-body d-flex flex-column">
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+          <div class="d-flex align-items-center gap-2">
+            <div class="rounded-3 bg-warning bg-opacity-10 p-2 text-warning"><i class="bi bi-clipboard2-check"></i></div>
+            <h2 class="h6 fw-bold mb-0">Your upcoming exams</h2>
+          </div>
+          <a href="{% url 'core:teacher_exams' %}" class="btn btn-sm btn-outline-warning rounded-pill">All exams</a>
+        </div>
+        {% if upcoming_exams %}
+        <ul class="list-unstyled mb-0 flex-grow-1">
+          {% for ex in upcoming_exams %}
+          <li class="teacher-schedule-row">
+            <div class="fw-semibold small">{{ ex.name }}{% if ex.subject %} — {{ ex.subject.name }}{% endif %}</div>
+            <div class="text-muted small">{{ ex.class_name }} · {{ ex.section }} · {{ ex.date|date:"M j, Y" }}</div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted small mb-0">No upcoming exam dates. When admin assigns a paper to you, it appears here and under <strong>Exams</strong>.</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card-body dashboard-card-body d-flex flex-column">
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+          <div class="d-flex align-items-center gap-2">
+            <div class="rounded-3 bg-success bg-opacity-10 p-2 text-success"><i class="bi bi-clock-history"></i></div>
+            <h2 class="h6 fw-bold mb-0">Today&rsquo;s schedule</h2>
+          </div>
+          {% if request|feature_access:"timetable" %}
+          <a href="{% url 'timetable:teacher_timetable' %}" class="btn btn-sm btn-outline-success rounded-pill">Full schedule</a>
+          {% endif %}
+        </div>
+        {% if not has_timetable %}
+        <p class="text-muted small mb-0">Schedules are not available for your school plan.</p>
+        {% elif today_schedule %}
+        <div class="flex-grow-1">
+          {% for t in today_schedule %}
+          <div class="teacher-schedule-row d-flex flex-wrap justify-content-between gap-2">
+            <span class="text-body fw-medium">
+              {{ t.time_slot.start_time|time:"H:i" }}–{{ t.time_slot.end_time|time:"H:i" }}
+            </span>
+            <span class="text-body">
+              {% if t.time_slot.is_break %}
+              <span class="text-muted">{{ t.time_slot.get_break_type_display }}</span>
+              {% else %}
+              {{ t.classroom.name }} — {{ t.subject.name|default:"—" }}
+              {% endif %}
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted small mb-0">No periods today. Open your full schedule to review the week.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card-body dashboard-card-body d-flex flex-column">
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+          <div class="d-flex align-items-center gap-2">
+            <div class="rounded-3 bg-info bg-opacity-10 p-2 text-info"><i class="bi bi-journal-richtext"></i></div>
+            <h2 class="h6 fw-bold mb-0">Recent homework</h2>
+          </div>
+          {% if has_homework_feature %}
+          <a href="{% url 'core:homework_list' %}" class="btn btn-sm btn-outline-primary rounded-pill">View all</a>
+          {% endif %}
+        </div>
+        {% if not has_homework_feature %}
+        <p class="text-muted small mb-0">Homework is not enabled on your plan.</p>
+        {% elif homework_recent %}
+        <ul class="list-unstyled mb-0 flex-grow-1">
+          {% for hw in homework_recent %}
+          <li class="teacher-schedule-row">
+            <div class="fw-semibold small">{{ hw.title|truncatewords:8 }}</div>
+            <div class="text-muted small">Due {{ hw.due_date }}</div>
+          </li>
+          {% endfor %}
+        </ul>
+        <a href="{% url 'core:create_homework' %}" class="btn btn-primary btn-sm rounded-pill align-self-start mt-2">Create homework</a>
+        {% else %}
+        <p class="text-muted small mb-2">No homework yet. Create one or wait for admin assignments for your classes.</p>
+        <a href="{% url 'core:create_homework' %}" class="btn btn-primary btn-sm rounded-pill align-self-start">Create homework</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4 quick-actions-panel">
+    <div class="card-body dashboard-card-body pb-4">
+      <div class="d-flex align-items-center gap-2 mb-4">
+        <div class="rounded-3 bg-primary bg-opacity-10 p-2 text-primary"><i class="bi bi-lightning-charge-fill"></i></div>
+        <div>
+          <h2 class="h5 fw-bold text-body mb-0">Quick actions</h2>
+          <p class="text-muted small mb-0">Jump to common tasks</p>
+        </div>
+      </div>
+
+      <div class="quick-actions-grid">
+        {% if has_homework_feature %}
+        <a href="{% url 'core:homework_list' %}" class="quick-action-card qa-theme-academic text-decoration-none">
+          <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-journal-text"></i></span>
+          <span class="qa-title">Homework</span>
+          <span class="qa-desc">View assignments and create new work</span>
+        </a>
+        <a href="{% url 'core:create_homework' %}" class="quick-action-card qa-theme-academic text-decoration-none">
+          <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-plus-lg"></i></span>
+          <span class="qa-title">Create homework</span>
+          <span class="qa-desc">Assign to your mapped classes</span>
+        </a>
+        {% endif %}
+        <a href="{% url 'core:enter_marks' %}" class="quick-action-card qa-theme-student text-decoration-none">
+          <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-check2-circle"></i></span>
+          <span class="qa-title">Enter marks</span>
+          <span class="qa-desc">Record assessment scores</span>
+        </a>
+        <a href="{% url 'core:teacher_exams' %}" class="quick-action-card qa-theme-exam text-decoration-none">
+          <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-clipboard2-data"></i></span>
+          <span class="qa-title">Exams</span>
+          <span class="qa-desc">Manage papers and marks</span>
+        </a>
+        <a href="{% url 'core:teacher_students_list' %}" class="quick-action-card qa-theme-teacher text-decoration-none">
+          <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-people"></i></span>
+          <span class="qa-title">Students</span>
+          <span class="qa-desc">Browse your student roster</span>
+        </a>
+        <a href="{% url 'core:bulk_attendance' %}" class="quick-action-card qa-theme-attendance text-decoration-none">
+          <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-calendar-check"></i></span>
+          <span class="qa-title">Attendance</span>
+          <span class="qa-desc">Mark daily presence</span>
+        </a>
+        <a href="{% url 'core:teacher_class_analytics' %}" class="quick-action-card qa-theme-reports text-decoration-none">
+          <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-graph-up-arrow"></i></span>
+          <span class="qa-title">Class analytics</span>
+          <span class="qa-desc">Insights for your groups</span>
+        </a>
+        {% if request|feature_access:"timetable" %}
+        <a href="{% url 'timetable:teacher_timetable' %}" class="quick-action-card qa-theme-academic text-decoration-none">
+          <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-calendar-week"></i></span>
+          <span class="qa-title">Full timetable</span>
+          <span class="qa-desc">Weekly grid for your classes</span>
+        </a>
+        {% endif %}
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}

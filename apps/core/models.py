@@ -157,3 +157,53 @@ class ContactEnquiry(models.Model):
 
     def __str__(self) -> str:
         return f"Enquiry from {self.name} ({self.email})"
+
+
+class SchoolEnrollmentRequest(models.Model):
+    """
+    Public signup: a school requests to be onboarded. Stored in public schema.
+    Super admin provisions a tenant (PostgreSQL schema + migrations) from the UI.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending review"
+        PROVISIONED = "PROVISIONED", "Tenant created"
+        DECLINED = "DECLINED", "Declined"
+
+    institution_name = models.CharField(max_length=255)
+    contact_name = models.CharField(max_length=255)
+    email = models.EmailField()
+    phone = models.CharField(max_length=30, blank=True)
+    notes = models.TextField(blank=True)
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    school = models.ForeignKey(
+        "customers.School",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="enrollment_requests",
+    )
+    provisioned_schema_name = models.CharField(max_length=63, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_enrollments",
+    )
+    decline_reason = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.institution_name} ({self.email})"

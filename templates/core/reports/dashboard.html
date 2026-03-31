@@ -115,10 +115,67 @@
     margin-top: auto;
     padding-top: 0.2rem;
     line-height: 1.35;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45rem;
+  }
+  .analytics-metric-trend__icon {
+    font-size: 0.95rem;
+    line-height: 1.25;
+    flex-shrink: 0;
+    margin-top: 0.05rem;
+    opacity: 0.9;
   }
   .analytics-metric-trend--up { color: var(--bs-success); }
+  .analytics-metric-trend--up .analytics-metric-trend__icon { color: var(--bs-success); }
   .analytics-metric-trend--neutral { color: var(--bs-secondary-color); }
   .analytics-metric-trend--muted { color: var(--bs-secondary-color); font-weight: 400; }
+
+  .reports-hub-chart-wrap--donut {
+    min-height: 260px;
+  }
+  .reports-hub-chart-wrap--donut .analytics-donut-center {
+    position: absolute;
+    left: 50%;
+    top: 40%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    z-index: 2;
+    pointer-events: none;
+    max-width: 42%;
+  }
+  .analytics-donut-center__pct {
+    display: block;
+    font-size: clamp(1.35rem, 3.5vw, 1.75rem);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1.1;
+    color: var(--bs-body-color);
+    font-variant-numeric: tabular-nums;
+  }
+  .analytics-donut-center__lab {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--bs-secondary-color);
+    margin-top: 0.15rem;
+  }
+  .analytics-donut-center__extra {
+    display: block;
+    font-size: 0.7rem;
+    margin-top: 0.2rem;
+    color: var(--bs-secondary-color);
+  }
+
+  .analytics-low-attn-table tbody tr.analytics-low-attn-row--critical {
+    background: rgba(220, 53, 69, 0.08);
+    box-shadow: inset 3px 0 0 0 rgba(220, 53, 69, 0.65);
+  }
+  html.dark .analytics-low-attn-table tbody tr.analytics-low-attn-row--critical {
+    background: rgba(220, 53, 69, 0.12);
+  }
 
   .analytics-chart-card {
     border-radius: var(--analytics-card-radius);
@@ -437,7 +494,8 @@
             </div>
           </div>
           <p class="analytics-metric-trend {% if m.muted %}analytics-metric-trend--muted{% elif m.trend_positive %}analytics-metric-trend--up{% else %}analytics-metric-trend--neutral{% endif %}">
-            {{ m.trend }}
+            <span class="analytics-metric-trend__icon" aria-hidden="true"><i class="bi {{ m.trend_icon }}"></i></span>
+            <span>{{ m.trend }}</span>
           </p>
         </article>
         {% endfor %}
@@ -453,7 +511,7 @@
   <section class="analytics-dash-section" id="student-analytics" aria-labelledby="student-analytics-heading">
     <p class="analytics-section-kicker mb-0">Section 2</p>
     <h2 class="analytics-section-title" id="student-analytics-heading">Student analytics</h2>
-    <p class="analytics-section-desc">Enrollment distribution, demographics, and how new admissions landed over recent months.</p>
+    <p class="analytics-section-desc">Class headcount, gender mix with share in the donut center, eight-month admission momentum, and age spread from dates of birth.</p>
 
     <div class="analytics-student-grid mb-4">
       <div class="card border-0 analytics-chart-card shadow-sm">
@@ -481,11 +539,16 @@
       <div class="card border-0 analytics-chart-card shadow-sm">
         <div class="card-body">
           <div class="analytics-chart-card__head">
-            <h3 class="analytics-chart-card__title">Gender mix</h3>
-            <p class="analytics-chart-card__hint">Share of students by recorded gender (optional field).</p>
+            <h3 class="analytics-chart-card__title">Student gender distribution</h3>
+            <p class="analytics-chart-card__hint">Balance from recorded gender; largest share shown in the center.</p>
           </div>
-          <div class="reports-hub-chart-wrap reports-hub-chart-wrap--compact flex-grow-1">
+          <div class="reports-hub-chart-wrap reports-hub-chart-wrap--donut reports-hub-chart-wrap--compact flex-grow-1 position-relative">
             <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
+            <div class="analytics-donut-center" id="genderDonutCenter" hidden>
+              <span class="analytics-donut-center__pct" id="genderDonutPct"></span>
+              <span class="analytics-donut-center__lab" id="genderDonutLab"></span>
+              <span class="analytics-donut-center__extra" id="genderDonutExtra"></span>
+            </div>
             <canvas id="hubChartGender" class="reports-hub-chart-canvas" aria-label="Gender distribution"></canvas>
           </div>
         </div>
@@ -496,8 +559,8 @@
       <div class="card-body">
         <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 analytics-chart-card__head">
           <div>
-            <h3 class="analytics-chart-card__title">New admissions by month</h3>
-            <p class="analytics-chart-card__hint">Student profiles created in each of the last six calendar months.</p>
+            <h3 class="analytics-chart-card__title">Monthly admission trend</h3>
+            <p class="analytics-chart-card__hint">New student profiles created in each of the last eight calendar months.</p>
           </div>
           <a href="{% url 'reports:student_analytics' %}" class="btn btn-outline-info btn-sm rounded-pill">Student analytics</a>
         </div>
@@ -507,21 +570,40 @@
         </div>
       </div>
     </div>
+
+    <div class="card border-0 analytics-chart-card shadow-sm mt-4">
+      <div class="card-body">
+        <div class="analytics-chart-card__head">
+          <h3 class="analytics-chart-card__title">Student age distribution</h3>
+          <p class="analytics-chart-card__hint">Headcount by age (from date of birth), ages 3–22.</p>
+        </div>
+        {% if dash_has_age_chart %}
+        <div class="reports-hub-chart-wrap flex-grow-1">
+          <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
+          <canvas id="hubChartAgeDistribution" class="reports-hub-chart-canvas" aria-label="Age distribution"></canvas>
+        </div>
+        {% else %}
+        <div class="d-flex align-items-center justify-content-center text-muted small py-5 px-3 text-center rounded-3 bg-body-secondary" style="min-height:220px">
+          Add student dates of birth to see how ages spread across the school.
+        </div>
+        {% endif %}
+      </div>
+    </div>
   </section>
 
   {# —— Section 3 · Attendance analytics —— #}
   <section class="analytics-dash-section" id="attendance-analytics" aria-labelledby="attendance-analytics-heading">
     <p class="analytics-section-kicker mb-0">Section 3</p>
     <h2 class="analytics-section-title" id="attendance-analytics-heading">Attendance analytics</h2>
-    <p class="analytics-section-desc">Daily presence trend and how marks are distributed across the last seven days.</p>
+    <p class="analytics-section-desc">Seven-day presence curve (weekends without school are shown as gaps), marking mix, and class-level attendance comparison.</p>
 
     <div class="analytics-attendance-grid mb-2">
       <div class="card border-0 analytics-chart-card shadow-sm">
         <div class="card-body">
           <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 analytics-chart-card__head">
             <div>
-              <h3 class="analytics-chart-card__title">Daily attendance rate</h3>
-              <p class="analytics-chart-card__hint">% of enrolled students marked present each day.</p>
+              <h3 class="analytics-chart-card__title">Weekly attendance trend</h3>
+              <p class="analytics-chart-card__hint">Smooth curve of daily presence rate; Sundays show as “no school”.</p>
             </div>
             {% if hub_show_attendance_chart %}
             <a href="{% url 'reports:attendance_trend' %}" class="btn btn-outline-success btn-sm rounded-pill">Full trend</a>
@@ -559,6 +641,25 @@
         </div>
       </div>
     </div>
+
+    <div class="card border-0 analytics-chart-card shadow-sm mt-4">
+      <div class="card-body">
+        <div class="analytics-chart-card__head">
+          <h3 class="analytics-chart-card__title">Class attendance comparison</h3>
+          <p class="analytics-chart-card__hint">Share of attendance marks recorded as present in the last 30 days, by class. Lower bars use a deeper tone.</p>
+        </div>
+        {% if dash_has_class_attendance_chart %}
+        <div class="reports-hub-chart-wrap flex-grow-1">
+          <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
+          <canvas id="hubChartClassAttendance" class="reports-hub-chart-canvas" aria-label="Class attendance comparison"></canvas>
+        </div>
+        {% else %}
+        <div class="d-flex align-items-center justify-content-center text-muted small py-5 px-3 text-center rounded-3 bg-body-secondary" style="min-height:220px">
+          No class-level attendance in the last 30 days yet. Once teachers mark attendance, this comparison appears.
+        </div>
+        {% endif %}
+      </div>
+    </div>
   </section>
 
   {# —— Section 4 · Academic insights —— #}
@@ -593,7 +694,36 @@
   <section class="analytics-dash-section mb-4" id="alerts-tables" aria-labelledby="alerts-tables-heading">
     <p class="analytics-section-kicker mb-0">Section 5</p>
     <h2 class="analytics-section-title" id="alerts-tables-heading">Alerts &amp; tables</h2>
-    <p class="analytics-section-desc">Operational signals that need attention and a ranked view of class sizes.</p>
+    <p class="analytics-section-desc">Operational signals, enrollment ranking, and students whose rolling attendance needs follow-up.</p>
+
+    {% if dash_low_attendance_rows %}
+    <div class="mb-4">
+      <h3 class="h6 fw-bold text-body-secondary mb-3">Low attendance alerts</h3>
+      <p class="small text-muted mb-2">Students below 75% presence over the last ~75 days (minimum 8 marks). Rows under 60% are highlighted.</p>
+      <div class="table-responsive analytics-enrollment-table-wrap">
+        <table class="table analytics-enrollment-table analytics-low-attn-table mb-0">
+          <thead>
+            <tr>
+              <th scope="col">Student</th>
+              <th scope="col">Class</th>
+              <th scope="col" class="text-end">Attendance %</th>
+              <th scope="col">Parent contact</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in dash_low_attendance_rows %}
+            <tr class="{% if row.attendance_pct < 60 %}analytics-low-attn-row--critical{% endif %}">
+              <td class="fw-medium">{{ row.student_name }}</td>
+              <td>{{ row.class_name }}</td>
+              <td class="text-end">{{ row.attendance_pct }}%</td>
+              <td class="small text-break">{{ row.parent_contact }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
 
     <div class="row g-4">
       <div class="col-lg-5">
@@ -716,15 +846,15 @@
     {% else %}
     <div class="reports-empty text-center py-5 px-4">
       <div class="reports-hub-icon bg-primary bg-opacity-10 text-primary mx-auto mb-3"><i class="bi bi-graph-up-arrow"></i></div>
-      <p class="text-muted mb-0">Detailed reports will appear here when enabled for your plan.</p>
+      <p class="text-muted mb-0">Detailed reports will appear here when the reports module is enabled for this school.</p>
     </div>
     {% endif %}
   </section>
   {% else %}
   <section class="analytics-dash-section mb-4" id="reports-exploration" aria-labelledby="reports-exploration-heading">
-    <p class="analytics-section-kicker mb-0">Reports</p>
-    <h2 class="analytics-section-title" id="reports-exploration-heading">Reports &amp; exploration</h2>
-    <p class="analytics-section-desc">Upgrade your plan to unlock the full analytics workspace, charts, and deep reports.</p>
+    <p class="analytics-section-kicker mb-0">Analytics</p>
+    <h2 class="analytics-section-title" id="reports-exploration-heading">Analytics &amp; exploration</h2>
+    <p class="analytics-section-desc">The full analytics workspace, charts, and deep reports are available when the reports module is enabled for this school.</p>
     {% if report_cards_primary or report_cards_more %}
     <div class="reports-cards-host">
       <div class="reports-cards-skel-layer" aria-hidden="true">
@@ -793,7 +923,7 @@
     {% else %}
     <div class="reports-empty text-center py-5 px-4">
       <div class="reports-hub-icon bg-primary bg-opacity-10 text-primary mx-auto mb-3"><i class="bi bi-graph-up-arrow"></i></div>
-      <p class="text-muted mb-0">Detailed reports will appear here when enabled for your plan.</p>
+      <p class="text-muted mb-0">Detailed reports will appear here when the reports module is enabled for this school.</p>
     </div>
     {% endif %}
   </section>
@@ -820,8 +950,8 @@
     Chart.defaults.font.family = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
     Chart.defaults.color = tick;
 
-    var anim = { duration: 1000, easing: "easeOutQuart" };
-    var animShort = { duration: 780, easing: "easeOutCubic" };
+    var anim = { duration: 1100, easing: "easeOutQuart" };
+    var animShort = { duration: 820, easing: "easeOutCubic" };
 
     function commonTooltip() {
       return {
@@ -864,9 +994,9 @@
             backgroundColor: bc.bg,
             borderColor: bc.borders,
             borderWidth: 1.5,
-            borderRadius: 10,
+            borderRadius: 12,
             borderSkipped: false,
-            maxBarThickness: 48
+            maxBarThickness: 44
           }]
         },
         options: {
@@ -886,12 +1016,12 @@
           },
           scales: {
             x: {
-              title: { display: true, text: "Class", color: tick, font: { size: 11, weight: "600" } },
+              title: { display: true, text: "Classes", color: tick, font: { size: 11, weight: "600" } },
               ticks: { color: tick, maxRotation: 35, autoSkip: true, font: { size: 11 } },
               grid: { display: false }
             },
             y: {
-              title: { display: true, text: "Students", color: tick, font: { size: 11, weight: "600" } },
+              title: { display: true, text: "Student count", color: tick, font: { size: 11, weight: "600" } },
               beginAtZero: true,
               ticks: { color: tick, precision: 0, font: { size: 11 } },
               grid: { color: gridMaj }
@@ -912,25 +1042,27 @@
           datasets: [{
             data: gData,
             backgroundColor: [
-              "rgba(59, 130, 246, 0.82)",
-              "rgba(236, 72, 153, 0.82)",
+              "rgba(59, 130, 246, 0.85)",
+              "rgba(236, 72, 153, 0.85)",
               "rgba(139, 92, 246, 0.82)",
-              "rgba(148, 163, 184, 0.75)"
+              "rgba(148, 163, 184, 0.78)"
             ],
             borderColor: isDark ? "rgba(15,23,42,0.95)" : "#fff",
             borderWidth: 3,
-            hoverOffset: 10
+            hoverOffset: 12,
+            spacing: 2
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          cutout: "62%",
-          animation: { animateRotate: true, animateScale: true, duration: 900, easing: "easeOutCubic" },
+          cutout: "64%",
+          animation: { animateRotate: true, animateScale: true, duration: 1000, easing: "easeOutCubic" },
+          layout: { padding: { bottom: 8 } },
           plugins: {
             legend: {
               position: "bottom",
-              labels: { usePointStyle: true, padding: 14, font: { size: 11 } }
+              labels: { usePointStyle: true, padding: 16, font: { size: 11 } }
             },
             tooltip: Object.assign(commonTooltip(), {
               callbacks: {
@@ -945,6 +1077,16 @@
           }
         }
       });
+      var gdc = document.getElementById("genderDonutCenter");
+      if (gdc && bundle.genderCenterPrimary) {
+        gdc.removeAttribute("hidden");
+        var elP = document.getElementById("genderDonutPct");
+        var elL = document.getElementById("genderDonutLab");
+        var elE = document.getElementById("genderDonutExtra");
+        if (elP) elP.textContent = bundle.genderCenterPrimary;
+        if (elL) elL.textContent = bundle.genderCenterSub || "";
+        if (elE) elE.textContent = bundle.genderCenterExtra || "";
+      }
     }
 
     var admEl = document.getElementById("hubChartAdmissions");
@@ -960,15 +1102,16 @@
         data: {
           labels: admL,
           datasets: [{
-            label: "New profiles",
+            label: "Admissions",
             data: admC,
-            tension: 0.42,
+            tension: 0.4,
+            cubicInterpolationMode: "monotone",
             fill: true,
             backgroundColor: grad,
             borderColor: isDark ? "#38bdf8" : "#0284c7",
-            borderWidth: 2.5,
-            pointRadius: 5,
-            pointHoverRadius: 7,
+            borderWidth: 2.75,
+            pointRadius: 4,
+            pointHoverRadius: 8,
             pointBackgroundColor: isDark ? "#38bdf8" : "#0284c7",
             pointBorderColor: isDark ? "#0f172a" : "#fff",
             pointBorderWidth: 2
@@ -995,7 +1138,7 @@
               grid: { color: gridMin }
             },
             y: {
-              title: { display: true, text: "Count", color: tick, font: { size: 11, weight: "600" } },
+              title: { display: true, text: "Admissions", color: tick, font: { size: 11, weight: "600" } },
               beginAtZero: true,
               ticks: { color: tick, precision: 0, font: { size: 11 } },
               grid: { color: gridMaj }
@@ -1010,10 +1153,11 @@
     var fullL = bundle.hubAttendanceFull || [];
     var pcts = bundle.hubAttendancePcts || [];
     var presents = bundle.hubAttendancePresent || [];
+    var dayHints = bundle.hubAttendanceDayHints || [];
     if (lineEl && shortL.length && bundle.hubShowAttendance) {
       var lctx = lineEl.getContext("2d");
       var lg = lctx.createLinearGradient(0, 0, 0, lineEl.height || 300);
-      lg.addColorStop(0, isDark ? "rgba(16, 185, 129, 0.35)" : "rgba(16, 185, 129, 0.22)");
+      lg.addColorStop(0, isDark ? "rgba(16, 185, 129, 0.38)" : "rgba(16, 185, 129, 0.24)");
       lg.addColorStop(1, isDark ? "rgba(16, 185, 129, 0.02)" : "rgba(16, 185, 129, 0.02)");
       new Chart(lctx, {
         type: "line",
@@ -1022,16 +1166,21 @@
           datasets: [{
             label: "Attendance %",
             data: pcts,
-            tension: 0.45,
+            tension: 0.42,
+            cubicInterpolationMode: "monotone",
+            spanGaps: false,
             fill: true,
-            pointRadius: 5,
+            pointRadius: function (ctx) {
+              var v = ctx.raw;
+              return v === null || v === undefined ? 0 : 5;
+            },
             pointHoverRadius: 8,
             pointBackgroundColor: isDark ? "#34d399" : "#059669",
             pointBorderColor: isDark ? "#0f172a" : "#fff",
             pointBorderWidth: 2,
             borderColor: isDark ? "#34d399" : "#059669",
             backgroundColor: lg,
-            borderWidth: 2.5
+            borderWidth: 2.75
           }]
         },
         options: {
@@ -1050,9 +1199,14 @@
                 },
                 label: function (ctx) {
                   var i = ctx.dataIndex;
-                  var pr = presents[i] != null ? presents[i] : "—";
+                  var raw = ctx.raw;
+                  var hint = dayHints[i] || "";
+                  if (raw === null || raw === undefined) {
+                    return hint || "No school";
+                  }
+                  var pr = presents[i] != null && presents[i] !== undefined ? presents[i] : "—";
                   return [
-                    "Rate: " + ctx.parsed.y + "%",
+                    "Rate: " + raw + "%",
                     "Present: " + pr + " students"
                   ];
                 }
@@ -1061,7 +1215,7 @@
           },
           scales: {
             x: {
-              title: { display: true, text: "Day", color: tick, font: { size: 11, weight: "600" } },
+              title: { display: true, text: "Last 7 days", color: tick, font: { size: 11, weight: "600" } },
               ticks: { color: tick, font: { size: 11 } },
               grid: { color: gridMin }
             },
@@ -1120,6 +1274,129 @@
                 }
               }
             })
+          }
+        }
+      });
+    }
+
+    var caEl = document.getElementById("hubChartClassAttendance");
+    var caL = bundle.classAttendanceLabels || [];
+    var caP = bundle.classAttendancePcts || [];
+    if (caEl && caL.length && caP.length) {
+      var minP = Math.min.apply(null, caP);
+      var caBg = caP.map(function (p) {
+        var low = p <= minP + 2;
+        return low
+          ? (isDark ? "hsla(222, 62%, 38%, 0.88)" : "hsla(222, 78%, 44%, 0.9)")
+          : (isDark ? "hsla(199, 58%, 48%, 0.78)" : "hsla(199, 82%, 52%, 0.72)");
+      });
+      var caBd = caP.map(function (p) {
+        var low = p <= minP + 2;
+        return low
+          ? (isDark ? "hsl(222, 70%, 52%)" : "hsl(222, 85%, 36%)")
+          : (isDark ? "hsl(199, 65%, 55%)" : "hsl(199, 80%, 40%)");
+      });
+      new Chart(caEl.getContext("2d"), {
+        type: "bar",
+        data: {
+          labels: caL,
+          datasets: [{
+            label: "Attendance %",
+            data: caP,
+            backgroundColor: caBg,
+            borderColor: caBd,
+            borderWidth: 1.5,
+            borderRadius: 10,
+            borderSkipped: false,
+            maxBarThickness: 40
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: anim,
+          plugins: {
+            legend: { display: false },
+            tooltip: Object.assign(commonTooltip(), {
+              displayColors: false,
+              callbacks: {
+                label: function (ctx) { return "Attendance: " + ctx.parsed.y + "%"; }
+              }
+            })
+          },
+          scales: {
+            x: {
+              title: { display: true, text: "Class", color: tick, font: { size: 11, weight: "600" } },
+              ticks: { color: tick, maxRotation: 40, font: { size: 11 } },
+              grid: { display: false }
+            },
+            y: {
+              min: 0,
+              max: 100,
+              title: { display: true, text: "Attendance %", color: tick, font: { size: 11, weight: "600" } },
+              ticks: {
+                color: tick,
+                font: { size: 11 },
+                callback: function (v) { return v + "%"; }
+              },
+              grid: { color: gridMaj }
+            }
+          }
+        }
+      });
+    }
+
+    var ageEl = document.getElementById("hubChartAgeDistribution");
+    var ageL = bundle.ageLabels || [];
+    var ageC = bundle.ageCounts || [];
+    if (ageEl && ageL.length && ageC.length) {
+      var ageHue = isDark ? 265 : 250;
+      new Chart(ageEl.getContext("2d"), {
+        type: "bar",
+        data: {
+          labels: ageL,
+          datasets: [{
+            label: "Students",
+            data: ageC,
+            backgroundColor: ageL.map(function (_, i) {
+              var t = ageL.length > 1 ? i / (ageL.length - 1) : 0;
+              var l = isDark ? 44 + t * 8 : 52 + t * 6;
+              return "hsla(" + ageHue + ", 55%, " + l + "%, " + (isDark ? 0.78 : 0.72) + ")";
+            }),
+            borderColor: ageL.map(function () {
+              return isDark ? "hsla(" + ageHue + ", 50%, 58%, 0.95)" : "hsla(" + ageHue + ", 70%, 42%, 0.9)";
+            }),
+            borderWidth: 1.25,
+            borderRadius: 8,
+            borderSkipped: false,
+            maxBarThickness: 36
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: animShort,
+          plugins: {
+            legend: { display: false },
+            tooltip: Object.assign(commonTooltip(), {
+              displayColors: false,
+              callbacks: {
+                label: function (ctx) { return ctx.parsed.y + " students"; }
+              }
+            })
+          },
+          scales: {
+            x: {
+              title: { display: true, text: "Age band", color: tick, font: { size: 11, weight: "600" } },
+              ticks: { color: tick, maxRotation: 45, autoSkip: true, font: { size: 10 } },
+              grid: { display: false }
+            },
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: "Student count", color: tick, font: { size: 11, weight: "600" } },
+              ticks: { color: tick, precision: 0, font: { size: 11 } },
+              grid: { color: gridMaj }
+            }
           }
         }
       });

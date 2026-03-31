@@ -1,57 +1,117 @@
 {% load static %}
-<header class="erp-navbar flex-shrink-0 w-100 border-b border-slate-200/70 dark:border-slate-700/70 bg-white dark:bg-slate-900/95 backdrop-blur">
-  <div class="app-content-shell d-flex align-items-center justify-content-between py-0" style="height: 56px;">
-    <h1 class="text-base font-semibold tracking-tight text-slate-900 dark:text-slate-50 truncate mb-0">
-      {% if request.user.school %}{{ request.user.school.name }}{% else %}EduSaaS{% endif %}
-    </h1>
-    <div class="d-flex align-items-center gap-2">
-      {% if request.user.role == "SUPERADMIN" %}
-        <a href="{% url 'core:superadmin_enquiries' %}" class="text-decoration-none position-relative text-slate-900 dark:text-slate-50" aria-label="Enquiries">
-          <i class="bi bi-bell fs-5"></i>
+{% load nav_tags %}
+<header class="app-top-header topbar erp-navbar flex-shrink-0 w-100">
+  <div class="app-content-shell app-header-shell topbar-inner">
+    <div class="topbar-row">
+      <!-- LEFT: logo + school -->
+      <div class="topbar-left">
+        <div class="topbar-logo app-header-brand-mark{% if request.user.school and request.user.school.logo %} app-header-brand-mark--logo{% endif %}" aria-hidden="true">
+          {% if request.user.school and request.user.school.logo %}
+          <img src="{{ request.user.school.logo.url }}" alt="" class="app-header-brand-logo" width="40" height="40" loading="lazy" />
+          {% else %}
+          <span class="app-header-brand-initials">
+            {% if request.user.school %}{{ request.user.school.name|branding_initials }}{% else %}SE{% endif %}
+          </span>
+          {% endif %}
+        </div>
+        <div class="school-info app-header-brand-text min-w-0">
+          <h2 class="topbar-school-title app-header-school-name text-truncate">
+            {% if request.user.school %}{{ request.user.school.name }}{% else %}Campus ERP{% endif %}
+          </h2>
+          <span class="app-header-brand-subtitle topbar-school-sub text-truncate d-block">
+            {% if request.user.role == "SUPERADMIN" %}Platform administration
+            {% elif request.user.role == "ADMIN" %}School admin dashboard
+            {% elif request.user.role == "TEACHER" %}Teacher portal
+            {% elif request.user.role == "STUDENT" %}Student Portal
+            {% elif request.user.role == "PARENT" %}Parent portal
+            {% else %}Signed in{% endif %}
+          </span>
+        </div>
+      </div>
+
+      <!-- CENTER: optional page title (set context variable page_title) -->
+      <div class="topbar-center">
+        {% if page_title %}
+        <span class="topbar-page-title">{{ page_title }}</span>
+        {% endif %}
+      </div>
+
+      <!-- RIGHT: notification + theme + profile -->
+      <div class="topbar-right">
+        {% if request.user.role == "SUPERADMIN" %}
+        <a href="{% url 'core:superadmin_financials' %}" class="btn btn-link app-header-icon-slot text-body text-decoration-none app-header-icon-btn" title="Platform financials" aria-label="Financials">
+          <i class="bi bi-currency-exchange app-header-toolbar-icon"></i>
+        </a>
+        <a href="{% url 'core:superadmin_enrollments' %}" class="btn btn-link app-header-icon-slot text-body text-decoration-none app-header-icon-btn" title="School enrollments" aria-label="Enrollments">
+          <i class="bi bi-building-add app-header-toolbar-icon"></i>
+        </a>
+        <a href="{% url 'core:superadmin_enquiries' %}" class="btn btn-link app-header-icon-slot text-body text-decoration-none position-relative app-header-icon-btn" aria-label="Enquiries">
+          <i class="bi bi-bell app-header-toolbar-icon"></i>
           <span
             id="enquiriesBadge"
             data-url="{% url 'core:enquiries_unread_count_api' %}"
-            class="badge bg-primary position-absolute top-0 start-100 translate-middle rounded-pill"
+            class="badge app-header-notif-badge bg-primary position-absolute top-0 start-100 translate-middle rounded-pill"
             style="display: none; min-width: 18px; height: 18px; padding: 0; font-size: 11px;"
           >0</span>
         </a>
-        <script src="{% static 'js/enquiry.js' %}" defer></script>
-      {% endif %}
-      {% if request.user.role == "STUDENT" %}
-        <a href="{% url 'notifications:student_notifications' %}" class="text-decoration-none position-relative text-slate-900 dark:text-slate-50" aria-label="Notifications">
-          <i class="bi bi-bell fs-5"></i>
+        {% endif %}
+        {% if request.user.role == "STUDENT" %}
+        <a href="{% url 'notifications:student_notifications' %}" class="btn btn-link app-header-icon-slot text-body text-decoration-none position-relative app-header-icon-btn" aria-label="Notifications">
+          <i class="bi bi-bell app-header-toolbar-icon"></i>
           <span
             id="notif-count"
             data-url="{% url 'notifications:student_notifications_unread_count' %}"
-            class="badge bg-danger position-absolute top-0 start-100 translate-middle rounded-pill"
+            class="badge app-header-notif-badge bg-danger position-absolute top-0 start-100 translate-middle rounded-pill"
             style="display: none; min-width: 18px; height: 18px; padding: 0; font-size: 11px;"
           >0</span>
         </a>
-      {% endif %}
-      <button type="button" id="themeToggle" class="btn btn-link rounded-lg p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border-0 text-decoration-none" title="Toggle theme" aria-label="Toggle theme">
-        <i id="themeIcon" class="bi bi-moon-stars fs-5"></i>
-      </button>
-      <div class="dropdown">
-        <button class="btn btn-link d-flex align-items-center gap-2 rounded-lg px-2 py-1 text-decoration-none text-slate-900 dark:text-slate-50 hover:bg-slate-100 dark:hover:bg-slate-800 border-0" type="button" id="profileDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-          <div class="erp-avatar rounded-circle bg-indigo-600 text-white d-flex align-items-center justify-content-center flex-shrink-0" style="width: 36px; height: 36px; font-size: 14px; font-weight: 600;">
-            {% if request.user.get_full_name %}
-              {{ request.user.first_name|default:""|slice:":1" }}{{ request.user.last_name|default:""|slice:":1" }}
-            {% else %}
-              {{ request.user.username|slice:":2"|upper }}
-            {% endif %}
-          </div>
-          <span class="d-none d-sm-inline text-start" style="max-width: 140px;">
-            <span class="d-block text-sm fw-medium truncate">{{ request.user.get_full_name|default:request.user.username }}</span>
-          </span>
-          <i class="bi bi-chevron-down small"></i>
+        {% endif %}
+
+        <button type="button" id="themeToggle" class="btn btn-link app-header-icon-slot text-body-secondary border-0 text-decoration-none app-header-icon-btn" title="Toggle theme" aria-label="Toggle theme">
+          <i id="themeIcon" class="bi bi-moon-stars app-header-toolbar-icon"></i>
         </button>
-        <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 py-1 rounded-lg mt-1" style="min-width: 12rem;" aria-labelledby="profileDropdown">
-          {% if request.user.role == "STUDENT" %}
-          <li><a href="{% url 'core:student_profile' %}" class="dropdown-item py-2">Profile</a></li>
-          {% endif %}
-          <li><a href="{% url 'accounts:logout' %}" class="dropdown-item py-2 text-danger">Logout</a></li>
-        </ul>
+
+        <div class="topbar-profile dropdown app-header-profile-dropdown">
+          <button class="profile-trigger btn d-flex align-items-center gap-2 rounded-pill border-0 text-decoration-none text-body bg-transparent" type="button" id="profileDropdown" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false" aria-label="Account menu">
+            {% if request.user.role == "STUDENT" and request.user.student_profile.profile_image %}
+            <img src="{{ request.user.student_profile.profile_image.url }}" alt="" class="profile-avatar profile-avatar--img flex-shrink-0" width="36" height="36" loading="lazy" />
+            {% else %}
+            <span class="profile-avatar profile-avatar--initials flex-shrink-0 d-flex align-items-center justify-content-center fw-semibold" aria-hidden="true">
+              {% if request.user.first_name or request.user.last_name %}
+                {{ request.user.first_name|default:""|slice:":1" }}{{ request.user.last_name|default:""|slice:":1" }}
+              {% elif request.user.get_full_name %}
+                {{ request.user.get_full_name|branding_initials }}
+              {% else %}
+                {{ request.user.username|slice:":2"|upper }}
+              {% endif %}
+            </span>
+            {% endif %}
+            <span class="profile-first-name text-truncate d-none d-sm-inline fw-semibold">
+              {% if request.user.first_name %}
+                {{ request.user.first_name }}
+              {% elif request.user.get_full_name %}
+                {{ request.user.get_full_name|first_word }}
+              {% else %}
+                {{ request.user.username }}
+              {% endif %}
+            </span>
+            <i class="bi bi-chevron-down small text-body-secondary profile-chevron"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end app-header-dropdown-menu border-0 py-2 mt-2" aria-labelledby="profileDropdown">
+            {% if request.user.role == "STUDENT" %}
+            <li><a class="dropdown-item app-header-dropdown-item" href="{% url 'core:student_profile' %}"><i class="bi bi-person me-2 text-primary"></i>View Profile</a></li>
+            {% else %}
+            <li><a class="dropdown-item app-header-dropdown-item" href="{% url 'accounts:account_profile' %}"><i class="bi bi-person me-2 text-primary"></i>View Profile</a></li>
+            {% endif %}
+            <li><a class="dropdown-item app-header-dropdown-item" href="{% url 'accounts:change_password' %}"><i class="bi bi-gear me-2 text-body-secondary"></i>Settings</a></li>
+            <li><hr class="dropdown-divider my-2 opacity-25" /></li>
+            <li><a class="dropdown-item app-header-dropdown-item text-danger" href="{% url 'accounts:logout' %}"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
+          </ul>
+        </div>
       </div>
     </div>
   </div>
+  {% if request.user.role == "SUPERADMIN" %}
+  <script src="{% static 'js/enquiry.js' %}" defer></script>
+  {% endif %}
 </header>

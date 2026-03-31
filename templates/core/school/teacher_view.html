@@ -1,36 +1,211 @@
 {% extends "base.html" %}
-{% block title %}{{ teacher.user.get_full_name|default:teacher.user.username }} | View Teacher{% endblock %}
+{% block title %}{{ teacher.user.get_full_name|default:teacher.user.username }} | Teacher profile{% endblock %}
 {% block content %}
-<div class="container-fluid px-0">
+<style>
+  .teacher-profile-dash {
+    --tp-primary: #4f46e5;
+    --tp-primary-soft: rgba(79, 70, 229, 0.1);
+    --tp-bg: #f8fafc;
+    --tp-card: #ffffff;
+    --tp-label: #64748b;
+    --tp-value: #0f172a;
+    --tp-empty: #94a3b8;
+    --tp-radius: 1rem;
+    --tp-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 10px 28px rgba(15, 23, 42, 0.06);
+    background: var(--tp-bg);
+    margin: -0.5rem -1rem 0;
+    padding: 1.25rem 1rem 2rem;
+    border-radius: var(--tp-radius);
+  }
+  @media (min-width: 992px) {
+    .teacher-profile-dash { margin: -0.5rem -1.5rem 0; padding: 1.5rem 1.5rem 2.25rem; }
+  }
+  html.dark .teacher-profile-dash {
+    --tp-bg: rgba(15, 23, 42, 0.5);
+    --tp-card: rgba(30, 41, 59, 0.85);
+    --tp-label: #94a3b8;
+    --tp-value: #f1f5f9;
+    --tp-empty: #64748b;
+  }
+  .teacher-profile-dash .tp-card {
+    background: var(--tp-card);
+    border-radius: var(--tp-radius);
+    box-shadow: var(--tp-shadow);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+  }
+  html.dark .teacher-profile-dash .tp-card { border-color: rgba(148, 163, 184, 0.15); }
+  .teacher-profile-dash .tp-hero {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, var(--tp-card) 48%);
+    border: 1px solid rgba(79, 70, 229, 0.12);
+  }
+  .teacher-profile-dash .tp-avatar {
+    width: 112px; height: 112px; border-radius: 50%; object-fit: cover;
+    border: 3px solid #fff; box-shadow: 0 8px 24px rgba(79, 70, 229, 0.2);
+  }
+  .teacher-profile-dash .tp-avatar-fallback {
+    width: 112px; height: 112px; border-radius: 50%;
+    background: linear-gradient(145deg, var(--tp-primary), #6366f1); color: #fff;
+    font-size: 2rem; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  }
+  .teacher-profile-dash .tp-title { font-size: 1.5rem; font-weight: 700; color: var(--tp-value); }
+  .teacher-profile-dash .tp-section-title {
+    font-size: 0.95rem; font-weight: 700; color: var(--tp-value);
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  .teacher-profile-dash .tp-section-title i { color: var(--tp-primary); }
+  .teacher-profile-dash .tp-label {
+    font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--tp-label); margin-bottom: 0.2rem;
+  }
+  .teacher-profile-dash .tp-value { font-size: 0.95rem; font-weight: 600; color: var(--tp-value); }
+  .teacher-profile-dash .tp-empty { color: var(--tp-empty); font-weight: 500; }
+  .teacher-profile-dash .tp-btn-primary {
+    background: var(--tp-primary); border: none; color: #fff; font-weight: 600;
+    border-radius: 0.65rem; padding: 0.45rem 1rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem;
+  }
+  .teacher-profile-dash .tp-btn-primary:hover { background: #4338ca; color: #fff; }
+  .teacher-profile-dash .tp-btn-ghost {
+    border: 1px solid rgba(15, 23, 42, 0.12); background: var(--tp-card); color: var(--tp-value);
+    font-weight: 600; border-radius: 0.65rem; padding: 0.45rem 0.85rem; text-decoration: none;
+  }
+  .teacher-profile-dash .tp-btn-ghost:hover { border-color: var(--tp-primary); color: var(--tp-primary); }
+  .teacher-profile-dash .tp-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.35), transparent);
+    margin: 0.25rem 0 1rem;
+  }
+</style>
+
+<div class="teacher-profile-dash">
   <nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb">
-      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'core:school_teachers_list' %}">Teachers</a></li>
-      <li class="breadcrumb-item active">{{ teacher.user.get_full_name|default:teacher.user.username }}</li>
+    <ol class="breadcrumb mb-0 small">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_teachers_list' %}" class="text-decoration-none">Teachers</a></li>
+      <li class="breadcrumb-item active">Profile</li>
     </ol>
   </nav>
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h4 fw-bold mb-0">{{ teacher.user.get_full_name|default:teacher.user.username }}</h1>
-    <a href="{% url 'core:school_teacher_edit' teacher.id %}" class="btn btn-primary btn-sm" title="Edit" aria-label="Edit">
-      <i class="bi bi-pencil"></i>
-    </a>
+
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <a href="{% url 'core:school_teachers_list' %}" class="btn btn-sm tp-btn-ghost"><i class="bi bi-arrow-left me-1"></i> Back</a>
+    <a href="{% url 'core:school_teacher_edit' teacher.id %}" class="btn btn-sm tp-btn-primary"><i class="bi bi-pencil me-1"></i> Edit</a>
   </div>
-  <div class="card border-0 shadow-sm rounded-3">
-    <div class="card-body">
-      <dl class="row mb-0">
-        <dt class="col-sm-3">Employee ID</dt>
-        <dd class="col-sm-9">{{ teacher.employee_id|default:"—" }}</dd>
-        <dt class="col-sm-3">Name</dt>
-        <dd class="col-sm-9">{{ teacher.user.get_full_name|default:teacher.user.username }}</dd>
-        <dt class="col-sm-3">Phone</dt>
-        <dd class="col-sm-9">{{ teacher.phone_number|default:"—" }}</dd>
-        <dt class="col-sm-3">Qualification</dt>
-        <dd class="col-sm-9">{{ teacher.qualification|default:"—" }}</dd>
-        <dt class="col-sm-3">Subjects</dt>
-        <dd class="col-sm-9">{% for s in teacher.subjects.all %}<span class="badge bg-primary me-1">{{ s.name }}</span>{% empty %}—{% endfor %}</dd>
-        <dt class="col-sm-3">Assigned Classes</dt>
-        <dd class="col-sm-9">{% for c in teacher.classrooms.all %}<span class="badge bg-secondary me-1">{{ c.name }}</span>{% empty %}—{% endfor %}</dd>
-      </dl>
+
+  <div class="tp-card tp-hero p-4 mb-4">
+    <div class="row g-4 align-items-center">
+      <div class="col-auto">
+        {% if teacher.profile_image %}
+          <img src="{{ teacher.profile_image.url }}" class="tp-avatar" alt="">
+        {% else %}
+          <div class="tp-avatar-fallback" aria-hidden="true">
+            {% with u=teacher.user %}
+              {% if u.first_name and u.last_name %}{{ u.first_name|slice:":1"|upper }}{{ u.last_name|slice:":1"|upper }}
+              {% elif u.first_name %}{{ u.first_name|slice:":2"|upper }}
+              {% else %}{{ u.username|slice:":2"|upper }}{% endif %}
+            {% endwith %}
+          </div>
+        {% endif %}
+      </div>
+      <div class="col min-w-0">
+        <h1 class="tp-title mb-2">{{ teacher.user.get_full_name|default:teacher.user.username }}</h1>
+        <div class="d-flex flex-wrap gap-2 mb-2">
+          <span class="badge rounded-pill px-3 py-2" style="background: var(--tp-primary-soft); color: var(--tp-primary); font-weight: 600;">
+            <i class="bi bi-person-badge me-1"></i> {{ teacher.employee_id|default:"No employee ID" }}
+          </span>
+          {% if teacher.user.is_active %}<span class="badge rounded-pill text-bg-success">Active</span>{% else %}<span class="badge rounded-pill text-bg-secondary">Inactive</span>{% endif %}
+        </div>
+        <div class="small text-muted">Username <span class="fw-semibold font-monospace text-body">{{ teacher.user.username }}</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tp-card p-4 mb-4">
+    <h2 class="tp-section-title mb-3"><i class="bi bi-briefcase"></i> Professional</h2>
+    <div class="tp-divider"></div>
+    <div class="row g-3 g-lg-4">
+      <div class="col-6 col-md-4"><div class="tp-label">Qualification</div><div class="tp-value">{% if teacher.qualification %}{{ teacher.qualification }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="tp-label">Experience</div><div class="tp-value">{% if teacher.experience %}{{ teacher.experience }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="tp-label">Joining date</div><div class="tp-value">{% if professional.joining_date %}{{ professional.joining_date }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="tp-label">Designation</div><div class="tp-value">{% if professional.designation %}{{ professional.designation }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="tp-label">Department</div><div class="tp-value">{% if professional.department %}{{ professional.department }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-12"><div class="tp-label">Subjects</div><div class="tp-value">{% for s in teacher.subjects.all %}<span class="badge bg-primary bg-opacity-25 text-primary me-1">{{ s.name }}</span>{% empty %}<span class="tp-empty">Not assigned</span>{% endfor %}</div></div>
+      <div class="col-12"><div class="tp-label">Assigned classes</div><div class="tp-value">{% for c in teacher.classrooms.all %}<span class="badge bg-secondary bg-opacity-25 text-secondary me-1">{{ c.name }}</span>{% empty %}<span class="tp-empty">Not assigned</span>{% endfor %}</div></div>
+    </div>
+  </div>
+
+  <div class="tp-card p-4 mb-4">
+    <h2 class="tp-section-title mb-3"><i class="bi bi-person-badge"></i> Personal &amp; identity</h2>
+    <div class="tp-divider"></div>
+    <div class="row g-3 g-lg-4">
+      <div class="col-6 col-md-4"><div class="tp-label">First name</div><div class="tp-value">{% if teacher.user.first_name %}{{ teacher.user.first_name }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="tp-label">Middle name</div><div class="tp-value">{% if basic.middle_name %}{{ basic.middle_name }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="tp-label">Last name</div><div class="tp-value">{% if teacher.user.last_name %}{{ teacher.user.last_name }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="tp-label">Email</div><div class="tp-value text-break">{% if teacher.user.email %}{{ teacher.user.email }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="tp-label">Phone</div><div class="tp-value">{% if teacher.phone_number %}{{ teacher.phone_number }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="tp-label">Date of birth</div><div class="tp-value">{% if teacher.date_of_birth %}{{ teacher.date_of_birth|date:"F j, Y" }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="tp-label">Gender</div><div class="tp-value">{% if teacher.gender %}{{ teacher.get_gender_display }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="tp-label">Blood group</div><div class="tp-value">{% if basic.blood_group %}{{ basic.blood_group }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="tp-label">Aadhar / ID</div><div class="tp-value">{% if basic.id_number %}{{ basic.id_number }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="tp-label">Nationality</div><div class="tp-value">{% if basic.nationality %}{{ basic.nationality }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="tp-label">Religion</div><div class="tp-value">{% if basic.religion %}{{ basic.religion }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="tp-label">Mother tongue</div><div class="tp-value">{% if basic.mother_tongue %}{{ basic.mother_tongue }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+    </div>
+  </div>
+
+  <div class="tp-card p-4 mb-4">
+    <h2 class="tp-section-title mb-3"><i class="bi bi-geo-alt"></i> Contact &amp; address</h2>
+    <div class="tp-divider"></div>
+    <div class="row g-3 g-lg-4">
+      <div class="col-12"><div class="tp-label">Address</div><div class="tp-value">{% if address_line1 or address_line2 %}{{ address_line1 }}{% if address_line2 %}<br>{{ address_line2 }}{% endif %}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="tp-label">City</div><div class="tp-value">{% if contact.city %}{{ contact.city }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="tp-label">District</div><div class="tp-value">{% if contact.district %}{{ contact.district }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="tp-label">State</div><div class="tp-value">{% if contact.state %}{{ contact.state }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="tp-label">PIN</div><div class="tp-value">{% if contact.pincode %}{{ contact.pincode }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-6 col-md-4"><div class="tp-label">Country</div><div class="tp-value">{% if contact.country %}{{ contact.country }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+    </div>
+  </div>
+
+  <div class="tp-card p-4 mb-4">
+    <h2 class="tp-section-title mb-3"><i class="bi bi-people"></i> Family &amp; emergency</h2>
+    <div class="tp-divider"></div>
+    <div class="row g-3">
+      <div class="col-md-6"><div class="tp-label">Spouse name</div><div class="tp-value">{% if family.spouse_name %}{{ family.spouse_name }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-md-6"><div class="tp-label">Spouse phone</div><div class="tp-value">{% if family.spouse_phone %}{{ family.spouse_phone }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-md-6"><div class="tp-label">Emergency contact</div><div class="tp-value">{% if medical.emergency_contact_name %}{{ medical.emergency_contact_name }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-md-6"><div class="tp-label">Emergency phone</div><div class="tp-value">{% if medical.emergency_phone %}{{ medical.emergency_phone }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+    </div>
+  </div>
+
+  <div class="tp-card p-4 mb-4">
+    <h2 class="tp-section-title mb-3"><i class="bi bi-heart-pulse text-danger"></i> Medical</h2>
+    <div class="tp-divider"></div>
+    <div class="row g-3 g-lg-4">
+      <div class="col-md-6"><div class="tp-label">Allergies</div><div class="tp-value">{% if medical.allergies %}{{ medical.allergies }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-md-6"><div class="tp-label">Conditions</div><div class="tp-value">{% if medical.medical_conditions %}{{ medical.medical_conditions }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-md-4"><div class="tp-label">Doctor</div><div class="tp-value">{% if medical.doctor_name %}{{ medical.doctor_name }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-md-4"><div class="tp-label">Hospital</div><div class="tp-value">{% if medical.hospital %}{{ medical.hospital }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-md-4"><div class="tp-label">Insurance</div><div class="tp-value">{% if medical.insurance_details %}{{ medical.insurance_details }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+    </div>
+  </div>
+
+  <div class="tp-card p-4 mb-4">
+    <h2 class="tp-section-title mb-3"><i class="bi bi-bank"></i> Payroll</h2>
+    <div class="tp-divider"></div>
+    <div class="row g-3 g-lg-4">
+      <div class="col-md-6"><div class="tp-label">Bank</div><div class="tp-value">{% if payroll.bank_name %}{{ payroll.bank_name }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-md-6"><div class="tp-label">Account</div><div class="tp-value">{% if payroll.bank_account %}{{ payroll.bank_account }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-md-4"><div class="tp-label">IFSC</div><div class="tp-value">{% if payroll.ifsc %}{{ payroll.ifsc }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-md-4"><div class="tp-label">UAN / PF</div><div class="tp-value">{% if payroll.uan_number %}{{ payroll.uan_number }}{% else %}<span class="tp-empty">Not provided</span>{% endif %}</div></div>
+      <div class="col-md-4"><div class="tp-label">Record status</div><div class="tp-value">{% if status_block.record_status %}{{ status_block.record_status }}{% else %}—{% endif %}</div></div>
+    </div>
+  </div>
+
+  <div class="tp-card p-3 p-md-4 mb-0">
+    <h2 class="tp-section-title mb-3"><i class="bi bi-clock-history"></i> Audit</h2>
+    <div class="tp-divider"></div>
+    <div class="row g-3 small">
+      <div class="col-6 col-md-3"><div class="tp-label">Created on</div><div class="tp-value">{% if teacher.created_on %}{{ teacher.created_on|date:"M j, Y, g:i A" }}{% else %}<span class="tp-empty">—</span>{% endif %}</div></div>
+      <div class="col-6 col-md-3"><div class="tp-label">Created by</div><div class="tp-value">{% if teacher.created_by %}{{ teacher.created_by.get_full_name|default:teacher.created_by.username }}{% else %}<span class="tp-empty">—</span>{% endif %}</div></div>
+      <div class="col-6 col-md-3"><div class="tp-label">Last modified</div><div class="tp-value">{% if teacher.modified_on %}{{ teacher.modified_on|date:"M j, Y, g:i A" }}{% else %}<span class="tp-empty">—</span>{% endif %}</div></div>
+      <div class="col-6 col-md-3"><div class="tp-label">Modified by</div><div class="tp-value">{% if teacher.modified_by %}{{ teacher.modified_by.get_full_name|default:teacher.modified_by.username }}{% else %}<span class="tp-empty">—</span>{% endif %}</div></div>
     </div>
   </div>
 </div>

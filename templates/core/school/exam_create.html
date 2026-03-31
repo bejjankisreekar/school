@@ -123,21 +123,18 @@
       <div class="card shadow-sm border-0 rounded-4 p-4 exam-scheduler-card bg-body-tertiary bg-opacity-50 scheduler-accent">
         <h5 class="fw-semibold mb-3"><i class="bi bi-info-circle text-primary me-2"></i>Exam details</h5>
         <div class="row g-3 mb-4">
-          <div class="col-md-6">
+          <div class="col-md-8">
             <label class="form-label fw-semibold">Exam name <span class="text-danger">*</span></label>
             {{ scheduler_form.exam_name }}
             {% if scheduler_form.exam_name.errors %}<div class="text-danger small">{{ scheduler_form.exam_name.errors.0 }}</div>{% endif %}
             <div class="form-text">{{ scheduler_form.exam_name.help_text }}</div>
           </div>
-          <div class="col-md-3">
+          <div class="col-md-4">
             <label class="form-label fw-semibold">Total marks (each)</label>
             {{ scheduler_form.total_marks }}
           </div>
-          <div class="col-md-3">
-            <label class="form-label fw-semibold">Teacher <span class="text-muted fw-normal">(optional)</span></label>
-            {{ scheduler_form.teacher }}
-          </div>
         </div>
+        <p class="small text-muted mb-4">Assign a teacher per subject in the table below (or leave <strong>Auto</strong> to use the single mapped class teacher when there is exactly one).</p>
 
         <h5 class="fw-semibold mb-3"><i class="bi bi-diagram-3 text-primary me-2"></i>Select classes &amp; sections</h5>
         <div class="row g-3 mb-2">
@@ -154,15 +151,16 @@
         </div>
 
         <h5 class="fw-semibold mt-4 mb-3"><i class="bi bi-journal-bookmark text-primary me-2"></i>Subjects &amp; dates</h5>
-        <p class="small text-muted mb-2">Tick each subject to include; set the exam date beside it (same row).</p>
+        <p class="small text-muted mb-2">Tick each subject to include; set the exam date and optional teacher on the same row.</p>
 
-        <div class="table-responsive border rounded-3 bg-white shadow-sm" style="max-height: 420px;">
+        <div class="table-responsive border rounded-3 bg-white shadow-sm" style="max-height: 480px;">
           <table class="table table-hover align-middle mb-0" id="subjectScheduleTable">
             <thead class="table-light sticky-top">
               <tr>
                 <th style="width: 48px;" class="text-center">Include</th>
                 <th>Subject</th>
                 <th style="min-width: 200px;">Exam date</th>
+                <th style="min-width: 220px;">Teacher</th>
               </tr>
             </thead>
             <tbody>
@@ -180,9 +178,19 @@
                          class="form-control form-control-sm exam-date-input" disabled
                          data-subject-id="{{ sub.id }}" autocomplete="off">
                 </td>
+                <td>
+                  <select name="exam_teacher_{{ sub.id }}" id="exam_teacher_{{ sub.id }}"
+                          class="form-select form-select-sm exam-teacher-select" disabled
+                          data-subject-id="{{ sub.id }}" aria-label="Teacher for {{ sub.name }}">
+                    <option value="">Auto (mapped teacher)</option>
+                    {% for t in scheduler_teachers %}
+                    <option value="{{ t.id }}">{{ t.user.get_full_name|default:t.user.username }}</option>
+                    {% endfor %}
+                  </select>
+                </td>
               </tr>
               {% empty %}
-              <tr><td colspan="3" class="text-muted text-center py-4">No subjects in the catalog. Add subjects first.</td></tr>
+              <tr><td colspan="4" class="text-muted text-center py-4">No subjects in the catalog. Add subjects first.</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -291,14 +299,20 @@
       cb.addEventListener("change", function() {
         var sid = cb.value;
         var inp = document.querySelector("#exam_date_" + sid);
-        if (!inp) return;
-        if (cb.checked) {
-          inp.disabled = false;
-          inp.required = true;
-        } else {
-          inp.disabled = true;
-          inp.required = false;
-          inp.value = "";
+        var sel = document.querySelector("#exam_teacher_" + sid);
+        if (inp) {
+          if (cb.checked) {
+            inp.disabled = false;
+            inp.required = true;
+          } else {
+            inp.disabled = true;
+            inp.required = false;
+            inp.value = "";
+          }
+        }
+        if (sel) {
+          sel.disabled = !cb.checked;
+          if (!cb.checked) sel.value = "";
         }
         checkSchedulerConflicts();
       });
@@ -309,6 +323,16 @@
         checkSchedulerConflicts();
       });
     });
+    document.querySelectorAll("#subjectScheduleTable select.exam-teacher-select").forEach(function(sel) {
+      sel.addEventListener("change", checkSchedulerConflicts);
+    });
+  }
+
+  function teacherLabelForSid(sid) {
+    var sel = document.querySelector("#exam_teacher_" + sid);
+    if (!sel || !sel.value) return "Auto (mapped)";
+    var opt = sel.options[sel.selectedIndex];
+    return opt ? opt.text.trim() : "Auto (mapped)";
   }
 
   function skipSunday(inp) {
@@ -412,7 +436,7 @@
         var subjName = cb && cb.getAttribute("data-subject-name") ? cb.getAttribute("data-subject-name") : sid;
         var li = document.createElement("li");
         li.className = "mb-1 border-bottom pb-1";
-        li.textContent = "Session: " + examBase + " | " + p.cn + " · " + p.sn + " → " + subjName + " on " + dt;
+        li.textContent = "Session: " + examBase + " | " + p.cn + " · " + p.sn + " → " + subjName + " on " + dt + " · Teacher: " + teacherLabelForSid(sid);
         ul.appendChild(li);
       });
     });

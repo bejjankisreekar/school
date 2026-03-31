@@ -2,139 +2,301 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Report Card - {{ exam.name }} - {{ student.user.get_full_name|default:student.user.username }}</title>
+  <title>Report card — {{ report_title }} — {{ student.user.get_full_name|default:student.user.username }}</title>
   <style>
-    body { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; }
-    h1, h2, h3, h4 { margin: 0; padding: 0; }
-    .text-center { text-align: center; }
-    .text-right { text-align: right; }
-    .mt-1 { margin-top: 4px; }
-    .mt-2 { margin-top: 8px; }
-    .mt-3 { margin-top: 12px; }
-    .mb-1 { margin-bottom: 4px; }
-    .mb-2 { margin-bottom: 8px; }
-    .mb-3 { margin-bottom: 12px; }
-    .small { font-size: 8pt; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border: 1px solid #444; padding: 4px 6px; }
-    th { background: #f0f0f0; }
-    .no-border td, .no-border th { border: none; }
-    .header-table td { vertical-align: middle; }
-    .signature-line { margin-top: 24px; }
-    .signature-line span { display: inline-block; border-top: 1px solid #444; padding-top: 2px; min-width: 120px; text-align: center; }
+    @page { size: A4; margin: 14mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: Helvetica, Arial, sans-serif;
+      font-size: 9.5pt;
+      color: #0f172a;
+      line-height: 1.4;
+      margin: 0;
+      padding: 0;
+    }
+    table { border-collapse: collapse; }
+    .rc-header {
+      width: 100%;
+      table-layout: fixed;
+      border: 1.5pt solid #94a3b8;
+      margin-bottom: 11pt;
+      background: #f8fafc;
+    }
+    .rc-header col.rc-c-logo { width: 9%; }
+    .rc-header col.rc-c-school { width: 53%; }
+    .rc-header col.rc-c-exam { width: 38%; }
+    .rc-header td {
+      padding: 10pt 9pt;
+      vertical-align: top;
+    }
+    .rc-logo { text-align: center; padding-left: 5pt; padding-right: 5pt; }
+    .rc-logo img { max-width: 56pt; max-height: 56pt; display: block; margin: 0 auto; }
+    .rc-school-pdf {
+      text-align: left;
+      padding-left: 3pt;
+      padding-right: 11pt;
+    }
+    .rc-school {
+      font-size: 15pt;
+      font-weight: 700;
+      color: #312e81;
+      margin: 0 0 4pt 0;
+      line-height: 1.2;
+    }
+    .rc-muted { color: #475569; font-size: 8.5pt; margin: 0; line-height: 1.35; }
+    .rc-exam {
+      border-left: 1pt solid #cbd5e1;
+      padding-left: 11pt !important;
+      padding-right: 8pt !important;
+    }
+    .rc-label {
+      font-size: 6.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 700;
+      color: #64748b;
+      margin: 0 0 4pt 0;
+    }
+    .rc-exam-title {
+      font-size: 10pt;
+      font-weight: 700;
+      margin: 0 0 5pt 0;
+      line-height: 1.35;
+    }
+    .rc-exam-meta { margin: 0 0 3pt 0; line-height: 1.45; }
+    .rc-section-title {
+      font-size: 9.5pt;
+      font-weight: 700;
+      margin: 10pt 0 6pt 0;
+      color: #0f172a;
+    }
+    .rc-student {
+      width: 100%;
+      margin-bottom: 10pt;
+      border-bottom: 0.5pt solid #e2e8f0;
+    }
+    .rc-student td {
+      width: 20%;
+      padding: 5pt 8pt 8pt 0;
+      vertical-align: top;
+    }
+    .rc-student .rc-lbl {
+      font-size: 6.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      font-weight: 700;
+      margin: 0 0 2pt 0;
+    }
+    .rc-student .rc-val { font-weight: 700; font-size: 9.5pt; margin: 0; }
+    .rc-marks {
+      width: 100%;
+      border: 1pt solid #94a3b8;
+      table-layout: fixed;
+    }
+    .rc-marks th {
+      background: #e2e8f0;
+      color: #334155;
+      font-size: 6.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 700;
+      padding: 7pt 6pt;
+      text-align: left;
+      border-bottom: 2pt solid #cbd5e1;
+    }
+    .rc-marks td {
+      padding: 6pt 6pt;
+      border-bottom: 0.75pt solid #e2e8f0;
+      vertical-align: middle;
+      font-size: 9pt;
+    }
+    .rc-marks tr:last-child td { border-bottom: none; }
+    .rc-marks .w-subj { width: 22%; }
+    .rc-marks .w-date { width: 14%; }
+    .rc-marks .w-teach { width: 20%; }
+    .rc-marks .w-num { width: 11%; text-align: right; }
+    .rc-marks .w-gr { width: 11%; text-align: center; }
+    .rc-grade {
+      display: inline-block;
+      padding: 2pt 8pt;
+      border: 1pt solid #6366f1;
+      border-radius: 999pt;
+      font-weight: 700;
+      font-size: 8.5pt;
+      color: #312e81;
+      background: #eef2ff;
+    }
+    .rc-totals {
+      width: 100%;
+      margin-top: 11pt;
+      padding-top: 8pt;
+      border-top: 1pt solid #cbd5e1;
+    }
+    .rc-totals td {
+      width: 33%;
+      vertical-align: top;
+      padding: 4pt 8pt 0 0;
+    }
+    .rc-totals .rc-big { font-size: 12pt; font-weight: 700; margin: 2pt 0 0 0; }
+    .rc-foot {
+      width: 100%;
+      margin-top: 8pt;
+      font-size: 8.5pt;
+      color: #475569;
+    }
+    .rc-sig {
+      width: 100%;
+      margin-top: 16pt;
+    }
+    .rc-sig td {
+      width: 50%;
+      text-align: center;
+      padding-top: 4pt;
+      vertical-align: top;
+    }
+    .rc-sig span {
+      display: inline-block;
+      border-top: 1pt solid #475569;
+      padding-top: 4pt;
+      min-width: 130pt;
+      font-size: 8.5pt;
+      color: #475569;
+    }
   </style>
 </head>
 <body>
-  <!-- Header -->
-  <table class="header-table no-border" width="100%">
+
+  <table class="rc-header">
+    <colgroup>
+      <col class="rc-c-logo">
+      <col class="rc-c-school">
+      <col class="rc-c-exam">
+    </colgroup>
     <tr>
-      <td width="20%" class="text-center">
+      <td class="rc-logo">
         {% if school and school.logo %}
-          <img src="{{ school.logo.url }}" alt="Logo" style="max-width:80px; max-height:80px;">
-        {% else %}
-          <strong>{{ school.name }}</strong>
+        <img src="{{ school.logo.url }}" alt="">
         {% endif %}
       </td>
-      <td width="60%" class="text-center">
-        <h1>{{ school.name }}</h1>
-        {% if school.address %}<p class="small">{{ school.address }}</p>{% endif %}
-        {% if academic_year %}<p class="small mb-1">Academic Year: {{ academic_year }}</p>{% endif %}
-        <h3 class="mt-1">Report Card</h3>
+      <td class="rc-school-pdf">
+        <p class="rc-school">{{ school.name|default:"School" }}</p>
+        {% if school.address %}<p class="rc-muted" style="white-space:pre-line;">{{ school.address }}</p>{% endif %}
+        <p class="rc-muted rc-exam-meta" style="margin-top:4pt;">
+          {% if school.phone %}Tel: {{ school.phone }} &nbsp; {% endif %}
+          {% if school.contact_email %}Email: {{ school.contact_email }}{% endif %}
+        </p>
       </td>
-      <td width="20%" class="text-right small">
-        <p>Date: {{ exam.date|default:today }}</p>
+      <td class="rc-exam">
+        <p class="rc-label">Examination</p>
+        <p class="rc-exam-title">{{ report_title }}</p>
+        <p class="rc-muted rc-exam-meta">
+          <strong>Date:</strong>
+          {% if exam_date_display %} {{ exam_date_display|date:"F j, Y" }}
+          {% elif exam_date_range %} {{ exam_date_range.0|date:"M j, Y" }} – {{ exam_date_range.1|date:"M j, Y" }}
+          {% else %} —{% endif %}
+        </p>
+        {% if academic_year %}
+        <p class="rc-muted rc-exam-meta"><strong>Academic year:</strong> {{ academic_year }}</p>
+        {% endif %}
+        <p class="rc-muted rc-exam-meta"><strong>Issued:</strong> {{ today|date:"F j, Y" }}</p>
       </td>
     </tr>
   </table>
 
-  <!-- Student Details -->
-  <h4 class="mt-3 mb-2">Student Details</h4>
-  <table class="no-border" width="100%">
+  <p class="rc-section-title">Student details</p>
+  <table class="rc-student">
     <tr>
-      <td><strong>Name:</strong> {{ student.user.get_full_name|default:student.user.username }}</td>
-      <td><strong>Admission No:</strong> {{ student.admission_number|default:"-" }}</td>
-    </tr>
-    <tr>
-      <td><strong>Class:</strong> {% if student.classroom %}{{ student.classroom.name }}{% else %}-{% endif %}</td>
-      <td><strong>Section:</strong> {% if student.section %}{{ student.section.name }}{% else %}-{% endif %}</td>
-    </tr>
-    <tr>
-      <td><strong>Roll No:</strong> {{ student.roll_number|default:"-" }}</td>
-      <td></td>
+      <td>
+        <p class="rc-lbl">Student</p>
+        <p class="rc-val">{{ student.user.get_full_name|default:student.user.username }}</p>
+      </td>
+      <td>
+        <p class="rc-lbl">Class</p>
+        <p class="rc-val">{% if student.classroom %}{{ student.classroom.name }}{% else %}—{% endif %}</p>
+      </td>
+      <td>
+        <p class="rc-lbl">Section</p>
+        <p class="rc-val">{% if student.section %}{{ student.section.name }}{% else %}—{% endif %}</p>
+      </td>
+      <td>
+        <p class="rc-lbl">Roll no.</p>
+        <p class="rc-val">{{ student.roll_number|default:"—" }}</p>
+      </td>
+      <td>
+        <p class="rc-lbl">Admission</p>
+        <p class="rc-val">{{ student.admission_number|default:"—" }}</p>
+      </td>
     </tr>
   </table>
 
-  <!-- Exam Details -->
-  <h4 class="mt-3 mb-2">Exam Details</h4>
-  <table class="no-border" width="100%">
-    <tr>
-      <td><strong>Exam Name:</strong> {{ exam.name }}</td>
-      <td><strong>Exam Date:</strong> {{ exam.date }}</td>
-    </tr>
-  </table>
-
-  <!-- Marks Table -->
-  <h4 class="mt-3 mb-2">Marks</h4>
-  <table>
+  <p class="rc-section-title">Subject-wise performance</p>
+  <table class="rc-marks">
     <thead>
       <tr>
-        <th>Subject</th>
-        <th>Marks Obtained</th>
-        <th>Total Marks</th>
-        <th>Percentage</th>
-        <th>Grade</th>
+        <th class="w-subj" style="padding-left:8pt;">Subject</th>
+        <th class="w-date">Exam date</th>
+        <th class="w-teach">Teacher</th>
+        <th class="w-num">Marks</th>
+        <th class="w-num">Total</th>
+        <th class="w-num">%</th>
+        <th class="w-gr" style="padding-right:8pt;">Grade</th>
       </tr>
     </thead>
     <tbody>
       {% for row in rows %}
       <tr>
-        <td>{{ row.subject }}</td>
-        <td class="text-center">{{ row.marks_obtained }}</td>
-        <td class="text-center">{{ row.total_marks }}</td>
-        <td class="text-center">{{ row.pct }}%</td>
-        <td class="text-center">{{ row.grade }}</td>
+        <td class="w-subj" style="padding-left:8pt; font-weight:700;">{{ row.subject }}</td>
+        <td class="w-date rc-muted">{% if row.paper_date %}{{ row.paper_date|date:"M j, Y" }}{% else %}—{% endif %}</td>
+        <td class="w-teach rc-muted" style="font-size:8pt;">{{ row.teacher_name }}</td>
+        <td class="w-num">{% if row.marks_obtained is not None %}{{ row.marks_obtained }}{% else %}—{% endif %}</td>
+        <td class="w-num rc-muted">{{ row.total_marks }}</td>
+        <td class="w-num">{% if row.pct is not None %}{{ row.pct }}%{% else %}—{% endif %}</td>
+        <td class="w-gr" style="padding-right:8pt;"><span class="rc-grade">{{ row.grade }}</span></td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
 
-  <!-- Totals -->
-  <table class="no-border" width="100%">
+  <table class="rc-totals">
     <tr>
-      <td><strong>Total Marks:</strong> {{ total_obtained }} / {{ total_max }}</td>
-      <td><strong>Overall Percentage:</strong> {{ overall_pct }}%</td>
-      <td><strong>Overall Grade:</strong> {{ overall_grade }}</td>
+      <td>
+        <p class="rc-label">Total marks</p>
+        <p class="rc-big">{% if total_max %}{{ total_obtained }} / {{ total_max }}{% else %}—{% endif %}</p>
+      </td>
+      <td>
+        <p class="rc-label">Overall %</p>
+        <p class="rc-big" style="color:#2563eb;">{% if overall_pct is not None %}{{ overall_pct }}%{% else %}—{% endif %}</p>
+      </td>
+      <td>
+        <p class="rc-label">Overall grade</p>
+        <p class="rc-big">{{ overall_grade }}</p>
+      </td>
     </tr>
   </table>
 
-  <!-- Attendance -->
-  <h4 class="mt-3 mb-2">Attendance</h4>
-  <table class="no-border" width="100%">
+  <table class="rc-foot">
     <tr>
-      <td><strong>Attendance %:</strong> {{ attendance_pct }}%</td>
-      <td><strong>Present Days:</strong> {{ present_att_days }}</td>
-      <td><strong>Total Days:</strong> {{ total_att_days }}</td>
+      <td style="width:40%; vertical-align:top; padding-top:6pt;">
+        <strong>Attendance</strong><br>
+        {{ attendance_pct }}% ({{ present_att_days }} / {{ total_att_days }} days)
+      </td>
+      {% if ai_remarks %}
+      <td style="width:60%; vertical-align:top; padding-top:6pt;">
+        <strong>Summary</strong><br>
+        {{ ai_remarks }}
+      </td>
+      {% else %}
+      <td style="width:60%;"></td>
+      {% endif %}
     </tr>
   </table>
 
-  <!-- Remarks -->
-  <h4 class="mt-3 mb-2">Remarks</h4>
-  {% if ai_remarks %}
-  <p class="small mb-1"><strong>AI Summary:</strong> {{ ai_remarks }}</p>
-  {% endif %}
-  <p class="small" style="min-height:50px;">Teacher Remarks: ________________________________________________</p>
-
-  <!-- Signatures -->
-  <div class="signature-line">
-    <table class="no-border" width="100%">
-      <tr>
-        <td class="text-center"><span>Class Teacher</span></td>
-        <td class="text-center"><span>Principal</span></td>
-      </tr>
-    </table>
-  </div>
-
-  <p class="small text-center mt-3">Generated by EduSaaS</p>
+  <table class="rc-sig">
+    <tr>
+      <td><span>Class teacher</span></td>
+      <td><span>Principal</span></td>
+    </tr>
+  </table>
 </body>
 </html>
-

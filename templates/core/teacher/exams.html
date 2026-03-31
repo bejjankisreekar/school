@@ -1,57 +1,195 @@
 {% extends "base.html" %}
 {% block title %}Exam Management | School ERP{% endblock %}
 
+{% block extra_head %}
+<style>
+  .teacher-exam-card {
+    border-radius: 14px;
+    border: 1px solid var(--bs-border-color-translucent);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+    transition: box-shadow 0.2s ease, transform 0.15s ease;
+    height: 100%;
+    overflow: hidden;
+  }
+  html.dark .teacher-exam-card {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  }
+  .teacher-exam-card:hover {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+  }
+  html.dark .teacher-exam-card:hover {
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  }
+  .teacher-exam-card-head {
+    background: linear-gradient(135deg, rgba(13, 110, 253, 0.12) 0%, rgba(13, 202, 240, 0.08) 100%);
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+    padding: 1rem 1.15rem;
+  }
+  .teacher-exam-paper-card-head {
+    background: linear-gradient(135deg, rgba(25, 135, 84, 0.1) 0%, rgba(13, 202, 240, 0.06) 100%);
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+    padding: 1rem 1.15rem;
+  }
+  .teacher-exam-card-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.35;
+    color: var(--bs-body-color);
+    margin: 0;
+  }
+  .teacher-exam-meta-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    margin-bottom: 0.45rem;
+  }
+  .teacher-exam-meta-row:last-child { margin-bottom: 0; }
+  .teacher-exam-meta-label {
+    flex-shrink: 0;
+    width: 4.5rem;
+    color: var(--bs-secondary-color);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding-top: 0.1rem;
+  }
+  .teacher-exam-meta-value { flex: 1; min-width: 0; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:teacher_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Exams</li>
+    </ol>
+  </nav>
+
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
     <div>
       <h1 class="h4 fw-bold mb-1">Exam Management</h1>
-      <p class="text-muted small mb-0">Exams assigned to you (or open in your class/section). Enter marks per subject for your students.</p>
+      <p class="text-muted small mb-0">Sessions group subject papers. Open a session to work on marks per subject.</p>
     </div>
-    <a href="{% url 'core:teacher_exam_create' %}" class="btn btn-primary">
-      <i class="bi bi-plus-lg me-1"></i> Create Exam
+    <a href="{% url 'core:teacher_exam_create' %}" class="btn btn-primary rounded-pill shadow-sm">
+      <i class="bi bi-plus-lg me-1"></i> Add exam paper
     </a>
   </div>
 
-  <div class="card border-0 shadow-sm rounded-4">
-    <div class="card-header bg-white border-0 pt-4">
-      <h5 class="mb-0"><i class="bi bi-journal-text me-2"></i>Exams</h5>
-    </div>
-    <div class="card-body p-0">
-      {% if exams %}
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Exam Name</th>
-              <th>Subject</th>
-              <th>Class</th>
-              <th>Section</th>
-              <th>Exam Date</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for e in exams %}
-            <tr>
-              <td>{{ e.name }}</td>
-              <td class="small">{% if e.subject %}{{ e.subject.name }}{% else %}<span class="text-muted">All mapped subjects</span>{% endif %}</td>
-              <td>{{ e.class_name }}</td>
-              <td>{{ e.section }}</td>
-              <td>{{ e.date }}</td>
-              <td>
-                <a href="{% url 'core:teacher_exam_summary' e.id %}" class="btn btn-sm btn-outline-primary me-1">Summary</a>
-                <a href="{% url 'core:teacher_exam_enter_marks' e.id %}" class="btn btn-sm btn-outline-success">Enter Marks</a>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+  {% if exam_session_groups %}
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <h2 class="h6 fw-bold mb-0"><i class="bi bi-collection me-2 text-primary"></i>Exam sessions</h2>
+    <span class="badge rounded-pill bg-body-secondary text-body border">{{ exam_session_groups|length }} session{{ exam_session_groups|length|pluralize }}</span>
+  </div>
+  <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3 mb-4">
+    {% for g in exam_session_groups %}
+    <div class="col">
+      <div class="card teacher-exam-card bg-body">
+        <div class="teacher-exam-card-head">
+          <h3 class="teacher-exam-card-title">{{ g.session.name }}</h3>
+        </div>
+        <div class="card-body p-3 d-flex flex-column">
+          <div class="teacher-exam-meta-row">
+            <span class="teacher-exam-meta-label">Class</span>
+            <span class="teacher-exam-meta-value fw-semibold">{{ g.session.class_name }}</span>
+          </div>
+          <div class="teacher-exam-meta-row">
+            <span class="teacher-exam-meta-label">Section</span>
+            <span class="teacher-exam-meta-value"><span class="badge rounded-pill bg-info bg-opacity-25 text-info-emphasis">{{ g.session.section }}</span></span>
+          </div>
+          <div class="teacher-exam-meta-row">
+            <span class="teacher-exam-meta-label">Papers</span>
+            <span class="teacher-exam-meta-value">{{ g.papers|length }} subject{{ g.papers|length|pluralize }}</span>
+          </div>
+          <div class="teacher-exam-meta-row">
+            <span class="teacher-exam-meta-label">Dates</span>
+            <span class="teacher-exam-meta-value">
+              {% if g.date_min and g.date_max %}
+                {% if g.date_min == g.date_max %}{{ g.date_min|date:"M j, Y" }}{% else %}{{ g.date_min|date:"M j" }} – {{ g.date_max|date:"M j, Y" }}{% endif %}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </span>
+          </div>
+          {% if g.session.created_by %}
+          <div class="teacher-exam-meta-row">
+            <span class="teacher-exam-meta-label">By</span>
+            <span class="teacher-exam-meta-value text-muted">{{ g.session.created_by.get_full_name|default:g.session.created_by.username }}</span>
+          </div>
+          {% endif %}
+          <div class="mt-3 pt-2 border-top border-opacity-50">
+            <a href="{% url 'core:teacher_exam_session_detail' g.session.id %}" class="btn btn-primary btn-sm w-100 rounded-pill">
+              <i class="bi bi-box-arrow-in-right me-1"></i> Open session
+            </a>
+          </div>
+        </div>
       </div>
-      {% else %}
-      <p class="text-muted text-center py-5 mb-0">No exams yet. Click <strong>Create Exam</strong> to add one.</p>
-      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <h2 class="h6 fw-bold mb-0"><i class="bi bi-journal-text me-2 text-success"></i>{% if exam_session_groups %}Standalone papers{% else %}Your exams{% endif %}</h2>
+    {% if standalone_papers %}
+    <span class="badge rounded-pill bg-body-secondary text-body border">{{ standalone_papers|length }} paper{{ standalone_papers|length|pluralize }}</span>
+    {% endif %}
+  </div>
+  {% if exam_session_groups %}
+  <p class="small text-muted mb-3">Single-subject exams not linked to a session.</p>
+  {% endif %}
+
+  {% if standalone_papers %}
+  <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
+    {% for e in standalone_papers %}
+    <div class="col">
+      <div class="card teacher-exam-card bg-body">
+        <div class="teacher-exam-paper-card-head">
+          <h3 class="teacher-exam-card-title">{{ e.name }}</h3>
+        </div>
+        <div class="card-body p-3 d-flex flex-column">
+          <div class="teacher-exam-meta-row">
+            <span class="teacher-exam-meta-label">Subject</span>
+            <span class="teacher-exam-meta-value">{% if e.subject %}<span class="badge rounded-pill bg-primary bg-opacity-25 text-primary-emphasis">{{ e.subject.name }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</span>
+          </div>
+          <div class="teacher-exam-meta-row">
+            <span class="teacher-exam-meta-label">Class</span>
+            <span class="teacher-exam-meta-value fw-semibold">{{ e.class_name }}</span>
+          </div>
+          <div class="teacher-exam-meta-row">
+            <span class="teacher-exam-meta-label">Section</span>
+            <span class="teacher-exam-meta-value"><span class="badge rounded-pill bg-secondary bg-opacity-25 text-secondary-emphasis">{{ e.section }}</span></span>
+          </div>
+          <div class="teacher-exam-meta-row">
+            <span class="teacher-exam-meta-label">Date</span>
+            <span class="teacher-exam-meta-value">{% if e.date %}{{ e.date|date:"M j, Y" }}{% else %}<span class="text-muted">—</span>{% endif %}</span>
+          </div>
+          <div class="mt-3 pt-2 border-top border-opacity-50 d-flex flex-wrap gap-2">
+            <a href="{% url 'core:teacher_exam_summary' e.id %}" class="btn btn-outline-primary btn-sm flex-grow-1 rounded-pill">Summary</a>
+            <a href="{% url 'core:teacher_exam_enter_marks' e.id %}" class="btn btn-success btn-sm flex-grow-1 rounded-pill">Enter marks</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% elif not exam_session_groups %}
+  <div class="card border border-dashed rounded-4 bg-body-secondary bg-opacity-25">
+    <div class="card-body text-center text-muted py-5 px-4">
+      <i class="bi bi-inbox fs-1 d-block mb-3 opacity-50"></i>
+      <p class="mb-2 fw-medium text-body">No exams yet</p>
+      <p class="small mb-0">Use <strong>Add exam paper</strong> to create a session and subject papers.</p>
     </div>
   </div>
+  {% else %}
+  <div class="card border-0 shadow-sm rounded-4 bg-body-secondary bg-opacity-25">
+    <div class="card-body text-center text-muted py-4">
+      <p class="mb-0 small">No standalone papers — all your exams are under sessions above.</p>
+    </div>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

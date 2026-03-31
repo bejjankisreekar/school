@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Subscription payments received | Platform{% endblock %}
+{% block extra_head %}
+<style>
+  .sa-pay-log-card { border-radius: 1rem; border: 1px solid var(--bs-border-color-translucent); }
+  .sa-pay-stat { border-radius: 0.875rem; border: 1px solid var(--bs-border-color-translucent); transition: box-shadow 0.15s ease; }
+  .sa-pay-stat:hover { box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,0.06); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:super_admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Payments received</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+    <div>
+      <h1 class="h4 fw-bold mb-1">Subscription payments received</h1>
+      <p class="text-muted small mb-0">
+        Money the platform receives from schools (SaaS fees). Separate from student fee collection inside each tenant.
+      </p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="{% url 'core:superadmin_billing_sales' %}" class="btn btn-outline-primary btn-sm rounded-pill">
+        <i class="bi bi-graph-up-arrow me-1"></i> Billing &amp; collections
+      </a>
+      <a href="{% url 'core:superadmin_record_subscription_payment' %}" class="btn btn-primary btn-sm rounded-pill shadow-sm">
+        <i class="bi bi-plus-lg me-1"></i> Record payment
+      </a>
+      <a href="{% url 'core:superadmin_financials' %}" class="btn btn-outline-secondary btn-sm rounded-pill">Financials</a>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-sm-4">
+      <div class="card sa-pay-stat border-0 shadow-sm h-100 bg-body">
+        <div class="card-body">
+          <p class="text-muted small text-uppercase mb-1" style="letter-spacing:0.04em;">This month</p>
+          <p class="h5 fw-bold mb-0 text-primary">₹{{ month_total }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-4">
+      <div class="card sa-pay-stat border-0 shadow-sm h-100 bg-body">
+        <div class="card-body">
+          <p class="text-muted small text-uppercase mb-1" style="letter-spacing:0.04em;">Year to date</p>
+          <p class="h5 fw-bold mb-0">₹{{ year_total }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-4">
+      <div class="card sa-pay-stat border-0 shadow-sm h-100 bg-body">
+        <div class="card-body">
+          <p class="text-muted small text-uppercase mb-1" style="letter-spacing:0.04em;">All time</p>
+          <p class="h5 fw-bold mb-0">₹{{ all_total }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card sa-pay-log-card border-0 shadow-sm overflow-hidden bg-body">
+    <div class="card-header bg-body-secondary border-0 py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <h2 class="h6 fw-bold mb-0"><i class="bi bi-journal-text me-2 text-primary"></i>Payment log</h2>
+      <span class="badge rounded-pill bg-body-secondary text-body border">{{ payments.paginator.count }} record{{ payments.paginator.count|pluralize }}</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="text-nowrap">Paid on</th>
+            <th>School</th>
+            <th class="text-end">Amount</th>
+            <th class="text-nowrap">Method</th>
+            <th>References</th>
+            <th class="text-nowrap">Service period</th>
+            <th class="text-nowrap">Recorded</th>
+            <th class="text-end text-nowrap">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in payments %}
+          <tr>
+            <td class="text-nowrap small">
+              <span class="fw-semibold">{{ p.payment_date|date:"M j, Y" }}</span>
+            </td>
+            <td>
+              <span class="badge rounded-pill bg-primary-subtle text-primary-emphasis me-1">{{ p.school.code }}</span>
+              <span class="small">{{ p.school.name }}</span>
+            </td>
+            <td class="text-end font-monospace fw-semibold">₹{{ p.amount }}</td>
+            <td class="small text-muted">{{ p.get_payment_method_display }}</td>
+            <td class="small">
+              {% if p.reference %}<span class="text-body">{{ p.reference }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
+              {% if p.internal_receipt_no %}
+                <span class="d-block mt-1"><span class="badge rounded-pill bg-light text-secondary border fw-normal">{{ p.internal_receipt_no }}</span></span>
+              {% endif %}
+            </td>
+            <td class="small text-muted text-nowrap">
+              {% if p.service_period_start or p.service_period_end %}
+                {% if p.service_period_start %}{{ p.service_period_start|date:"M j, Y" }}{% else %}…{% endif %}
+                →
+                {% if p.service_period_end %}{{ p.service_period_end|date:"M j, Y" }}{% else %}…{% endif %}
+              {% else %}—{% endif %}
+            </td>
+            <td class="small text-muted">
+              {% if p.recorded_by %}<span class="text-body">{{ p.recorded_by.get_username }}</span>{% else %}—{% endif %}
+              <span class="d-block mt-1" style="font-size:0.75rem;">{{ p.created_at|date:"M j, Y H:i" }}</span>
+            </td>
+            <td class="text-end text-nowrap">
+              <a href="{% url 'core:superadmin_edit_subscription_payment' p.pk %}" class="btn btn-sm btn-outline-primary rounded-pill px-3">Edit</a>
+              <form method="post" action="{% url 'core:superadmin_delete_subscription_payment' p.pk %}" class="d-inline-block ms-1" onsubmit="return confirm('Remove this payment log? Totals and reports will update. This cannot be undone.');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3">Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="8" class="text-center text-muted py-5">
+              No payments yet. <a href="{% url 'core:superadmin_record_subscription_payment' %}">Record the first payment</a>.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if payments.has_other_pages %}
+    <div class="card-footer d-flex justify-content-between align-items-center">
+      <span class="small text-muted">Page {{ payments.number }} of {{ payments.paginator.num_pages }}</span>
+      <ul class="pagination pagination-sm mb-0">
+        {% if payments.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ payments.previous_page_number }}">Previous</a></li>{% endif %}
+        {% if payments.has_next %}<li class="page-item"><a class="page-link" href="?page={{ payments.next_page_number }}">Next</a></li>{% endif %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

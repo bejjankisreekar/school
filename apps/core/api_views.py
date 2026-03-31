@@ -30,7 +30,7 @@ def _student_json(s):
 
 @require_GET
 def api_students(request, school_code: str):
-    """GET /api/<school_code>/students/ - List students (Pro plan only)."""
+    """GET /api/<school_code>/students/ - List students (Enterprise tier only)."""
     school = _get_school_pro(school_code)
     if not school:
         return JsonResponse({"error": "School not found or API not available"}, status=404)
@@ -44,7 +44,7 @@ def api_students(request, school_code: str):
 
 @require_GET
 def api_fees(request, school_code: str):
-    """GET /api/<school_code>/fees/ - List fee dues (Pro plan only)."""
+    """GET /api/<school_code>/fees/ - List fee dues (Enterprise tier only)."""
     school = _get_school_pro(school_code)
     if not school:
         return JsonResponse({"error": "School not found or API not available"}, status=404)
@@ -67,7 +67,7 @@ def api_fees(request, school_code: str):
 
 @require_GET
 def api_results(request, school_code: str):
-    """GET /api/<school_code>/results/?exam_id=1 - List results for exam (Pro plan only)."""
+    """GET /api/<school_code>/results/?exam_id=1 - List results for exam (Enterprise tier only)."""
     school = _get_school_pro(school_code)
     if not school:
         return JsonResponse({"error": "School not found or API not available"}, status=404)
@@ -113,7 +113,7 @@ def api_results(request, school_code: str):
 
 @require_GET
 def api_attendance(request, school_code: str):
-    """GET /api/<school_code>/attendance/?date=YYYY-MM-DD or ?student_id=N - Attendance (Pro plan only)."""
+    """GET /api/<school_code>/attendance/?date=YYYY-MM-DD or ?student_id=N - Attendance (Enterprise tier only)."""
     school = _get_school_pro(school_code)
     if not school:
         return JsonResponse({"error": "School not found or API not available"}, status=404)

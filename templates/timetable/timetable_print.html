@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Class Timetable - {{ classroom.name }} | {{ school.name }}</title>
+  <title>Class Schedule - {{ classroom.name }} | {{ school.name }}</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -268,7 +268,7 @@
         {% endfor %}
       </tr>
       {% empty %}
-      <tr><td colspan="100" style="text-align:center">No timetable data.</td></tr>
+      <tr><td colspan="100" style="text-align:center">No schedule data.</td></tr>
       {% endfor %}
     </tbody>
   </table>

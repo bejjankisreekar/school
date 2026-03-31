@@ -19,7 +19,10 @@ def _table_exists(schema_editor, table_name):
 
 def _merge_duplicate_subjects(apps, schema_editor):
     Subject = apps.get_model("school_data", "Subject")
-    ClassSectionSubjectTeacher = apps.get_model("school_data", "ClassSectionSubjectTeacher")
+    try:
+        ClassSectionSubjectTeacher = apps.get_model("school_data", "ClassSectionSubjectTeacher")
+    except LookupError:
+        ClassSectionSubjectTeacher = None
     Marks = apps.get_model("school_data", "Marks")
     Homework = apps.get_model("school_data", "Homework")
     Teacher = apps.get_model("school_data", "Teacher")
@@ -36,7 +39,7 @@ def _merge_duplicate_subjects(apps, schema_editor):
         key = (s.name.strip().lower(), (s.code or "").strip().lower())
         groups[key].append(s.id)
 
-    has_csst = _table_exists(schema_editor, "school_data_classsectionsubjectteacher")
+    has_csst = bool(ClassSectionSubjectTeacher) and _table_exists(schema_editor, "school_data_classsectionsubjectteacher")
 
     for _key, ids in groups.items():
         if len(ids) <= 1:
@@ -46,7 +49,7 @@ def _merge_duplicate_subjects(apps, schema_editor):
 
         for oid in others:
             # ClassSectionSubjectTeacher (table added in 0018 if missing historically)
-            if not has_csst:
+            if not has_csst or not ClassSectionSubjectTeacher:
                 pass
             else:
                 for m in list(ClassSectionSubjectTeacher.objects.filter(subject_id=oid)):

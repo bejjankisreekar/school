@@ -1,5 +1,8 @@
 """
-Seed Trial, Basic, Pro subscription plans.
+Seed internal billing rows: trial, basic, pro (map to Starter / Enterprise for modules).
+- trial: 14-day trial (Starter modules)
+- basic: paid Starter (₹39/student/month)
+- pro: paid Enterprise (₹59/student/month)
 Run: python manage.py seed_subscription_plans
 """
 from decimal import Decimal

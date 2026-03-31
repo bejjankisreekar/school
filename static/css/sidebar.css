@@ -13,10 +13,32 @@
   --sidebar-text: #374151;
   --sidebar-text-muted: #6b7280;
   --font-family: 'Inter', 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --erp-radius-lg: 16px;
+  --erp-shadow-soft: 0 4px 24px rgba(15, 23, 42, 0.06);
+  --erp-shadow-hover: 0 8px 32px rgba(15, 23, 42, 0.08);
 }
 
 body {
   font-family: var(--font-family);
+}
+
+/* Main content panel — glass surface, 16px radius */
+.erp-dashboard-panel {
+  border-radius: var(--erp-radius-lg) !important;
+  transition: box-shadow 0.28s ease, border-color 0.28s ease;
+}
+
+@media (hover: hover) {
+  .erp-dashboard-panel:hover {
+    box-shadow: var(--erp-shadow-hover), 0 0 0 1px rgba(15, 23, 42, 0.04);
+  }
+
+  html.dark .erp-dashboard-panel:hover,
+  body.dark-mode .erp-dashboard-panel:hover {
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    border-color: rgba(148, 163, 184, 0.22) !important;
+  }
 }
 
 /* Fixed Sidebar */
@@ -268,4 +290,433 @@ body.dark-mode .sidebar-nav-arrow {
 html.dark .sidebar-footer,
 body.dark-mode .sidebar-footer {
   border-color: rgba(255,255,255,0.08);
+}
+
+/* ========== App top header — Stripe / Notion / Linear style ========== */
+.app-top-header.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1020;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  background: #ffffff;
+  border-bottom: 1px solid #eeeeee;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06), 0 4px 24px rgba(15, 23, 42, 0.04);
+}
+
+html.dark .app-top-header.topbar,
+body.dark-mode .app-top-header.topbar {
+  background: #0f172a;
+  border-bottom-color: rgba(148, 163, 184, 0.12);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2), 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+.app-header-shell.topbar-inner {
+  display: flex;
+  align-items: center;
+  min-height: 70px;
+  width: 100%;
+  max-width: 100%;
+  padding: 0 30px;
+  box-sizing: border-box;
+}
+
+/* Three-zone topbar: LEFT | CENTER (flex spacer / optional title) | RIGHT */
+.topbar-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  min-width: 0;
+  flex: 0 1 auto;
+  max-width: 42%;
+}
+
+.topbar-center {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.5rem;
+  pointer-events: none;
+}
+
+.topbar-center:has(.topbar-page-title) {
+  pointer-events: auto;
+}
+
+.topbar-page-title {
+  font-family: var(--font-family);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: -0.02em;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+html.dark .topbar-page-title,
+body.dark-mode .topbar-page-title {
+  color: #94a3b8;
+}
+
+.topbar-right {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 20px;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.topbar-right > .btn,
+.topbar-right > a.btn,
+.topbar-right > .dropdown {
+  flex-shrink: 0;
+}
+
+.school-info .topbar-school-title,
+.topbar-school-title {
+  margin: 0;
+  padding: 0;
+  font-size: 1.375rem;
+  line-height: 1.2;
+}
+
+.topbar-logo.app-header-brand-mark,
+.app-header-brand-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #9333ea 0%, #7c3aed 100%);
+  box-shadow: 0 3px 12px rgba(124, 58, 237, 0.35);
+  overflow: hidden;
+}
+
+.app-header-brand-mark--logo {
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  padding: 4px;
+}
+
+html.dark .app-header-brand-mark--logo,
+body.dark-mode .app-header-brand-mark--logo {
+  background: #1e293b;
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+.app-header-brand-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.app-header-brand-initials {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  line-height: 1;
+}
+
+.app-header-brand-text {
+  min-width: 0;
+}
+
+.app-header-school-name,
+.topbar-school-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #0f172a;
+}
+
+html.dark .app-header-school-name,
+html.dark .topbar-school-title,
+body.dark-mode .app-header-school-name,
+body.dark-mode .topbar-school-title {
+  color: #f8fafc;
+}
+
+.app-header-brand-subtitle,
+.topbar-school-sub {
+  font-family: var(--font-family);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: #777777;
+  letter-spacing: 0.01em;
+  margin-top: 2px;
+}
+
+html.dark .app-header-brand-subtitle,
+html.dark .topbar-school-sub,
+body.dark-mode .app-header-brand-subtitle,
+body.dark-mode .topbar-school-sub {
+  color: #94a3b8;
+}
+
+.topbar-profile {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.app-header-icon-slot {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0 !important;
+  border-radius: 10px !important;
+}
+
+.app-header-toolbar-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.app-header-icon-btn {
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.18s ease, box-shadow 0.2s ease;
+}
+
+.app-header-icon-btn:hover {
+  background: rgba(15, 23, 42, 0.06) !important;
+  transform: translateY(-1px);
+}
+
+html.dark .app-header-icon-btn:hover,
+body.dark-mode .app-header-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.app-header-notif-badge {
+  box-shadow: 0 0 0 2px #fff;
+}
+
+html.dark .app-header-notif-badge,
+body.dark-mode .app-header-notif-badge {
+  box-shadow: 0 0 0 2px #0f172a;
+}
+
+.app-top-header .profile-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.1), 0 0 0 1px rgba(15, 23, 42, 0.06);
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.app-top-header .profile-avatar--img {
+  object-fit: cover;
+}
+
+.app-top-header .profile-avatar--initials {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  color: #fff;
+  font-size: 0.75rem;
+}
+
+html.dark .app-top-header .profile-avatar,
+body.dark-mode .app-top-header .profile-avatar {
+  border-color: #0f172a;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.app-top-header .profile-first-name {
+  max-width: 9rem;
+  font-size: 0.9375rem;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+html.dark .app-top-header .profile-first-name,
+body.dark-mode .app-top-header .profile-first-name {
+  color: #f1f5f9;
+}
+
+.app-top-header .profile-chevron {
+  transition: transform 0.2s ease;
+  opacity: 0.75;
+}
+
+.app-top-header .profile-trigger {
+  padding: 0.35rem 0.6rem 0.35rem 0.35rem;
+  flex-shrink: 0;
+  max-width: 100%;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.app-top-header .profile-trigger:hover,
+.app-top-header .profile-trigger:focus-visible {
+  background: rgba(15, 23, 42, 0.05) !important;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+}
+
+.app-top-header .profile-trigger:hover .profile-avatar,
+.app-top-header .profile-trigger:focus-visible .profile-avatar {
+  transform: scale(1.06);
+  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.2), 0 0 0 1px rgba(79, 70, 229, 0.15);
+}
+
+.app-top-header .profile-trigger[aria-expanded="true"] .profile-chevron {
+  transform: rotate(180deg);
+}
+
+html.dark .app-top-header .profile-trigger:hover,
+html.dark .app-top-header .profile-trigger:focus-visible,
+body.dark-mode .app-top-header .profile-trigger:hover,
+body.dark-mode .app-top-header .profile-trigger:focus-visible {
+  background: rgba(255, 255, 255, 0.06) !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+}
+
+html.dark .app-top-header .profile-trigger:hover .profile-avatar,
+html.dark .app-top-header .profile-trigger:focus-visible .profile-avatar,
+body.dark-mode .app-top-header .profile-trigger:hover .profile-avatar,
+body.dark-mode .app-top-header .profile-trigger:focus-visible .profile-avatar {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(129, 140, 248, 0.35);
+}
+
+.app-header-dropdown-menu {
+  min-width: 13.5rem;
+  padding: 0.35rem;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.12), 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+html.dark .app-header-dropdown-menu,
+body.dark-mode .app-header-dropdown-menu {
+  background: rgba(30, 41, 59, 0.94);
+  border-color: rgba(148, 163, 184, 0.15) !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.app-header-dropdown-menu.dropdown-menu.show {
+  animation: appHeaderDropdownIn 0.22s ease forwards;
+}
+
+@keyframes appHeaderDropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.app-header-dropdown-item {
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem !important;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.app-header-dropdown-item:hover {
+  background: rgba(79, 70, 229, 0.08) !important;
+}
+
+html.dark .app-header-dropdown-item:hover,
+body.dark-mode .app-header-dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Legacy class names (if referenced elsewhere) */
+.app-top-header .school-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.0625rem;
+  color: #0f172a;
+}
+
+@media (max-width: 991px) {
+  .app-header-shell.topbar-inner {
+    padding-left: max(3.5rem, 20px);
+    padding-right: 20px;
+  }
+
+  .topbar-left {
+    max-width: 55%;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .app-header-shell.topbar-inner {
+    padding-left: max(3.25rem, 12px);
+    padding-right: 12px;
+    min-height: 64px;
+  }
+
+  .topbar-row {
+    gap: 0.5rem;
+  }
+
+  .topbar-right {
+    gap: 10px;
+  }
+
+  .topbar-left {
+    max-width: 60%;
+    gap: 10px;
+  }
+
+  .topbar-school-title,
+  .school-info .topbar-school-title {
+    font-size: 1.05rem;
+  }
+}
+
+/* :has() fallback: browsers without it still get centered empty spacer */
+@supports not selector(:has(*)) {
+  .topbar-center {
+    pointer-events: auto;
+  }
+}
+
+/* Keep mobile menu toggle above header chrome */
+.sidebar-toggle {
+  z-index: 1030;
+}
+
+/* Site-wide: hide breadcrumb / path trails (all roles; Bootstrap + Tailwind-style navs) */
+nav[aria-label="breadcrumb"] {
+  display: none !important;
 }

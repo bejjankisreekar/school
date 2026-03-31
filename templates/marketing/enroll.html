@@ -1,0 +1,65 @@
+{% extends "marketing/base.html" %}
+{% block title %}Enroll your school | School ERP{% endblock %}
+{% block content %}
+<section class="py-5 py-lg-6">
+  <div class="container" style="max-width: 720px;">
+    <h1 class="text-center display-6 fw-bold mb-2">Enroll your school</h1>
+    <p class="text-center text-secondary mb-5">
+      Submit your details. Our team will review your request; a platform administrator will create your isolated database
+      (tenant schema) so you get a full copy of all modules—students, fees, exams, timetables, and more.
+    </p>
+
+    {% if success %}
+    <div class="alert alert-success border-0 shadow-sm">
+      <strong>Thank you.</strong> We received your enrollment request. You will hear from us after your tenant is provisioned.
+    </div>
+    <p class="text-center mt-3">
+      <a href="{% url 'accounts:login' %}" class="btn btn-primary">Go to login</a>
+      <a href="{% url 'core:home' %}" class="btn btn-outline-secondary">Home</a>
+    </p>
+    {% else %}
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-4 p-lg-5">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {% if form.non_field_errors %}
+          <div class="alert alert-danger">
+            {% for err in form.non_field_errors %}<div>{{ err }}</div>{% endfor %}
+          </div>
+          {% endif %}
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label" for="id_institution_name">School / institution name</label>
+              {{ form.institution_name }}
+              {% if form.institution_name.errors %}<div class="text-danger small">{{ form.institution_name.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="id_contact_name">Contact person</label>
+              {{ form.contact_name }}
+              {% if form.contact_name.errors %}<div class="text-danger small">{{ form.contact_name.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="id_email">Work email</label>
+              {{ form.email }}
+              {% if form.email.errors %}<div class="text-danger small">{{ form.email.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="id_phone">Phone <span class="text-muted fw-normal">(optional)</span></label>
+              {{ form.phone }}
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="id_notes">Notes <span class="text-muted fw-normal">(optional)</span></label>
+              {{ form.notes }}
+            </div>
+          </div>
+          <div class="d-flex flex-wrap gap-2 mt-4">
+            <button type="submit" class="btn btn-primary">Submit enrollment</button>
+            <a href="{% url 'core:home' %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

@@ -12,6 +12,30 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from django_tenants.utils import get_public_schema_name
 
+from apps.accounts.models import User
+
+# Sidebar / feature_required: superadmin sees every module without a school plan.
+_SUPERADMIN_ALL_FEATURES = frozenset(
+    {
+        "attendance",
+        "exams",
+        "timetable",
+        "fees",
+        "payroll",
+        "reports",
+        "homework",
+        "sms",
+        "inventory",
+        "ai_reports",
+        "online_admission",
+        "topper_list",
+        "library",
+        "hostel",
+        "transport",
+        "custom_branding",
+    }
+)
+
 
 def _get_school_features(request):
     """Return set of feature codes for the user's school, or empty set if none."""
@@ -22,13 +46,29 @@ def _get_school_features(request):
     return frozenset(school.get_enabled_feature_codes())
 
 
+def _superadmin_feature_union() -> frozenset:
+    """All known feature codes from DB plus static list (for new codes before cache)."""
+    try:
+        from apps.customers.models import Feature
+
+        db_codes = set(Feature.objects.values_list("code", flat=True))
+    except Exception:
+        db_codes = set()
+    return frozenset(_SUPERADMIN_ALL_FEATURES | db_codes)
+
+
 class SchoolFeaturesMiddleware(MiddlewareMixin):
     """
     Attach request.school_features (frozenset of feature codes) for the current user's school.
-    Use in views: if "payroll" not in request.school_features: return HttpResponseForbidden(...)
+    Superadmin gets the full union so navigation and feature_required never hide modules.
     """
+
     def process_request(self, request):
-        request.school_features = _get_school_features(request)
+        user = getattr(request, "user", None)
+        if user is not None and user.is_authenticated and getattr(user, "role", None) == User.Roles.SUPERADMIN:
+            request.school_features = _superadmin_feature_union()
+        else:
+            request.school_features = _get_school_features(request)
 
 
 TENANT_PATHS = (
@@ -79,7 +119,7 @@ class TrialExpiryMiddleware(MiddlewareMixin):
     def process_request(self, request):
         if not hasattr(request, "user") or not request.user.is_authenticated:
             return
-        if getattr(request.user, "role", None) == "superadmin":
+        if getattr(request.user, "role", None) == User.Roles.SUPERADMIN:
             return
         school = getattr(request.user, "school", None)
         if not school or not school.is_trial_expired():

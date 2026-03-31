@@ -1,9 +1,48 @@
+from django.contrib import messages
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
+
+
+def _dashboard_redirect_for_user(user):
+    role = getattr(user, "role", None)
+    if role == "SUPERADMIN":
+        return redirect("core:super_admin_dashboard")
+    if role == "ADMIN":
+        return redirect("core:admin_dashboard")
+    if role == "TEACHER":
+        return redirect("core:teacher_dashboard")
+    if role == "PARENT":
+        return redirect("core:parent_dashboard")
+    return redirect("core:student_dashboard")
+
+
+@login_required
+def account_profile(request):
+    """Lightweight account overview for staff; students use the rich student profile."""
+    return render(request, "accounts/account_profile.html", {"account_user": request.user})
+
+
+@login_required
+def change_password(request):
+    """Voluntary password change while logged in (not first-login flow)."""
+    if getattr(request.user, "is_first_login", False):
+        return redirect("accounts:change_password_first")
+
+    form = PasswordChangeForm(user=request.user, data=request.POST or None)
+    for _fname, field in form.fields.items():
+        field.widget.attrs.setdefault("class", "form-control rounded-3")
+
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        update_session_auth_hash(request, form.user)
+        messages.success(request, "Your password was updated successfully.")
+        return _dashboard_redirect_for_user(request.user)
+
+    return render(request, "accounts/change_password.html", {"form": form})
 
 
 def logout_view(request):

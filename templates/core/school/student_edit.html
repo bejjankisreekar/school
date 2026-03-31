@@ -1,79 +1,511 @@
 {% extends "base.html" %}
-{% block title %}Edit Student | School ERP{% endblock %}
+{% block title %}Edit Student | Campus ERP{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+{% endblock %}
 {% block content %}
-<div class="container-fluid px-0" style="max-width: 600px;">
+<div class="container-fluid px-0">
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
       <li class="breadcrumb-item"><a href="{% url 'core:school_students_list' %}">Students</a></li>
-      <li class="breadcrumb-item active">Edit Student</li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_student_view' student.id %}">{{ student.user.get_full_name|default:student.user.username }}</a></li>
+      <li class="breadcrumb-item active">Edit</li>
     </ol>
   </nav>
 
-  <h2 class="h5 fw-bold mb-4">Edit Student</h2>
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <div>
+      <h1 class="h4 fw-bold mb-1">Edit student</h1>
+      <div class="text-muted small">Premium multi-step student master form.</div>
+    </div>
+    <a href="{% url 'core:school_student_view' student.id %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+      <i class="bi bi-arrow-left me-1"></i> Back
+    </a>
+  </div>
 
-  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  {% if form.non_field_errors %}
+    <div class="alert alert-danger border-0 rounded-4">{{ form.non_field_errors }}</div>
+  {% endif %}
 
-  <form method="post">
+  <form method="post" enctype="multipart/form-data" class="student-wizard-form card border-0 shadow-sm rounded-4">
     {% csrf_token %}
-    <div class="card border-0 shadow-sm rounded-3">
-      <div class="card-body">
-        <div class="row g-3">
-          <div class="col-md-6">
-            <label class="form-label">First Name</label>
-            {{ form.first_name }}
-            {% if form.first_name.errors %}<div class="text-danger small">{{ form.first_name.errors.0 }}</div>{% endif %}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Last Name</label>
-            {{ form.last_name }}
-            {% if form.last_name.errors %}<div class="text-danger small">{{ form.last_name.errors.0 }}</div>{% endif %}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Email</label>
-            {{ form.email }}
-            {% if form.email.errors %}<div class="text-danger small">{{ form.email.errors.0 }}</div>{% endif %}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Class</label>
-            {{ form.classroom }}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Section</label>
-            {{ form.section }}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Roll Number</label>
-            {{ form.roll_number }}
-            {% if form.roll_number.errors %}<div class="text-danger small">{{ form.roll_number.errors.0 }}</div>{% endif %}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Admission Number</label>
-            {{ form.admission_number }}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Date of Birth</label>
-            {{ form.date_of_birth }}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Gender</label>
-            {{ form.gender }}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Parent Name</label>
-            {{ form.parent_name }}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Parent Phone</label>
-            {{ form.parent_phone }}
-          </div>
+
+    <div class="card-body p-3 p-lg-4">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div>
+          <div class="fw-semibold">Step <span id="stepNow">1</span> of <span id="stepTotal">7</span></div>
+          <div class="text-muted small">Update details using the tabs.</div>
         </div>
       </div>
-      <div class="card-footer bg-transparent">
-        <button type="submit" class="btn btn-primary">Save</button>
-        <a href="{% url 'core:school_students_list' %}" class="btn btn-outline-secondary ms-2">Cancel</a>
+      <div class="progress rounded-pill mb-4" style="height: 10px;">
+        <div id="wizardProgress" class="progress-bar" style="width: 14.3%;"></div>
+      </div>
+
+      <ul class="nav nav-tabs flex-nowrap overflow-auto wizard-tabs mb-4" id="editWizardTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active wiz-pill wiz-personal" id="tab-personal" data-bs-toggle="tab" data-bs-target="#pane-personal" type="button" role="tab">
+            <i class="bi bi-person-badge me-1"></i> Personal
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link wiz-pill wiz-academic" id="tab-academic" data-bs-toggle="tab" data-bs-target="#pane-academic" type="button" role="tab">
+            <i class="bi bi-mortarboard me-1"></i> Academic
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link wiz-pill wiz-parents" id="tab-parents" data-bs-toggle="tab" data-bs-target="#pane-parents" type="button" role="tab">
+            <i class="bi bi-people me-1"></i> Parents
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link wiz-pill wiz-contact" id="tab-contact" data-bs-toggle="tab" data-bs-target="#pane-contact" type="button" role="tab">
+            <i class="bi bi-geo-alt me-1"></i> Contact
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link wiz-pill wiz-medical" id="tab-medical" data-bs-toggle="tab" data-bs-target="#pane-medical" type="button" role="tab">
+            <i class="bi bi-heart-pulse me-1"></i> Medical
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link wiz-pill wiz-docs" id="tab-docs" data-bs-toggle="tab" data-bs-target="#pane-docs" type="button" role="tab">
+            <i class="bi bi-folder2-open me-1"></i> Documents
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link wiz-pill wiz-review" id="tab-review" data-bs-toggle="tab" data-bs-target="#pane-review" type="button" role="tab">
+            <i class="bi bi-check2-circle me-1"></i> Review
+          </button>
+        </li>
+      </ul>
+
+      <div class="tab-content">
+
+        <div class="tab-pane fade show active" id="pane-personal" role="tabpanel" aria-labelledby="tab-personal">
+          <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-3 p-lg-4">
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">First name <span class="text-danger">*</span></label>
+                  {{ form.first_name }}
+                  {% if form.first_name.errors %}<div class="text-danger small mt-1">{{ form.first_name.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Middle name</label>
+                  {{ form.middle_name }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Last name</label>
+                  {{ form.last_name }}
+                </div>
+
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Full name (auto)</label>
+                  <input id="fullName" class="form-control" type="text" readonly>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Date of birth</label>
+                  <div class="student-dob-field-wrap">
+                    <span class="student-dob-input-icon" aria-hidden="true"><i class="bi bi-calendar-event"></i></span>
+                    {{ form.date_of_birth }}
+                  </div>
+                  {% if form.date_of_birth.errors %}<div class="text-danger small mt-1">{{ form.date_of_birth.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Age (auto)</label>
+                  <input id="age" class="form-control" type="text" readonly>
+                </div>
+
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Gender</label>
+                  {{ form.gender }}
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Blood group</label>
+                  {{ form.blood_group }}
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Aadhar / ID number</label>
+                  {{ form.id_number }}
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Student photo</label>
+                  {{ form.profile_image }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Nationality</label>
+                  {{ form.nationality }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Religion</label>
+                  {{ form.religion }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Mother tongue</label>
+                  {{ form.mother_tongue }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-pane fade" id="pane-academic" role="tabpanel" aria-labelledby="tab-academic">
+          <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-3 p-lg-4">
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Academic year</label>
+                  {{ form.academic_year }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Admission date</label>
+                  {{ form.admission_date }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Student type</label>
+                  {{ form.student_type }}
+                </div>
+
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Class <span class="text-danger">*</span></label>
+                  {{ form.classroom }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Section <span class="text-danger">*</span></label>
+                  {{ form.section }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Roll number <span class="text-danger">*</span></label>
+                  {{ form.roll_number }}
+                </div>
+
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Admission number</label>
+                  {{ form.admission_number }}
+                  <div class="form-text">If changed, the student’s login username will change too.</div>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Registration number</label>
+                  {{ form.registration_number }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Stream</label>
+                  {{ form.stream }}
+                </div>
+
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Course / branch</label>
+                  {{ form.course_branch }}
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Semester / year</label>
+                  {{ form.semester_year }}
+                </div>
+
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Previous institution</label>
+                  {{ form.previous_institution }}
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Previous marks / GPA</label>
+                  {{ form.previous_marks }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-pane fade" id="pane-parents" role="tabpanel" aria-labelledby="tab-parents">
+          <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-3 p-lg-4">
+              <div class="row g-3">
+                <div class="col-md-4"><label class="form-label fw-semibold">Father name</label>{{ form.father_name }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Father mobile</label>{{ form.father_mobile }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Father occupation</label>{{ form.father_occupation }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Mother name</label>{{ form.mother_name }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Mother mobile</label>{{ form.mother_mobile }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Mother occupation</label>{{ form.mother_occupation }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Guardian name</label>{{ form.guardian_name }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Guardian relation</label>{{ form.guardian_relation }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Guardian phone</label>{{ form.guardian_phone }}</div>
+                <div class="col-md-6"><label class="form-label fw-semibold">Parent/guardian name (quick)</label>{{ form.parent_name }}</div>
+                <div class="col-md-6"><label class="form-label fw-semibold">Parent phone (quick)</label>{{ form.parent_phone }}</div>
+                <div class="col-md-6"><label class="form-label fw-semibold">Parent email</label>{{ form.email }}</div>
+                <div class="col-md-6"><label class="form-label fw-semibold">Student email</label>{{ form.student_email }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-pane fade" id="pane-contact" role="tabpanel" aria-labelledby="tab-contact">
+          <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-3 p-lg-4">
+              <div class="row g-3">
+                <div class="col-md-4"><label class="form-label fw-semibold">Student mobile</label>{{ form.student_mobile }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Address line 1</label>{{ form.address_line1 }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Address line 2</label>{{ form.address_line2 }}</div>
+                <div class="col-md-3"><label class="form-label fw-semibold">City</label>{{ form.city }}</div>
+                <div class="col-md-3"><label class="form-label fw-semibold">District</label>{{ form.district }}</div>
+                <div class="col-md-3"><label class="form-label fw-semibold">State</label>{{ form.state }}</div>
+                <div class="col-md-3"><label class="form-label fw-semibold">Pincode</label>{{ form.pincode }}</div>
+                <div class="col-md-3"><label class="form-label fw-semibold">Country</label>{{ form.country }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-pane fade" id="pane-medical" role="tabpanel" aria-labelledby="tab-medical">
+          <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-3 p-lg-4">
+              <div class="row g-3">
+                <div class="col-md-4"><label class="form-label fw-semibold">Emergency contact name</label>{{ form.emergency_contact_name }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Emergency phone</label>{{ form.emergency_phone }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Allergies</label>{{ form.allergies }}</div>
+                <div class="col-md-6"><label class="form-label fw-semibold">Medical conditions</label>{{ form.medical_conditions }}</div>
+                <div class="col-md-3"><label class="form-label fw-semibold">Doctor name</label>{{ form.doctor_name }}</div>
+                <div class="col-md-3"><label class="form-label fw-semibold">Hospital</label>{{ form.hospital }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-pane fade" id="pane-docs" role="tabpanel" aria-labelledby="tab-docs">
+          <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-3 p-lg-4">
+              <div class="row g-3">
+                <div class="col-md-4"><label class="form-label fw-semibold">Birth certificate</label>{{ form.doc_birth_certificate }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Aadhar / ID proof</label>{{ form.doc_id_proof }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Previous TC</label>{{ form.doc_transfer_certificate }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Marks memo</label>{{ form.doc_previous_marks }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Parent ID</label>{{ form.doc_parent_id }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Photo</label>{{ form.doc_passport_photo }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-pane fade" id="pane-review" role="tabpanel" aria-labelledby="tab-review">
+          <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-3 p-lg-4">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <div class="p-3 rounded-4 border bg-body-tertiary">
+                    <div class="text-muted small">Full name</div>
+                    <div class="fw-semibold" id="reviewName">—</div>
+                    <div class="text-muted small mt-2">Admission number</div>
+                    <div class="fw-semibold">{{ form.admission_number.value|default:"—" }}</div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="p-3 rounded-4 border bg-body-tertiary">
+                    <div class="text-muted small">Class / section</div>
+                    <div class="fw-semibold" id="reviewClass">—</div>
+                    <div class="text-muted small mt-2">Roll number</div>
+                    <div class="fw-semibold" id="reviewRoll">—</div>
+                  </div>
+                </div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Record status</label>{{ form.record_status }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="card-footer bg-body-tertiary position-sticky bottom-0 d-flex justify-content-between flex-wrap gap-2 p-3 p-lg-4" style="z-index: 10;">
+      <div class="d-flex gap-2 flex-wrap">
+        <button type="reset" class="btn btn-outline-secondary rounded-pill px-4">Reset</button>
+        <a href="{% url 'core:school_student_view' student.id %}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <button type="button" class="btn btn-outline-secondary rounded-pill px-4" id="btnPrev">
+          <i class="bi bi-arrow-left me-1"></i> Previous
+        </button>
+        <button type="button" class="btn btn-primary rounded-pill px-4" id="btnNext">
+          Next <i class="bi bi-arrow-right ms-1"></i>
+        </button>
+        <button type="submit" class="btn btn-success rounded-pill px-4 shadow-sm">
+          <i class="bi bi-check2-circle me-1"></i> Save changes
+        </button>
       </div>
     </div>
   </form>
 </div>
+
+<style>
+  /* DaisyUI (Tailwind) sets .tab-content { display: none } for its tab component; Bootstrap
+     uses a different DOM (nav-tabs + .tab-content, not .tab + .tab-content), so the pane
+     wrapper stayed hidden and all fields were invisible. */
+  .student-wizard-form .tab-content {
+    display: block !important;
+  }
+
+  .wizard-tabs .nav-link { white-space: nowrap; }
+  .wiz-pill { border: 1px solid rgba(0,0,0,.08); border-bottom: 0; }
+  .wiz-pill.active { border-color: transparent; }
+
+  .student-wizard-form .card .form-control,
+  .student-wizard-form .card .form-select,
+  .student-wizard-form .card input[type="file"],
+  .student-wizard-form .card input,
+  .student-wizard-form .card select,
+  .student-wizard-form .card textarea {
+    min-height: 46px;
+    border-radius: 12px;
+    opacity: 1 !important;
+    visibility: visible !important;
+    display: block !important;
+  }
+  .student-wizard-form .card .form-label { font-weight: 600; }
+
+  .wiz-personal.active { background: linear-gradient(135deg, #4f46e5, #6366f1); color: #fff; }
+  .wiz-academic.active { background: linear-gradient(135deg, #0ea5e9, #22c55e); color: #fff; }
+  .wiz-parents.active { background: linear-gradient(135deg, #f59e0b, #f97316); color: #fff; }
+  .wiz-contact.active { background: linear-gradient(135deg, #16a34a, #22c55e); color: #fff; }
+  .wiz-medical.active { background: linear-gradient(135deg, #e11d48, #f43f5e); color: #fff; }
+  .wiz-docs.active { background: linear-gradient(135deg, #a855f7, #6366f1); color: #fff; }
+  .wiz-review.active { background: linear-gradient(135deg, #0284c7, #0ea5e9); color: #fff; }
+</style>
+
+<script>
+(function () {
+  const steps = [
+    "tab-personal",
+    "tab-academic",
+    "tab-parents",
+    "tab-contact",
+    "tab-medical",
+    "tab-docs",
+    "tab-review"
+  ];
+
+  function setFullName() {
+    const f = document.getElementById("id_first_name");
+    const m = document.getElementById("id_middle_name");
+    const l = document.getElementById("id_last_name");
+    const out = document.getElementById("fullName");
+    if (!out) return;
+    const parts = [f?.value, m?.value, l?.value].map(v => (v || "").trim()).filter(Boolean);
+    out.value = parts.join(" ");
+    const rn = document.getElementById("reviewName");
+    if (rn) rn.textContent = out.value || "—";
+  }
+  function setAge() {
+    const dob = document.getElementById("id_date_of_birth");
+    const out = document.getElementById("age");
+    if (!dob || !out) return;
+    if (!dob.value) { out.value = ""; return; }
+    const d = new Date(dob.value);
+    if (Number.isNaN(d.getTime())) { out.value = ""; return; }
+    const now = new Date();
+    let age = now.getFullYear() - d.getFullYear();
+    const m = now.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+    out.value = age >= 0 ? String(age) : "";
+  }
+  ["id_first_name", "id_middle_name", "id_last_name"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("input", setFullName);
+  });
+  document.getElementById("id_date_of_birth")?.addEventListener("change", setAge);
+
+  function setReview() {
+    const classSel = document.getElementById("id_classroom");
+    const secSel = document.getElementById("id_section");
+    const roll = document.getElementById("id_roll_number");
+    const rc = document.getElementById("reviewClass");
+    const rr = document.getElementById("reviewRoll");
+    const cText = classSel?.selectedOptions?.[0]?.textContent?.trim() || "";
+    const sText = secSel?.selectedOptions?.[0]?.textContent?.trim() || "";
+    if (rc) rc.textContent = [cText, sText].filter(Boolean).join(" / ") || "—";
+    if (rr) rr.textContent = (roll?.value || "").trim() || "—";
+  }
+
+  function activeIdx() {
+    const active = document.querySelector("#editWizardTabs .nav-link.active");
+    if (!active) return 0;
+    const id = active.getAttribute("id") || "";
+    const idx = steps.indexOf(id);
+    return idx >= 0 ? idx : 0;
+  }
+
+  function setStepUI(idx) {
+    const now = document.getElementById("stepNow");
+    const total = document.getElementById("stepTotal");
+    const bar = document.getElementById("wizardProgress");
+    if (total) total.textContent = String(steps.length);
+    if (now) now.textContent = String(idx + 1);
+    if (bar) bar.style.width = `${((idx + 1) / steps.length) * 100}%`;
+    document.getElementById("btnPrev")?.toggleAttribute("disabled", idx === 0);
+    document.getElementById("btnNext")?.toggleAttribute("disabled", idx === steps.length - 1);
+  }
+
+  function showTab(btnEl) {
+    const target = btnEl.getAttribute("data-bs-target");
+    if (!target) return;
+    const pane = document.querySelector(target);
+    if (!pane) return;
+    document.querySelectorAll("#editWizardTabs .nav-link").forEach((b) => {
+      b.classList.remove("active");
+      b.setAttribute("aria-selected", "false");
+    });
+    document.querySelectorAll(".tab-content > .tab-pane").forEach((p) => {
+      p.classList.remove("show", "active");
+    });
+    btnEl.classList.add("active");
+    btnEl.setAttribute("aria-selected", "true");
+    pane.classList.add("show", "active");
+    setStepUI(activeIdx());
+    setReview();
+    setFullName();
+  }
+
+  function go(idx) {
+    const clamped = Math.max(0, Math.min(steps.length - 1, idx));
+    const btn = document.getElementById(steps[clamped]);
+    if (!btn) return;
+    if (window.bootstrap && bootstrap.Tab) {
+      bootstrap.Tab.getOrCreateInstance(btn).show();
+      return;
+    }
+    showTab(btn);
+  }
+
+  document.getElementById("btnPrev")?.addEventListener("click", function () {
+    go(activeIdx() - 1);
+  });
+  document.getElementById("btnNext")?.addEventListener("click", function () {
+    go(activeIdx() + 1);
+  });
+
+  document.querySelectorAll("#editWizardTabs .nav-link").forEach((el) => {
+    el.addEventListener("shown.bs.tab", function () {
+      setStepUI(activeIdx());
+      setReview();
+      setFullName();
+    });
+    el.addEventListener("click", function (e) {
+      if (window.bootstrap && bootstrap.Tab) return;
+      e.preventDefault();
+      showTab(el);
+    });
+  });
+
+  setFullName();
+  setAge();
+  setReview();
+  setStepUI(activeIdx());
+
+  // Final safety: if something stripped classes, re-activate first pane.
+  const hasActivePane = document.querySelector(".tab-content > .tab-pane.active");
+  if (!hasActivePane) {
+    const firstBtn = document.getElementById(steps[0]);
+    if (firstBtn) {
+      showTab(firstBtn);
+    }
+  }
+})();
+</script>
+{% include "core/school/includes/student_dob_flatpickr.html" %}
 {% endblock %}

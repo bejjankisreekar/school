@@ -1,189 +1,621 @@
 {% extends "base.html" %}
-{% block title %}Add Student | School ERP{% endblock %}
+{% block title %}Student Admission | Campus ERP{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+{% endblock %}
 
 {% block content %}
-<div class="max-w-[1100px] mx-auto px-4">
-  <nav aria-label="breadcrumb" class="mb-6">
-    <ol class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-      <li><a href="{% url 'core:admin_dashboard' %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">Dashboard</a></li>
-      <li>/</li>
-      <li><a href="{% url 'core:school_students_list' %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">Students</a></li>
-      <li>/</li>
-      <li class="font-medium text-slate-900 dark:text-slate-50">Add Student</li>
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_students_list' %}">Students</a></li>
+      <li class="breadcrumb-item active">Student admission</li>
     </ol>
   </nav>
 
-  <h1 class="text-xl font-bold text-slate-900 dark:text-slate-50 mb-6">Add Student</h1>
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <div>
+      <h1 class="h4 fw-bold mb-1">Student Admission</h1>
+      <div class="text-muted small">Enterprise-grade admission form — only key fields are required.</div>
+    </div>
+    <a href="{% url 'core:school_students_list' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+      <i class="bi bi-arrow-left me-1"></i> Back
+    </a>
+  </div>
 
   {% if form.non_field_errors %}
-    <div class="mb-6 rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-200">
-      {% for err in form.non_field_errors %}<p>{{ err }}</p>{% endfor %}
+    <div class="alert alert-danger border-0 rounded-4">
+      {% for err in form.non_field_errors %}<div>{{ err }}</div>{% endfor %}
     </div>
   {% endif %}
 
-  <form method="post" class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 shadow-lg overflow-hidden">
+  <form method="post" enctype="multipart/form-data" class="student-wizard-form card border-0 shadow-sm rounded-4">
     {% csrf_token %}
 
-    {# Section 1: Student Basic Info #}
-    <div class="px-6 py-5 border-b border-slate-200 dark:border-slate-700">
-      <div class="flex items-center gap-2 mb-5">
-        <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400">
-          <i class="bi bi-person-fill"></i>
+    <div class="card-body p-3 p-lg-4">
+      {# Wizard header #}
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div>
+          <div class="fw-semibold">Step <span id="stepNow">1</span> of <span id="stepTotal">7</span></div>
+          <div class="text-muted small">Complete the admission details using the tabs.</div>
         </div>
-        <h2 class="font-semibold text-slate-900 dark:text-slate-50">Student Basic Info</h2>
+        <div class="text-muted small">
+          Required: <span class="fw-semibold">First name</span>, <span class="fw-semibold">Class</span>, <span class="fw-semibold">Section</span>, <span class="fw-semibold">Roll no</span>
+        </div>
       </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="form-group">
-          <label for="id_first_name" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">First Name <span class="text-red-500">*</span></label>
-          {{ form.first_name }}
-          {% if form.first_name.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.first_name.errors.0 }}</p>{% endif %}
+      <div class="progress rounded-pill mb-4" style="height: 10px;">
+        <div id="wizardProgress" class="progress-bar" style="width: 14.3%;"></div>
+      </div>
+
+      {# Wizard tabs #}
+      <ul class="nav nav-tabs flex-nowrap overflow-auto wizard-tabs mb-4" id="admissionWizardTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active wiz-pill wiz-personal" id="tab-personal" data-bs-toggle="tab" data-bs-target="#pane-personal" type="button" role="tab">
+            <i class="bi bi-person-badge me-1"></i> Personal
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link wiz-pill wiz-academic" id="tab-academic" data-bs-toggle="tab" data-bs-target="#pane-academic" type="button" role="tab">
+            <i class="bi bi-mortarboard me-1"></i> Academic
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link wiz-pill wiz-parents" id="tab-parents" data-bs-toggle="tab" data-bs-target="#pane-parents" type="button" role="tab">
+            <i class="bi bi-people me-1"></i> Parents
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link wiz-pill wiz-contact" id="tab-contact" data-bs-toggle="tab" data-bs-target="#pane-contact" type="button" role="tab">
+            <i class="bi bi-geo-alt me-1"></i> Contact
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link wiz-pill wiz-medical" id="tab-medical" data-bs-toggle="tab" data-bs-target="#pane-medical" type="button" role="tab">
+            <i class="bi bi-heart-pulse me-1"></i> Medical
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link wiz-pill wiz-docs" id="tab-docs" data-bs-toggle="tab" data-bs-target="#pane-docs" type="button" role="tab">
+            <i class="bi bi-folder2-open me-1"></i> Documents
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link wiz-pill wiz-review" id="tab-review" data-bs-toggle="tab" data-bs-target="#pane-review" type="button" role="tab">
+            <i class="bi bi-check2-circle me-1"></i> Review
+          </button>
+        </li>
+      </ul>
+
+      <div class="tab-content">
+
+        {# Step 1: Personal #}
+        <div class="tab-pane fade show active" id="pane-personal" role="tabpanel" aria-labelledby="tab-personal">
+          <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-3 p-lg-4">
+              <div class="d-flex align-items-center gap-2 mb-3">
+                <div class="wizard-icon bg-soft-personal text-personal"><i class="bi bi-person-badge"></i></div>
+                <div>
+                  <div class="fw-bold">Personal Information</div>
+                  <div class="text-muted small">Identity, photo, and basic demographics.</div>
+                </div>
+              </div>
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">First name <span class="text-danger">*</span></label>
+                  {{ form.first_name }}
+                  {% if form.first_name.errors %}<div class="text-danger small mt-1">{{ form.first_name.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Middle name</label>
+                  {{ form.middle_name }}
+                  {% if form.middle_name.errors %}<div class="text-danger small mt-1">{{ form.middle_name.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Last name</label>
+                  {{ form.last_name }}
+                  {% if form.last_name.errors %}<div class="text-danger small mt-1">{{ form.last_name.errors.0 }}</div>{% endif %}
+                </div>
+
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Full name (auto)</label>
+                  <input id="fullName" class="form-control" type="text" readonly>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Date of birth</label>
+                  <div class="student-dob-field-wrap">
+                    <span class="student-dob-input-icon" aria-hidden="true"><i class="bi bi-calendar-event"></i></span>
+                    {{ form.date_of_birth }}
+                  </div>
+                  {% if form.date_of_birth.errors %}<div class="text-danger small mt-1">{{ form.date_of_birth.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Age (auto)</label>
+                  <input id="age" class="form-control" type="text" readonly>
+                </div>
+
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Gender</label>
+                  {{ form.gender }}
+                  {% if form.gender.errors %}<div class="text-danger small mt-1">{{ form.gender.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Blood group</label>
+                  {{ form.blood_group }}
+                  {% if form.blood_group.errors %}<div class="text-danger small mt-1">{{ form.blood_group.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Aadhar / ID number</label>
+                  {{ form.id_number }}
+                  {% if form.id_number.errors %}<div class="text-danger small mt-1">{{ form.id_number.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Student photo</label>
+                  {{ form.profile_image }}
+                  {% if form.profile_image.errors %}<div class="text-danger small mt-1">{{ form.profile_image.errors.0 }}</div>{% endif %}
+                </div>
+
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Nationality</label>
+                  {{ form.nationality }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Religion</label>
+                  {{ form.religion }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Mother tongue</label>
+                  {{ form.mother_tongue }}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="form-group">
-          <label for="id_last_name" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Last Name</label>
-          {{ form.last_name }}
-          {% if form.last_name.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.last_name.errors.0 }}</p>{% endif %}
+
+        {# Step 2: Academic #}
+        <div class="tab-pane fade" id="pane-academic" role="tabpanel" aria-labelledby="tab-academic">
+          <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-3 p-lg-4">
+              <div class="d-flex align-items-center gap-2 mb-3">
+                <div class="wizard-icon bg-soft-academic text-academic"><i class="bi bi-mortarboard"></i></div>
+                <div>
+                  <div class="fw-bold">Academic Information</div>
+                  <div class="text-muted small">Admission identifiers, class/section, and academic context.</div>
+                </div>
+              </div>
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Academic year</label>
+                  {{ form.academic_year }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Admission date</label>
+                  {{ form.admission_date }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Student type</label>
+                  {{ form.student_type }}
+                </div>
+
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Class / grade <span class="text-danger">*</span></label>
+                  {{ form.classroom }}
+                  {% if form.classroom.errors %}<div class="text-danger small mt-1">{{ form.classroom.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Section <span class="text-danger">*</span></label>
+                  <select name="section" id="id_section" class="form-select" required>
+                    <option value="">— Select section —</option>
+                    {% for s in form.fields.section.queryset %}
+                      <option value="{{ s.id }}" data-classrooms="{% for c in s.classrooms.all %}{{ c.id }}{% if not forloop.last %},{% endif %}{% endfor %}" {% if form.section.value|stringformat:"s" == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
+                    {% endfor %}
+                  </select>
+                  {% if form.section.errors %}<div class="text-danger small mt-1">{{ form.section.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Roll number <span class="text-danger">*</span></label>
+                  {{ form.roll_number }}
+                  {% if form.roll_number.errors %}<div class="text-danger small mt-1">{{ form.roll_number.errors.0 }}</div>{% endif %}
+                </div>
+
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Admission number (auto generated)</label>
+                  {{ form.admission_number }}
+                  <div class="form-text">Leave empty to auto-generate. Username will be the admission number.</div>
+                  {% if form.admission_number.errors %}<div class="text-danger small mt-1">{{ form.admission_number.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Registration number</label>
+                  {{ form.registration_number }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Stream</label>
+                  {{ form.stream }}
+                </div>
+
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Course / branch</label>
+                  {{ form.course_branch }}
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Semester / year</label>
+                  {{ form.semester_year }}
+                </div>
+
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Previous institution</label>
+                  {{ form.previous_institution }}
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Previous marks / GPA</label>
+                  {{ form.previous_marks }}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="form-group">
-          <label for="id_date_of_birth" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date of Birth</label>
-          {{ form.date_of_birth }}
-          {% if form.date_of_birth.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.date_of_birth.errors.0 }}</p>{% endif %}
+
+        {# Step 3: Parents #}
+        <div class="tab-pane fade" id="pane-parents" role="tabpanel" aria-labelledby="tab-parents">
+          <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-3 p-lg-4">
+              <div class="d-flex align-items-center gap-2 mb-3">
+                <div class="wizard-icon bg-soft-parents text-parents"><i class="bi bi-people"></i></div>
+                <div>
+                  <div class="fw-bold">Parent / Guardian Details</div>
+                  <div class="text-muted small">Parents, guardian, and contact preferences.</div>
+                </div>
+              </div>
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Father name</label>
+                  {{ form.father_name }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Father mobile</label>
+                  {{ form.father_mobile }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Father occupation</label>
+                  {{ form.father_occupation }}
+                </div>
+
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Mother name</label>
+                  {{ form.mother_name }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Mother mobile</label>
+                  {{ form.mother_mobile }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Mother occupation</label>
+                  {{ form.mother_occupation }}
+                </div>
+
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Guardian name</label>
+                  {{ form.guardian_name }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Guardian relation</label>
+                  {{ form.guardian_relation }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Guardian phone</label>
+                  {{ form.guardian_phone }}
+                </div>
+
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Parent/guardian name (quick)</label>
+                  {{ form.parent_name }}
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Parent phone (quick)</label>
+                  {{ form.parent_phone }}
+                </div>
+
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Parent email (for credentials)</label>
+                  {{ form.email }}
+                  {% if form.fields.email.help_text %}<div class="form-text">{{ form.fields.email.help_text }}</div>{% endif %}
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Student email</label>
+                  {{ form.student_email }}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
+
+        {# Step 4: Contact #}
+        <div class="tab-pane fade" id="pane-contact" role="tabpanel" aria-labelledby="tab-contact">
+          <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-3 p-lg-4">
+              <div class="d-flex align-items-center gap-2 mb-3">
+                <div class="wizard-icon bg-soft-contact text-contact"><i class="bi bi-geo-alt"></i></div>
+                <div>
+                  <div class="fw-bold">Contact Information</div>
+                  <div class="text-muted small">Address and communication details.</div>
+                </div>
+              </div>
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Student mobile</label>
+                  {{ form.student_mobile }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Address line 1</label>
+                  {{ form.address_line1 }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Address line 2</label>
+                  {{ form.address_line2 }}
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">City</label>
+                  {{ form.city }}
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">District</label>
+                  {{ form.district }}
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">State</label>
+                  {{ form.state }}
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Pincode</label>
+                  {{ form.pincode }}
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Country</label>
+                  {{ form.country }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {# Step 5: Medical #}
+        <div class="tab-pane fade" id="pane-medical" role="tabpanel" aria-labelledby="tab-medical">
+          <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-3 p-lg-4">
+              <div class="d-flex align-items-center gap-2 mb-3">
+                <div class="wizard-icon bg-soft-medical text-medical"><i class="bi bi-heart-pulse"></i></div>
+                <div>
+                  <div class="fw-bold">Medical / Emergency</div>
+                  <div class="text-muted small">Emergency contacts and health notes (optional).</div>
+                </div>
+              </div>
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Emergency contact name</label>
+                  {{ form.emergency_contact_name }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Emergency phone</label>
+                  {{ form.emergency_phone }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Allergies</label>
+                  {{ form.allergies }}
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Medical conditions</label>
+                  {{ form.medical_conditions }}
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Doctor name</label>
+                  {{ form.doctor_name }}
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Hospital</label>
+                  {{ form.hospital }}
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Insurance details</label>
+                  {{ form.insurance_details }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {# Step 6: Documents #}
+        <div class="tab-pane fade" id="pane-docs" role="tabpanel" aria-labelledby="tab-docs">
+          <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-3 p-lg-4">
+              <div class="d-flex align-items-center gap-2 mb-3">
+                <div class="wizard-icon bg-soft-docs text-docs"><i class="bi bi-folder2-open"></i></div>
+                <div>
+                  <div class="fw-bold">Documents Upload</div>
+                  <div class="text-muted small">Upload now or later (optional).</div>
+                </div>
+              </div>
+              <div class="row g-3">
+                <div class="col-md-4"><label class="form-label fw-semibold">Birth certificate</label>{{ form.doc_birth_certificate }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Aadhar / ID proof</label>{{ form.doc_id_proof }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Transfer certificate</label>{{ form.doc_transfer_certificate }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Previous marks memo</label>{{ form.doc_previous_marks }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Passport photo</label>{{ form.doc_passport_photo }}</div>
+                <div class="col-md-4"><label class="form-label fw-semibold">Parent ID</label>{{ form.doc_parent_id }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {# Step 7: Review #}
+        <div class="tab-pane fade" id="pane-review" role="tabpanel" aria-labelledby="tab-review">
+          <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-3 p-lg-4">
+              <div class="d-flex align-items-center gap-2 mb-3">
+                <div class="wizard-icon bg-soft-review text-review"><i class="bi bi-check2-circle"></i></div>
+                <div>
+                  <div class="fw-bold">Review & submit</div>
+                  <div class="text-muted small">Double-check key fields before submitting.</div>
+                </div>
+              </div>
+
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <div class="p-3 rounded-4 border bg-body-tertiary">
+                    <div class="text-muted small">Full name</div>
+                    <div class="fw-semibold" id="reviewName">—</div>
+                    <div class="text-muted small mt-2">Admission number</div>
+                    <div class="fw-semibold">{{ form.admission_number.value|default:"(Auto-generated)" }}</div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="p-3 rounded-4 border bg-body-tertiary">
+                    <div class="text-muted small">Class / section</div>
+                    <div class="fw-semibold" id="reviewClass">—</div>
+                    <div class="text-muted small mt-2">Roll number</div>
+                    <div class="fw-semibold" id="reviewRoll">—</div>
+                  </div>
+                </div>
+
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Record status</label>
+                  {{ form.record_status }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Password (optional)</label>
+                  {{ form.password }}
+                  {% if form.password.errors %}<div class="text-danger small mt-1">{{ form.password.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-12">
+                  <div class="text-muted small">Login username = Admission Number (auto-generated if blank).</div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
-    {# Section 2: Academic Details #}
-    <div class="px-6 py-5 border-b border-slate-200 dark:border-slate-700">
-      <div class="flex items-center gap-2 mb-5">
-        <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400">
-          <i class="bi bi-mortarboard-fill"></i>
-        </div>
-        <h2 class="font-semibold text-slate-900 dark:text-slate-50">Academic Details</h2>
+    <div class="card-footer bg-body-tertiary position-sticky bottom-0 d-flex justify-content-between flex-wrap gap-2 p-3 p-lg-4" style="z-index: 10;">
+      <div class="d-flex gap-2 flex-wrap">
+        <a href="{% url 'core:school_students_list' %}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
       </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="form-group">
-          <label for="id_classroom" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Classroom <span class="text-red-500">*</span></label>
-          {{ form.classroom }}
-          {% if form.classroom.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.classroom.errors.0 }}</p>{% endif %}
-        </div>
-        <div class="form-group">
-          <label for="id_section" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Section <span class="text-red-500">*</span></label>
-          <select name="section" id="id_section" class="form-select" required>
-            <option value="">— Select section —</option>
-            {% for s in form.fields.section.queryset %}
-              <option value="{{ s.id }}" data-classrooms="{% for c in s.classrooms.all %}{{ c.id }}{% if not forloop.last %},{% endif %}{% endfor %}" {% if form.section.value|stringformat:"s" == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
-            {% endfor %}
-          </select>
-          {% if form.section.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.section.errors.0 }}</p>{% endif %}
-        </div>
-        <div class="form-group">
-          <label for="id_roll_number" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Roll Number <span class="text-red-500">*</span></label>
-          {{ form.roll_number }}
-          {% if form.roll_number.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.roll_number.errors.0 }}</p>{% endif %}
-        </div>
-        <div class="form-group">
-          <label for="id_admission_number" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Admission Number <span class="text-red-500">*</span></label>
-          {{ form.admission_number }}
-          {% if form.admission_number.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.admission_number.errors.0 }}</p>{% endif %}
-        </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <button type="button" class="btn btn-outline-secondary rounded-pill px-4" id="btnPrev">
+          <i class="bi bi-arrow-left me-1"></i> Previous
+        </button>
+        <button type="button" class="btn btn-primary rounded-pill px-4" id="btnNext">
+          Next <i class="bi bi-arrow-right ms-1"></i>
+        </button>
+        <button type="submit" name="save_draft" value="1" class="btn btn-outline-primary rounded-pill px-4">
+          <i class="bi bi-save2 me-1"></i> Save draft
+        </button>
+        <button type="submit" class="btn btn-success rounded-pill px-4 shadow-sm">
+          <i class="bi bi-check2-circle me-1"></i> Submit
+        </button>
       </div>
-    </div>
-
-    {# Section 3: Parent Details #}
-    <div class="px-6 py-5 border-b border-slate-200 dark:border-slate-700">
-      <div class="flex items-center gap-2 mb-5">
-        <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400">
-          <i class="bi bi-people-fill"></i>
-        </div>
-        <h2 class="font-semibold text-slate-900 dark:text-slate-50">Parent Details</h2>
-      </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="form-group">
-          <label for="id_parent_name" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Parent Name</label>
-          {{ form.parent_name }}
-          {% if form.parent_name.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.parent_name.errors.0 }}</p>{% endif %}
-        </div>
-        <div class="form-group">
-          <label for="id_parent_phone" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Parent Phone <span class="text-slate-400 font-normal">(10 digits)</span></label>
-          {{ form.parent_phone }}
-          {% if form.parent_phone.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.parent_phone.errors.0 }}</p>{% endif %}
-        </div>
-        <div class="form-group md:col-span-2">
-          <label for="id_email" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Email <span class="text-red-500">*</span> <span class="text-slate-400 font-normal">(for login &amp; password reset)</span></label>
-          {{ form.email }}
-          {% if form.email.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.email.errors.0 }}</p>{% endif %}
-          {% if form.fields.email.help_text %}<p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ form.fields.email.help_text }}</p>{% endif %}
-        </div>
-      </div>
-    </div>
-
-    {# Section 4: Account Details #}
-    <div class="px-6 py-5">
-      <div class="flex items-center gap-2 mb-5">
-        <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400">
-          <i class="bi bi-key-fill"></i>
-        </div>
-        <h2 class="font-semibold text-slate-900 dark:text-slate-50">Account Details</h2>
-      </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="form-group">
-          <label for="id_password" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Password <span class="text-slate-400 font-normal">(optional – system generates)</span></label>
-          {{ form.password }}
-          {% if form.password.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ form.password.errors.0 }}</p>{% endif %}
-        </div>
-      </div>
-      <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">Login username = Admission Number. Students log in with their Admission Number.</p>
-    </div>
-
-    <div class="px-6 py-5 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex flex-wrap gap-3">
-      <button type="submit" class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition">
-        <i class="bi bi-check-lg"></i> Add Student
-      </button>
-      <a href="{% url 'core:school_students_list' %}" class="inline-flex items-center gap-2 rounded-xl border border-slate-300 dark:border-slate-600 px-5 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition">
-        Cancel
-      </a>
     </div>
   </form>
 </div>
 
 <style>
-  .form-group input,
-  .form-group select {
-    height: 46px;
-    width: 100%;
-    padding: 0 14px;
-    font-size: 0.9375rem;
-    border-radius: 10px;
-    border: 1px solid #cbd5e1;
-    background: white;
-    transition: border-color 0.2s, box-shadow 0.2s;
+  /* DaisyUI (Tailwind) sets .tab-content { display: none } for its tab component; Bootstrap
+     uses a different DOM (nav-tabs + .tab-content, not .tab + .tab-content), so the pane
+     wrapper stayed hidden and all fields were invisible. */
+  .student-wizard-form .tab-content {
+    display: block !important;
   }
-  .dark .form-group input,
-  .dark .form-group select {
-    border-color: #475569;
-    background: rgba(30, 41, 59, 0.5);
-    color: #f1f5f9;
+
+  .wizard-tabs .nav-link { white-space: nowrap; }
+  .wiz-pill { border: 1px solid rgba(0,0,0,.08); }
+  .wiz-pill.active { border-color: transparent; }
+  .wizard-icon {
+    width: 40px; height: 40px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
   }
-  .form-group input:focus,
-  .form-group select:focus {
-    outline: none;
-    border-color: #6366f1;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+  .bg-soft-personal { background: rgba(79,70,229,.12); }
+  .bg-soft-academic { background: rgba(14,165,233,.12); }
+  .bg-soft-parents { background: rgba(245,158,11,.15); }
+  .bg-soft-contact { background: rgba(34,197,94,.12); }
+  .bg-soft-medical { background: rgba(244,63,94,.12); }
+  .bg-soft-docs { background: rgba(168,85,247,.12); }
+  .bg-soft-review { background: rgba(2,132,199,.12); }
+
+  .text-personal { color: #4f46e5; }
+  .text-academic { color: #0ea5e9; }
+  .text-parents { color: #f59e0b; }
+  .text-contact { color: #16a34a; }
+  .text-medical { color: #e11d48; }
+  .text-docs { color: #a855f7; }
+  .text-review { color: #0284c7; }
+
+  .wiz-personal.active { background: linear-gradient(135deg, #4f46e5, #6366f1); color: #fff; }
+  .wiz-academic.active { background: linear-gradient(135deg, #0ea5e9, #22c55e); color: #fff; }
+  .wiz-parents.active { background: linear-gradient(135deg, #f59e0b, #f97316); color: #fff; }
+  .wiz-contact.active { background: linear-gradient(135deg, #16a34a, #22c55e); color: #fff; }
+  .wiz-medical.active { background: linear-gradient(135deg, #e11d48, #f43f5e); color: #fff; }
+  .wiz-docs.active { background: linear-gradient(135deg, #a855f7, #6366f1); color: #fff; }
+  .wiz-review.active { background: linear-gradient(135deg, #0284c7, #0ea5e9); color: #fff; }
+
+  /* Make inputs consistently visible + premium spacing */
+  .student-wizard-form .card .form-control,
+  .student-wizard-form .card .form-select,
+  .student-wizard-form .card input[type="file"],
+  .student-wizard-form .card input,
+  .student-wizard-form .card select,
+  .student-wizard-form .card textarea {
+    min-height: 46px;
+    border-radius: 12px;
+    opacity: 1 !important;
+    visibility: visible !important;
+    display: block !important;
   }
-  .dark .form-group input:focus,
-  .dark .form-group select:focus {
-    border-color: #818cf8;
-    box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.25);
-  }
-  .form-group input::placeholder {
-    color: #94a3b8;
-  }
-  .dark .form-group input::placeholder {
-    color: #64748b;
-  }
+  .student-wizard-form .card .form-label { font-weight: 600; }
 </style>
 
 <script>
-(function() {
+(function () {
+  const steps = [
+    "tab-personal",
+    "tab-academic",
+    "tab-parents",
+    "tab-contact",
+    "tab-medical",
+    "tab-docs",
+    "tab-review"
+  ];
+
+  function setFullName() {
+    const f = document.getElementById("id_first_name");
+    const m = document.getElementById("id_middle_name");
+    const l = document.getElementById("id_last_name");
+    const out = document.getElementById("fullName");
+    if (!out) return;
+    const parts = [f?.value, m?.value, l?.value].map(v => (v || "").trim()).filter(Boolean);
+    out.value = parts.join(" ");
+    const rn = document.getElementById("reviewName");
+    if (rn) rn.textContent = out.value || "—";
+  }
+
+  function setAge() {
+    const dob = document.getElementById("id_date_of_birth");
+    const out = document.getElementById("age");
+    if (!dob || !out) return;
+    if (!dob.value) { out.value = ""; return; }
+    const d = new Date(dob.value);
+    if (Number.isNaN(d.getTime())) { out.value = ""; return; }
+    const now = new Date();
+    let age = now.getFullYear() - d.getFullYear();
+    const m = now.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+    out.value = age >= 0 ? String(age) : "";
+  }
+
   function filterSections() {
     const classroom = document.getElementById("id_classroom");
     const section = document.getElementById("id_section");
@@ -197,12 +629,120 @@
     const selected = section.options[section.selectedIndex];
     if (selected && selected.hidden) section.value = "";
   }
-  const classroom = document.getElementById("id_classroom");
-  if (classroom) {
-    classroom.addEventListener("change", filterSections);
-    filterSections();
+
+  ["id_first_name", "id_middle_name", "id_last_name"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("input", setFullName);
+  });
+  document.getElementById("id_date_of_birth")?.addEventListener("change", setAge);
+  document.getElementById("id_classroom")?.addEventListener("change", filterSections);
+
+  function setReview() {
+    const classSel = document.getElementById("id_classroom");
+    const secSel = document.getElementById("id_section");
+    const roll = document.getElementById("id_roll_number");
+    const rc = document.getElementById("reviewClass");
+    const rr = document.getElementById("reviewRoll");
+    const cText = classSel?.selectedOptions?.[0]?.textContent?.trim() || "";
+    const sText = secSel?.selectedOptions?.[0]?.textContent?.trim() || "";
+    if (rc) rc.textContent = [cText, sText].filter(Boolean).join(" / ") || "—";
+    if (rr) rr.textContent = (roll?.value || "").trim() || "—";
   }
 
+  function setStepUI(activeIdx) {
+    const now = document.getElementById("stepNow");
+    const total = document.getElementById("stepTotal");
+    const bar = document.getElementById("wizardProgress");
+    if (total) total.textContent = String(steps.length);
+    if (now) now.textContent = String(activeIdx + 1);
+    if (bar) bar.style.width = `${((activeIdx + 1) / steps.length) * 100}%`;
+    document.getElementById("btnPrev")?.toggleAttribute("disabled", activeIdx === 0);
+    const nextBtn = document.getElementById("btnNext");
+    if (nextBtn) nextBtn.toggleAttribute("disabled", activeIdx === steps.length - 1);
+  }
+
+  function activeIdx() {
+    const active = document.querySelector("#admissionWizardTabs .nav-link.active");
+    if (!active) return 0;
+    const id = active.getAttribute("id") || "";
+    const idx = steps.indexOf(id);
+    return idx >= 0 ? idx : 0;
+  }
+
+  function go(idx) {
+    const clamped = Math.max(0, Math.min(steps.length - 1, idx));
+    const btn = document.getElementById(steps[clamped]);
+    if (!btn) return;
+    // Bootstrap if available, else fallback.
+    if (window.bootstrap && bootstrap.Tab) {
+      bootstrap.Tab.getOrCreateInstance(btn).show();
+      return;
+    }
+    showTab(btn);
+  }
+
+  document.getElementById("btnPrev")?.addEventListener("click", function () {
+    go(activeIdx() - 1);
+  });
+  document.getElementById("btnNext")?.addEventListener("click", function () {
+    go(activeIdx() + 1);
+  });
+  document.getElementById("id_classroom")?.addEventListener("change", setReview);
+  document.getElementById("id_section")?.addEventListener("change", setReview);
+  document.getElementById("id_roll_number")?.addEventListener("input", setReview);
+
+  function showTab(btnEl) {
+    const target = btnEl.getAttribute("data-bs-target");
+    if (!target) return;
+    const pane = document.querySelector(target);
+    if (!pane) return;
+    // deactivate buttons
+    document.querySelectorAll("#admissionWizardTabs .nav-link").forEach((b) => {
+      b.classList.remove("active");
+      b.setAttribute("aria-selected", "false");
+    });
+    // deactivate panes
+    document.querySelectorAll(".tab-content > .tab-pane").forEach((p) => {
+      p.classList.remove("show", "active");
+    });
+    // activate
+    btnEl.classList.add("active");
+    btnEl.setAttribute("aria-selected", "true");
+    pane.classList.add("show", "active");
+    setStepUI(activeIdx());
+    setReview();
+    setFullName();
+  }
+
+  document.querySelectorAll("#admissionWizardTabs .nav-link").forEach((el) => {
+    // Bootstrap event (if present)
+    el.addEventListener("shown.bs.tab", function () {
+      setStepUI(activeIdx());
+      setReview();
+      setFullName();
+    });
+    // Fallback click handler
+    el.addEventListener("click", function (e) {
+      if (window.bootstrap && bootstrap.Tab) return; // let bootstrap handle
+      e.preventDefault();
+      showTab(el);
+    });
+  });
+
+  setFullName();
+  setAge();
+  filterSections();
+  setReview();
+  setStepUI(activeIdx());
+
+  // Final safety: if something stripped classes, re-activate first pane.
+  const hasActivePane = document.querySelector(".tab-content > .tab-pane.active");
+  if (!hasActivePane) {
+    const firstBtn = document.getElementById(steps[0]);
+    if (firstBtn) {
+      showTab(firstBtn);
+    }
+  }
 })();
 </script>
+{% include "core/school/includes/student_dob_flatpickr.html" %}
 {% endblock %}

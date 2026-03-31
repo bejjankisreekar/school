@@ -1,28 +1,70 @@
 {% extends "base.html" %}
-{% block title %}Fee Collection | School ERP{% endblock %}
+{% block title %}Billing Collection | School ERP{% endblock %}
 {% block content %}
 <div class="container-fluid px-0">
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'core:school_fees_index' %}">Fees</a></li>
-      <li class="breadcrumb-item active">Fee Collection</li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_fees_index' %}">Billing</a></li>
+      <li class="breadcrumb-item active">Collections</li>
     </ol>
   </nav>
 
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-    <h1 class="h4 fw-bold mb-0">Fee Dues (Pending)</h1>
-    <a href="{% url 'core:school_fee_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Generate Fees</a>
+    <div>
+      {% if filtered_student %}
+      <h1 class="h4 fw-bold mb-1">Fee dues — {{ filtered_student.user.get_full_name|default:filtered_student.user.username }}</h1>
+      <p class="text-muted small mb-0">Showing pending and partial dues for this student only.</p>
+      {% else %}
+      <h1 class="h4 fw-bold mb-0">Billing dues (pending)</h1>
+      {% endif %}
+    </div>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      {% if filtered_student %}
+      <a href="{% url 'core:school_student_view' filtered_student.id %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+        <i class="bi bi-person me-1"></i> Student profile
+      </a>
+      {% endif %}
+      <a href="{% url 'core:school_fees_index' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+        <i class="bi bi-arrow-left me-1"></i> Back
+      </a>
+      {% if not filtered_student %}
+      <a href="{% url 'core:school_fee_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Generate &amp; collect</a>
+      {% endif %}
+    </div>
   </div>
 
+  {% if not filtered_student %}
+  <form method="get" class="row g-2 align-items-end mb-3">
+    <div class="col-auto flex-grow-1" style="min-width: 14rem;">
+      <label class="form-label small mb-1">Filter by student</label>
+      <select name="student" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All students</option>
+        {% for s in students %}
+        <option value="{{ s.id }}" {% if student_filter == s.id|stringformat:"s" %}selected{% endif %}>
+          {{ s.user.get_full_name|default:s.user.username }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+  </form>
+  {% else %}
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <a href="{% url 'core:school_fee_collection' %}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-funnel me-1"></i> View all students’ dues
+    </a>
+    <a href="{% url 'core:school_fee_add' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Generate &amp; collect</a>
+  </div>
+  {% endif %}
+
   <div class="card border-0 shadow-sm">
-    <div class="card-header bg-white border-0"><strong>Pending Dues</strong></div>
+    <div class="card-header bg-white border-0"><strong>{% if filtered_student %}Pending dues (this student){% else %}Pending Dues{% endif %}</strong></div>
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
           <tr>
-            <th>Student</th>
-            <th>Fee Type</th>
+            {% if not filtered_student %}<th>Student</th>{% endif %}
+            <th>Billing Type</th>
             <th>Amount</th>
             <th>Due Date</th>
             <th>Status</th>
@@ -32,7 +74,9 @@
         <tbody>
           {% for f in dues %}
           <tr>
+            {% if not filtered_student %}
             <td>{{ f.student.user.get_full_name|default:f.student.user.username }}</td>
+            {% endif %}
             <td>{{ f.fee_structure.fee_type.name }}</td>
             <td>{{ f.amount }}</td>
             <td>{{ f.due_date }}</td>
@@ -42,7 +86,7 @@
             </td>
           </tr>
           {% empty %}
-          <tr><td colspan="6" class="text-muted text-center py-4">No pending dues.</td></tr>
+          <tr><td colspan="{% if filtered_student %}5{% else %}6{% endif %}" class="text-muted text-center py-4">No pending dues{% if filtered_student %} for this student{% endif %}.</td></tr>
           {% endfor %}
         </tbody>
       </table>

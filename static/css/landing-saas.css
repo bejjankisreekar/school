@@ -1,0 +1,401 @@
+/* School ERP — marketing / landing SaaS theme (Stripe / Notion / Linear inspired) */
+:root {
+  --saas-primary: #4f46e5;
+  --saas-primary-dark: #4338ca;
+  --saas-secondary: #6366f1;
+  --saas-accent: #22c55e;
+  --saas-bg: #f8fafc;
+  --saas-text: #1f2937;
+  --saas-text-muted: #64748b;
+  --saas-hero-tint: #eef2ff;
+  --saas-transition: 0.25s ease;
+}
+
+.landing-body {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--saas-text);
+  background: var(--saas-bg);
+}
+
+/* ——— Gradient navbar ——— */
+.landing-nav-gradient {
+  background: linear-gradient(90deg, #4f46e5 0%, #6366f1 100%);
+  border-bottom: none;
+  box-shadow: 0 4px 24px rgba(79, 70, 229, 0.35);
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+.landing-nav-gradient .navbar-toggler {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.landing-nav-gradient .navbar-toggler-icon {
+  filter: brightness(0) invert(1);
+}
+
+.landing-nav-gradient .landing-nav-brand {
+  color: #fff !important;
+}
+
+.landing-nav-gradient .landing-nav-brand span:last-child {
+  color: #fff !important;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.landing-nav-gradient .landing-nav-brand .landing-logo-badge {
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--saas-primary);
+  font-weight: 800;
+  border-radius: 10px;
+  padding: 0.35rem 0.55rem;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+}
+
+.landing-nav-gradient .landing-nav-link {
+  color: rgba(255, 255, 255, 0.88) !important;
+  font-weight: 500;
+}
+
+.landing-nav-gradient .landing-nav-link:hover {
+  color: #fff !important;
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+}
+
+.landing-nav-gradient .landing-nav-link::after {
+  background: linear-gradient(90deg, #fff, rgba(255, 255, 255, 0.7));
+}
+
+.landing-nav-gradient .landing-nav-link.active {
+  color: #fff !important;
+  font-weight: 600;
+}
+
+/* Login pill */
+.btn-landing-login {
+  background: #fff !important;
+  color: var(--saas-primary) !important;
+  border: none;
+  border-radius: 25px;
+  padding: 8px 18px;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  transition: background var(--saas-transition), color var(--saas-transition),
+    transform var(--saas-transition), box-shadow var(--saas-transition);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.btn-landing-login:hover {
+  background: #eef2ff !important;
+  color: var(--saas-primary-dark) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* Nav CTA (Get started) */
+.btn-landing-nav-cta {
+  background: rgba(255, 255, 255, 0.15) !important;
+  color: #fff !important;
+  border: 2px solid rgba(255, 255, 255, 0.55) !important;
+  border-radius: 25px;
+  padding: 8px 18px;
+  font-weight: 600;
+  transition: all var(--saas-transition);
+}
+
+.btn-landing-nav-cta:hover {
+  background: rgba(255, 255, 255, 0.28) !important;
+  border-color: #fff !important;
+  color: #fff !important;
+  transform: translateY(-1px);
+}
+
+/* ——— Sections ——— */
+.landing-section {
+  padding: 80px 0;
+}
+
+@media (max-width: 767.98px) {
+  .landing-section {
+    padding: 56px 0;
+  }
+}
+
+/* ——— Hero ——— */
+.landing-hero {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, #eef2ff 0%, #f8fafc 45%, #ffffff 100%);
+  padding: 88px 0 96px;
+}
+
+@media (max-width: 767.98px) {
+  .landing-hero {
+    padding: 64px 0 72px;
+  }
+}
+
+.landing-hero::before {
+  content: "";
+  position: absolute;
+  top: -40%;
+  right: -15%;
+  width: 55%;
+  max-width: 520px;
+  aspect-ratio: 1;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.22) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.landing-hero::after {
+  content: "";
+  position: absolute;
+  bottom: -20%;
+  left: -10%;
+  width: 45%;
+  max-width: 400px;
+  aspect-ratio: 1;
+  background: radial-gradient(circle, rgba(34, 197, 94, 0.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.landing-hero-inner {
+  position: relative;
+  z-index: 1;
+}
+
+.landing-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(79, 70, 229, 0.1);
+  color: var(--saas-primary);
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 1.25rem;
+  border: 1px solid rgba(79, 70, 229, 0.15);
+}
+
+.landing-hero h1 {
+  font-size: clamp(2.25rem, 4vw, 3.25rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--saas-text);
+  line-height: 1.15;
+  margin-bottom: 1.25rem;
+}
+
+.landing-hero-lead {
+  font-size: 1.2rem;
+  color: var(--saas-text-muted);
+  max-width: 560px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.6;
+}
+
+.btn-landing-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--saas-primary);
+  color: #fff !important;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 22px;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all var(--saas-transition);
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4);
+}
+
+.btn-landing-primary:hover {
+  background: var(--saas-primary-dark);
+  color: #fff !important;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(79, 70, 229, 0.45);
+}
+
+.btn-landing-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--saas-primary) !important;
+  border: 2px solid var(--saas-primary);
+  border-radius: 12px;
+  padding: 10px 22px;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all var(--saas-transition);
+}
+
+.btn-landing-secondary:hover {
+  background: rgba(79, 70, 229, 0.08);
+  color: var(--saas-primary-dark) !important;
+  border-color: var(--saas-primary-dark);
+  transform: translateY(-2px);
+}
+
+/* ——— Feature cards ——— */
+.landing-feature-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  height: 100%;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  transition: transform var(--saas-transition), box-shadow var(--saas-transition);
+}
+
+.landing-feature-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 40px rgba(79, 70, 229, 0.12);
+}
+
+.landing-feature-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  margin-bottom: 1rem;
+}
+
+.landing-feature-icon--indigo {
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.15), rgba(99, 102, 241, 0.12));
+  color: var(--saas-primary);
+}
+
+.landing-feature-icon--green {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.08));
+  color: #16a34a;
+}
+
+.landing-feature-icon--violet {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.18), rgba(99, 102, 241, 0.1));
+  color: #7c3aed;
+}
+
+.landing-feature-card .card-title,
+.landing-feature-card h5 {
+  font-weight: 700;
+  color: var(--saas-text);
+  letter-spacing: -0.02em;
+}
+
+/* ——— Section headings ——— */
+.landing-section-title {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--saas-text);
+}
+
+.landing-section-sub {
+  color: var(--saas-text-muted);
+}
+
+/* ——— Trust / light bands ——— */
+.landing-band-muted {
+  background: linear-gradient(180deg, #f1f5f9 0%, #f8fafc 100%);
+  border-color: rgba(15, 23, 42, 0.06) !important;
+}
+
+/* ——— Dashboard mock ——— */
+.landing-mock-card {
+  border-radius: 20px;
+  border: 1px solid rgba(79, 70, 229, 0.12);
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.1);
+  overflow: hidden;
+  background: #fff;
+}
+
+/* ——— CTA strip ——— */
+.landing-cta-gradient {
+  background: linear-gradient(115deg, #4f46e5 0%, #6366f1 45%, #4338ca 100%);
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+
+.landing-cta-gradient::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 20% 50%, rgba(34, 197, 94, 0.25) 0%, transparent 45%);
+  pointer-events: none;
+}
+
+.landing-cta-inner {
+  position: relative;
+  z-index: 1;
+}
+
+/* ——— FAQ accordion ——— */
+.landing-accordion .accordion-button:not(.collapsed) {
+  background: rgba(79, 70, 229, 0.08);
+  color: var(--saas-primary-dark);
+  box-shadow: none;
+}
+
+.landing-accordion .accordion-button:focus {
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.25);
+}
+
+/* ——— Footer marketing ——— */
+.landing-footer {
+  background: linear-gradient(180deg, #1e1b4b 0%, #0f172a 100%);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.landing-footer a {
+  color: rgba(255, 255, 255, 0.65);
+  transition: color var(--saas-transition);
+}
+
+.landing-footer a:hover {
+  color: #fff;
+}
+
+.landing-footer .landing-footer-brand-badge {
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: #fff;
+  border-radius: 10px;
+  padding: 0.35rem 0.55rem;
+  font-weight: 800;
+}
+
+/* Legacy CTA button on older markup */
+.btn-cta {
+  background: linear-gradient(135deg, var(--saas-primary) 0%, var(--saas-primary-dark) 100%);
+  border: none;
+  color: #fff !important;
+  border-radius: 12px;
+  transition: all var(--saas-transition);
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+}
+
+.btn-cta:hover {
+  filter: brightness(1.08);
+  transform: translateY(-2px);
+  color: #fff !important;
+  box-shadow: 0 8px 24px rgba(79, 70, 229, 0.4);
+}
+
+@keyframes landing-logo-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.landing-logo-carousel {
+  animation: landing-logo-scroll 22s linear infinite;
+}
+
+.landing-logo-carousel:hover {
+  animation-play-state: paused;
+}

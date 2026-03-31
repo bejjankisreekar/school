@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+{% block title %}{% if teacher %}Edit{% else %}Add{% endif %} teacher | Campus ERP{% endblock %}
+{% block extra_head %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+<style>
+  /*
+   * Root cause fix: DaisyUI (in theme/static Tailwind build) defines global
+   * `.tab-content { display: none }` for its own tabs. Bootstrap puts all panes
+   * *inside* `.tab-content`, so nothing matched DaisyUI's sibling selector and
+   * the whole wizard body stayed hidden. Use a dedicated class instead of
+   * Bootstrap's `.tab-content` class name.
+   */
+  .teacher-master-wizard-panels > .teacher-master-pane {
+    display: none;
+  }
+  .teacher-master-wizard-panels > .teacher-master-pane.active {
+    display: block;
+  }
+  .teacher-master-section-card {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: rgba(248, 250, 252, 0.85);
+    border-radius: 1rem;
+    padding: 1.25rem 1.25rem;
+  }
+  html.dark .teacher-master-section-card {
+    border-color: rgba(148, 163, 184, 0.2);
+    background: rgba(15, 23, 42, 0.55);
+  }
+  .teacher-master-wizard .form-label {
+    margin-bottom: 0.35rem;
+    color: #334155;
+    font-size: 0.875rem;
+  }
+  html.dark .teacher-master-wizard .form-label {
+    color: #cbd5e1;
+  }
+  .teacher-master-wizard .form-control,
+  .teacher-master-wizard .form-select,
+  .teacher-master-wizard input[type="file"].form-control {
+    min-height: 2.5rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background-color: #fff;
+    color: #0f172a;
+  }
+  html.dark .teacher-master-wizard .form-control,
+  html.dark .teacher-master-wizard .form-select,
+  html.dark .teacher-master-wizard input[type="file"].form-control {
+    border-color: #475569;
+    background-color: #1e293b;
+    color: #f1f5f9;
+  }
+  .teacher-master-wizard .form-control:focus,
+  .teacher-master-wizard .form-select:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.2);
+  }
+  .teacher-master-wizard select[multiple] {
+    min-height: 7rem;
+  }
+  #teacherWizardTabs .nav-link {
+    border-radius: 0.5rem 0.5rem 0 0;
+    font-weight: 600;
+    color: #64748b;
+    border: 1px solid transparent;
+  }
+  #teacherWizardTabs .nav-link:hover {
+    color: #4f46e5;
+    background: rgba(79, 70, 229, 0.06);
+  }
+  #teacherWizardTabs .nav-link.active {
+    color: #4f46e5;
+    background: rgba(79, 70, 229, 0.1);
+    border-color: rgba(79, 70, 229, 0.25);
+    border-bottom-color: transparent;
+  }
+  html.dark #teacherWizardTabs .nav-link.active {
+    color: #a5b4fc;
+    background: rgba(99, 102, 241, 0.15);
+    border-color: rgba(129, 140, 248, 0.35);
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container-fluid px-0 teacher-master-wizard">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_teachers_list' %}">Teachers</a></li>
+      {% if teacher %}
+      <li class="breadcrumb-item"><a href="{% url 'core:school_teacher_view' teacher.id %}">{{ teacher.user.get_full_name|default:teacher.user.username }}</a></li>
+      <li class="breadcrumb-item active">Edit</li>
+      {% else %}
+      <li class="breadcrumb-item active">Add teacher</li>
+      {% endif %}
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <div>
+      <h1 class="h4 fw-bold mb-1">{% if teacher %}Edit teacher{% else %}Add teacher{% endif %}</h1>
+      <p class="text-muted small mb-0">Extended profile (aligned with student master fields).</p>
+    </div>
+    {% if teacher %}
+    <a href="{% url 'core:school_teacher_view' teacher.id %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3"><i class="bi bi-arrow-left me-1"></i> Back</a>
+    {% else %}
+    <a href="{% url 'core:school_teachers_list' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3"><i class="bi bi-arrow-left me-1"></i> Back</a>
+    {% endif %}
+  </div>
+
+  {% if form.non_field_errors %}<div class="alert alert-danger rounded-4 border-0">{{ form.non_field_errors }}</div>{% endif %}
+
+  <form method="post" enctype="multipart/form-data" class="card border-0 shadow-sm rounded-4">
+    {% csrf_token %}
+    <div class="card-body p-3 p-lg-4">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div class="fw-semibold text-body">Step <span id="tStepNow">1</span> of <span id="tStepTotal">5</span></div>
+      </div>
+      <div class="progress rounded-pill mb-4" style="height: 10px;">
+        <div id="tWizardProgress" class="progress-bar bg-primary" style="width: 20%;"></div>
+      </div>
+
+      <ul class="nav nav-tabs flex-nowrap overflow-auto mb-4" id="teacherWizardTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button type="button" class="nav-link active" data-t-idx="0">Personal</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button type="button" class="nav-link" data-t-idx="1">Professional</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button type="button" class="nav-link" data-t-idx="2">Address</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button type="button" class="nav-link" data-t-idx="3">Family &amp; medical</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button type="button" class="nav-link" data-t-idx="4">Payroll &amp; status</button>
+        </li>
+      </ul>
+
+      {# NOT using class "tab-content" — DaisyUI hides all .tab-content by default. #}
+      <div class="teacher-master-wizard-panels">
+        <div class="teacher-master-pane active" id="tpane-1" role="tabpanel">
+          <div class="teacher-master-section-card">
+            <div class="row g-3">
+              {% if not teacher %}
+              <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label fw-semibold" for="{{ form.username.id_for_label }}">Username <span class="text-danger">*</span></label>
+                {{ form.username }}
+                {% if form.username.errors %}<div class="text-danger small mt-1">{{ form.username.errors.0 }}</div>{% endif %}
+              </div>
+              <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label fw-semibold" for="{{ form.password.id_for_label }}">Password <span class="text-danger">*</span></label>
+                {{ form.password }}
+                {% if form.password.errors %}<div class="text-danger small mt-1">{{ form.password.errors.0 }}</div>{% endif %}
+              </div>
+              {% else %}
+              <div class="col-12"><p class="text-muted small mb-0">Username: <strong class="text-body">{{ teacher.user.username }}</strong> (login id)</p></div>
+              {% endif %}
+              <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label fw-semibold" for="{{ form.first_name.id_for_label }}">First name <span class="text-danger">*</span></label>
+                {{ form.first_name }}
+                {% if form.first_name.errors %}<div class="text-danger small mt-1">{{ form.first_name.errors.0 }}</div>{% endif %}
+              </div>
+              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.middle_name.id_for_label }}">Middle name</label>{{ form.middle_name }}</div>
+              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.last_name.id_for_label }}">Last name</label>{{ form.last_name }}</div>
+              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.email.id_for_label }}">Email</label>{{ form.email }}{% if form.email.errors %}<div class="text-danger small mt-1">{{ form.email.errors.0 }}</div>{% endif %}</div>
+              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.employee_id.id_for_label }}">Employee ID</label>{{ form.employee_id }}{% if form.employee_id.errors %}<div class="text-danger small mt-1">{{ form.employee_id.errors.0 }}</div>{% endif %}</div>
+              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.phone_number.id_for_label }}">Phone</label>{{ form.phone_number }}</div>
+              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.date_of_birth.id_for_label }}">Date of birth</label>{{ form.date_of_birth }}</div>
+              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.gender.id_for_label }}">Gender</label>{{ form.gender }}</div>
+              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.blood_group.id_for_label }}">Blood group</label>{{ form.blood_group }}</div>
+              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.id_number.id_for_label }}">Aadhar / ID</label>{{ form.id_number }}</div>
+              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.nationality.id_for_label }}">Nationality</label>{{ form.nationality }}</div>
+              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.religion.id_for_label }}">Religion</label>{{ form.religion }}</div>
+              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.mother_tongue.id_for_label }}">Mother tongue</label>{{ form.mother_tongue }}</div>
+              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.profile_image.id_for_label }}">Photo</label>{{ form.profile_image }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="teacher-master-pane" id="tpane-2" role="tabpanel">
+          <div class="teacher-master-section-card">
+            <div class="row g-3">
+              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.qualification.id_for_label }}">Qualification</label>{{ form.qualification }}</div>
+              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.experience.id_for_label }}">Experience</label>{{ form.experience }}</div>
+              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.joining_date.id_for_label }}">Joining date</label>{{ form.joining_date }}</div>
+              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.designation.id_for_label }}">Designation</label>{{ form.designation }}</div>
+              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.department.id_for_label }}">Department</label>{{ form.department }}</div>
+              {% if teacher %}<div class="col-12"><label class="form-label" for="{{ form.role.id_for_label }}">Portal role</label>{{ form.role }}</div>{% endif %}
+              <div class="col-12"><label class="form-label" for="{{ form.subjects.id_for_label }}">Subjects</label>{{ form.subjects }}</div>
+              <div class="col-12"><label class="form-label" for="{{ form.classrooms.id_for_label }}">Assigned classes</label>{{ form.classrooms }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="teacher-master-pane" id="tpane-3" role="tabpanel">
+          <div class="teacher-master-section-card">
+            <div class="row g-3">
+              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.address_line1.id_for_label }}">Address line 1</label>{{ form.address_line1 }}</div>
+              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.address_line2.id_for_label }}">Address line 2</label>{{ form.address_line2 }}</div>
+              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.city.id_for_label }}">City</label>{{ form.city }}</div>
+              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.district.id_for_label }}">District</label>{{ form.district }}</div>
+              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.state.id_for_label }}">State</label>{{ form.state }}</div>
+              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.pincode.id_for_label }}">PIN code</label>{{ form.pincode }}</div>
+              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.country.id_for_label }}">Country</label>{{ form.country }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="teacher-master-pane" id="tpane-4" role="tabpanel">
+          <div class="teacher-master-section-card">
+            <div class="row g-3">
+              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.spouse_name.id_for_label }}">Spouse name</label>{{ form.spouse_name }}</div>
+              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.spouse_phone.id_for_label }}">Spouse phone</label>{{ form.spouse_phone }}</div>
+              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.emergency_contact_name.id_for_label }}">Emergency contact</label>{{ form.emergency_contact_name }}</div>
+              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.emergency_phone.id_for_label }}">Emergency phone</label>{{ form.emergency_phone }}</div>
+              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.allergies.id_for_label }}">Allergies</label>{{ form.allergies }}</div>
+              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.medical_conditions.id_for_label }}">Medical conditions</label>{{ form.medical_conditions }}</div>
+              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.doctor_name.id_for_label }}">Doctor</label>{{ form.doctor_name }}</div>
+              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.hospital.id_for_label }}">Hospital</label>{{ form.hospital }}</div>
+              <div class="col-12"><label class="form-label" for="{{ form.insurance_details.id_for_label }}">Insurance</label>{{ form.insurance_details }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="teacher-master-pane" id="tpane-5" role="tabpanel">
+          <div class="teacher-master-section-card">
+            <div class="row g-3">
+              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.bank_name.id_for_label }}">Bank name</label>{{ form.bank_name }}</div>
+              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.bank_account.id_for_label }}">Account number</label>{{ form.bank_account }}</div>
+              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.ifsc.id_for_label }}">IFSC</label>{{ form.ifsc }}</div>
+              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.uan_number.id_for_label }}">UAN / PF</label>{{ form.uan_number }}</div>
+              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.record_status.id_for_label }}">Record status</label>{{ form.record_status }}</div>
+              {% if teacher %}
+              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.password.id_for_label }}">New password</label>{{ form.password }}<div class="form-text">Optional — leave blank to keep current.</div></div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer bg-transparent border-top-0 pt-0 d-flex flex-wrap gap-2 justify-content-between align-items-center">
+      <button type="button" class="btn btn-outline-secondary" id="tBtnPrev" disabled>Previous</button>
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-primary" id="tBtnNext">Next</button>
+        <button type="submit" class="btn btn-primary" id="tBtnSubmit" style="display:none;">{% if teacher %}Save changes{% else %}Create teacher{% endif %}</button>
+      </div>
+    </div>
+  </form>
+</div>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+(function() {
+  function initSelect2() {
+    if (!window.jQuery) return;
+    var $ = window.jQuery;
+    var $s = $("#id_teacher_subjects, #id_teacher_classrooms");
+    if ($s.length) {
+      $s.select2({ width: "100%" });
+    }
+  }
+  const panes = ["#tpane-1", "#tpane-2", "#tpane-3", "#tpane-4", "#tpane-5"];
+  let idx = 0;
+  const total = panes.length;
+  function showStep(i) {
+    idx = Math.max(0, Math.min(total - 1, i));
+    document.querySelectorAll("#teacherWizardTabs .nav-link").forEach(function(el) {
+      var j = parseInt(el.getAttribute("data-t-idx"), 10);
+      el.classList.toggle("active", j === idx);
+    });
+    panes.forEach(function(sel, j) {
+      var p = document.querySelector(sel);
+      if (!p) return;
+      p.classList.toggle("active", j === idx);
+    });
+    var stepEl = document.getElementById("tStepNow");
+    var totalEl = document.getElementById("tStepTotal");
+    var prog = document.getElementById("tWizardProgress");
+    var prevBtn = document.getElementById("tBtnPrev");
+    var nextBtn = document.getElementById("tBtnNext");
+    var subBtn = document.getElementById("tBtnSubmit");
+    if (stepEl) stepEl.textContent = String(idx + 1);
+    if (totalEl) totalEl.textContent = String(total);
+    if (prog) prog.style.width = ((idx + 1) / total * 100) + "%";
+    if (prevBtn) prevBtn.disabled = idx === 0;
+    if (nextBtn) nextBtn.style.display = idx === total - 1 ? "none" : "inline-block";
+    if (subBtn) subBtn.style.display = idx === total - 1 ? "inline-block" : "none";
+  }
+  function bindWizard() {
+    var nextBtn = document.getElementById("tBtnNext");
+    var prevBtn = document.getElementById("tBtnPrev");
+    if (nextBtn) nextBtn.addEventListener("click", function() { showStep(idx + 1); });
+    if (prevBtn) prevBtn.addEventListener("click", function() { showStep(idx - 1); });
+    document.querySelectorAll("#teacherWizardTabs .nav-link").forEach(function(el) {
+      el.addEventListener("click", function(e) {
+        e.preventDefault();
+        var j = parseInt(el.getAttribute("data-t-idx"), 10);
+        showStep(j);
+      });
+    });
+    showStep(0);
+    initSelect2();
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bindWizard);
+  } else {
+    bindWizard();
+  }
+})();
+</script>
+{% endblock %}

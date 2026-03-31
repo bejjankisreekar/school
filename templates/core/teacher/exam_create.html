@@ -1,20 +1,49 @@
 {% extends "base.html" %}
-{% block title %}Create Exam | School ERP{% endblock %}
+{% block title %}Add exam paper | School ERP{% endblock %}
 {% block content %}
 <div class="container-fluid px-0">
-  <h1 class="h4 fw-bold mb-2">Create Exam</h1>
-  <p class="text-muted mb-4">Add a new exam for a class.</p>
+  <h1 class="h4 fw-bold mb-2">Add exam paper</h1>
+  <p class="text-muted mb-4">Creates an <strong>exam session</strong> (if new) and one <strong>subject paper</strong> with date and max marks. Use the same session name when adding more subjects via the school scheduler or additional papers.</p>
   <div class="card border-0 shadow-sm rounded-4">
     <div class="card-body">
       <form method="post">
         {% csrf_token %}
+        {% if form.non_field_errors %}
+        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+        {% endif %}
         <div class="row g-3">
-          <div class="col-md-6"><label class="form-label">Exam Name</label>{{ form.name }}</div>
-          <div class="col-md-6"><label class="form-label">Class</label>{{ form.class_name }}</div>
-          <div class="col-md-6"><label class="form-label">Section</label>{{ form.section }}</div>
-          <div class="col-md-6"><label class="form-label">Exam Date</label>{{ form.date }}</div>
           <div class="col-12">
-            <button type="submit" class="btn btn-primary">Save Exam</button>
+            <label class="form-label" for="{{ form.session_name.id_for_label }}">{{ form.session_name.label }}</label>
+            {{ form.session_name }}
+            {% if form.session_name.errors %}<div class="invalid-feedback d-block">{{ form.session_name.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="{{ form.subject.id_for_label }}">Subject</label>
+            {{ form.subject }}
+            {% if form.subject.errors %}<div class="invalid-feedback d-block">{{ form.subject.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="{{ form.total_marks.id_for_label }}">Max marks</label>
+            {{ form.total_marks }}
+            {% if form.total_marks.errors %}<div class="invalid-feedback d-block">{{ form.total_marks.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="{{ form.class_name.id_for_label }}">Class</label>
+            {{ form.class_name }}
+            {% if form.class_name.errors %}<div class="invalid-feedback d-block">{{ form.class_name.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="{{ form.section.id_for_label }}">Section</label>
+            {{ form.section }}
+            {% if form.section.errors %}<div class="invalid-feedback d-block">{{ form.section.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="{{ form.date.id_for_label }}">Paper date</label>
+            {{ form.date }}
+            {% if form.date.errors %}<div class="invalid-feedback d-block">{{ form.date.errors }}</div>{% endif %}
+          </div>
+          <div class="col-12">
+            <button type="submit" class="btn btn-primary">Save</button>
             <a href="{% url 'core:teacher_exams' %}" class="btn btn-outline-secondary ms-2">Cancel</a>
           </div>
         </div>

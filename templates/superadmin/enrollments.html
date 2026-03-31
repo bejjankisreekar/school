@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}School enrollments | School ERP{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+  <div>
+    <h1 class="h4 fw-bold mb-0">School enrollments</h1>
+    <div class="text-muted small">Public signups pending tenant creation (PostgreSQL schema + migrations).</div>
+  </div>
+  <a href="{% url 'core:super_admin_dashboard' %}" class="btn btn-outline-secondary btn-sm">Dashboard</a>
+</div>
+
+<div class="card border-0 shadow-sm rounded-3 mb-4">
+  <div class="card-body">
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <a href="{% url 'core:superadmin_enrollments' %}?status=pending" class="btn btn-sm {% if status == 'pending' %}btn-primary{% else %}btn-outline-primary{% endif %}">Pending</a>
+      <a href="{% url 'core:superadmin_enrollments' %}?status=provisioned" class="btn btn-sm {% if status == 'provisioned' %}btn-primary{% else %}btn-outline-primary{% endif %}">Provisioned</a>
+      <a href="{% url 'core:superadmin_enrollments' %}?status=declined" class="btn btn-sm {% if status == 'declined' %}btn-primary{% else %}btn-outline-primary{% endif %}">Declined</a>
+      <a href="{% url 'core:superadmin_enrollments' %}?status=all" class="btn btn-sm {% if status == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">All</a>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Institution</th>
+            <th>Contact</th>
+            <th>Email</th>
+            <th>Submitted</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in enrollments %}
+          <tr>
+            <td class="fw-semibold">{{ e.institution_name }}</td>
+            <td>{{ e.contact_name }}</td>
+            <td>{{ e.email }}</td>
+            <td class="small text-muted">{{ e.created_at }}</td>
+            <td>
+              {% if e.status == 'PENDING' %}
+              <span class="badge bg-warning text-dark">Pending</span>
+              {% elif e.status == 'PROVISIONED' %}
+              <span class="badge bg-success">Provisioned</span>
+              {% else %}
+              <span class="badge bg-secondary">Declined</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <a href="{% url 'core:superadmin_enrollment_detail' e.pk %}" class="btn btn-sm btn-outline-primary">Open</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No enrollments in this view.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

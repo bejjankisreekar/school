@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Financials | Platform{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:super_admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Financials</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
+    <div>
+      <h1 class="h4 fw-bold mb-1">Financials</h1>
+      <p class="text-muted small mb-0">
+        Subscription and trial status per school — your SaaS revenue basis (plan price × students on record).
+        This is <strong>not</strong> school fee collection inside a tenant.
+      </p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="{% url 'core:superadmin_billing_sales' %}" class="btn btn-primary btn-sm">
+        <i class="bi bi-graph-up-arrow me-1"></i> Billing &amp; collections
+      </a>
+      <a href="{% url 'core:superadmin_record_subscription_payment' %}" class="btn btn-outline-primary btn-sm rounded-pill">
+        <i class="bi bi-plus-lg me-1"></i> Record payment
+      </a>
+      <a href="{% url 'core:superadmin_subscription_payments' %}" class="btn btn-outline-primary btn-sm">Payments log</a>
+      <a href="{% url 'admin_manage:school_plans_list' %}" class="btn btn-outline-secondary btn-sm">School plans</a>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+      <div class="card border-0 shadow-sm rounded-3 h-100">
+        <div class="card-body">
+          <p class="text-muted small text-uppercase mb-1">Paying schools</p>
+          <p class="h4 fw-bold mb-0 text-success">{{ billing_summary.count_paying }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card border-0 shadow-sm rounded-3 h-100">
+        <div class="card-body">
+          <p class="text-muted small text-uppercase mb-1">On trial</p>
+          <p class="h4 fw-bold mb-0 text-info">{{ billing_summary.count_trial }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card border-0 shadow-sm rounded-3 h-100">
+        <div class="card-body">
+          <p class="text-muted small text-uppercase mb-1">Est. MRR (₹)</p>
+          <p class="h4 fw-bold mb-0">₹{{ billing_summary.total_mrr }}</p>
+          <p class="text-muted small mb-0 mt-1">Paying tenants only</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card border-0 shadow-sm rounded-3 h-100 border-warning border-opacity-50">
+        <div class="card-body">
+          <p class="text-muted small text-uppercase mb-1">Needs attention</p>
+          <p class="h4 fw-bold mb-0 text-warning">{{ billing_summary.needs_attention }}</p>
+          <p class="text-muted small mb-0 mt-1">Expired trial, no plan, or billing mismatch</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+    <div class="card-header bg-body-secondary border-0 py-3">
+      <h2 class="h6 fw-bold mb-0">Schools</h2>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>School</th>
+            <th>Students</th>
+            <th>Tier</th>
+            <th>Status</th>
+            <th>Trial ends</th>
+            <th class="text-end">Est. MRR (₹/mo)</th>
+            <th class="text-end" style="width:7rem">Plan</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in billing_rows %}
+          <tr>
+            <td>
+              <span class="badge bg-primary-subtle text-primary-emphasis me-1">{{ row.code }}</span>
+              {{ row.name }}
+            </td>
+            <td>{{ row.student_count }}</td>
+            <td>{{ row.plan_tier }}</td>
+            <td>
+              {% if row.status_key == "paying" %}
+              <span class="badge text-bg-success">{{ row.status_label }}</span>
+              {% elif row.status_key == "trial" %}
+              <span class="badge text-bg-info">{{ row.status_label }}</span>
+              {% elif row.status_key == "expired" %}
+              <span class="badge text-bg-danger">{{ row.status_label }}</span>
+              {% elif row.status_key == "setup" %}
+              <span class="badge text-bg-secondary">{{ row.status_label }}</span>
+              {% else %}
+              <span class="badge text-bg-warning text-dark">{{ row.status_label }}</span>
+              {% endif %}
+            </td>
+            <td class="text-muted small">{% if row.trial_ends %}{{ row.trial_ends|date:"M j, Y" }}{% else %}—{% endif %}</td>
+            <td class="text-end font-monospace">{% if row.estimated_mrr %}₹{{ row.estimated_mrr }}{% else %}—{% endif %}</td>
+            <td class="text-end">
+              <a href="{% url 'admin_manage:school_change_plan' row.code %}" class="btn btn-sm btn-outline-primary">Change</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="text-center text-muted py-5">No schools yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

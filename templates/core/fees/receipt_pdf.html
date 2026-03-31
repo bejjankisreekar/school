@@ -23,7 +23,8 @@
     <tr><td><strong>Student:</strong> {{ payment.fee.student.user.get_full_name|default:payment.fee.student.user.username }}</td><td></td></tr>
     <tr><td><strong>Fee:</strong> {{ payment.fee.fee_structure.fee_type.name }}</td><td></td></tr>
     <tr><td><strong>Amount:</strong> {{ payment.amount }}</td><td><strong>Method:</strong> {{ payment.payment_method }}</td></tr>
-    {% if payment.receipt_number %}<tr><td><strong>Receipt No:</strong> {{ payment.receipt_number }}</td><td></td></tr>{% endif %}
+    {% if payment.receipt_number %}<tr><td><strong>Internal receipt no.:</strong> {{ payment.receipt_number }}</td><td></td></tr>{% endif %}
+    {% if payment.transaction_reference %}<tr><td><strong>Transaction ref.:</strong> {{ payment.transaction_reference }}</td><td></td></tr>{% endif %}
     {% if payment.notes %}<tr><td colspan="2"><strong>Notes:</strong> {{ payment.notes }}</td></tr>{% endif %}
   </table>
 

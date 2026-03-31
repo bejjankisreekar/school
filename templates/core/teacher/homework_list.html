@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}My homework | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0 teacher-homework-page">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:teacher_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Homework</li>
+    </ol>
+  </nav>
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <div>
+      <h1 class="h4 fw-bold mb-0">Homework</h1>
+      <p class="text-muted small mb-0">Assignments you created and work admin assigned to your classes.</p>
+    </div>
+    <a href="{% url 'core:create_homework' %}" class="btn btn-primary btn-sm rounded-pill"><i class="bi bi-plus-lg"></i> Create homework</a>
+  </div>
+
+  {% if classrooms %}
+  <div class="card border-0 shadow-sm rounded-4 mb-3">
+    <div class="card-body py-2">
+      <form method="get" class="d-flex flex-wrap gap-2 align-items-end">
+        <div>
+          <label class="form-label small mb-1">Class</label>
+          <select name="classroom" class="form-select form-select-sm" style="min-width:12rem">
+            <option value="">All my classes</option>
+            {% for c in classrooms %}
+            <option value="{{ c.id }}" {% if filters.classroom == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button class="btn btn-primary btn-sm" type="submit">Filter</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if homework_list %}
+  <div class="row g-3">
+    {% for hw in homework_list %}
+    <div class="col-md-6 col-xl-4">
+      <div class="card border-0 shadow-sm rounded-4 h-100 {% if hw.due_date < today %}border border-danger-subtle{% endif %}">
+        <div class="card-body d-flex flex-column">
+          <h6 class="fw-bold mb-2">{{ hw.title }}</h6>
+          <p class="text-muted small mb-2">{{ hw.description|truncatewords:28 }}</p>
+          {% if hw.subject %}
+          <p class="small mb-1"><strong>Subject:</strong> {{ hw.subject.name }}</p>
+          {% endif %}
+          <p class="small mb-1">
+            <strong>Classes:</strong>
+            {% for c in hw.classes.all %}{{ c.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+          </p>
+          <p class="small mb-1">
+            <strong>Sections:</strong>
+            {% for s in hw.sections.all %}{{ s.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+          </p>
+          <p class="small mb-2 {% if hw.due_date < today %}text-danger fw-semibold{% else %}text-muted{% endif %}">
+            <i class="bi bi-calendar-event me-1"></i>Due: {{ hw.due_date }}{% if hw.due_date < today %} (Overdue){% endif %}
+          </p>
+          {% if hw.assigned_by %}
+          <p class="small text-muted mb-0 mt-auto">Assigned by {{ hw.assigned_by.get_full_name|default:hw.assigned_by.username }}</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body text-center py-5 text-muted">
+      <p class="mb-2">No homework matches yet.</p>
+      <p class="small mb-3">If admin assigned homework to your class and section, it will appear here. You can also create homework for your mapped classes.</p>
+      <a href="{% url 'core:create_homework' %}" class="btn btn-primary btn-sm rounded-pill">Create homework</a>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

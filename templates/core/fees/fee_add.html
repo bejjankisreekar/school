@@ -1,48 +1,150 @@
 {% extends "base.html" %}
-{% block title %}Generate Fees | School ERP{% endblock %}
+{% block title %}Billing — Generate & collect | School ERP{% endblock %}
 {% block content %}
 <div class="container-fluid px-0">
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'core:school_fees_index' %}">Fees</a></li>
-      <li class="breadcrumb-item active">Generate Fees</li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_fees_index' %}">Billing</a></li>
+      <li class="breadcrumb-item active">Generate & collect</li>
     </ol>
   </nav>
-  <h1 class="h4 fw-bold mb-4">Generate Fees</h1>
+  <h1 class="h4 fw-bold mb-4">Billing</h1>
+  <p class="text-muted mb-4">Generate dues for a class, or record a payment for one student (amount, mode, optional references).</p>
 
-  <div class="card border-0 shadow-sm" style="max-width: 32rem;">
-    <div class="card-body">
-      <h5 class="card-title mb-3">Create fee dues for students</h5>
-      <form method="post">
-        {% csrf_token %}
-        <div class="mb-3">
-          <label class="form-label">Fee Structure</label>
-          <select name="fee_structure" class="form-select form-control" required>
-            <option value="">-- Select --</option>
-            {% for s in structures %}
-            <option value="{{ s.id }}">{{ s.fee_type.name }}{% if s.classroom %} - {{ s.classroom }}{% endif %} ({{ s.amount }})</option>
-            {% endfor %}
-          </select>
+  <div class="row g-4 align-items-start">
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h2 class="h6 fw-bold mb-1">Generate fee dues</h2>
+          <p class="small text-muted mb-3">Create pending fee rows from a fee structure (by class or whole school).</p>
+          <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label class="form-label">Fee structure</label>
+              <select name="fee_structure" class="form-select" required>
+                <option value="">— Select —</option>
+                {% for s in structures %}
+                <option value="{{ s.id }}">{{ s.fee_type.name }}{% if s.classroom %} — {{ s.classroom }}{% endif %} ({{ s.amount }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Classroom <span class="text-muted fw-normal">(optional)</span></label>
+              <select name="classroom" class="form-select">
+                <option value="">All classrooms</option>
+                {% for c in classrooms %}
+                <option value="{{ c.id }}">{{ c.name }}{% if c.section %} — {{ c.section }}{% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Due date</label>
+              <input type="date" name="due_date" class="form-control" required>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+              <button type="submit" class="btn btn-primary">Generate fees</button>
+              <a href="{% url 'core:school_fee_collection' %}" class="btn btn-outline-secondary">View dues</a>
+            </div>
+          </form>
         </div>
-        <div class="mb-3">
-          <label class="form-label">Classroom <span class="text-muted">(optional - leave blank for all)</span></label>
-          <select name="classroom" class="form-select form-control">
-            <option value="">All classrooms</option>
-            {% for c in classrooms %}
-            <option value="{{ c.id }}">{{ c.name }}{% if c.section %} - {{ c.section }}{% endif %}</option>
-            {% endfor %}
-          </select>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm border-primary border-opacity-25 h-100">
+        <div class="card-body">
+          <h2 class="h6 fw-bold mb-1 text-primary">Collect payment <span class="text-body fw-normal">(student-wise)</span></h2>
+          <p class="small text-muted mb-3">Choose the student, then the fee due, enter amount received, payment mode (cash, UPI, bank transfer, online), and optional reference numbers.</p>
+
+          <form method="get" class="mb-3" id="rc-pick-student">
+            <label class="form-label">Student</label>
+            <select name="student" class="form-select" required onchange="this.form.submit()">
+              <option value="">— Select student —</option>
+              {% for s in students %}
+              <option value="{{ s.id }}" {% if selected_student and selected_student.id == s.id %}selected{% endif %}>
+                {{ s.user.get_full_name|default:s.user.username }}{% if s.classroom %} — {{ s.classroom.name }}{% endif %}{% if s.section %} {{ s.section.name }}{% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </form>
+
+          {% if selected_student %}
+            {% if pending_rows %}
+            <form method="post" id="rc-record-form">
+              {% csrf_token %}
+              <input type="hidden" name="record_payment" value="1">
+              <input type="hidden" name="record_student" value="{{ selected_student.id }}">
+
+              <div class="mb-3">
+                <label class="form-label">Fee due</label>
+                <select name="record_fee" id="record_fee" class="form-select" required>
+                  {% for row in pending_rows %}
+                  <option value="{{ row.fee.id }}" {% if row.fee.id == preselected_fee_id %}selected{% endif %}>
+                    {{ row.fee.fee_structure.fee_type.name }} — due {{ row.fee.due_date }} — balance {{ row.balance }}
+                  </option>
+                  {% endfor %}
+                </select>
+                <p class="form-text mb-0">Changing the fee reloads the suggested amount to match that balance.</p>
+              </div>
+
+              {% if record_form %}
+                {% for err in record_form.non_field_errors %}
+                <div class="alert alert-danger py-2 small">{{ err }}</div>
+                {% endfor %}
+                <div class="row g-2">
+                  <div class="col-md-6">
+                    <label class="form-label" for="id_amount">Amount received</label>
+                    {{ record_form.amount }}
+                    {% if record_form.amount.errors %}<div class="invalid-feedback d-block">{{ record_form.amount.errors.0 }}</div>{% endif %}
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label" for="id_payment_date">Payment date</label>
+                    {{ record_form.payment_date }}
+                    {% if record_form.payment_date.errors %}<div class="invalid-feedback d-block">{{ record_form.payment_date.errors.0 }}</div>{% endif %}
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label" for="id_payment_method">Payment mode</label>
+                    {{ record_form.payment_method }}
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label" for="id_receipt_number">{{ record_form.receipt_number.label }}</label>
+                    {{ record_form.receipt_number }}
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label" for="id_transaction_reference">{{ record_form.transaction_reference.label }}</label>
+                    {{ record_form.transaction_reference }}
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label" for="id_notes">Notes <span class="text-muted fw-normal">(optional)</span></label>
+                    {{ record_form.notes }}
+                  </div>
+                </div>
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                  <button type="submit" class="btn btn-success">Record payment</button>
+                  <a href="{% url 'core:school_fee_add' %}" class="btn btn-outline-secondary">Reset</a>
+                </div>
+              {% endif %}
+            </form>
+            <script>
+            (function () {
+              var sel = document.getElementById("record_fee");
+              var sid = "{{ selected_student.id }}";
+              if (!sel || !sid) return;
+              sel.addEventListener("change", function () {
+                window.location = "{% url 'core:school_fee_add' %}?student=" + encodeURIComponent(sid) + "&fee=" + encodeURIComponent(this.value);
+              });
+            })();
+            </script>
+            {% else %}
+            <p class="text-muted mb-0">No pending or partial fees for this student.</p>
+            <a href="{% url 'core:school_fee_add' %}" class="btn btn-outline-secondary btn-sm mt-2">Clear selection</a>
+            {% endif %}
+          {% else %}
+            <p class="text-muted small mb-0">Select a student to see their pending dues and record a payment.</p>
+          {% endif %}
         </div>
-        <div class="mb-3">
-          <label class="form-label">Due Date</label>
-          <input type="date" name="due_date" class="form-control" required>
-        </div>
-        <div class="d-flex gap-2">
-          <button type="submit" class="btn btn-primary">Generate Fees</button>
-          <a href="{% url 'core:school_fee_collection' %}" class="btn btn-outline-secondary">Cancel</a>
-        </div>
-      </form>
+      </div>
     </div>
   </div>
 </div>

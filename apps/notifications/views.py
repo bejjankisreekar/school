@@ -89,8 +89,8 @@ def school_notifications(request):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
-    if not has_feature_access(school, "sms"):
-        return HttpResponseForbidden("Upgrade your plan to access this feature")
+    if not has_feature_access(school, "sms", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
 
     if request.method == "POST":
         form = NotificationForm(request.POST, school=school)

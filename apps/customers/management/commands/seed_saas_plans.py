@@ -1,12 +1,14 @@
 """
-Seed SaaS Plan and Feature models: Starter, Growth, Enterprise.
+Seed exactly two platform plans: Starter (₹39) and Enterprise (₹59) per student / month.
+Removes Core, Advance, Growth, and any other extra Plan rows after migrating schools.
 Run: python manage.py seed_saas_plans
 """
 from decimal import Decimal
 
 from django.core.management.base import BaseCommand
+from django.db import transaction
 
-from apps.customers.models import Plan, Feature
+from apps.customers.models import Plan, Feature, School
 
 
 FEATURES = [
@@ -20,7 +22,7 @@ FEATURES = [
     ("Transport", "transport", "Routes and vehicle management"),
     ("Hostel", "hostel", "Hostel and room allocation"),
     ("Reports", "reports", "Reports and analytics"),
-    ("Timetable", "timetable", "Class and teacher timetables"),
+    ("Schedules", "timetable", "Class and teacher schedules"),
     ("Homework", "homework", "Homework assignments"),
     ("Inventory", "inventory", "Inventory and invoicing"),
     ("AI Reports", "ai_reports", "AI-powered reports"),
@@ -34,60 +36,102 @@ FEATURES = [
     ("Priority Support", "priority_support", "Faster support response"),
 ]
 
-STARTER_CODES = ["students", "teachers", "attendance", "exams", "timetable", "homework", "reports"]
-GROWTH_CODES = STARTER_CODES + ["fees", "inventory", "ai_reports", "sms"]
-ENTERPRISE_CODES = GROWTH_CODES + ["payroll", "library", "transport", "hostel", "online_admission", "topper_list", "custom_branding"]
-ENTERPRISE_CODES = ENTERPRISE_CODES + ["online_results", "api_access", "ai_marksheet_summaries", "priority_support"]
+STARTER_CODES = [
+    "students",
+    "teachers",
+    "attendance",
+    "exams",
+    "timetable",
+    "homework",
+    "reports",
+]
+ENTERPRISE_CODES = STARTER_CODES + [
+    "fees",
+    "inventory",
+    "ai_reports",
+    "sms",
+    "payroll",
+    "library",
+    "transport",
+    "hostel",
+    "online_admission",
+    "topper_list",
+    "custom_branding",
+    "online_results",
+    "api_access",
+    "ai_marksheet_summaries",
+    "priority_support",
+]
+
+# Old plan names -> reassign schools to Starter or Enterprise before deleting rows
+LEGACY_TO_STARTER = frozenset({"Core"})
+LEGACY_TO_ENTERPRISE = frozenset({"Advance", "Growth"})
 
 
 class Command(BaseCommand):
-    help = "Create SaaS plans (Starter, Growth, Enterprise) and features"
+    help = "Ensure only Starter (₹39) and Enterprise (₹59) plans exist"
 
     def handle(self, *args, **options):
-        # Create features
-        feature_objs = {}
-        for name, code, desc in FEATURES:
-            obj, created = Feature.objects.update_or_create(
-                code=code,
-                defaults={"name": name, "description": desc},
+        with transaction.atomic():
+            feature_objs = {}
+            for name, code, desc in FEATURES:
+                obj, _ = Feature.objects.update_or_create(
+                    code=code,
+                    defaults={"name": name, "description": desc},
+                )
+                feature_objs[code] = obj
+                self.stdout.write(f"  Feature: {obj}")
+
+            starter, _ = Plan.objects.update_or_create(
+                name="Starter",
+                defaults={
+                    "price_per_student": Decimal("39"),
+                    "billing_cycle": Plan.BillingCycle.MONTHLY,
+                    "is_active": True,
+                    "description": "Essential modules — attendance, exams, timetable, homework, and reports.",
+                },
             )
-            feature_objs[code] = obj
-            self.stdout.write(f"  Feature: {obj}")
+            starter.features.set([feature_objs[c] for c in STARTER_CODES if c in feature_objs])
+            self.stdout.write(self.style.SUCCESS(f"Plan: {starter}"))
 
-        # Starter
-        starter, _ = Plan.objects.update_or_create(
-            name="Starter",
-            defaults={
-                "price_per_student": Decimal("29"),
-                "description": "Essential modules for small schools",
-            },
-        )
-        # Non-destructive seeding: only add missing features.
-        starter.features.add(*[feature_objs[c] for c in STARTER_CODES if c in feature_objs])
-        self.stdout.write(self.style.SUCCESS(f"Plan: {starter}"))
+            enterprise, _ = Plan.objects.update_or_create(
+                name="Enterprise",
+                defaults={
+                    "price_per_student": Decimal("59"),
+                    "billing_cycle": Plan.BillingCycle.MONTHLY,
+                    "is_active": True,
+                    "description": "Full platform — fees, payroll, library, transport, admissions, AI, and more.",
+                },
+            )
+            enterprise.features.set([feature_objs[c] for c in ENTERPRISE_CODES if c in feature_objs])
+            self.stdout.write(self.style.SUCCESS(f"Plan: {enterprise}"))
 
-        # Growth
-        growth, _ = Plan.objects.update_or_create(
-            name="Growth",
-            defaults={
-                "price_per_student": Decimal("49"),
-                "description": "Fee management and reporting",
-            },
-        )
-        # Non-destructive seeding: only add missing features.
-        growth.features.add(*[feature_objs[c] for c in GROWTH_CODES if c in feature_objs])
-        self.stdout.write(self.style.SUCCESS(f"Plan: {growth}"))
+            for old_name in LEGACY_TO_STARTER:
+                n = School.objects.filter(saas_plan__name=old_name).update(saas_plan=starter)
+                if n:
+                    self.stdout.write(f"  Migrated {n} school(s) from {old_name} -> Starter")
 
-        # Enterprise
-        enterprise, _ = Plan.objects.update_or_create(
-            name="Enterprise",
-            defaults={
-                "price_per_student": Decimal("79"),
-                "description": "All modules enabled",
-            },
-        )
-        # Non-destructive seeding: only add missing features.
-        enterprise.features.add(*[feature_objs[c] for c in ENTERPRISE_CODES if c in feature_objs])
-        self.stdout.write(self.style.SUCCESS(f"Plan: {enterprise}"))
+            for old_name in LEGACY_TO_ENTERPRISE:
+                n = School.objects.filter(saas_plan__name=old_name).update(saas_plan=enterprise)
+                if n:
+                    self.stdout.write(f"  Migrated {n} school(s) from {old_name} -> Enterprise")
 
-        self.stdout.write(self.style.SUCCESS("SaaS plans and features seeded successfully."))
+            for school in School.objects.filter(saas_plan__isnull=True).select_related("plan"):
+                sp = school.plan
+                if not sp:
+                    continue
+                nm = (sp.name or "").lower()
+                if nm == "pro":
+                    school.saas_plan = enterprise
+                elif nm in ("basic", "trial"):
+                    school.saas_plan = starter
+                else:
+                    continue
+                school.save(update_fields=["saas_plan"])
+                self.stdout.write(f"  Linked {school.code} saas_plan from subscription ({nm})")
+
+            deleted, _ = Plan.objects.exclude(name__in=["Starter", "Enterprise"]).delete()
+            if deleted:
+                self.stdout.write(self.style.WARNING(f"  Removed {deleted} extra plan row(s)."))
+
+        self.stdout.write(self.style.SUCCESS("Only Starter and Enterprise plans are active."))

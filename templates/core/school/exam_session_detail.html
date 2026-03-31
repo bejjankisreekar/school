@@ -23,8 +23,22 @@
   </div>
 
   <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
-    <div class="card-header bg-white border-0 py-3">
+    <div class="card-header bg-white border-0 py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
       <h2 class="h6 fw-semibold mb-0">Subject papers</h2>
+      {% if papers %}
+      <div class="d-flex flex-wrap gap-2">
+        <form method="post" action="{% url 'core:school_exam_session_set_all_marks_lock' session.id %}" class="d-inline">
+          {% csrf_token %}
+          <input type="hidden" name="marks_teacher_edit_locked" value="1">
+          <button type="submit" class="btn btn-sm btn-outline-secondary" title="Block teachers from saving mark changes on every paper in this session">Lock all teachers</button>
+        </form>
+        <form method="post" action="{% url 'core:school_exam_session_set_all_marks_lock' session.id %}" class="d-inline">
+          {% csrf_token %}
+          <input type="hidden" name="marks_teacher_edit_locked" value="0">
+          <button type="submit" class="btn btn-sm btn-outline-success" title="Allow subject teachers to save mark changes again on every paper">Allow re-edit for all</button>
+        </form>
+      </div>
+      {% endif %}
     </div>
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
@@ -33,8 +47,11 @@
             <th>Paper</th>
             <th>Subject</th>
             <th>Date</th>
+            <th>Time</th>
             <th>Teacher</th>
-            <th>Marks</th>
+            <th>Max marks</th>
+            <th>Teacher edits</th>
+            <th class="text-end">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -42,7 +59,16 @@
           <tr>
             <td class="fw-medium">{{ e.name }}</td>
             <td>{% if e.subject %}{{ e.subject.name }}{% else %}—{% endif %}</td>
-            <td>{{ e.date }}</td>
+            <td>{% if e.date %}{{ e.date|date:"M j, Y" }}{% else %}—{% endif %}</td>
+            <td class="small text-muted">
+              {% if e.start_time or e.end_time %}
+                {% if e.start_time %}{{ e.start_time|time:"g:i A" }}{% endif %}
+                {% if e.start_time and e.end_time %} – {% endif %}
+                {% if e.end_time %}{{ e.end_time|time:"g:i A" }}{% endif %}
+              {% else %}
+                —
+              {% endif %}
+            </td>
             <td>
               {% if e.teacher %}
                 {{ e.teacher.user.get_full_name|default:e.teacher.user.username }}
@@ -51,9 +77,31 @@
               {% endif %}
             </td>
             <td>{{ e.total_marks|default:"—" }}</td>
+            <td>
+              {% if e.marks_teacher_edit_locked %}
+                <span class="badge bg-secondary">Locked</span>
+              {% else %}
+                <span class="badge bg-success bg-opacity-25 text-success">Open</span>
+              {% endif %}
+            </td>
+            <td class="text-end text-nowrap">
+              {% if e.subject %}
+              <a href="{% url 'core:school_exam_paper_enter_marks' e.id %}" class="btn btn-sm btn-outline-primary">Marks</a>
+              {% endif %}
+              <form method="post" action="{% url 'core:school_exam_paper_set_marks_lock' e.id %}" class="d-inline">
+                {% csrf_token %}
+                {% if e.marks_teacher_edit_locked %}
+                <input type="hidden" name="marks_teacher_edit_locked" value="0">
+                <button type="submit" class="btn btn-sm btn-outline-success" title="Allow subject teachers to save mark changes again">Allow re-edit</button>
+                {% else %}
+                <input type="hidden" name="marks_teacher_edit_locked" value="1">
+                <button type="submit" class="btn btn-sm btn-outline-secondary" title="Block teachers from saving mark changes">Lock teachers</button>
+                {% endif %}
+              </form>
+            </td>
           </tr>
           {% empty %}
-          <tr><td colspan="5" class="text-center text-muted py-4">No papers linked to this session.</td></tr>
+          <tr><td colspan="8" class="text-center text-muted py-4">No papers linked to this session.</td></tr>
           {% endfor %}
         </tbody>
       </table>

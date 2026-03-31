@@ -1,38 +1,36 @@
-<footer class="mt-auto bg-dark text-white py-5">
+<footer class="landing-footer mt-auto py-5">
   <div class="container">
     <div class="row g-4">
       <div class="col-lg-4">
         <div class="d-flex align-items-center gap-2 mb-3">
-          <span class="bg-primary text-white rounded px-2 py-1 fw-bold">SE</span>
-          <span class="fw-semibold">School ERP</span>
+          <span class="landing-footer-brand-badge">SE</span>
+          <span class="fw-bold text-white">Campus ERP</span>
         </div>
-        <p class="text-secondary small mb-3">Multi-Tenant SaaS School Management Application. Complete cloud based platform designed to streamline school operations.</p>
-        <a href="{% url 'core:home' %}#trial" class="btn btn-primary btn-sm">Get Started for Free</a>
+        <p class="small mb-3" style="color: rgba(255,255,255,0.65);">Multi-tenant SaaS for institutions—attendance, academics, billing, and more in one vibrant platform.</p>
+        <a href="{% url 'core:home' %}#trial" class="btn btn-landing-primary btn-sm">Get Started</a>
       </div>
       <div class="col-6 col-md-4 col-lg-2">
-        <h6 class="fw-semibold mb-3">Quick Links</h6>
+        <h6 class="fw-semibold mb-3 text-white">Quick Links</h6>
         <ul class="list-unstyled small">
-          <li class="mb-2"><a href="{% url 'core:about' %}" class="text-secondary text-decoration-none">About Us</a></li>
-          <li class="mb-2"><a href="{% url 'core:contact' %}" class="text-secondary text-decoration-none">Contact</a></li>
-          <li class="mb-2"><a href="#" class="text-secondary text-decoration-none">Privacy Policy</a></li>
-          <li class="mb-2"><a href="#" class="text-secondary text-decoration-none">Terms of Service</a></li>
-          <li class="mb-2"><a href="#" class="text-secondary text-decoration-none">Multi-Tenant Billing</a></li>
-          <li class="mb-2"><a href="#" class="text-secondary text-decoration-none">Cloud Storage</a></li>
-          <li class="mb-2"><a href="#" class="text-secondary text-decoration-none">Careers</a></li>
+          <li class="mb-2"><a href="{% url 'core:about' %}" class="text-decoration-none">About</a></li>
+          <li class="mb-2"><a href="{% url 'core:contact' %}" class="text-decoration-none">Contact</a></li>
+          <li class="mb-2"><a href="{% url 'core:pricing' %}" class="text-decoration-none">Pricing</a></li>
+          <li class="mb-2"><a href="{% url 'accounts:login' %}" class="text-decoration-none">Login</a></li>
         </ul>
       </div>
       <div class="col-6 col-md-4 col-lg-2">
-        <h6 class="fw-semibold mb-3">Social Links</h6>
+        <h6 class="fw-semibold mb-3 text-white">Connect</h6>
         <ul class="list-unstyled small">
-          <li class="mb-2"><a href="#" class="text-secondary text-decoration-none d-flex align-items-center gap-2"><i class="bi bi-facebook"></i> Facebook</a></li>
-          <li class="mb-2"><a href="#" class="text-secondary text-decoration-none d-flex align-items-center gap-2"><i class="bi bi-linkedin"></i> LinkedIn</a></li>
-          <li class="mb-2"><a href="#" class="text-secondary text-decoration-none d-flex align-items-center gap-2"><i class="bi bi-youtube"></i> YouTube</a></li>
+          <li class="mb-2"><a href="#" class="text-decoration-none d-flex align-items-center gap-2"><i class="bi bi-facebook"></i> Facebook</a></li>
+          <li class="mb-2"><a href="#" class="text-decoration-none d-flex align-items-center gap-2"><i class="bi bi-linkedin"></i> LinkedIn</a></li>
+          <li class="mb-2"><a href="#" class="text-decoration-none d-flex align-items-center gap-2"><i class="bi bi-youtube"></i> YouTube</a></li>
         </ul>
       </div>
     </div>
-    <hr class="border-secondary my-4">
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-2 small text-secondary">
-      <span>&copy; {% now "Y" %} School ERP. All rights reserved.</span>
+    <hr class="my-4 border-secondary border-opacity-25">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-2 small" style="color: rgba(255,255,255,0.5);">
+      <span>&copy; {% now "Y" %} Campus ERP. All rights reserved.</span>
+      <span>EduSaaS · Smart Campus Management</span>
     </div>
   </div>
 </footer>

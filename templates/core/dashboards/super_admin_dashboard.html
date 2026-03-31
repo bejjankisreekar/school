@@ -9,10 +9,35 @@
       Super Admin Dashboard
     </h1>
     <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">
-      Platform-wide administration and school oversight.
+      Platform scale, subscriptions, and tenant health — not day-to-day school academics.
     </p>
   </div>
 
+  <h2 class="h6 fw-semibold text-slate-700 dark:text-slate-200 mb-3">Business</h2>
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-3">
+      {% include "components/dashboard_card.html" with label="Paying schools" value=billing_summary.count_paying icon="bi-check-circle" icon_color="success" %}
+    </div>
+    <div class="col-sm-6 col-lg-3">
+      {% include "components/dashboard_card.html" with label="On trial" value=billing_summary.count_trial icon="bi-hourglass-split" icon_color="info" %}
+    </div>
+    <div class="col-sm-6 col-lg-3">
+      {% include "components/dashboard_card.html" with label="Est. MRR (₹/mo)" value=billing_summary.total_mrr icon="bi-currency-rupee" icon_color="primary" %}
+    </div>
+    <div class="col-sm-6 col-lg-3">
+      {% include "components/dashboard_card.html" with label="Needs attention" value=billing_summary.needs_attention icon="bi-exclamation-triangle" icon_color="warning" %}
+    </div>
+  </div>
+
+  <h2 class="h6 fw-semibold text-slate-700 dark:text-slate-200 mb-3">Platform footprint</h2>
+  <p class="small text-slate-600 dark:text-slate-400 mb-3">
+    <a href="{% url 'core:superadmin_platform_footprint' %}" class="link-primary fw-medium">Verify by school &amp; class</a>
+    — teacher/student counts with filters and class breakdown.
+    <span class="mx-2 text-slate-400">|</span>
+    <a href="{% url 'core:superadmin_global_students' %}" class="link-primary fw-medium">All students (global)</a>
+    <span class="mx-2 text-slate-400">|</span>
+    <a href="{% url 'core:superadmin_global_teachers' %}" class="link-primary fw-medium">All teachers (global)</a>
+  </p>
   <div class="row g-3 mb-4">
     <div class="col-sm-6 col-lg-4">
       {% include "components/dashboard_card.html" with label="Total Schools" value=total_schools icon="bi-building" icon_color="primary" %}
@@ -28,32 +53,42 @@
     </div>
   </div>
 
+  {% if pending_enrollments %}
+  <div class="alert alert-info border-0 shadow-sm rounded-xl mb-4 d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <span><strong>{{ pending_enrollments }}</strong> school enrollment{{ pending_enrollments|pluralize }} waiting for tenant provisioning.</span>
+    <a href="{% url 'core:superadmin_enrollments' %}?status=pending" class="btn btn-sm btn-primary">Review enrollments</a>
+  </div>
+  {% endif %}
+
   <div class="flex flex-wrap gap-3 mb-4">
+    <a href="{% url 'core:superadmin_billing_invoices' %}" class="rounded-xl border border-amber-200/80 dark:border-amber-900/50 bg-amber-50/90 dark:bg-amber-950/30 px-4 py-2 text-sm font-medium text-amber-950 dark:text-amber-100 hover:bg-amber-100/90 dark:hover:bg-amber-900/40 transition">Billing invoices</a>
+    <a href="{% url 'admin_manage:school_plans_list' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">School plans → Financial</a>
+    <a href="{% url 'core:superadmin_billing_sales' %}" class="rounded-xl border border-indigo-200/80 dark:border-indigo-900/50 bg-indigo-50/90 dark:bg-indigo-950/40 px-4 py-2 text-sm font-medium text-indigo-900 dark:text-indigo-100 hover:bg-indigo-100/90 dark:hover:bg-indigo-900/50 transition">Billing &amp; collections</a>
+    <a href="{% url 'core:superadmin_financials' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Financials</a>
+    <a href="{% url 'core:superadmin_subscription_payments' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Payments received</a>
+    <a href="{% url 'core:superadmin_record_subscription_payment' %}" class="rounded-xl border border-emerald-200/80 dark:border-emerald-900/50 bg-emerald-50/80 dark:bg-emerald-950/30 px-4 py-2 text-sm font-medium text-emerald-900 dark:text-emerald-100 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/40 transition">Record payment</a>
+    <a href="{% url 'core:superadmin_enrollments' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Enrollments</a>
     <a href="{% url 'admin_manage:schools_list' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Schools</a>
     <a href="{% url 'admin_manage:school_plans_list' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">School Plans</a>
+    <a href="{% url 'admin_manage:billing_plans_list' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Billing plans</a>
+    <a href="{% url 'admin_manage:coupons_list' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Coupons</a>
     <a href="{% url 'admin_manage:teachers_list' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Teachers</a>
     <a href="{% url 'admin_manage:students_list' %}" class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Students</a>
   </div>
 
   {% if plans %}
   <div class="mt-6">
-    <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-3">Plans</h2>
+    <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-3">Product: Starter &amp; Enterprise</h2>
+    <p class="small text-slate-600 dark:text-slate-400 mb-3">Assign under <a href="{% url 'admin_manage:school_plans_list' %}">School Plans</a>. Details: <a href="{% url 'core:pricing' %}">Pricing page</a>.</p>
     <div class="row g-3">
       {% for plan in plans %}
-      <div class="col-md-4">
+      <div class="col-md-6">
         <div class="card border-0 shadow-sm rounded-xl h-100">
           <div class="card-body">
             <h3 class="h5 fw-bold mb-2">{{ plan.name }}</h3>
-            <p class="text-muted small mb-3">₹{{ plan.price_per_student }}/student/month</p>
-            <p class="text-sm text-slate-600 dark:text-slate-300 mb-3">{{ plan.description|truncatewords:20 }}</p>
-            <p class="text-xs fw-semibold text-slate-500 dark:text-slate-400 mb-2">Features:</p>
-            <ul class="list-unstyled small mb-0">
-              {% for f in plan.features.all %}
-              <li class="text-slate-600 dark:text-slate-300">• {{ f.name }}</li>
-              {% empty %}
-              <li class="text-muted">No features</li>
-              {% endfor %}
-            </ul>
+            <p class="text-muted small mb-2">₹{{ plan.price_per_student }}/student/month</p>
+            <p class="text-sm text-slate-600 dark:text-slate-300 mb-0">{{ plan.description|truncatewords:28 }}</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-2 mb-0">{{ plan.features.all|length }} module{% if plan.features.all|length != 1 %}s{% endif %} in this tier</p>
           </div>
         </div>
       </div>

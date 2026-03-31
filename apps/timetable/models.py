@@ -2,6 +2,19 @@ from django.db import models
 from django.core.exceptions import ValidationError
 
 
+class ScheduleProfile(models.Model):
+    """Tenant-scoped schedule profile (e.g., Default, Summer, Exam week)."""
+
+    name = models.CharField(max_length=80, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class TimeSlot(models.Model):
     """Tenant model - schema defines school."""
     class BreakType(models.TextChoices):
@@ -9,6 +22,13 @@ class TimeSlot(models.Model):
         SHORT_BREAK = "SHORT_BREAK", "Short Break"
         LUNCH_BREAK = "LUNCH_BREAK", "Lunch Break"
 
+    profile = models.ForeignKey(
+        ScheduleProfile,
+        on_delete=models.CASCADE,
+        related_name="time_slots",
+        null=True,
+        blank=True,
+    )
     start_time = models.TimeField()
     end_time = models.TimeField()
     is_break = models.BooleanField(default=False)
@@ -41,6 +61,13 @@ class Timetable(models.Model):
         FRIDAY = 5, "Friday"
         SATURDAY = 6, "Saturday"
 
+    profile = models.ForeignKey(
+        ScheduleProfile,
+        on_delete=models.CASCADE,
+        related_name="entries",
+        null=True,
+        blank=True,
+    )
     classroom = models.ForeignKey(
         "school_data.ClassRoom",
         on_delete=models.CASCADE,
@@ -66,7 +93,7 @@ class Timetable(models.Model):
     )
 
     class Meta:
-        unique_together = ("classroom", "day_of_week", "time_slot")
+        unique_together = ("classroom", "profile", "day_of_week", "time_slot")
 
     def __str__(self) -> str:
         return f"{self.classroom} {self.get_day_of_week_display()} {self.time_slot}"

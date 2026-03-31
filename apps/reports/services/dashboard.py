@@ -16,14 +16,14 @@ from .dashboard_charts import extend_dashboard_charts_context
 from .hub_charts import build_hub_chart_context
 
 
-def build_school_reports_dashboard_context(school) -> dict:
+def build_school_reports_dashboard_context(school, *, user=None) -> dict:
     """Analytics hub: KPI metrics + report cards for schools with the reports feature."""
     report_cards_primary: list = []
     report_cards_more: list = []
 
-    analytics = build_analytics_summary_metrics(school)
+    analytics = build_analytics_summary_metrics(school, user=user)
 
-    if school and has_feature_access(school, "reports"):
+    if school and has_feature_access(school, "reports", user=user):
         # Primary report (first in module)
         report_cards_primary.append(
             {
@@ -46,9 +46,9 @@ def build_school_reports_dashboard_context(school) -> dict:
             }
         )
 
-    hub_charts = build_hub_chart_context(school)
-    extend_dashboard_charts_context(school, hub_charts)
-    hub_charts_enabled = bool(school and has_feature_access(school, "reports"))
+    hub_charts = build_hub_chart_context(school, user=user)
+    extend_dashboard_charts_context(school, hub_charts, user=user)
+    hub_charts_enabled = bool(school and has_feature_access(school, "reports", user=user))
 
     return {
         "analytics_metrics": analytics["analytics_metrics"],

@@ -18,16 +18,24 @@
   <div class="card border-0 shadow-sm rounded-3">
     <div class="card-body">
       <dl class="row mb-0">
+        <dt class="col-sm-3">School ID</dt>
+        <dd class="col-sm-9 text-muted">{{ school.pk }}</dd>
         <dt class="col-sm-3">Code</dt>
         <dd class="col-sm-9"><span class="badge bg-primary">{{ school.code }}</span></dd>
         <dt class="col-sm-3">Name</dt>
         <dd class="col-sm-9">{{ school.name }}</dd>
+        <dt class="col-sm-3">Status</dt>
+        <dd class="col-sm-9">{{ school.get_school_status_display }}</dd>
+        <dt class="col-sm-3">Contact person</dt>
+        <dd class="col-sm-9">{{ school.contact_person|default:"—" }}</dd>
         <dt class="col-sm-3">Address</dt>
         <dd class="col-sm-9">{{ school.address|default:"—" }}</dd>
         <dt class="col-sm-3">Contact Email</dt>
         <dd class="col-sm-9">{{ school.contact_email|default:"—" }}</dd>
         <dt class="col-sm-3">Phone</dt>
         <dd class="col-sm-9">{{ school.phone|default:"—" }}</dd>
+        <dt class="col-sm-3">Created</dt>
+        <dd class="col-sm-9">{{ school.created_on|date:"Y-m-d H:i" }}</dd>
       </dl>
     </div>
   </div>

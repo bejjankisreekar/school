@@ -9,14 +9,79 @@ urlpatterns = [
     path("pricing/", views.pricing, name="pricing"),
     path("about/", views.about, name="about"),
     path("contact/", views.contact, name="contact"),
+    path("enroll/", views.school_enrollment_signup, name="school_enroll"),
 
     # Role-based dashboard URLs (for login redirect)
     path("superadmin/dashboard/", views.super_admin_dashboard, name="super_admin_dashboard"),
+    path(
+        "superadmin/platform/footprint/",
+        views.superadmin_platform_footprint,
+        name="superadmin_platform_footprint",
+    ),
+    path("superadmin/students/", views.superadmin_global_students, name="superadmin_global_students"),
+    path("superadmin/teachers/", views.superadmin_global_teachers, name="superadmin_global_teachers"),
+    path(
+        "superadmin/schools/<int:school_id>/financial/",
+        views.superadmin_school_financial,
+        name="superadmin_school_financial",
+    ),
+    path(
+        "superadmin/billing/platform-invoices/<int:invoice_id>/pdf/",
+        views.superadmin_platform_invoice_pdf,
+        name="superadmin_platform_invoice_pdf",
+    ),
     path("superadmin/enquiries/", views.superadmin_enquiries, name="superadmin_enquiries"),
     path(
         "superadmin/enquiries/<int:enquiry_id>/mark-read/",
         views.superadmin_enquiry_mark_read,
         name="superadmin_enquiry_mark_read",
+    ),
+    path("superadmin/financials/", views.superadmin_financials, name="superadmin_financials"),
+    path(
+        "superadmin/payments/subscriptions/",
+        views.superadmin_subscription_payments,
+        name="superadmin_subscription_payments",
+    ),
+    path(
+        "superadmin/payments/subscriptions/record/",
+        views.superadmin_record_subscription_payment,
+        name="superadmin_record_subscription_payment",
+    ),
+    path(
+        "superadmin/payments/subscriptions/<int:pk>/edit/",
+        views.superadmin_edit_subscription_payment,
+        name="superadmin_edit_subscription_payment",
+    ),
+    path(
+        "superadmin/payments/subscriptions/<int:pk>/delete/",
+        views.superadmin_delete_subscription_payment,
+        name="superadmin_delete_subscription_payment",
+    ),
+    path(
+        "superadmin/billing/sales/",
+        views.superadmin_billing_sales,
+        name="superadmin_billing_sales",
+    ),
+    path(
+        "superadmin/billing/invoices/",
+        views.superadmin_billing_invoices,
+        name="superadmin_billing_invoices",
+    ),
+    path(
+        "superadmin/billing/invoices/<int:invoice_id>/pay/",
+        views.superadmin_billing_invoice_pay,
+        name="superadmin_billing_invoice_pay",
+    ),
+    path(
+        "superadmin/billing/receipts/<int:receipt_id>/pdf/",
+        views.superadmin_billing_receipt_pdf,
+        name="superadmin_billing_receipt_pdf",
+    ),
+    path("superadmin/enrollments/", views.superadmin_enrollments, name="superadmin_enrollments"),
+    path(
+        "superadmin/enrollments/<int:pk>/",
+        views.superadmin_enrollment_detail,
+        name="superadmin_enrollment_detail",
     ),
     path("school/dashboard/", views.admin_dashboard, name="admin_dashboard"),
     path("teacher/dashboard/", views.teacher_dashboard, name="teacher_dashboard"),
@@ -36,19 +101,39 @@ urlpatterns = [
     path("student/attendance/", views.student_attendance, name="student_attendance"),
     path("student/fees/", views.student_fees, name="student_fees"),
     path("student/exams/", views.student_exams_list, name="student_exams_list"),
+    path(
+        "student/exam-session/<int:session_id>/",
+        views.student_exam_session_detail,
+        name="student_exam_session_detail",
+    ),
     path("student/exam/<int:exam_id>/", views.student_exam_detail_by_id, name="student_exam_detail_by_id"),
     path("student/exam/legacy/<str:exam_name>/", views.student_exam_detail, name="student_exam_detail"),
     path("student/reports/", views.student_reports, name="student_reports"),
     path("student/reports/report-card/<int:exam_id>/", views.student_report_card_view, name="student_report_card_view"),
+    path(
+        "student/reports/report-card/session/<int:session_id>/",
+        views.student_report_card_session_view,
+        name="student_report_card_session_view",
+    ),
     path("student/reports/cumulative/", views.student_cumulative_report_view, name="student_cumulative_report_view"),
     path("student/reports/attendance/", views.student_attendance_report_view, name="student_attendance_report_view"),
     path("student/report-card/<int:exam_id>/", views.student_report_card_pdf, name="student_report_card_pdf"),
+    path(
+        "student/report-card/session/<int:session_id>/",
+        views.student_report_card_session_pdf,
+        name="student_report_card_session_pdf",
+    ),
     path("student/cumulative-report/pdf/", views.student_cumulative_report_pdf, name="student_cumulative_report_pdf"),
     path("student/attendance-report/", views.student_attendance_report_pdf, name="student_attendance_report_pdf"),
 
     # Teacher Exam Management
     path("teacher/exams/", views.teacher_exams, name="teacher_exams"),
     path("teacher/exams/create/", views.teacher_exam_create, name="teacher_exam_create"),
+    path(
+        "teacher/exams/session/<int:session_id>/",
+        views.teacher_exam_session_detail,
+        name="teacher_exam_session_detail",
+    ),
     path("teacher/exams/<int:exam_id>/", views.teacher_exam_summary, name="teacher_exam_summary"),
     path("teacher/exams/<int:exam_id>/enter-marks/", views.teacher_exam_enter_marks, name="teacher_exam_enter_marks"),
     path("teacher/class-analytics/", views.teacher_class_analytics, name="teacher_class_analytics"),
@@ -57,6 +142,21 @@ urlpatterns = [
     path("school/exams/", views.school_exams_list, name="school_exams_list"),
     path("school/exams/create/", views.school_exam_create, name="school_exam_create"),
     path("school/exams/session/<int:session_id>/", views.school_exam_session_detail, name="school_exam_session_detail"),
+    path(
+        "school/exams/session/<int:session_id>/marks-lock-all/",
+        views.school_exam_session_set_all_marks_lock,
+        name="school_exam_session_set_all_marks_lock",
+    ),
+    path(
+        "school/exams/paper/<int:exam_id>/marks/",
+        views.school_exam_paper_enter_marks,
+        name="school_exam_paper_enter_marks",
+    ),
+    path(
+        "school/exams/paper/<int:exam_id>/marks-lock/",
+        views.school_exam_paper_set_marks_lock,
+        name="school_exam_paper_set_marks_lock",
+    ),
 
     # Sidebar items (unified)
     path("students/", views.students_list, name="students_list"),
@@ -65,6 +165,7 @@ urlpatterns = [
     path("school/students/", views.school_students_list, name="school_students_list"),
     path("school/students/add/", views.school_student_add, name="school_student_add"),
     path("school/students/<int:student_id>/view/", views.school_student_view, name="school_student_view"),
+    path("school/students/<int:student_id>/profile/pdf/", views.school_student_profile_pdf, name="school_student_profile_pdf"),
     path("school/students/<int:student_id>/edit/", views.school_student_edit, name="school_student_edit"),
     path("school/students/<int:student_id>/delete/", views.school_student_delete, name="school_student_delete"),
     path("school/students/import/", views.school_students_import, name="school_students_import"),
@@ -76,6 +177,7 @@ urlpatterns = [
     path("school/teachers/<int:teacher_id>/delete/", views.school_teacher_delete, name="school_teacher_delete"),
     # School Admin: Academic years, classes, sections, subjects
     path("school/academic-years/", views.school_academic_years, name="school_academic_years"),
+    path("school/academic-years/add/", views.school_academic_year_add, name="school_academic_year_add"),
     path("school/academic-years/<int:year_id>/edit/", views.school_academic_year_edit, name="school_academic_year_edit"),
     path("school/academic-years/<int:year_id>/set-active/", views.school_academic_year_set_active, name="school_academic_year_set_active"),
     path("school/academic-years/<int:year_id>/delete/", views.school_academic_year_delete, name="school_academic_year_delete"),

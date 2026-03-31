@@ -121,7 +121,7 @@ class FeeAdmin(admin.ModelAdmin):
 
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
-    list_display = ("fee", "amount", "payment_date", "payment_method")
+    list_display = ("fee", "amount", "payment_date", "payment_method", "transaction_reference")
 
 
 @admin.register(Parent)

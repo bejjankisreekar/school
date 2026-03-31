@@ -10,7 +10,7 @@
     </ol>
   </nav>
 
-  <div class="card border-0 shadow-sm rounded-3" style="max-width: 32rem;">
+  <div class="card border-0 shadow-sm rounded-3" style="max-width: 36rem;">
     <div class="card-body">
       <h2 class="h5 fw-bold mb-4">{{ title }}</h2>
       {% if school %}<p class="text-muted small">Code: <strong>{{ school.code }}</strong> (auto-generated, read-only)</p>{% endif %}
@@ -18,20 +18,31 @@
       <form method="post">
         {% csrf_token %}
         <div class="mb-3">
-          <label class="form-label">SaaS Plan</label>
+          <label class="form-label">Plan</label>
           {{ form.saas_plan }}
           {% if form.saas_plan.errors %}<div class="text-danger small">{{ form.saas_plan.errors.0 }}</div>{% endif %}
-          <small class="text-muted">Starter, Growth, or Enterprise — controls available modules</small>
+          <small class="text-muted d-block mt-1">Starter (₹39/student/month) or Enterprise (₹59/student/month) — controls which modules are available.</small>
         </div>
         <div class="mb-3">
-          <label class="form-label">Legacy Plan</label>
-          {{ form.plan }}
-          {% if form.plan.errors %}<div class="text-danger small">{{ form.plan.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="mb-3">
-          <label class="form-label">School Name</label>
+          <label class="form-label">Institution Name</label>
           {{ form.name }}
           {% if form.name.errors %}<div class="text-danger small">{{ form.name.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Institution type</label>
+          {{ form.institution_type }}
+          {% if form.institution_type.errors %}<div class="text-danger small">{{ form.institution_type.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Contact person</label>
+          {{ form.contact_person }}
+          {% if form.contact_person.errors %}<div class="text-danger small">{{ form.contact_person.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Status</label>
+          {{ form.school_status }}
+          {% if form.school_status.errors %}<div class="text-danger small">{{ form.school_status.errors.0 }}</div>{% endif %}
+          <small class="text-muted d-block mt-1">Inactive / Suspended disables tenant access (<code>is_active</code>).</small>
         </div>
         <div class="mb-3">
           <label class="form-label">Address</label>

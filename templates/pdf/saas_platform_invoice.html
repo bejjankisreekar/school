@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: DejaVu Sans, Helvetica, Arial, sans-serif; font-size: 10pt; color: #222; }
+    h1 { font-size: 15pt; margin: 0 0 6px 0; color: #0d6efd; }
+    .meta { color: #666; font-size: 8pt; margin-bottom: 14px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 7px 9px; text-align: left; }
+    th { background: #f0f4f8; font-size: 8pt; text-transform: uppercase; }
+    .amt { font-weight: bold; }
+    .footer { margin-top: 18px; font-size: 8pt; color: #888; }
+  </style>
+</head>
+<body>
+  <h1>Subscription invoice</h1>
+  <p class="meta">Platform SaaS · {{ school.name }} ({{ school.code }})</p>
+  <table>
+    <tr><th>Invoice #</th><td>{{ invoice.invoice_number }}</td></tr>
+    <tr><th>Period</th><td>{{ invoice.month|stringformat:"02d" }} / {{ invoice.year }}</td></tr>
+    <tr><th>Students</th><td>{{ invoice.students_count }} @ ₹{{ invoice.price_per_student }}/student</td></tr>
+    <tr><th>Gross</th><td>₹ {{ invoice.gross_amount }}</td></tr>
+    <tr><th>Discount</th><td>₹ {{ invoice.discount_amount }}</td></tr>
+    <tr><th>Final amount</th><td class="amt">₹ {{ invoice.final_amount }}</td></tr>
+    <tr><th>Status</th><td>{{ invoice.get_status_display }}</td></tr>
+    <tr><th>Due date</th><td>{{ invoice.due_date }}</td></tr>
+    <tr><th>Paid to date</th><td>₹ {{ paid }}</td></tr>
+    <tr><th>Balance</th><td class="amt">₹ {{ remaining }}</td></tr>
+  </table>
+  <p class="footer">Generated {{ generated_on|date:"M j, Y H:i" }} — For internal billing and audit.</p>
+</body>
+</html>

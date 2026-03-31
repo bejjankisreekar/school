@@ -1,16 +1,16 @@
 {% if request.resolver_match %}
 {% with ns=request.resolver_match.namespace un=request.resolver_match.url_name %}
-<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm sticky-top landing-marketing-nav" aria-label="Main">
+<nav class="navbar navbar-expand-lg navbar-dark landing-marketing-nav landing-nav-gradient sticky-top" aria-label="Main">
   <div class="container">
-    <a class="navbar-brand fw-bold text-primary d-flex align-items-center gap-2 landing-nav-brand {% if ns == 'core' and un == 'home' %}active{% endif %}" href="{% url 'core:home' %}">
-      <span class="bg-primary bg-gradient text-white rounded px-2 py-1">SE</span>
-      <span>School ERP</span>
+    <a class="navbar-brand landing-nav-brand d-flex align-items-center gap-2 {% if ns == 'core' and un == 'home' %}active{% endif %}" href="{% url 'core:home' %}">
+      <span class="landing-logo-badge">SE</span>
+      <span>Campus ERP</span>
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navbarNav">
-      <ul class="navbar-nav ms-auto align-items-lg-center landing-nav-menu">
+      <ul class="navbar-nav ms-auto align-items-lg-center landing-nav-menu flex-wrap">
         <li class="nav-item">
           <a class="nav-link landing-nav-link {% if ns == 'core' and un == 'home' %}active{% endif %}" href="{% url 'core:home' %}">Home</a>
         </li>
@@ -24,10 +24,13 @@
           <a class="nav-link landing-nav-link {% if ns == 'core' and un == 'contact' %}active{% endif %}" href="{% url 'core:contact' %}">Contact</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link landing-nav-link {% if ns == 'accounts' and un == 'login' %}active{% endif %}" href="{% url 'accounts:login' %}">Login</a>
+          <a class="nav-link landing-nav-link {% if ns == 'core' and un == 'school_enroll' %}active{% endif %}" href="{% url 'core:school_enroll' %}">Enroll</a>
+        </li>
+        <li class="nav-item mt-2 mt-lg-0 ms-lg-1">
+          <a class="btn btn-landing-login" href="{% url 'accounts:login' %}">Login</a>
         </li>
         <li class="nav-item mt-2 mt-lg-0">
-          <a class="btn btn-cta btn-primary text-white px-3 py-2 ms-lg-2" href="{% url 'core:home' %}#trial">Start Free Trial</a>
+          <a class="btn btn-landing-nav-cta ms-lg-1" href="{% url 'core:home' %}#trial">Get Started</a>
         </li>
       </ul>
     </div>
@@ -35,23 +38,28 @@
 </nav>
 {% endwith %}
 {% else %}
-<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm sticky-top landing-marketing-nav" aria-label="Main">
+<nav class="navbar navbar-expand-lg navbar-dark landing-marketing-nav landing-nav-gradient sticky-top" aria-label="Main">
   <div class="container">
-    <a class="navbar-brand fw-bold text-primary d-flex align-items-center gap-2" href="{% url 'core:home' %}">
-      <span class="bg-primary bg-gradient text-white rounded px-2 py-1">SE</span>
-      <span>School ERP</span>
+    <a class="navbar-brand landing-nav-brand d-flex align-items-center gap-2" href="{% url 'core:home' %}">
+      <span class="landing-logo-badge">SE</span>
+      <span>Campus ERP</span>
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navbarNav">
-      <ul class="navbar-nav ms-auto align-items-lg-center landing-nav-menu">
+      <ul class="navbar-nav ms-auto align-items-lg-center landing-nav-menu flex-wrap">
         <li class="nav-item"><a class="nav-link landing-nav-link" href="{% url 'core:home' %}">Home</a></li>
         <li class="nav-item"><a class="nav-link landing-nav-link" href="{% url 'core:pricing' %}">Pricing</a></li>
         <li class="nav-item"><a class="nav-link landing-nav-link" href="{% url 'core:about' %}">About</a></li>
         <li class="nav-item"><a class="nav-link landing-nav-link" href="{% url 'core:contact' %}">Contact</a></li>
-        <li class="nav-item"><a class="nav-link landing-nav-link" href="{% url 'accounts:login' %}">Login</a></li>
-        <li class="nav-item mt-2 mt-lg-0"><a class="btn btn-cta btn-primary text-white px-3 py-2 ms-lg-2" href="{% url 'core:home' %}#trial">Start Free Trial</a></li>
+        <li class="nav-item"><a class="nav-link landing-nav-link" href="{% url 'core:school_enroll' %}">Enroll</a></li>
+        <li class="nav-item mt-2 mt-lg-0 ms-lg-1">
+          <a class="btn btn-landing-login" href="{% url 'accounts:login' %}">Login</a>
+        </li>
+        <li class="nav-item mt-2 mt-lg-0">
+          <a class="btn btn-landing-nav-cta ms-lg-1" href="{% url 'core:home' %}#trial">Get Started</a>
+        </li>
       </ul>
     </div>
   </div>

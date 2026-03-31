@@ -1,0 +1,53 @@
+{# Official letterhead for student record (screen, print, PDF). Expects: school, student, letterhead_* from _student_record_letterhead_context #}
+<div class="letterhead-wrap">
+  <table class="letterhead-grid" width="100%" cellspacing="0" cellpadding="0" border="0">
+    <tr>
+      <td class="letterhead-cell letterhead-cell-logo" valign="top">
+        {% if letterhead_logo_url %}
+          <img src="{{ letterhead_logo_url }}" alt="" class="letterhead-logo-img"/>
+        {% elif school.logo %}
+          <img src="{{ school.logo.url }}" alt="" class="letterhead-logo-img"/>
+        {% else %}
+          <div class="letterhead-logo-fallback" aria-hidden="true">{{ school.name|slice:":2"|upper }}</div>
+        {% endif %}
+      </td>
+      <td class="letterhead-cell letterhead-cell-center" valign="top">
+        <div class="letterhead-school-name">{{ school.name|upper }}</div>
+        {% if letterhead_address_street %}
+          <div class="letterhead-line letterhead-line-address">{{ letterhead_address_street }}</div>
+        {% endif %}
+        {% if letterhead_address_rest %}
+          <div class="letterhead-locality-heading">City, district, state &amp; PIN</div>
+          {% for line in letterhead_address_rest %}
+            <div class="letterhead-line letterhead-line-locality">{{ line }}</div>
+          {% endfor %}
+        {% endif %}
+        {% if school.phone or school.contact_email %}
+        <div class="letterhead-line letterhead-line-contact">
+          {% if school.phone %}<span class="letterhead-contact-item">Ph: {{ school.phone }}</span>{% endif %}
+          {% if school.phone and school.contact_email %}<span class="letterhead-contact-sep"> · </span>{% endif %}
+          {% if school.contact_email %}<span class="letterhead-contact-item">Email: {{ school.contact_email }}</span>{% endif %}
+        </div>
+        {% endif %}
+        {% if letterhead_website %}
+          <div class="letterhead-line letterhead-line-web">Website: {{ letterhead_website }}</div>
+        {% endif %}
+      </td>
+      <td class="letterhead-cell letterhead-cell-right" valign="top">
+        {% if letterhead_affiliation %}
+          <div class="letterhead-side-label">Board / affiliation</div>
+          <div class="letterhead-side-value">{{ letterhead_affiliation }}</div>
+        {% endif %}
+        <div class="letterhead-side-label">School code</div>
+        <div class="letterhead-side-value">{{ school.code }}</div>
+        <div class="letterhead-side-label">Academic year</div>
+        <div class="letterhead-side-value">{% if student.academic_year %}{{ student.academic_year.name }}{% else %}—{% endif %}</div>
+      </td>
+    </tr>
+  </table>
+  <div class="letterhead-rule" role="presentation"></div>
+  <div class="letterhead-doc-title">STUDENT PROFILE / STUDENT RECORD</div>
+  {% if generated_on %}
+  <div class="letterhead-generated letterhead-line-muted">Generated {{ generated_on|date:"F j, Y, g:i A" }} · Record ID {{ student.id }}</div>
+  {% endif %}
+</div>

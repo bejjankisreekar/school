@@ -9,7 +9,7 @@ from calendar import month_abbr
 from datetime import timedelta
 
 from django.db import connection
-from django.db.models import Count, Sum
+from django.db.models import Count, Q, Sum
 from django.db.utils import DatabaseError, InternalError, ProgrammingError
 from django.utils import timezone
 
@@ -39,7 +39,7 @@ def _last_n_month_pairs(today, n: int = 6) -> list[tuple[int, int]]:
     return list(reversed(pairs))
 
 
-def extend_dashboard_charts_context(school, ctx: dict) -> None:
+def extend_dashboard_charts_context(school, ctx: dict, *, user=None) -> None:
     """
     Mutates ctx (output of build_hub_chart_context) with extra keys and
     dash_charts_bundle for the dashboard template / Chart.js.
@@ -59,16 +59,26 @@ def extend_dashboard_charts_context(school, ctx: dict) -> None:
     ctx.setdefault("dash_has_student_charts", False)
     ctx.setdefault("dash_has_attendance_status_chart", False)
     ctx.setdefault("dash_has_academic_chart", False)
+    ctx.setdefault("dash_class_attendance_labels", [])
+    ctx.setdefault("dash_class_attendance_pcts", [])
+    ctx.setdefault("dash_has_class_attendance_chart", False)
+    ctx.setdefault("dash_age_labels", [])
+    ctx.setdefault("dash_age_counts", [])
+    ctx.setdefault("dash_has_age_chart", False)
+    ctx.setdefault("dash_gender_center_primary", "")
+    ctx.setdefault("dash_gender_center_sub", "")
+    ctx.setdefault("dash_gender_center_extra", "")
+    ctx.setdefault("dash_low_attendance_rows", [])
 
-    if not school or not has_feature_access(school, "reports"):
+    if not school or not has_feature_access(school, "reports", user=user):
         ctx["dash_charts_bundle"] = _bundle_from_ctx(ctx)
         return
 
     today = timezone.localdate()
 
-    # --- Admissions (last 6 months, by calendar month) ---
+    # --- Admissions (last 8 months, by calendar month) ---
     try:
-        pairs = _last_n_month_pairs(today, 6)
+        pairs = _last_n_month_pairs(today, 8)
         labels: list[str] = []
         counts: list[int] = []
         for y, m in pairs:
@@ -116,11 +126,20 @@ def extend_dashboard_charts_context(school, ctx: dict) -> None:
                 gcounts = [total_st]
         ctx["dash_gender_labels"] = glabels
         ctx["dash_gender_counts"] = gcounts
+        total_g = sum(gcounts)
+        if total_g > 0 and glabels and len(glabels) == len(gcounts):
+            ordered = sorted(zip(glabels, gcounts), key=lambda x: -x[1])
+            top_lab, top_n = ordered[0]
+            ctx["dash_gender_center_primary"] = f"{round(100 * top_n / total_g)}%"
+            ctx["dash_gender_center_sub"] = top_lab
+            if len(ordered) > 1:
+                s_lab, s_n = ordered[1]
+                ctx["dash_gender_center_extra"] = f"{round(100 * s_n / total_g)}% {s_lab}"
     except (DatabaseError, InternalError, ProgrammingError):
         _rollback_safely()
 
     # --- Weekly attendance status totals (last 7 days) ---
-    if has_feature_access(school, "attendance"):
+    if has_feature_access(school, "attendance", user=user):
         try:
             d0 = today - timedelta(days=6)
             rows = (
@@ -148,6 +167,8 @@ def extend_dashboard_charts_context(school, ctx: dict) -> None:
                 pcts: list[float] = []
                 for i in range(6, -1, -1):
                     d = today - timedelta(days=i)
+                    if d.weekday() == 6:
+                        continue
                     pres = Attendance.objects.filter(
                         date=d,
                         status=Attendance.Status.PRESENT,
@@ -161,7 +182,7 @@ def extend_dashboard_charts_context(school, ctx: dict) -> None:
             _rollback_safely()
 
     # --- Subject averages (school-wide, weighted by marks) ---
-    if has_feature_access(school, "exams"):
+    if has_feature_access(school, "exams", user=user):
         try:
             ctx["dash_exams_last_90_days"] = Exam.objects.filter(
                 date__gte=today - timedelta(days=90)
@@ -213,6 +234,121 @@ def extend_dashboard_charts_context(school, ctx: dict) -> None:
     except (DatabaseError, InternalError, ProgrammingError):
         _rollback_safely()
 
+    # --- Class attendance comparison (last 30 days, % of marks that are present) ---
+    if has_feature_access(school, "attendance", user=user):
+        try:
+            d0 = today - timedelta(days=30)
+            class_ids = (
+                Student.objects.filter(user__school=school, classroom__isnull=False)
+                .values_list("classroom_id", flat=True)
+                .distinct()
+            )
+            uniq_ids = sorted(set(class_ids))
+            cmap = {c.pk: c for c in ClassRoom.objects.filter(pk__in=uniq_ids)}
+            labels_ca: list[str] = []
+            pcts_ca: list[float] = []
+            for cid in uniq_ids:
+                cls_obj = cmap.get(cid)
+                if not cls_obj:
+                    continue
+                marks = Attendance.objects.filter(
+                    date__gte=d0,
+                    date__lte=today,
+                    student__classroom_id=cid,
+                    student__user__school=school,
+                )
+                tot = marks.count()
+                if tot < 1:
+                    continue
+                pres = marks.filter(status=Attendance.Status.PRESENT).count()
+                labels_ca.append(cls_obj.name)
+                pcts_ca.append(round(100.0 * pres / tot, 1))
+            ctx["dash_class_attendance_labels"] = labels_ca
+            ctx["dash_class_attendance_pcts"] = pcts_ca
+            ctx["dash_has_class_attendance_chart"] = len(labels_ca) > 0
+        except (DatabaseError, InternalError, ProgrammingError):
+            _rollback_safely()
+
+    # --- Student age distribution (from date of birth) ---
+    try:
+        ages: dict[int, int] = {}
+        for s in Student.objects.filter(
+            user__school=school, date_of_birth__isnull=False
+        ).only("date_of_birth"):
+            dob = s.date_of_birth
+            age = today.year - dob.year - (
+                (today.month, today.day) < (dob.month, dob.day)
+            )
+            if 3 <= age <= 22:
+                ages[age] = ages.get(age, 0) + 1
+        if ages:
+            sorted_ages = sorted(ages.keys())
+            ctx["dash_age_labels"] = [f"Age {a}" for a in sorted_ages]
+            ctx["dash_age_counts"] = [ages[a] for a in sorted_ages]
+            ctx["dash_has_age_chart"] = True
+    except (DatabaseError, InternalError, ProgrammingError):
+        _rollback_safely()
+
+    # --- Students below attendance threshold (rolling window) ---
+    if has_feature_access(school, "attendance", user=user):
+        try:
+            d0 = today - timedelta(days=75)
+            agg = (
+                Attendance.objects.filter(
+                    date__gte=d0,
+                    date__lte=today,
+                    student__user__school=school,
+                )
+                .values("student_id")
+                .annotate(
+                    total_m=Count("id"),
+                    present_m=Count(
+                        "id",
+                        filter=Q(status=Attendance.Status.PRESENT),
+                    ),
+                )
+                .filter(total_m__gte=8)
+            )
+            candidates: list[tuple[int, float]] = []
+            for row in agg:
+                tot = int(row["total_m"] or 0)
+                pres = int(row["present_m"] or 0)
+                if tot < 1:
+                    continue
+                pct = round(100.0 * pres / tot, 1)
+                if pct < 75.0:
+                    candidates.append((int(row["student_id"]), pct))
+            candidates.sort(key=lambda x: x[1])
+            candidates = candidates[:25]
+            if candidates:
+                sid_list = [c[0] for c in candidates]
+                students = {
+                    s.pk: s
+                    for s in Student.objects.filter(pk__in=sid_list).select_related(
+                        "classroom", "user"
+                    )
+                }
+                low_rows = []
+                for sid, pct in candidates:
+                    s = students.get(sid)
+                    if not s:
+                        continue
+                    name = s.user.get_full_name() or s.user.username
+                    cname = s.classroom.name if s.classroom else "—"
+                    raw_phone = (s.parent_phone or "").strip()
+                    contact = raw_phone or (getattr(s.user, "email", None) or "") or "—"
+                    low_rows.append(
+                        {
+                            "student_name": name,
+                            "class_name": cname,
+                            "attendance_pct": pct,
+                            "parent_contact": contact,
+                        }
+                    )
+                ctx["dash_low_attendance_rows"] = low_rows
+        except (DatabaseError, InternalError, ProgrammingError):
+            _rollback_safely()
+
     # --- Alerts ---
     alerts: list[dict] = []
 
@@ -235,7 +371,7 @@ def extend_dashboard_charts_context(school, ctx: dict) -> None:
     except (DatabaseError, InternalError, ProgrammingError):
         _rollback_safely()
 
-    if has_feature_access(school, "attendance"):
+    if has_feature_access(school, "attendance", user=user):
         try:
             total_students = Student.objects.filter(user__school=school).count()
             if total_students:
@@ -304,7 +440,7 @@ def extend_dashboard_charts_context(school, ctx: dict) -> None:
             _rollback_safely()
 
     if (
-        has_feature_access(school, "exams")
+        has_feature_access(school, "exams", user=user)
         and not ctx.get("dash_has_academic_chart")
         and Student.objects.filter(user__school=school).exists()
     ):
@@ -330,10 +466,18 @@ def _bundle_from_ctx(ctx: dict) -> dict:
         "hubAttendanceFull": list(ctx.get("hub_attendance_full_labels") or []),
         "hubAttendancePcts": list(ctx.get("hub_attendance_pcts") or []),
         "hubAttendancePresent": list(ctx.get("hub_attendance_present") or []),
+        "hubAttendanceDayHints": list(ctx.get("hub_attendance_day_hints") or []),
         "admissionLabels": list(ctx.get("dash_admission_labels") or []),
         "admissionCounts": list(ctx.get("dash_admission_counts") or []),
         "genderLabels": list(ctx.get("dash_gender_labels") or []),
         "genderCounts": list(ctx.get("dash_gender_counts") or []),
+        "genderCenterPrimary": ctx.get("dash_gender_center_primary") or "",
+        "genderCenterSub": ctx.get("dash_gender_center_sub") or "",
+        "genderCenterExtra": ctx.get("dash_gender_center_extra") or "",
+        "classAttendanceLabels": list(ctx.get("dash_class_attendance_labels") or []),
+        "classAttendancePcts": list(ctx.get("dash_class_attendance_pcts") or []),
+        "ageLabels": list(ctx.get("dash_age_labels") or []),
+        "ageCounts": list(ctx.get("dash_age_counts") or []),
         "attendanceStatusLabels": list(ctx.get("dash_attendance_status_labels") or []),
         "attendanceStatusCounts": list(ctx.get("dash_attendance_status_counts") or []),
         "subjectLabels": list(ctx.get("dash_subject_labels") or []),

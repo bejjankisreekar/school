@@ -1,0 +1,162 @@
+{# Flatpickr: modern calendar popup, max date today, ISO value for form submit. #}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+<style>
+  .attendance-date-field {
+    position: relative;
+  }
+  .attendance-date-field .attendance-date-icon {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #64748b;
+    font-size: 1.15rem;
+    pointer-events: none;
+    z-index: 2;
+  }
+  html.dark .attendance-date-field .attendance-date-icon {
+    color: #94a3b8;
+  }
+  .attendance-date-field .flatpickr-input.attendance-fp-native,
+  .attendance-date-field input.attendance-fp-alt {
+    padding-right: 2.75rem !important;
+    border-radius: 12px !important;
+    min-height: 46px;
+    border: 1px solid rgba(15, 23, 42, 0.12) !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    font-weight: 500;
+  }
+  html.dark .attendance-date-field .flatpickr-input.attendance-fp-native,
+  html.dark .attendance-date-field input.attendance-fp-alt {
+    border-color: rgba(148, 163, 184, 0.35) !important;
+    background-color: rgba(15, 23, 42, 0.5);
+    color: #f1f5f9;
+  }
+  .attendance-date-field input.attendance-fp-alt:focus {
+    border-color: rgba(79, 70, 229, 0.55) !important;
+    box-shadow: 0 0 0 0.2rem rgba(79, 70, 229, 0.18);
+    outline: 0;
+  }
+  html.dark .attendance-date-field input.attendance-fp-alt:focus {
+    border-color: rgba(129, 140, 248, 0.65) !important;
+    box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.22);
+  }
+  .flatpickr-calendar.attendance-fp-cal {
+    border-radius: 16px;
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    box-shadow:
+      0 25px 50px -12px rgba(15, 23, 42, 0.2),
+      0 0 0 1px rgba(15, 23, 42, 0.04);
+    z-index: 1065 !important;
+    padding: 0.4rem 0.3rem 0.55rem;
+    font-family: inherit;
+  }
+  html.dark .flatpickr-calendar.attendance-fp-cal {
+    background: #1e293b;
+    border-color: rgba(148, 163, 184, 0.25);
+    color: #f1f5f9;
+    box-shadow:
+      0 25px 50px -12px rgba(0, 0, 0, 0.45),
+      0 0 0 1px rgba(148, 163, 184, 0.12);
+  }
+  .flatpickr-calendar.attendance-fp-cal .flatpickr-months {
+    padding: 0.4rem 0.25rem 0.5rem;
+  }
+  .flatpickr-calendar.attendance-fp-cal .flatpickr-current-month {
+    font-size: 1rem;
+    font-weight: 700;
+  }
+  .flatpickr-calendar.attendance-fp-cal .flatpickr-current-month .flatpickr-monthDropdown-months,
+  .flatpickr-calendar.attendance-fp-cal .flatpickr-current-month input.cur-year {
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 4px 8px;
+  }
+  html.dark .flatpickr-calendar.attendance-fp-cal .flatpickr-current-month .flatpickr-monthDropdown-months,
+  html.dark .flatpickr-calendar.attendance-fp-cal .flatpickr-current-month input.cur-year {
+    background: #334155;
+    color: #f1f5f9;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+  }
+  .flatpickr-calendar.attendance-fp-cal span.flatpickr-weekday {
+    font-weight: 700;
+    font-size: 0.7rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  html.dark .flatpickr-calendar.attendance-fp-cal span.flatpickr-weekday {
+    color: #94a3b8;
+  }
+  .flatpickr-calendar.attendance-fp-cal .flatpickr-day {
+    border-radius: 10px;
+    font-weight: 600;
+    line-height: 38px;
+    max-height: 38px;
+    margin: 2px;
+  }
+  .flatpickr-calendar.attendance-fp-cal .flatpickr-day:hover:not(.flatpickr-disabled) {
+    background: rgba(79, 70, 229, 0.12);
+    border-color: transparent;
+  }
+  html.dark .flatpickr-calendar.attendance-fp-cal .flatpickr-day:hover:not(.flatpickr-disabled) {
+    background: rgba(129, 140, 248, 0.2);
+  }
+  .flatpickr-calendar.attendance-fp-cal .flatpickr-day.today {
+    border-color: rgba(79, 70, 229, 0.45);
+    font-weight: 700;
+  }
+  .flatpickr-calendar.attendance-fp-cal .flatpickr-day.selected,
+  .flatpickr-calendar.attendance-fp-cal .flatpickr-day.selected:hover {
+    background: #4f46e5 !important;
+    border-color: #4f46e5 !important;
+    color: #fff !important;
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.45);
+  }
+  .flatpickr-calendar.attendance-fp-cal .flatpickr-day.flatpickr-disabled {
+    opacity: 0.35;
+  }
+  .flatpickr-calendar.attendance-fp-cal .flatpickr-prev-month:hover svg,
+  .flatpickr-calendar.attendance-fp-cal .flatpickr-next-month:hover svg {
+    fill: #4f46e5;
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+<script>
+(function() {
+  function initAttendanceDatePicker() {
+    var el = document.getElementById("attendance_date");
+    if (!el || typeof flatpickr === "undefined") return;
+    if (el._attendanceFp) return;
+    el.classList.add("attendance-fp-native");
+    el._attendanceFp = flatpickr(el, {
+      dateFormat: "Y-m-d",
+      maxDate: "today",
+      allowInput: true,
+      altInput: true,
+      altFormat: "l, F j, Y",
+      altInputClass: "form-control attendance-fp-alt",
+      onReady: function(_, __, fp) {
+        fp.calendarContainer.classList.add("attendance-fp-cal");
+        var alt = fp.altInput;
+        var par = alt && alt.parentElement ? alt.parentElement : el.parentElement;
+        if (par && !par.querySelector(".attendance-date-icon")) {
+          par.classList.add("attendance-date-field");
+          var ic = document.createElement("i");
+          ic.className = "bi bi-calendar3 attendance-date-icon";
+          ic.setAttribute("aria-hidden", "true");
+          par.appendChild(ic);
+        }
+      },
+      onChange: function() {
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initAttendanceDatePicker);
+  } else {
+    initAttendanceDatePicker();
+  }
+})();
+</script>

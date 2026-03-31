@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{{ session.name }} | Exam session{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:teacher_exams' %}">Exams</a></li>
+      <li class="breadcrumb-item active">{{ session.name }}</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h1 class="h4 fw-bold mb-1">{{ session.name }}</h1>
+      <p class="text-muted small mb-0">
+        {{ session.class_name }} · {{ session.section }}
+        <span class="text-muted">· papers you can manage</span>
+      </p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'core:teacher_exam_create' %}" class="btn btn-primary btn-sm">Add paper</a>
+      <a href="{% url 'core:teacher_exams' %}" class="btn btn-outline-secondary btn-sm">Back</a>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+    <div class="card-header bg-white border-0 py-3">
+      <h2 class="h6 fw-semibold mb-0">Subject papers</h2>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Subject</th>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Marks (max)</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in papers %}
+          <tr>
+            <td class="fw-medium">{% if e.subject %}{{ e.subject.name }}{% else %}{{ e.name }}{% endif %}</td>
+            <td>{% if e.date %}{{ e.date|date:"M j, Y" }}{% else %}—{% endif %}</td>
+            <td class="small text-muted">
+              {% if e.start_time or e.end_time %}
+                {% if e.start_time %}{{ e.start_time|time:"g:i A" }}{% endif %}
+                {% if e.start_time and e.end_time %} – {% endif %}
+                {% if e.end_time %}{{ e.end_time|time:"g:i A" }}{% endif %}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td>{{ e.total_marks|default:"—" }}</td>
+            <td class="text-end text-nowrap">
+              <a href="{% url 'core:teacher_exam_summary' e.id %}" class="btn btn-sm btn-outline-primary me-1">Summary</a>
+              <a href="{% url 'core:teacher_exam_enter_marks' e.id %}" class="btn btn-sm btn-outline-success">Enter marks</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="text-center text-muted py-4">No papers you can access in this session.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

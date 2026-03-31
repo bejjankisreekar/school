@@ -1,12 +1,12 @@
 """
-Subscription plan feature configuration.
-Centralized PLAN_FEATURES and has_feature helper.
+Subscription billing record feature configuration (trial / basic / pro rows).
+Schools expose product tiers via `saas_plan`: Starter (₹39) or Enterprise (₹59).
+This map supports older rows that only had `school.plan` set.
 """
 from datetime import date
 
-# Trial: 14 days, limited modules
-# Basic: ₹39/student, no limit
-# Pro: ₹59/student, no limit
+# trial: 14 days — maps to Starter modules when provisioning
+# basic → Starter pricing; pro → Enterprise pricing
 
 PLAN_FEATURES = {
     "trial": [

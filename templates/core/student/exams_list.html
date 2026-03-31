@@ -4,7 +4,7 @@
 {% block content %}
 <div class="container-fluid px-0">
   <h1 class="h4 fw-bold mb-4">My Exams</h1>
-  <p class="text-muted mb-4">Click on an exam to view detailed marks.</p>
+  <p class="text-muted mb-4">Each card is an exam session or a single exam. Open it to see the subject schedule and marks.</p>
 
   {% if exams %}
     <div class="row g-3">
@@ -15,15 +15,29 @@
             <h5 class="card-title fw-semibold">{{ exam.exam_name }}</h5>
             <p class="text-muted small mb-2">
               <i class="bi bi-calendar3 me-1"></i>
-              {% if exam.exam_date %}{{ exam.exam_date }}{% else %}&#8212;{% endif %}
+              {% if exam.is_session %}
+                {% if exam.date_min and exam.date_max %}
+                  {% if exam.date_min == exam.date_max %}{{ exam.date_min|date:"M j, Y" }}{% else %}{{ exam.date_min|date:"M j" }} – {{ exam.date_max|date:"M j, Y" }}{% endif %}
+                {% elif exam.exam_date %}{{ exam.exam_date|date:"M j, Y" }}{% else %}&#8212;{% endif %}
+              {% else %}
+                {% if exam.exam_date %}{{ exam.exam_date|date:"M j, Y" }}{% else %}&#8212;{% endif %}
+              {% endif %}
             </p>
             <p class="text-muted small mb-2">
               <i class="bi bi-book me-1"></i>{{ exam.total_subjects }} subject{{ exam.total_subjects|pluralize }}
             </p>
             <div class="d-flex justify-content-between align-items-center mt-3">
+              {% if exam.overall_pct is not None %}
               <span class="badge bg-primary rounded-pill fs-6">{{ exam.overall_pct }}%</span>
               {% if exam.grade %}<span class="badge bg-secondary me-1">{{ exam.grade }}</span>{% endif %}
-              {% if exam.exam_id %}
+              {% else %}
+              <span class="badge bg-light text-dark border rounded-pill fs-6">Awaiting results</span>
+              {% endif %}
+              {% if exam.is_session and exam.session_id %}
+              <a href="{% url 'core:student_exam_session_detail' exam.session_id %}" class="btn btn-outline-primary btn-sm">
+                View Details
+              </a>
+              {% elif exam.exam_id %}
               <a href="{% url 'core:student_exam_detail_by_id' exam.exam_id %}" class="btn btn-outline-primary btn-sm">
                 View Details
               </a>

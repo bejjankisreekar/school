@@ -1,40 +1,168 @@
 {% extends "base.html" %}
-{% block title %}My Schedule | School ERP{% endblock %}
+{% block title %}Teaching Schedule | School ERP{% endblock %}
+
+{% block extra_head %}
+<style>
+  .tt-teacher-wrap {
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid var(--bs-border-color-translucent);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  }
+  html.dark .tt-teacher-wrap {
+    box-shadow: 0 4px 28px rgba(0, 0, 0, 0.35);
+  }
+  .tt-teacher-hero {
+    background: linear-gradient(135deg, rgba(13, 110, 253, 0.12) 0%, rgba(13, 202, 240, 0.08) 50%, var(--bs-body-bg) 100%);
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+    padding: 1.25rem 1.5rem;
+  }
+  .tt-grid-table {
+    margin-bottom: 0;
+    font-size: 0.875rem;
+  }
+  .tt-grid-table thead th {
+    font-weight: 600;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.75rem 0.5rem;
+    vertical-align: middle;
+    border-bottom-width: 2px;
+  }
+  .tt-grid-table thead th.tt-col-today {
+    background: linear-gradient(180deg, rgba(13, 110, 253, 0.18), rgba(13, 110, 253, 0.06)) !important;
+    color: var(--bs-primary);
+  }
+  .tt-time-col {
+    width: 7.5rem;
+    min-width: 7rem;
+    background: var(--bs-body-bg);
+    font-variant-numeric: tabular-nums;
+    vertical-align: middle !important;
+  }
+  .tt-time-col .tt-slot-time {
+    font-weight: 600;
+    color: var(--bs-body-color);
+  }
+  .tt-cell {
+    min-width: 7.5rem;
+    max-width: 11rem;
+    vertical-align: top !important;
+    padding: 0.5rem !important;
+  }
+  .tt-cell-break {
+    background: rgba(108, 117, 125, 0.12) !important;
+  }
+  .tt-cell-live {
+    box-shadow: inset 0 0 0 2px rgba(25, 135, 84, 0.55);
+    background: rgba(25, 135, 84, 0.08) !important;
+  }
+  .tt-leisure {
+    font-size: 0.8rem;
+    font-style: italic;
+    color: var(--bs-secondary-color);
+    padding: 0.35rem 0;
+  }
+  .tt-class-pill {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.15rem 0.45rem;
+    border-radius: 6px;
+    background: rgba(13, 110, 253, 0.12);
+    color: var(--bs-primary);
+  }
+  .tt-entry-block {
+    padding: 0.35rem 0;
+    border-bottom: 1px dashed var(--bs-border-color-translucent);
+  }
+  .tt-entry-block:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+  .tt-subject {
+    font-weight: 600;
+    line-height: 1.25;
+  }
+  .tt-break-label {
+    font-size: 0.8rem;
+    color: var(--bs-secondary-color);
+  }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid px-0">
-  <h1 class="h4 fw-bold mb-2">My Schedule</h1>
-  <p class="text-muted mb-4">Your teaching periods this week.</p>
-
-  {% if entries %}
-  <div class="card border-0 shadow-sm rounded-4">
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light sticky-top">
-            <tr>
-              <th>Day</th>
-              <th>Time</th>
-              <th>Class</th>
-              <th>Subject</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for e in entries %}
-            <tr>
-              <td>{{ e.get_day_of_week_display }}</td>
-              <td>{{ e.time_slot.start_time|time:"H:i" }}&ndash;{{ e.time_slot.end_time|time:"H:i" }}</td>
-              <td>{{ e.classroom }}</td>
-              <td>{% if e.subject %}{{ e.subject.name }}{% else %}—{% endif %}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+  <div class="tt-teacher-wrap bg-body mb-4">
+    <div class="tt-teacher-hero">
+      <h1 class="h4 fw-bold mb-1">Teaching schedule</h1>
+      <p class="text-muted small mb-0">
+        Your teaching schedule across all assigned classes. Empty periods are shown as <strong>leisure</strong>; break rows follow the school bell schedule.
+      </p>
     </div>
+
+    {% if no_teacher %}
+    <div class="p-4">
+      <div class="alert alert-warning border-0 mb-0">Teacher profile is not set up. Contact your administrator.</div>
+    </div>
+    {% elif not has_slots %}
+    <div class="p-4">
+      <div class="alert alert-secondary border-0 mb-0">No time slots are configured for your school yet.</div>
+    </div>
+    {% elif not grid %}
+    <div class="p-4">
+      <div class="alert alert-secondary border-0 mb-0">No schedule rows available.</div>
+    </div>
+    {% else %}
+    <div class="table-responsive">
+      <table class="table table-bordered tt-grid-table mb-0">
+        <thead class="table-light sticky-top">
+          <tr>
+            <th class="tt-time-col text-muted">Time</th>
+            <th class="text-center {% if current_day == 1 %}tt-col-today{% endif %}">Mon</th>
+            <th class="text-center {% if current_day == 2 %}tt-col-today{% endif %}">Tue</th>
+            <th class="text-center {% if current_day == 3 %}tt-col-today{% endif %}">Wed</th>
+            <th class="text-center {% if current_day == 4 %}tt-col-today{% endif %}">Thu</th>
+            <th class="text-center {% if current_day == 5 %}tt-col-today{% endif %}">Fri</th>
+            <th class="text-center {% if current_day == 6 %}tt-col-today{% endif %}">Sat</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in grid %}
+          <tr>
+            <td class="tt-time-col text-nowrap">
+              <div class="tt-slot-time">{{ row.slot.start_time|time:"H:i" }}–{{ row.slot.end_time|time:"H:i" }}</div>
+              {% if row.slot.is_break %}
+                <div class="tt-break-label mt-1">{{ row.slot.get_break_type_display }}</div>
+              {% endif %}
+            </td>
+            {% for d in row.days %}
+            <td class="tt-cell {% if row.slot.is_break %}tt-cell-break{% elif current_day == d.day and current_slot_id == row.slot.id %}tt-cell-live{% endif %}">
+              {% if row.slot.is_break %}
+                <span class="tt-break-label">Break</span>
+              {% elif d.entries %}
+                {% for e in d.entries %}
+                <div class="tt-entry-block">
+                  <div class="d-flex align-items-center gap-1 flex-wrap mb-1">
+                    <span class="tt-class-pill">{{ e.classroom.name }}</span>
+                    {% if current_day == d.day and current_slot_id == row.slot.id %}
+                      <span class="badge bg-success rounded-pill" style="font-size:0.65rem;">Now</span>
+                    {% endif %}
+                  </div>
+                  <div class="tt-subject small">{% if e.subject %}{{ e.subject.name }}{% else %}<span class="text-muted">—</span>{% endif %}</div>
+                </div>
+                {% endfor %}
+              {% else %}
+                <div class="tt-leisure">Leisure</div>
+              {% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
   </div>
-  {% else %}
-  <div class="alert alert-secondary">No schedule assigned yet.</div>
-  {% endif %}
 </div>
 {% endblock %}

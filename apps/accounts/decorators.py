@@ -28,7 +28,8 @@ def role_required(*allowed_roles: str):
 
 
 superadmin_required = role_required(User.Roles.SUPERADMIN)
-admin_required = role_required(User.Roles.ADMIN)
+# School admin UI; platform superadmin may open the same routes (full visibility, no plan gate).
+admin_required = role_required(User.Roles.ADMIN, User.Roles.SUPERADMIN)
 teacher_required = role_required(User.Roles.TEACHER)
 student_required = role_required(User.Roles.STUDENT)
 parent_required = role_required(User.Roles.PARENT)
@@ -48,7 +49,7 @@ def feature_required(feature_code: str):
                 return view_func(request, *args, **kwargs)
             features = getattr(request, "school_features", frozenset())
             if feature_code not in features:
-                return HttpResponseForbidden("Upgrade your plan to access this feature")
+                return HttpResponseForbidden("This feature is not enabled for this school.")
             return view_func(request, *args, **kwargs)
 
         return _wrapped_view
