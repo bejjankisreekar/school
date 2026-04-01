@@ -62,7 +62,7 @@ class HomeworkCreateForm(forms.ModelForm):
     """Create homework with class+section assignment. Role-based filtering in __init__."""
     class Meta:
         model = Homework
-        fields = ["title", "subject", "description", "classes", "sections", "due_date"]
+        fields = ["title", "subject", "description", "classes", "sections", "due_date", "attachment"]
         widgets = {
             "title": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Homework title"}),
             "subject": forms.Select(attrs={"class": BS_INPUT}),
@@ -70,6 +70,7 @@ class HomeworkCreateForm(forms.ModelForm):
             "classes": forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
             "sections": forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
             "due_date": forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
+            "attachment": forms.ClearableFileInput(attrs={"class": "form-control"}),
         }
         labels = {
             "subject": "Subject",
@@ -1355,38 +1356,70 @@ class AdminStudentForm(forms.Form):
 class FeeTypeForm(forms.ModelForm):
     class Meta:
         model = FeeType
-        fields = ["name", "code"]
+        fields = ["name", "code", "description", "is_active"]
         widgets = {
-            "name": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. Tuition, Transport"}),
-            "code": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Optional code"}),
+            "name": forms.TextInput(
+                attrs={"class": f"{INPUT_CLASS} rounded-3", "placeholder": "e.g. Tuition, Sports, Transport"}
+            ),
+            "code": forms.TextInput(
+                attrs={"class": f"{INPUT_CLASS} rounded-3", "placeholder": "Optional code (e.g. TUITION)"}
+            ),
+            "description": forms.Textarea(
+                attrs={
+                    "class": f"{INPUT_CLASS} rounded-3",
+                    "rows": 3,
+                    "placeholder": "Short description for staff (shown in master list)",
+                }
+            ),
+            "is_active": forms.CheckboxInput(attrs={"class": "form-check-input", "role": "switch"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not getattr(self.instance, "pk", None):
+            self.fields["is_active"].initial = True
 
 
 class FeeStructureForm(forms.ModelForm):
     class Meta:
         model = FeeStructure
-        fields = ["fee_type", "classroom", "amount", "academic_year"]
+        fields = [
+            "fee_type",
+            "classroom",
+            "amount",
+            "academic_year",
+            "frequency",
+            "due_day_of_month",
+            "is_active",
+        ]
         widgets = {
             "fee_type": forms.Select(attrs={"class": BS_INPUT}),
             "classroom": forms.Select(attrs={"class": BS_INPUT}),
             "amount": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 0, "step": "0.01"}),
             "academic_year": forms.Select(attrs={"class": BS_INPUT}),
+            "frequency": forms.Select(attrs={"class": BS_INPUT}),
+            "due_day_of_month": forms.NumberInput(
+                attrs={"class": INPUT_CLASS, "min": 1, "max": 28, "placeholder": "e.g. 5"}
+            ),
+            "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
     def __init__(self, school, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["fee_type"].queryset = FeeType.objects.all()
+        self.fields["fee_type"].queryset = FeeType.objects.filter(is_active=True).order_by("name")
         self.fields["classroom"].queryset = ClassRoom.objects.all()
         self.fields["academic_year"].queryset = AcademicYear.objects.order_by("-start_date")
+        self.fields["due_day_of_month"].required = False
+        self.fields["classroom"].help_text = "Class-wise fees apply to every student in this class when you generate dues."
 
 class PaymentForm(forms.ModelForm):
     PAYMENT_MODE_CHOICES = [
         ("Cash", "Cash"),
         ("UPI", "UPI"),
+        ("Card", "Card"),
         ("Bank transfer", "Bank transfer"),
         ("Bank Transfer", "Bank transfer"),  # legacy stored value
         ("Online", "Online"),
-        ("Card", "Card"),
         ("Cheque", "Cheque"),
     ]
 
@@ -1437,7 +1470,7 @@ class PaymentForm(forms.ModelForm):
         if amount is None or self._fee is None:
             return amount
         paid = self._fee.payments.aggregate(s=Sum("amount"))["s"] or Decimal("0")
-        remaining = self._fee.amount - paid
+        remaining = max(Decimal("0"), self._fee.effective_due_amount - paid)
         if amount <= 0:
             raise forms.ValidationError("Amount must be greater than zero.")
         if amount > remaining:
@@ -1445,6 +1478,57 @@ class PaymentForm(forms.ModelForm):
                 f"Amount cannot exceed balance due ({remaining})."
             )
         return amount
+
+
+class FeeConcessionForm(forms.ModelForm):
+    """Per fee line: fixed + % concession and category (scholarship, sibling, etc.)."""
+
+    class Meta:
+        model = Fee
+        fields = ["concession_fixed", "concession_percent", "concession_kind", "concession_note"]
+        labels = {
+            "concession_fixed": "Fixed discount (₹)",
+            "concession_percent": "Percentage discount (%)",
+            "concession_kind": "Concession type",
+            "concession_note": "Remarks",
+        }
+        widgets = {
+            "concession_fixed": forms.NumberInput(
+                attrs={"class": INPUT_CLASS, "min": 0, "step": "0.01"}
+            ),
+            "concession_percent": forms.NumberInput(
+                attrs={"class": INPUT_CLASS, "min": 0, "max": 100, "step": "0.01"}
+            ),
+            "concession_kind": forms.Select(attrs={"class": BS_INPUT}),
+            "concession_note": forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 2, "placeholder": "Optional note"}),
+        }
+
+    def clean_concession_percent(self):
+        v = self.cleaned_data.get("concession_percent")
+        if v is not None and (v < 0 or v > 100):
+            raise forms.ValidationError("Enter a percentage between 0 and 100.")
+        return v
+
+    def clean_concession_fixed(self):
+        v = self.cleaned_data.get("concession_fixed")
+        if v is not None and v < 0:
+            raise forms.ValidationError("Fixed discount cannot be negative.")
+        return v
+
+    def clean(self):
+        cleaned = super().clean()
+        inst = self.instance
+        if not inst or not getattr(inst, "pk", None):
+            return cleaned
+        from decimal import ROUND_HALF_UP
+
+        base = inst.amount or Decimal("0")
+        pct = cleaned.get("concession_percent") or Decimal("0")
+        fixed = cleaned.get("concession_fixed") or Decimal("0")
+        pct_amt = (base * pct / Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if pct_amt + fixed > base:
+            raise forms.ValidationError("Total concession cannot exceed the original fee amount.")
+        return cleaned
 
 
 class StaffAttendanceForm(forms.ModelForm):

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load nav_tags %}
 {% block title %}Subscription payments received | Platform{% endblock %}
 {% block extra_head %}
 <style>
@@ -39,7 +40,7 @@
       <div class="card sa-pay-stat border-0 shadow-sm h-100 bg-body">
         <div class="card-body">
           <p class="text-muted small text-uppercase mb-1" style="letter-spacing:0.04em;">This month</p>
-          <p class="h5 fw-bold mb-0 text-primary">₹{{ month_total }}</p>
+          <p class="h5 fw-bold mb-0 text-primary">₹{{ month_total|inr }}</p>
         </div>
       </div>
     </div>
@@ -47,7 +48,7 @@
       <div class="card sa-pay-stat border-0 shadow-sm h-100 bg-body">
         <div class="card-body">
           <p class="text-muted small text-uppercase mb-1" style="letter-spacing:0.04em;">Year to date</p>
-          <p class="h5 fw-bold mb-0">₹{{ year_total }}</p>
+          <p class="h5 fw-bold mb-0">₹{{ year_total|inr }}</p>
         </div>
       </div>
     </div>
@@ -55,7 +56,7 @@
       <div class="card sa-pay-stat border-0 shadow-sm h-100 bg-body">
         <div class="card-body">
           <p class="text-muted small text-uppercase mb-1" style="letter-spacing:0.04em;">All time</p>
-          <p class="h5 fw-bold mb-0">₹{{ all_total }}</p>
+          <p class="h5 fw-bold mb-0">₹{{ all_total|inr }}</p>
         </div>
       </div>
     </div>
@@ -90,7 +91,7 @@
               <span class="badge rounded-pill bg-primary-subtle text-primary-emphasis me-1">{{ p.school.code }}</span>
               <span class="small">{{ p.school.name }}</span>
             </td>
-            <td class="text-end font-monospace fw-semibold">₹{{ p.amount }}</td>
+            <td class="text-end font-monospace fw-semibold">₹{{ p.amount|inr }}</td>
             <td class="small text-muted">{{ p.get_payment_method_display }}</td>
             <td class="small">
               {% if p.reference %}<span class="text-body">{{ p.reference }}</span>{% else %}<span class="text-muted">—</span>{% endif %}

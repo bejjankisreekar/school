@@ -1,7 +1,29 @@
-"""Template tags for sidebar navigation active state."""
+"""Template tags for sidebar navigation active state and Indian currency display."""
 from django import template
 
+from apps.core.indian_format import format_indian_currency
+
 register = template.Library()
+
+
+@register.filter(name="inr")
+def inr(value, decimal_places=2):
+    """
+    Indian-grouped amount; default 2 decimal places (paise).
+    Usage: {{ amount|inr }} or {{ amount|inr:0 }} for whole rupees.
+    """
+    try:
+        places = int(decimal_places)
+    except (TypeError, ValueError):
+        places = 2
+    places = max(0, min(places, 6))
+    return format_indian_currency(value, places)
+
+
+@register.filter(name="inri")
+def inri(value):
+    """Integer part only with Indian grouping (e.g. student counts, whole rupees)."""
+    return format_indian_currency(value, 0)
 
 
 @register.filter

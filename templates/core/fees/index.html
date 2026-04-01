@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load nav_tags %}
 {% block title %}Fee & Billing | School ERP{% endblock %}
 {% block content %}
 <div class="container-fluid px-0">
@@ -24,7 +25,7 @@
           <tr>
             <td>{{ f.student.user.get_full_name|default:f.student.user.username }}</td>
             <td>{{ f.fee_structure.fee_type.name }}</td>
-            <td>{{ f.amount }}</td>
+            <td>₹{{ f.amount|inr }}</td>
             <td>{{ f.due_date }}</td>
             <td><span class="badge bg-{% if f.status == 'PAID' %}success{% elif f.status == 'PARTIAL' %}warning{% else %}secondary{% endif %}">{{ f.status }}</span></td>
           </tr>

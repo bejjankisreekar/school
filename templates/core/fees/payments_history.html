@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% load humanize nav_tags %}
+{% block title %}Payment history | Fees{% endblock %}
+{% block content %}
+<style>
+  .fee-pay-page { background: #f1f5f9; margin: -0.5rem -1rem 0; padding: 1rem 1rem 2rem; min-height: calc(100vh - 100px); }
+  @media (min-width:992px){ .fee-pay-page { margin: -0.5rem -1.5rem 0; padding: 1.25rem 1.5rem; } }
+  html.dark .fee-pay-page { background: #0f172a; }
+  .fee-pay-filters {
+    position: sticky; top: 0; z-index: 1020;
+    background: rgba(255,255,255,.92); backdrop-filter: blur(8px);
+    border: 1px solid #e2e8f0; border-radius: 1rem;
+    padding: 1rem; margin-bottom: 1rem;
+    box-shadow: 0 4px 20px rgba(15,23,42,.08);
+  }
+  html.dark .fee-pay-filters { background: rgba(30,41,59,.95); border-color: rgba(148,163,184,.2); }
+</style>
+<div class="fee-pay-page">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_fees_index' %}">Fee &amp; billing</a></li>
+      <li class="breadcrumb-item active">Payments</li>
+    </ol>
+  </nav>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h1 class="h4 fw-bold mb-0">Payment history</h1>
+    <div class="d-flex gap-2">
+      <a href="{% url 'core:school_fee_payments_export_csv' %}" class="btn btn-outline-secondary btn-sm rounded-pill"><i class="bi bi-download me-1"></i>Export CSV</a>
+      <a href="{% url 'core:school_fees_index' %}" class="btn btn-outline-primary btn-sm rounded-pill">Billing hub</a>
+    </div>
+  </div>
+
+  <form method="get" class="fee-pay-filters row g-2 g-lg-3 align-items-end">
+    <div class="col-6 col-md-4 col-lg-2">
+      <label class="form-label small text-muted mb-0">Academic year</label>
+      <select name="ay" class="form-select form-select-sm">
+        {% for y in academic_years %}
+        <option value="{{ y.id }}" {% if academic_year and academic_year.id == y.id %}selected{% endif %}>{{ y.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <label class="form-label small text-muted mb-0">Class</label>
+      <select name="classroom_id" class="form-select form-select-sm">
+        <option value="">All</option>
+        {% for c in classrooms %}
+        <option value="{{ c.id }}" {% if filters.classroom_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <label class="form-label small text-muted mb-0">Section</label>
+      <select name="section_id" class="form-select form-select-sm">
+        <option value="">All</option>
+        {% for s in fee_sections %}
+        <option value="{{ s.id }}" {% if filters.section_id == s.id %}selected{% endif %}>{{ s.class_name }} — {{ s.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <label class="form-label small text-muted mb-0">Student</label>
+      <select name="student_id" class="form-select form-select-sm">
+        <option value="">All</option>
+        {% for st in students %}
+        <option value="{{ st.id }}" {% if filters.student_id == st.id %}selected{% endif %}>{{ st.user.get_full_name|default:st.user.username }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <label class="form-label small text-muted mb-0">Fee type</label>
+      <select name="fee_type_id" class="form-select form-select-sm">
+        <option value="">All</option>
+        {% for ft in fee_types_dd %}
+        <option value="{{ ft.id }}" {% if filters.fee_type_id == ft.id %}selected{% endif %}>{{ ft.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <label class="form-label small text-muted mb-0">Fee status</label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">All</option>
+        <option value="PAID" {% if filters.status == 'PAID' %}selected{% endif %}>Paid</option>
+        <option value="PENDING" {% if filters.status == 'PENDING' %}selected{% endif %}>Pending</option>
+        <option value="PARTIAL" {% if filters.status == 'PARTIAL' %}selected{% endif %}>Partial</option>
+        <option value="OVERDUE" {% if filters.status == 'OVERDUE' %}selected{% endif %}>Overdue</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <label class="form-label small text-muted mb-0">From</label>
+      <input type="date" name="date_from" class="form-control form-control-sm" value="{{ filters.date_from }}">
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <label class="form-label small text-muted mb-0">To</label>
+      <input type="date" name="date_to" class="form-control form-control-sm" value="{{ filters.date_to }}">
+    </div>
+    <div class="col-12 col-lg-auto d-flex gap-2">
+      <button type="submit" class="btn btn-primary btn-sm rounded-pill px-3">Apply filters</button>
+      <a href="{% url 'core:school_fee_payments' %}" class="btn btn-outline-secondary btn-sm rounded-pill">Reset</a>
+    </div>
+  </form>
+
+  <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Receipt</th>
+            <th>Student</th>
+            <th>Class</th>
+            <th>Fee type</th>
+            <th class="text-end">Amount</th>
+            <th>Mode</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr>
+            <td class="font-monospace small">{{ r.receipt_no }}</td>
+            <td class="fw-semibold">{{ r.student.user.get_full_name|default:r.student.user.username }}</td>
+            <td>{{ r.class_name }}</td>
+            <td>{{ r.fee_type }}</td>
+            <td class="text-end font-monospace">₹{{ r.amount|inr }}</td>
+            <td>{{ r.mode }}</td>
+            <td>{{ r.date|date:"M j, Y" }}</td>
+            <td>
+              {% if r.status == 'PAID' %}<span class="badge text-bg-success">Paid</span>
+              {% elif r.status == 'OVERDUE' %}<span class="badge text-bg-danger">Overdue</span>
+              {% elif r.status == 'PARTIAL' %}<span class="badge text-bg-warning text-dark">Partial</span>
+              {% else %}<span class="badge text-bg-secondary">Pending</span>{% endif %}
+            </td>
+            <td><a href="{% url 'core:school_fee_receipt_pdf' r.payment.id %}" class="btn btn-sm btn-outline-secondary py-0" target="_blank">Receipt</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="9" class="text-center text-muted py-5">No payments match these filters.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

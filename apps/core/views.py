@@ -11,6 +11,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from calendar import monthrange
 from io import BytesIO
+import csv
 import json
 from urllib.parse import urlencode
 from django.utils import timezone
@@ -1102,7 +1103,7 @@ def admin_dashboard(request):
                     student__user__school=school,
                 ).prefetch_related("payments"):
                     paid = sum(float(p.amount) for p in fee.payments.all())
-                    pending_fees += float(fee.amount) - paid
+                    pending_fees += max(float(fee.effective_due_amount) - paid, 0.0)
         except Exception:
             fee_today_amt = fee_month_amt = 0.0
             pending_fees = 0.0
@@ -5289,13 +5290,14 @@ def student_fees(request):
     )
 
     rows = []
-    total_amount = 0
-    total_paid = 0
+    total_amount = Decimal("0")
+    total_paid = Decimal("0")
     today = date.today()
     for fee in fee_qs:
         paid_amount = sum(p.amount for p in fee.payments.all())
-        pending_amount = max(fee.amount - paid_amount, 0)
-        total_amount += fee.amount
+        eff = fee.effective_due_amount
+        pending_amount = max(eff - paid_amount, 0)
+        total_amount += eff
         total_paid += paid_amount
         rows.append(
             {
@@ -5307,10 +5309,11 @@ def student_fees(request):
             }
         )
 
+    pending_total = sum((r["pending_amount"] for r in rows), Decimal("0"))
     summary = {
         "total": total_amount,
         "paid": total_paid,
-        "pending": max(total_amount - total_paid, 0),
+        "pending": pending_total,
     }
     return render(request, "core/student/fees.html", {"fee_rows": rows, "summary": summary})
 
@@ -5491,6 +5494,78 @@ def student_homework_submit(request, homework_id):
     return redirect("core:homework_list")
 
 
+def _school_homework_list_queryset(request):
+    qs = (
+        Homework.objects.all()
+        .prefetch_related("classes", "sections")
+        .select_related("assigned_by", "subject", "teacher", "teacher__user")
+        .order_by("-due_date", "-created_at")
+    )
+    classroom_filter = request.GET.get("classroom", "").strip()
+    if classroom_filter.isdigit():
+        qs = qs.filter(classes__id=int(classroom_filter))
+    return qs.distinct(), classroom_filter
+
+
+def _homework_row_payload(hw, today):
+    teacher_disp = ""
+    if hw.teacher_id and getattr(hw.teacher, "user", None):
+        u = hw.teacher.user
+        teacher_disp = u.get_full_name() or u.username or ""
+    assigned = ""
+    if hw.assigned_by_id:
+        assigned = hw.assigned_by.get_full_name() or hw.assigned_by.username or ""
+    created_by_line = assigned or teacher_disp or "—"
+    class_ids = [c.id for c in hw.classes.all()]
+    section_ids = [s.id for s in hw.sections.all()]
+    classes_names = ", ".join(c.name for c in hw.classes.all())
+    sections_names = ", ".join(s.name for s in hw.sections.all())
+    att_url = ""
+    att_name = ""
+    if hw.attachment:
+        att_url = hw.attachment.url
+        att_name = hw.attachment.name.rsplit("/", 1)[-1]
+    overdue = hw.due_date < today
+    return {
+        "id": hw.id,
+        "subject": hw.subject.name if hw.subject_id else "",
+        "subject_id": hw.subject_id,
+        "title": hw.title,
+        "description": hw.description,
+        "class_ids": class_ids,
+        "section_ids": section_ids,
+        "classes_display": classes_names or "—",
+        "sections_display": sections_names or "—",
+        "created_display": hw.created_at.strftime("%d %b %Y, %H:%M") if hw.created_at else "—",
+        "due_date_iso": hw.due_date.isoformat(),
+        "due_date_display": hw.due_date.strftime("%d %b %Y"),
+        "attachment_name": att_name,
+        "attachment_url": att_url,
+        "created_by": created_by_line,
+        "status": "Overdue" if overdue else "Active",
+    }
+
+
+def _school_homework_list_context(request, homework_list, homework_edit_form=None, homework_edit_id=None):
+    from .forms import HomeworkCreateForm
+
+    today = date.today()
+    payload = {str(hw.id): _homework_row_payload(hw, today) for hw in homework_list}
+    edit_form = homework_edit_form if homework_edit_form is not None else HomeworkCreateForm(user=request.user)
+    classroom_filter = (request.GET.get("classroom") or "").strip()
+    return {
+        "homework_list": homework_list,
+        "classrooms": ClassRoom.objects.select_related("academic_year").order_by(
+            "academic_year__start_date", "name"
+        ),
+        "filters": {"classroom": classroom_filter},
+        "today": today,
+        "homework_edit_form": edit_form,
+        "homework_edit_id": homework_edit_id,
+        "homework_payload": payload,
+    }
+
+
 @admin_required
 @feature_required("homework")
 def school_homework_list(request):
@@ -5498,25 +5573,51 @@ def school_homework_list(request):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
-    qs = (
-        Homework.objects.all()
-        .prefetch_related("classes", "sections")
-        .select_related("assigned_by")
-        .order_by("-due_date", "-created_at")
+    qs, _ = _school_homework_list_queryset(request)
+    homework_list = list(qs)
+    ctx = _school_homework_list_context(request, homework_list)
+    return render(request, "core/school/homework_list.html", ctx)
+
+
+@admin_required
+@feature_required("homework")
+def school_homework_update(request, pk):
+    school = request.user.school
+    if not school:
+        return redirect("core:admin_dashboard")
+    from .forms import HomeworkCreateForm
+
+    hw = get_object_or_404(Homework, pk=pk)
+    if request.method != "POST":
+        return redirect("core:school_homework_list")
+    form = HomeworkCreateForm(request.POST, request.FILES, instance=hw, user=request.user)
+    if form.is_valid():
+        obj = form.save(commit=False)
+        obj.save()
+        form.save_m2m()
+        messages.success(request, "Homework updated successfully.")
+        return redirect("core:school_homework_list")
+    qs, _ = _school_homework_list_queryset(request)
+    homework_list = list(qs)
+    ctx = _school_homework_list_context(
+        request, homework_list, homework_edit_form=form, homework_edit_id=hw.id
     )
-    classroom_filter = request.GET.get("classroom", "").strip()
-    if classroom_filter.isdigit():
-        qs = qs.filter(classes__id=int(classroom_filter))
-    return render(
-        request,
-        "core/school/homework_list.html",
-        {
-            "homework_list": qs.distinct(),
-            "classrooms": ClassRoom.objects.select_related("academic_year").order_by("academic_year__start_date", "name"),
-            "filters": {"classroom": classroom_filter},
-            "today": date.today(),
-        },
-    )
+    return render(request, "core/school/homework_list.html", ctx)
+
+
+@admin_required
+@feature_required("homework")
+def school_homework_delete(request, pk):
+    school = request.user.school
+    if not school:
+        return redirect("core:admin_dashboard")
+    if request.method != "POST":
+        return redirect("core:school_homework_list")
+    hw = get_object_or_404(Homework, pk=pk)
+    title = hw.title
+    hw.delete()
+    messages.success(request, f'Homework "{title}" was deleted.')
+    return redirect("core:school_homework_list")
 
 
 @admin_required
@@ -5528,7 +5629,7 @@ def school_homework_create(request):
         return redirect("core:admin_dashboard")
     from .forms import HomeworkCreateForm
     if request.method == "POST":
-        form = HomeworkCreateForm(request.POST, user=request.user)
+        form = HomeworkCreateForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
             hw = form.save(commit=False)
             hw.assigned_by = request.user
@@ -5632,7 +5733,7 @@ def create_homework(request):
         return redirect("core:teacher_dashboard")
 
     if request.method == "POST":
-        form = HomeworkCreateForm(request.POST, user=request.user)
+        form = HomeworkCreateForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
             hw = form.save(commit=False)
             hw.assigned_by = request.user
@@ -7310,24 +7411,223 @@ def _fee_balance_remaining(fee):
     from decimal import Decimal
 
     paid = Payment.objects.filter(fee=fee).aggregate(s=Sum("amount"))["s"] or Decimal("0")
-    return fee.amount - paid
+    return max(Decimal("0"), fee.effective_due_amount - paid)
+
+
+def _parse_fee_ledger_filters(request):
+    """GET params for hub student fee ledger (prefix l*)."""
+    classroom_id = None
+    section_id = None
+    if (v := (request.GET.get("lclass") or "").strip()):
+        try:
+            classroom_id = int(v)
+        except ValueError:
+            pass
+    if (v := (request.GET.get("lsec") or "").strip()):
+        try:
+            section_id = int(v)
+        except ValueError:
+            pass
+    search_q = (request.GET.get("ledger_q") or "").strip()
+    status_filter = (request.GET.get("lst") or "").strip() or None
+    fee_type_id = None
+    if (v := (request.GET.get("lft") or "").strip()):
+        try:
+            fee_type_id = int(v)
+        except ValueError:
+            pass
+    date_from = None
+    date_to = None
+    if (v := (request.GET.get("ldf") or "").strip()):
+        try:
+            date_from = date.fromisoformat(v)
+        except ValueError:
+            pass
+    if (v := (request.GET.get("ldt") or "").strip()):
+        try:
+            date_to = date.fromisoformat(v)
+        except ValueError:
+            pass
+    payment_mode = (request.GET.get("lpm") or "").strip() or None
+    return {
+        "classroom_id": classroom_id,
+        "section_id": section_id,
+        "search_q": search_q,
+        "status_filter": status_filter,
+        "fee_type_id": fee_type_id,
+        "date_from": date_from,
+        "date_to": date_to,
+        "payment_mode": payment_mode,
+    }
 
 
 @admin_required
 def school_fees_index(request):
-    """Fee management index: structure, dues, collections."""
+    """Fee management hub: KPIs, class-wise structure, ledger, charts, defaulters."""
     school = _school_fee_check(request)
     if not school:
         add_warning_once(request, "fee_not_available_shown", "Fee module not available.")
         return redirect("core:admin_dashboard")
-    fee_types = FeeType.objects.all()
-    structures = FeeStructure.objects.all().select_related("fee_type", "classroom")
-    dues = Fee.objects.all().select_related("student", "fee_structure").order_by("-due_date")[:20]
-    return render(request, "core/fees/index.html", {
-        "fee_types": fee_types,
-        "structures": structures,
-        "dues": dues,
-    })
+
+    from . import fee_services
+
+    ay = get_active_academic_year_obj()
+    ay_param = (request.GET.get("ay") or "").strip()
+    if ay_param:
+        try:
+            ay = AcademicYear.objects.get(pk=int(ay_param))
+        except (ValueError, AcademicYear.DoesNotExist):
+            pass
+
+    kpis = fee_services.build_kpis(ay)
+    fee_class_summaries = fee_services.build_fee_structure_class_summaries(ay)
+
+    lf = _parse_fee_ledger_filters(request)
+    ledger_rows, ledger_totals, ledger_charts = fee_services.build_filtered_fee_ledger(
+        ay,
+        classroom_id=lf["classroom_id"],
+        section_id=lf["section_id"],
+        search_q=lf["search_q"],
+        status_filter=lf["status_filter"],
+        fee_type_id=lf["fee_type_id"],
+        date_from=lf["date_from"],
+        date_to=lf["date_to"],
+        payment_mode=lf["payment_mode"],
+    )
+    ledger_paginator = Paginator(ledger_rows, 20)
+    ledger_page = ledger_paginator.get_page(request.GET.get("ledger_page") or 1)
+
+    lq = {}
+    if ay:
+        lq["ay"] = ay.id
+    if lf["classroom_id"]:
+        lq["lclass"] = lf["classroom_id"]
+    if lf["section_id"]:
+        lq["lsec"] = lf["section_id"]
+    if lf["search_q"]:
+        lq["ledger_q"] = lf["search_q"]
+    if lf["status_filter"]:
+        lq["lst"] = lf["status_filter"]
+    if lf["fee_type_id"]:
+        lq["lft"] = lf["fee_type_id"]
+    if lf["date_from"]:
+        lq["ldf"] = lf["date_from"].isoformat()
+    if lf["date_to"]:
+        lq["ldt"] = lf["date_to"].isoformat()
+    if lf["payment_mode"]:
+        lq["lpm"] = lf["payment_mode"]
+    ledger_filter_qs = urlencode(lq)
+
+    payment_preview = fee_services.payment_history_rows(ay, limit=25)
+    defaulters = fee_services.build_defaulters(ay, limit=40)
+
+    bar_labels, bar_vals = fee_services.chart_monthly_collections(8)
+    pie = fee_services.chart_paid_vs_pending(ay)
+    class_labels, class_vals = fee_services.chart_class_revenue(ay)
+
+    return render(
+        request,
+        "core/fees/dashboard.html",
+        {
+            "academic_year": ay,
+            "academic_years": AcademicYear.objects.order_by("-start_date"),
+            "kpis": kpis,
+            "fee_class_summaries": fee_class_summaries,
+            "ledger_page": ledger_page,
+            "ledger_totals": ledger_totals,
+            "ledger_filters": lf,
+            "ledger_filter_qs": ledger_filter_qs,
+            "ledger_charts": ledger_charts,
+            "payment_preview": payment_preview,
+            "defaulters": defaulters,
+            "chart_bar_labels": json.dumps(bar_labels),
+            "chart_bar_values": json.dumps(bar_vals),
+            "chart_pie_paid": pie["paid"],
+            "chart_pie_pending": pie["pending"],
+            "chart_class_labels": json.dumps(class_labels),
+            "chart_class_values": json.dumps(class_vals),
+            "ledger_chart_pie_paid": ledger_charts["pie_paid"],
+            "ledger_chart_pie_pending": ledger_charts["pie_pending"],
+            "ledger_chart_class_labels": json.dumps(ledger_charts["class_labels"]),
+            "ledger_chart_class_values": json.dumps(ledger_charts["class_values"]),
+            "ledger_chart_overdue_labels": json.dumps(ledger_charts["overdue_labels"]),
+            "ledger_chart_overdue_values": json.dumps(ledger_charts["overdue_values"]),
+            "classrooms": (
+                ClassRoom.objects.filter(academic_year_id=ay.id).order_by("name")
+                if ay
+                else ClassRoom.objects.all().order_by("name")
+            ),
+            "fee_sections": fee_services.section_class_pairs(),
+            "ledger_sections": fee_services.ledger_section_filter_choices(),
+            "fee_types_dd": FeeType.objects.filter(is_active=True).order_by("name"),
+            "payment_mode_choices": ["Cash", "UPI", "Card", "Bank transfer", "Online", "Cheque"],
+        },
+    )
+
+
+@admin_required
+def school_fee_ledger_export_csv(request):
+    school = _school_fee_check(request)
+    if not school:
+        return redirect("core:admin_dashboard")
+    from . import fee_services
+
+    ay = get_active_academic_year_obj()
+    ay_param = (request.GET.get("ay") or "").strip()
+    if ay_param:
+        try:
+            ay = AcademicYear.objects.get(pk=int(ay_param))
+        except (ValueError, AcademicYear.DoesNotExist):
+            pass
+
+    lf = _parse_fee_ledger_filters(request)
+    rows, _, _ = fee_services.build_filtered_fee_ledger(
+        ay,
+        classroom_id=lf["classroom_id"],
+        section_id=lf["section_id"],
+        search_q=lf["search_q"],
+        status_filter=lf["status_filter"],
+        fee_type_id=lf["fee_type_id"],
+        date_from=lf["date_from"],
+        date_to=lf["date_to"],
+        payment_mode=lf["payment_mode"],
+    )
+
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="fee_ledger_export.csv"'
+    w = csv.writer(response)
+    w.writerow(
+        [
+            "Student",
+            "Admission",
+            "Class",
+            "Section",
+            "Total fee (net)",
+            "Discount",
+            "Paid",
+            "Pending",
+            "Last payment",
+            "Status",
+        ]
+    )
+    for r in rows:
+        s = r["student"]
+        name = s.user.get_full_name() or s.user.username
+        w.writerow(
+            [
+                name,
+                r["admission"],
+                r["class_name"],
+                r["section_name"],
+                str(r["total_fee"]),
+                str(r["total_discount"]),
+                str(r["paid"]),
+                str(r["pending"]),
+                r["last_payment"].isoformat() if r["last_payment"] else "",
+                r["overall_status"],
+            ]
+        )
+    return response
 
 
 @admin_required
@@ -7336,16 +7636,116 @@ def school_fee_types(request):
     if not school:
         return redirect("core:admin_dashboard")
     from .forms import FeeTypeForm
-    items = FeeType.objects.all()
+
+    items = (
+        FeeType.objects.annotate(
+            mapped_classes=Count(
+                "structures__classroom",
+                filter=Q(structures__classroom__isnull=False),
+                distinct=True,
+            ),
+            structure_rows=Count("structures", distinct=True),
+        )
+        .prefetch_related(
+            Prefetch(
+                "structures",
+                queryset=FeeStructure.objects.select_related("classroom", "academic_year").order_by(
+                    "classroom__name", "academic_year__name", "fee_type__name"
+                ),
+            )
+        )
+        .order_by("name")
+    )
+
+    show_add_modal = False
     if request.method == "POST":
         form = FeeTypeForm(request.POST)
         if form.is_valid():
             obj = form.save(commit=False)
             obj.save_with_audit(request.user)
+            messages.success(request, f"Fee type “{obj.name}” was added.")
             return redirect("core:school_fee_types")
+        show_add_modal = True
     else:
         form = FeeTypeForm()
-    return render(request, "core/fees/fee_types.html", {"form": form, "items": items})
+
+    total_types = FeeType.objects.count()
+    active_types = FeeType.objects.filter(is_active=True).count()
+    inactive_types = total_types - active_types
+    classes_with_structures = (
+        FeeStructure.objects.filter(classroom_id__isnull=False)
+        .values("classroom_id")
+        .distinct()
+        .count()
+    )
+
+    usage_payload = {}
+    for ft in items:
+        usage_payload[str(ft.id)] = [
+            {
+                "classroom": s.classroom.name if s.classroom_id else "—",
+                "year": s.academic_year.name if s.academic_year_id else "—",
+                "amount": str(s.amount),
+                "frequency": s.get_frequency_display(),
+                "mapping_active": s.is_active,
+            }
+            for s in ft.structures.all()
+        ]
+
+    return render(
+        request,
+        "core/fees/fee_types.html",
+        {
+            "form": form,
+            "items": items,
+            "show_add_modal": show_add_modal,
+            "ft_kpis": {
+                "total": total_types,
+                "active": active_types,
+                "inactive": inactive_types,
+                "mapped_classes": classes_with_structures,
+            },
+            "usage_payload": usage_payload,
+        },
+    )
+
+
+@admin_required
+@require_POST
+def school_fee_type_update(request, pk):
+    school = _school_fee_check(request)
+    if not school:
+        return redirect("core:admin_dashboard")
+    from .forms import FeeTypeForm
+
+    ft = get_object_or_404(FeeType, pk=pk)
+    form = FeeTypeForm(request.POST, instance=ft)
+    if form.is_valid():
+        obj = form.save(commit=False)
+        obj.save_with_audit(request.user)
+        messages.success(request, f"Fee type “{obj.name}” was updated.")
+    else:
+        messages.error(request, "Could not save fee type. Check the fields and try again.")
+    return redirect("core:school_fee_types")
+
+
+@admin_required
+@require_POST
+def school_fee_type_delete(request, pk):
+    school = _school_fee_check(request)
+    if not school:
+        return redirect("core:admin_dashboard")
+    ft = get_object_or_404(FeeType, pk=pk)
+    if ft.structures.exists():
+        messages.error(
+            request,
+            f"Cannot delete “{ft.name}”: it is used in fee structures. Remove or reassign those mappings first.",
+        )
+    else:
+        name = ft.name
+        ft.delete()
+        messages.success(request, f"Fee type “{name}” was deleted.")
+    return redirect("core:school_fee_types")
 
 
 @admin_required
@@ -7363,7 +7763,15 @@ def school_fee_structure(request):
             return redirect("core:school_fee_structure")
     else:
         form = FeeStructureForm(school)
-    return render(request, "core/fees/fee_structure.html", {"form": form, "items": items})
+    return render(
+        request,
+        "core/fees/fee_structure.html",
+        {
+            "form": form,
+            "items": items,
+            "all_classrooms": ClassRoom.objects.all().order_by("name"),
+        },
+    )
 
 
 @admin_required
@@ -7436,7 +7844,7 @@ def school_fee_add(request):
                     p.received_by = request.user
                     p.save()
                     paid = Payment.objects.filter(fee=fee_obj).aggregate(s=Sum("amount"))["s"] or Decimal("0")
-                    if paid >= fee_obj.amount:
+                    if paid >= fee_obj.effective_due_amount:
                         fee_obj.status = "PAID"
                     else:
                         fee_obj.status = "PARTIAL"
@@ -7483,7 +7891,10 @@ def school_fee_add(request):
                         student=s,
                         fee_structure=structure,
                         due_date=due_date,
-                        defaults={"amount": structure.amount},
+                        defaults={
+                            "amount": structure.amount,
+                            "academic_year": structure.academic_year,
+                        },
                     )
                     if created_flag:
                         created += 1
@@ -7548,39 +7959,194 @@ def school_fee_collect(request, fee_id):
     school = _school_fee_check(request)
     if not school:
         return redirect("core:admin_dashboard")
-    fee = get_object_or_404(Fee, id=fee_id)
-    from .forms import PaymentForm
+    from decimal import Decimal
 
-    balance_due = _fee_balance_remaining(fee)
-    if request.method == "POST":
-        form = PaymentForm(request.POST, fee=fee)
-        if form.is_valid():
-            with transaction.atomic():
-                p = form.save(commit=False)
-                p.fee = fee
-                p.received_by = request.user
-                p.save()
-                paid = Payment.objects.filter(fee=fee).aggregate(s=Sum("amount"))["s"] or 0
-                if paid >= fee.amount:
-                    fee.status = "PAID"
-                else:
-                    fee.status = "PARTIAL"
-                fee.save(update_fields=["status"])
-            messages.success(request, "Payment recorded.")
-            fee_student_id = fee.student_id
-            base = reverse("core:school_fee_collection")
-            if fee_student_id:
-                return redirect(f"{base}?{urlencode({'student': fee_student_id})}")
-            return redirect("core:school_fee_collection")
-    else:
-        form = PaymentForm(
-            fee=fee,
-            initial={"payment_date": date.today(), "amount": balance_due},
+    from django.db.models import Prefetch
+
+    from . import fee_services
+    from .forms import FeeConcessionForm, PaymentForm
+
+    fee = get_object_or_404(
+        Fee.objects.select_related(
+            "student__user",
+            "student__classroom",
+            "student__section",
+            "fee_structure__fee_type",
+            "academic_year",
+        ),
+        id=fee_id,
+    )
+    student = fee.student
+
+    student_fees_qs = Fee.objects.filter(student=student).select_related(
+        "fee_structure__fee_type", "academic_year"
+    )
+    if fee.academic_year_id:
+        student_fees_qs = student_fees_qs.filter(academic_year_id=fee.academic_year_id)
+    student_fees = list(
+        student_fees_qs.order_by("fee_structure__fee_type__name", "due_date", "id").prefetch_related(
+            Prefetch(
+                "payments",
+                queryset=Payment.objects.select_related("received_by").order_by("-payment_date", "-id"),
+            )
         )
+    )
+
+    def _same_ledger_filter(qs):
+        if fee.academic_year_id:
+            return qs.filter(fee__academic_year_id=fee.academic_year_id)
+        return qs
+
+    payment_history = list(
+        _same_ledger_filter(
+            Payment.objects.filter(fee__student=student).select_related(
+                "fee__fee_structure__fee_type", "received_by"
+            )
+        ).order_by("-payment_date", "-id")
+    )
+
+    ledger_rows = []
+    total_original = Decimal("0")
+    total_discount = Decimal("0")
+    total_final = Decimal("0")
+    total_paid_sum = Decimal("0")
+    total_balance_sum = Decimal("0")
+    concessions_map = {}
+    for f in student_fees:
+        paid = fee_services.fee_amount_paid(f)
+        bal = fee_services.fee_balance(f)
+        st = fee_services.fee_line_collection_status(f)
+        total_original += f.amount
+        total_discount += f.total_concession_amount
+        total_final += f.effective_due_amount
+        total_paid_sum += paid
+        total_balance_sum += bal
+        ledger_rows.append(
+            {
+                "fee": f,
+                "original": f.amount,
+                "discount": f.total_concession_amount,
+                "final_due": f.effective_due_amount,
+                "paid": paid,
+                "balance": bal,
+                "status": st,
+            }
+        )
+        concessions_map[str(f.id)] = {
+            "fixed": str(f.concession_fixed),
+            "percent": str(f.concession_percent),
+            "kind": f.concession_kind,
+            "note": f.concession_note or "",
+        }
+
+    default_pay_fee = fee
+    for f in student_fees:
+        if fee_services.fee_balance(f) > 0:
+            default_pay_fee = f
+            break
+    balance_due = _fee_balance_remaining(default_pay_fee)
+    selected_pay_fee_id = default_pay_fee.id
+    selected_concession_fee_id = default_pay_fee.id
+
+    payment_targets = []
+    for f in student_fees:
+        b = fee_services.fee_balance(f)
+        label = f"{f.fee_structure.fee_type.name} · Due {f.due_date}"
+        payment_targets.append({"id": f.id, "label": label, "balance": float(b)})
+
+    form = PaymentForm(
+        fee=default_pay_fee,
+        initial={"payment_date": date.today(), "amount": balance_due},
+    )
+    concession_instance = next(
+        (x for x in student_fees if x.id == selected_concession_fee_id),
+        default_pay_fee,
+    )
+    concession_form = FeeConcessionForm(instance=concession_instance)
+
+    if request.method == "POST":
+        action = (request.POST.get("form_action") or "").strip()
+        if action == "save_concession":
+            try:
+                cfid = int(request.POST.get("concession_fee_id") or 0)
+            except (TypeError, ValueError):
+                cfid = 0
+            cfee = get_object_or_404(Fee, pk=cfid, student_id=student.id)
+            if fee.academic_year_id and cfee.academic_year_id != fee.academic_year_id:
+                messages.error(request, "That fee line is not on this ledger.")
+                return redirect("core:school_fee_collect", fee_id=fee.id)
+            cform = FeeConcessionForm(request.POST, instance=cfee)
+            selected_concession_fee_id = cfee.id
+            if cform.is_valid():
+                cform.save()
+                cfee.refresh_from_db()
+                paid_now = fee_services.fee_amount_paid(cfee)
+                if paid_now >= cfee.effective_due_amount:
+                    cfee.status = "PAID"
+                elif paid_now > 0:
+                    cfee.status = "PARTIAL"
+                else:
+                    cfee.status = "PENDING"
+                cfee.save(update_fields=["status"])
+                messages.success(request, "Concession updated. Balances recalculated.")
+                return redirect("core:school_fee_collect", fee_id=fee.id)
+            concession_form = cform
+            messages.error(request, "Fix the concession form and try again.")
+        else:
+            try:
+                pay_fid = int(request.POST.get("payment_fee_id") or fee_id)
+            except (TypeError, ValueError):
+                pay_fid = fee_id
+            target_fee = get_object_or_404(Fee, pk=pay_fid, student_id=student.id)
+            if fee.academic_year_id and target_fee.academic_year_id != fee.academic_year_id:
+                messages.error(request, "Invalid fee line for this ledger.")
+                return redirect("core:school_fee_collect", fee_id=fee.id)
+            form = PaymentForm(request.POST, fee=target_fee)
+            selected_pay_fee_id = target_fee.id
+            if form.is_valid():
+                with transaction.atomic():
+                    p = form.save(commit=False)
+                    p.fee = target_fee
+                    p.received_by = request.user
+                    p.save()
+                    paid = (
+                        Payment.objects.filter(fee=target_fee).aggregate(s=Sum("amount"))["s"] or Decimal("0")
+                    )
+                    if paid >= target_fee.effective_due_amount:
+                        target_fee.status = "PAID"
+                    else:
+                        target_fee.status = "PARTIAL"
+                    target_fee.save(update_fields=["status"])
+                messages.success(request, "Payment recorded.")
+                return redirect("core:school_fee_collect", fee_id=fee.id)
+            messages.error(request, "Fix the payment form and try again.")
+
+    parent_display = (student.parent_name or "").strip() or "—"
+    phone_display = (student.parent_phone or student.phone or "").strip() or "—"
+
     return render(
         request,
         "core/fees/collect.html",
-        {"form": form, "fee": fee, "balance_due": balance_due},
+        {
+            "form": form,
+            "fee": fee,
+            "student": student,
+            "ledger_rows": ledger_rows,
+            "total_original": total_original,
+            "total_discount": total_discount,
+            "total_final": total_final,
+            "total_paid_sum": total_paid_sum,
+            "total_balance_sum": total_balance_sum,
+            "payment_history": payment_history,
+            "payment_targets": payment_targets,
+            "selected_pay_fee_id": selected_pay_fee_id,
+            "selected_concession_fee_id": selected_concession_fee_id,
+            "concession_form": concession_form,
+            "concessions_map": concessions_map,
+            "balance_due": balance_due,
+            "parent_display": parent_display,
+            "phone_display": phone_display,
+        },
     )
 
 
@@ -7598,6 +8164,171 @@ def school_fee_receipt_pdf(request, payment_id):
     if not pdf_bytes:
         raise Http404("PDF generation failed")
     return pdf_response(pdf_bytes, f"fee_receipt_{payment.id}.pdf")
+
+
+@admin_required
+@require_POST
+def school_fee_structure_apply(request, structure_id):
+    """Create Fee dues for all students in the structure's class (optional section)."""
+    school = _school_fee_check(request)
+    if not school:
+        return redirect("core:admin_dashboard")
+    structure = get_object_or_404(FeeStructure, pk=structure_id)
+    due_str = (request.POST.get("due_date") or "").strip()
+    section_raw = (request.POST.get("section_id") or "").strip()
+    section_id = int(section_raw) if section_raw.isdigit() else None
+    if not due_str:
+        messages.error(request, "Choose a due date before applying the fee structure.")
+        return redirect("core:school_fees_index")
+    try:
+        due_date = date.fromisoformat(due_str)
+    except ValueError:
+        messages.error(request, "Invalid due date.")
+        return redirect("core:school_fees_index")
+    from . import fee_services
+
+    n, err = fee_services.apply_structure_to_students(structure, due_date, section_id=section_id)
+    if err:
+        messages.error(request, err)
+    else:
+        messages.success(request, f"Applied: {n} new fee due(s) created for students in this class.")
+    return redirect("core:school_fees_index")
+
+
+@admin_required
+@require_POST
+def school_fee_structure_clone(request, structure_id):
+    """Clone one fee structure to other classes (same academic year & fee type rules)."""
+    school = _school_fee_check(request)
+    if not school:
+        return redirect("core:admin_dashboard")
+    structure = get_object_or_404(FeeStructure, pk=structure_id)
+    raw_ids = request.POST.getlist("target_classrooms")
+    target_ids = []
+    for x in raw_ids:
+        try:
+            target_ids.append(int(x))
+        except (TypeError, ValueError):
+            continue
+    if not target_ids:
+        messages.error(request, "Select at least one target class.")
+        return redirect("core:school_fee_structure")
+    from . import fee_services
+
+    n = fee_services.clone_structure_to_classes(structure, target_ids, request.user)
+    messages.success(request, f"Cloned to {n} class(es). Configure or apply dues from the billing hub.")
+    return redirect("core:school_fee_structure")
+
+
+@admin_required
+def school_fee_payments(request):
+    """Payment history with filters (full page)."""
+    school = _school_fee_check(request)
+    if not school:
+        return redirect("core:admin_dashboard")
+    from . import fee_services
+
+    ay = get_active_academic_year_obj()
+    ay_param = (request.GET.get("ay") or "").strip()
+    if ay_param.isdigit():
+        try:
+            ay = AcademicYear.objects.get(pk=int(ay_param))
+        except AcademicYear.DoesNotExist:
+            pass
+    else:
+        ay_param = str(ay.id) if ay else ""
+
+    def _int(v):
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return None
+
+    class_id = _int(request.GET.get("classroom_id"))
+    section_id = _int(request.GET.get("section_id"))
+    student_id = _int(request.GET.get("student_id"))
+    fee_type_id = _int(request.GET.get("fee_type_id"))
+    status_filter = (request.GET.get("status") or "").strip() or None
+    date_from = None
+    date_to = None
+    if request.GET.get("date_from"):
+        try:
+            date_from = date.fromisoformat(request.GET["date_from"])
+        except ValueError:
+            pass
+    if request.GET.get("date_to"):
+        try:
+            date_to = date.fromisoformat(request.GET["date_to"])
+        except ValueError:
+            pass
+
+    rows = fee_services.payment_history_rows(
+        ay,
+        class_id=class_id,
+        section_id=section_id,
+        student_id=student_id,
+        fee_type_id=fee_type_id,
+        status_filter=status_filter,
+        date_from=date_from,
+        date_to=date_to,
+        limit=500,
+    )
+    return render(
+        request,
+        "core/fees/payments_history.html",
+        {
+            "academic_year": ay,
+            "academic_years": AcademicYear.objects.order_by("-start_date"),
+            "rows": rows,
+            "classrooms": ClassRoom.objects.all().order_by("name"),
+            "fee_sections": fee_services.section_class_pairs(),
+            "students": Student.objects.select_related("user").order_by("user__last_name", "user__first_name"),
+            "fee_types_dd": FeeType.objects.filter(is_active=True).order_by("name"),
+            "filters": {
+                "classroom_id": class_id,
+                "section_id": section_id,
+                "student_id": student_id,
+                "fee_type_id": fee_type_id,
+                "status": status_filter or "",
+                "date_from": request.GET.get("date_from") or "",
+                "date_to": request.GET.get("date_to") or "",
+                "ay": ay_param or (str(ay.id) if ay else ""),
+            },
+        },
+    )
+
+
+@admin_required
+def school_fee_payments_export_csv(request):
+    school = _school_fee_check(request)
+    if not school:
+        return redirect("core:admin_dashboard")
+    import csv
+
+    from . import fee_services
+
+    ay = get_active_academic_year_obj()
+    rows = fee_services.payment_history_rows(ay, limit=5000)
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="fee_payments.csv"'
+    w = csv.writer(response)
+    w.writerow(["Receipt", "Student", "Class", "Fee type", "Amount", "Mode", "Date", "Fee status"])
+    for r in rows:
+        st = r["student"]
+        name = st.user.get_full_name() or st.user.username
+        w.writerow(
+            [
+                r["receipt_no"],
+                name,
+                r["class_name"],
+                r["fee_type"],
+                str(r["amount"]),
+                r["mode"],
+                r["date"].isoformat(),
+                r["status"],
+            ]
+        )
+    return response
 
 
 # ======================

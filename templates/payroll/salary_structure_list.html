@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load nav_tags %}
 {% block title %}Salary Structure | School ERP{% endblock %}
 {% block content %}
 <div class="container-fluid px-0">
@@ -36,10 +37,10 @@
             <td>{{ s.teacher.user.get_full_name|default:s.teacher.user.username }}</td>
             <td>{{ s.teacher.employee_id|default:"—" }}</td>
             <td>{{ s.designation|default:"—" }}</td>
-            <td>&#8377;{{ s.basic_salary|floatformat:0 }}</td>
-            <td>&#8377;{{ s.total_allowances|floatformat:0 }}</td>
-            <td>&#8377;{{ s.total_deductions|floatformat:0 }}</td>
-            <td>&#8377;{{ s.net_salary|floatformat:0 }}</td>
+            <td>&#8377;{{ s.basic_salary|inr:0 }}</td>
+            <td>&#8377;{{ s.total_allowances|inr:0 }}</td>
+            <td>&#8377;{{ s.total_deductions|inr:0 }}</td>
+            <td>&#8377;{{ s.net_salary|inr:0 }}</td>
             <td class="text-end">
               <a href="{% url 'payroll:salary_structure_edit' s.pk %}" class="btn btn-link btn-sm p-1 text-primary" title="Edit"><i class="bi bi-pencil"></i></a>
               <button type="button" class="btn btn-link btn-sm p-1 text-danger" data-bs-toggle="modal" data-bs-target="#delStruct{{ s.pk }}" title="Delete"><i class="bi bi-trash"></i></button>

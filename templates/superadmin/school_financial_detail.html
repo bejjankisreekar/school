@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load nav_tags %}
 {% block title %}{{ school.name }} — Financial | Super Admin{% endblock %}
 {% block extra_head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -58,7 +59,7 @@
       <div class="card sf-kpi border-0 shadow-sm h-100">
         <div class="card-body py-3">
           <p class="sf-section-title mb-1">Total billed (filtered)</p>
-          <p class="h4 fw-bold mb-0">₹{{ total_billed }}</p>
+          <p class="h4 fw-bold mb-0">₹{{ total_billed|inr }}</p>
         </div>
       </div>
     </div>
@@ -66,7 +67,7 @@
       <div class="card sf-kpi border-0 shadow-sm h-100 border-success border-opacity-25">
         <div class="card-body py-3">
           <p class="sf-section-title mb-1">Total paid</p>
-          <p class="h4 fw-bold mb-0 text-success">₹{{ total_paid_combined }}</p>
+          <p class="h4 fw-bold mb-0 text-success">₹{{ total_paid_combined|inr }}</p>
           <p class="small text-muted mb-0">Ledger + invoice-linked</p>
         </div>
       </div>
@@ -75,9 +76,9 @@
       <div class="card sf-kpi border-0 shadow-sm h-100 {% if advance_credit > 0 %}border-success border-opacity-25{% else %}border-warning border-opacity-50{% endif %}">
         <div class="card-body py-3">
           <p class="sf-section-title mb-1">Outstanding (cash net)</p>
-          <p class="h4 fw-bold mb-0 {% if outstanding > 0 %}text-warning-emphasis{% else %}text-success{% endif %}">₹{{ outstanding }}</p>
+          <p class="h4 fw-bold mb-0 {% if outstanding > 0 %}text-warning-emphasis{% else %}text-success{% endif %}">₹{{ outstanding|inr }}</p>
           {% if advance_credit > 0 %}
-          <p class="small text-success mb-0 fw-semibold">Advance / credit: ₹{{ advance_credit }}</p>
+          <p class="small text-success mb-0 fw-semibold">Advance / credit: ₹{{ advance_credit|inr }}</p>
           <p class="small text-muted mb-0">Cash received exceeds total invoiced (lifetime).{% if last_payment_date %} Last pay: {{ last_payment_date }}.{% endif %}</p>
           {% else %}
           <p class="small text-muted mb-0">max(0, invoiced − all payments). {% if last_payment_date %}Last pay: {{ last_payment_date }}{% else %}No payments yet{% endif %}</p>
@@ -89,7 +90,7 @@
   {% if invoice_remaining_sum != outstanding %}
   <p class="small text-muted mb-4 mb-md-3 px-1">
     <i class="bi bi-info-circle me-1"></i>
-    Invoice-line balance (₹{{ invoice_remaining_sum }}) can differ when payments are logged under <strong>Payments received</strong> but not applied to an invoice row — top KPI uses total cash vs total invoiced.
+    Invoice-line balance (₹{{ invoice_remaining_sum|inr }}) can differ when payments are logged under <strong>Payments received</strong> but not applied to an invoice row — top KPI uses total cash vs total invoiced.
   </p>
   {% endif %}
 
@@ -128,7 +129,7 @@
           {% if sub_current %}
           <div class="row g-2 small">
             <div class="col-md-6"><strong>Plan</strong><br>{{ sub_current.plan.name }}</div>
-            <div class="col-md-6"><strong>Price / student</strong><br>₹{{ sub_current.plan.price_per_student }}</div>
+            <div class="col-md-6"><strong>Price / student</strong><br>₹{{ sub_current.plan.price_per_student|inr }}</div>
             <div class="col-md-6"><strong>Billing cycle</strong><br>{{ sub_current.plan.get_billing_cycle_display }}</div>
             <div class="col-md-6"><strong>Snapshot students</strong><br>{{ sub_current.students_count }}</div>
             <div class="col-md-6"><strong>Period</strong><br>{{ sub_current.start_date }}{% if sub_current.end_date %} → {{ sub_current.end_date }}{% endif %}</div>
@@ -156,7 +157,7 @@
           <p class="sf-section-title mb-2">SaaS plan (tenant)</p>
           {% if plan %}
           <p class="mb-1 fw-semibold">{{ plan.name }}</p>
-          <p class="small text-muted mb-0">₹{{ price_per_student }}/student · {{ billing_cycle }}</p>
+          <p class="small text-muted mb-0">₹{{ price_per_student|inr }}/student · {{ billing_cycle }}</p>
           {% else %}
           <p class="text-muted small">No plan assigned on school record.</p>
           {% endif %}
@@ -244,10 +245,10 @@
             <td><code>{{ inv.invoice_number }}</code></td>
             <td>{{ inv.month|stringformat:"02d" }}/{{ inv.year }}</td>
             <td class="text-end">{{ inv.students_count }}</td>
-            <td class="text-end">₹{{ inv.gross_amount }}</td>
-            <td class="text-end">₹{{ inv.discount_amount }}</td>
-            <td class="text-end fw-semibold">₹{{ inv.final_amount }}</td>
-            <td class="text-end text-success">₹{{ row.paid }}</td>
+            <td class="text-end">₹{{ inv.gross_amount|inr }}</td>
+            <td class="text-end">₹{{ inv.discount_amount|inr }}</td>
+            <td class="text-end fw-semibold">₹{{ inv.final_amount|inr }}</td>
+            <td class="text-end text-success">₹{{ row.paid|inr }}</td>
             <td>
               {% if inv.status == 'paid' %}<span class="badge rounded-pill badge-paid">Paid</span>
               {% elif inv.status == 'partial' %}<span class="badge rounded-pill badge-partial">Partial</span>
@@ -283,7 +284,7 @@
               <tr>
                 <td>{{ p.pk }}</td>
                 <td><code>{{ p.invoice.invoice_number }}</code></td>
-                <td class="text-end">₹{{ p.amount_paid }}</td>
+                <td class="text-end">₹{{ p.amount_paid|inr }}</td>
                 <td>{{ p.get_payment_mode_display }}</td>
                 <td>{{ p.paid_on|date:"Y-m-d" }}</td>
               </tr>
@@ -305,7 +306,7 @@
               {% for p in legacy_payments %}
               <tr>
                 <td>{{ p.pk }}</td>
-                <td class="text-end">₹{{ p.amount }}</td>
+                <td class="text-end">₹{{ p.amount|inr }}</td>
                 <td>{{ p.get_payment_method_display }}</td>
                 <td class="text-truncate" style="max-width:6rem;">{{ p.reference|default:"—" }}</td>
                 <td>{{ p.payment_date }}</td>
@@ -334,19 +335,19 @@
         <div class="col-md-4">
           <div class="p-3 rounded-3 bg-warning bg-opacity-10">
             <div class="small text-muted">0–30 days past due</div>
-            <div class="h5 mb-0">₹{{ aging_0_30 }}</div>
+            <div class="h5 mb-0">₹{{ aging_0_30|inr }}</div>
           </div>
         </div>
         <div class="col-md-4">
           <div class="p-3 rounded-3 bg-warning bg-opacity-25">
             <div class="small text-muted">30–60 days</div>
-            <div class="h5 mb-0">₹{{ aging_30_60 }}</div>
+            <div class="h5 mb-0">₹{{ aging_30_60|inr }}</div>
           </div>
         </div>
         <div class="col-md-4 mt-2">
           <div class="p-3 rounded-3 bg-danger bg-opacity-25">
             <div class="small text-muted">60+ days</div>
-            <div class="h5 mb-0">₹{{ aging_60_plus }}</div>
+            <div class="h5 mb-0">₹{{ aging_60_plus|inr }}</div>
           </div>
         </div>
       </div>
@@ -406,9 +407,9 @@
     <div class="card-body">
       <p class="sf-section-title mb-2">Revenue snapshot (platform)</p>
       <div class="row g-2 small">
-        <div class="col-md-4"><strong>Total paid (combined)</strong><br>₹{{ total_paid_combined }}</div>
-        <div class="col-md-4"><strong>Discounts on invoices</strong><br>₹{{ total_discounts_on_invoices }}</div>
-        <div class="col-md-4"><strong>Net (paid − invoice discounts)</strong><br><span class="fs-5 fw-bold">₹{{ net_revenue_estimate }}</span></div>
+        <div class="col-md-4"><strong>Total paid (combined)</strong><br>₹{{ total_paid_combined|inr }}</div>
+        <div class="col-md-4"><strong>Discounts on invoices</strong><br>₹{{ total_discounts_on_invoices|inr }}</div>
+        <div class="col-md-4"><strong>Net (paid − invoice discounts)</strong><br><span class="fs-5 fw-bold">₹{{ net_revenue_estimate|inr }}</span></div>
       </div>
     </div>
   </div>

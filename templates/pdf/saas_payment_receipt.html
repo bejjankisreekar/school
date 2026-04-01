@@ -1,3 +1,4 @@
+{% load nav_tags %}
 <!DOCTYPE html>
 <html>
 <head>
@@ -22,7 +23,7 @@
   <table>
     <tr><th>Invoice reference</th><td>{{ invoice_ref }}</td></tr>
     <tr><th>Billing period (month/year)</th><td>{{ invoice_period }}</td></tr>
-    <tr><th>Amount paid</th><td class="amt">₹ {{ paid_amount }}</td></tr>
+    <tr><th>Amount paid</th><td class="amt">₹ {{ paid_amount|inr }}</td></tr>
     <tr><th>Payment date</th><td>{{ paid_on|date:"M j, Y, H:i" }}</td></tr>
     <tr><th>Payment mode</th><td>{{ payment_mode }}</td></tr>
     <tr><th>Transaction / reference ID</th><td>{{ transaction_id }}</td></tr>

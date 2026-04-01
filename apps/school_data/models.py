@@ -3,6 +3,8 @@ Tenant-schema models for School ERP. Each school has its own PostgreSQL schema.
 These models have no school FK - the schema defines the tenant.
 User FK to accounts.User is kept (User lives in public schema).
 """
+from decimal import Decimal, ROUND_HALF_UP
+
 from django.db import models, transaction
 from django.db.models import Q
 
@@ -654,6 +656,12 @@ class Homework(models.Model):
         blank=True,
         related_name="homeworks",
     )
+    attachment = models.FileField(
+        upload_to="homework_attachments/%Y/%m/",
+        null=True,
+        blank=True,
+        help_text="Optional worksheet or reference file for students.",
+    )
 
     class Meta:
         ordering = ["-due_date", "-created_at"]
@@ -699,6 +707,8 @@ class FeeType(BaseModel):
     """Fee category: Tuition, Transport, etc."""
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=50, blank=True)
+    description = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True, db_index=True)
 
     class Meta:
         ordering = ["name"]
@@ -708,7 +718,15 @@ class FeeType(BaseModel):
 
 
 class FeeStructure(BaseModel):
-    """Fee amount per class/term."""
+    """Fee amount per class/term — drives class-wise billing for all students in that class."""
+
+    class Frequency(models.TextChoices):
+        MONTHLY = "MONTHLY", "Monthly"
+        QUARTERLY = "QUARTERLY", "Quarterly"
+        SEMESTER = "SEMESTER", "Semester"
+        YEARLY = "YEARLY", "Yearly"
+        ONE_TIME = "ONE_TIME", "One-time"
+
     fee_type = models.ForeignKey(FeeType, on_delete=models.CASCADE, related_name="structures")
     classroom = models.ForeignKey(
         ClassRoom,
@@ -725,6 +743,18 @@ class FeeStructure(BaseModel):
         null=True,
         blank=True,
     )
+    frequency = models.CharField(
+        max_length=20,
+        choices=Frequency.choices,
+        default=Frequency.MONTHLY,
+        help_text="Billing cycle for display and planning.",
+    )
+    due_day_of_month = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Typical due day of month (1–28) for this fee.",
+    )
+    is_active = models.BooleanField(default=True, db_index=True)
 
     class Meta:
         unique_together = [("fee_type", "classroom", "academic_year")]
@@ -736,6 +766,14 @@ class FeeStructure(BaseModel):
 
 class Fee(BaseModel):
     """Fee due for a student."""
+
+    class ConcessionKind(models.TextChoices):
+        NONE = "NONE", "Fixed / percentage only"
+        MANUAL = "MANUAL", "Manual concession"
+        SCHOLARSHIP = "SCHOLARSHIP", "Scholarship"
+        SIBLING = "SIBLING", "Sibling discount"
+        STAFF_CHILD = "STAFF_CHILD", "Staff child"
+
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="fees")
     fee_structure = models.ForeignKey(
         FeeStructure,
@@ -760,12 +798,48 @@ class Fee(BaseModel):
         ],
         default="PENDING",
     )
+    concession_fixed = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0"),
+        help_text="Flat discount off this fee line (after percentage, if any).",
+    )
+    concession_percent = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("0"),
+        help_text="Percentage discount on the original fee amount (0–100).",
+    )
+    concession_kind = models.CharField(
+        max_length=20,
+        choices=ConcessionKind.choices,
+        default=ConcessionKind.NONE,
+    )
+    concession_note = models.TextField(blank=True, default="")
 
     class Meta:
         ordering = ["-due_date"]
 
     def __str__(self) -> str:
         return f"{self.student} - {self.fee_structure} - {self.amount}"
+
+    @property
+    def effective_due_amount(self) -> Decimal:
+        """Net amount collectible after percentage + fixed concession."""
+        base = self.amount or Decimal("0")
+        pct = self.concession_percent or Decimal("0")
+        fixed = self.concession_fixed or Decimal("0")
+        pct_amt = (base * pct / Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        discount = pct_amt + fixed
+        if discount <= 0:
+            return base
+        if discount >= base:
+            return Decimal("0")
+        return (base - discount).quantize(Decimal("0.01"))
+
+    @property
+    def total_concession_amount(self) -> Decimal:
+        return (self.amount or Decimal("0")) - self.effective_due_amount
 
 
 class StudentEnrollment(models.Model):

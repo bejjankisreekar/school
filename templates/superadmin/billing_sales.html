@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load nav_tags %}
 {% block title %}Subscription billing &amp; collections | Platform{% endblock %}
 {% block extra_head %}
 <style>
@@ -102,7 +103,7 @@
       <div class="card metric-card border-0 shadow-sm h-100">
         <div class="card-body">
           <p class="small text-muted mb-1">Total monthly amount due</p>
-          <p class="h4 mb-0 money">₹{{ summary.total_monthly_due }}</p>
+          <p class="h4 mb-0 money">₹{{ summary.total_monthly_due|inr }}</p>
           <p class="small text-muted mb-0 mt-1">Paying schools × rate × students</p>
         </div>
       </div>
@@ -111,7 +112,7 @@
       <div class="card metric-card border-0 shadow-sm h-100 border-success border-opacity-25">
         <div class="card-body">
           <p class="small text-muted mb-1">Collected this month</p>
-          <p class="h4 mb-0 money text-success">₹{{ summary.total_collected_month }}</p>
+          <p class="h4 mb-0 money text-success">₹{{ summary.total_collected_month|inr }}</p>
           {% if summary.collection_rate_pct is not None %}
           <p class="small mb-0 mt-1"><span class="badge text-bg-success">{{ summary.collection_rate_pct }}%</span> of due (platform total)</p>
           {% else %}
@@ -124,7 +125,7 @@
       <div class="card metric-card border-0 shadow-sm h-100 border-warning border-opacity-25">
         <div class="card-body">
           <p class="small text-muted mb-1">Outstanding (this month)</p>
-          <p class="h4 mb-0 money text-warning-emphasis">₹{{ summary.total_outstanding_month }}</p>
+          <p class="h4 mb-0 money text-warning-emphasis">₹{{ summary.total_outstanding_month|inr }}</p>
           <p class="small text-muted mb-0 mt-1">Due − collected (per school, summed)</p>
         </div>
       </div>
@@ -133,7 +134,7 @@
       <div class="card metric-card border-0 shadow-sm h-100">
         <div class="card-body">
           <p class="small text-muted mb-1">YTD collected ({{ year }})</p>
-          <p class="h4 mb-0 money">₹{{ summary.total_ytd }}</p>
+          <p class="h4 mb-0 money">₹{{ summary.total_ytd|inr }}</p>
           <p class="small text-muted mb-0 mt-1">Through end of {{ month_label }}</p>
         </div>
       </div>
@@ -145,7 +146,7 @@
       <div class="card border-0 shadow-sm rounded-3">
         <div class="card-body py-3">
           <p class="small text-muted mb-0">Advance / overpayment (this month)</p>
-          <p class="h5 mb-0 money text-info">₹{{ summary.total_advance_month }}</p>
+          <p class="h5 mb-0 money text-info">₹{{ summary.total_advance_month|inr }}</p>
           <p class="small text-muted mb-0">When collected exceeds due for the month</p>
         </div>
       </div>
@@ -154,7 +155,7 @@
       <div class="card border-0 shadow-sm rounded-3">
         <div class="card-body py-3">
           <p class="small text-muted mb-0">All-time collected (platform)</p>
-          <p class="h5 mb-0 money">₹{{ summary.total_all_time }}</p>
+          <p class="h5 mb-0 money">₹{{ summary.total_all_time|inr }}</p>
           <p class="small text-muted mb-0">Sum of all recorded subscription payments</p>
         </div>
       </div>
@@ -194,9 +195,9 @@
               <span class="fw-medium">{{ r.plan_name }}</span>
               <span class="d-block text-muted" style="font-size: 0.75rem;">{{ r.billing_cycle }}</span>
             </td>
-            <td class="table-money money">{% if r.price_per_student %}₹{{ r.price_per_student }}{% else %}—{% endif %}</td>
+            <td class="table-money money">{% if r.price_per_student %}₹{{ r.price_per_student|inr }}{% else %}—{% endif %}</td>
             <td class="table-money">{{ r.student_count }}</td>
-            <td class="table-money fw-semibold">₹{{ r.monthly_amount_due }}</td>
+            <td class="table-money fw-semibold">₹{{ r.monthly_amount_due|inr }}</td>
             <td>
               {% if r.status_key == "paying" %}
               <span class="badge text-bg-success">{{ r.status_label }}</span>
@@ -208,19 +209,19 @@
               <span class="badge text-bg-secondary">{{ r.status_label }}</span>
               {% endif %}
             </td>
-            <td class="table-money text-success">₹{{ r.paid_in_month }}</td>
+            <td class="table-money text-success">₹{{ r.paid_in_month|inr }}</td>
             <td class="table-money">
               {% if r.outstanding_month > 0 %}
-              <span class="text-warning-emphasis fw-semibold">₹{{ r.outstanding_month }}</span>
+              <span class="text-warning-emphasis fw-semibold">₹{{ r.outstanding_month|inr }}</span>
               {% elif r.advance_month > 0 %}
               <span class="text-muted">—</span>
-              <span class="badge text-bg-info ms-1" title="Overpaid this month">+₹{{ r.advance_month }} adv.</span>
+              <span class="badge text-bg-info ms-1" title="Overpaid this month">+₹{{ r.advance_month|inr }} adv.</span>
               {% else %}
               <span class="text-muted">₹0</span>
               {% endif %}
             </td>
-            <td class="table-money">₹{{ r.paid_ytd }}</td>
-            <td class="table-money">₹{{ r.paid_all_time }}</td>
+            <td class="table-money">₹{{ r.paid_ytd|inr }}</td>
+            <td class="table-money">₹{{ r.paid_all_time|inr }}</td>
             <td class="text-center no-print">
               <a href="{% url 'core:superadmin_record_subscription_payment' %}?school={{ r.school_id }}" class="btn btn-sm btn-outline-primary py-0">Pay</a>
             </td>

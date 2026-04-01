@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load nav_tags %}
 {% block title %}Change Plan: {{ school.name }} | Admin{% endblock %}
 {% block content %}
 <div class="container-fluid px-0">
@@ -34,7 +35,7 @@
               <select name="plan" class="form-select">
                 <option value="">— No plan —</option>
                 {% for plan in plans %}
-                  <option value="{{ plan.pk }}" {% if school.saas_plan_id == plan.pk %}selected{% endif %}>{{ plan.name }} — ₹{{ plan.price_per_student }}/student/mo ({{ plan.get_billing_cycle_display }})</option>
+                  <option value="{{ plan.pk }}" {% if school.saas_plan_id == plan.pk %}selected{% endif %}>{{ plan.name }} — ₹{{ plan.price_per_student|inr }}/student/mo ({{ plan.get_billing_cycle_display }})</option>
                 {% endfor %}
               </select>
             </div>

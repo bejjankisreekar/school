@@ -1,0 +1,1110 @@
+{% extends "base.html" %}
+{% load humanize nav_tags %}
+{% block title %}Fee & Billing | School ERP{% endblock %}
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  .fee-hub { --fh-bg: #f1f5f9; --fh-card: #fff; --fh-border: #e2e8f0; --fh-muted: #64748b; --fh-brand: #4f46e5; }
+  html.dark .fee-hub { --fh-bg: #0f172a; --fh-card: rgba(30,41,59,.92); --fh-border: rgba(148,163,184,.2); --fh-muted: #94a3b8; }
+  .fee-hub { background: var(--fh-bg); margin: -0.5rem -1rem 0; padding: 1rem 1rem 2.5rem; min-height: calc(100vh - 100px); }
+  @media (min-width: 992px) { .fee-hub { margin: -0.5rem -1.5rem 0; padding: 1.25rem 1.5rem 3rem; } }
+  .fee-kpi-card {
+    background: var(--fh-card); border: 1px solid var(--fh-border); border-radius: 1.25rem;
+    padding: 1.15rem 1.25rem; box-shadow: 0 1px 3px rgba(15,23,42,.06), 0 10px 28px rgba(15,23,42,.06);
+    height: 100%; transition: transform .18s ease, box-shadow .18s ease;
+  }
+  .fee-kpi-card:hover { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(15,23,42,.1); }
+  html.dark .fee-kpi-card { box-shadow: 0 12px 36px rgba(0,0,0,.35); }
+  .fee-kpi-icon { width: 44px; height: 44px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+  .fee-section-card {
+    background: var(--fh-card); border: 1px solid var(--fh-border); border-radius: 1.25rem;
+    box-shadow: 0 1px 3px rgba(15,23,42,.05); overflow: hidden;
+  }
+  .fee-section-head { padding: 1rem 1.25rem; border-bottom: 1px solid var(--fh-border); background: rgba(248,250,252,.65); }
+  html.dark .fee-section-head { background: rgba(15,23,42,.5); }
+  .fee-ledger-row { cursor: pointer; transition: background .12s ease; }
+  .fee-ledger-row:hover { background: rgba(79,70,229,.06) !important; }
+  .fee-ledger-wrap { position: relative; }
+  .fee-ledger-filter-bar {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(255,255,255,.94); backdrop-filter: blur(10px);
+    border: 1px solid var(--fh-border); border-radius: 1rem;
+    padding: .85rem 1rem; margin-bottom: 1rem;
+    box-shadow: 0 4px 24px rgba(15,23,42,.06);
+  }
+  html.dark .fee-ledger-filter-bar { background: rgba(30,41,59,.94); }
+  .fee-ledger-totals {
+    background: linear-gradient(135deg, rgba(79,70,229,.08) 0%, rgba(14,165,233,.06) 100%);
+    border: 1px solid var(--fh-border); border-radius: 1rem; padding: 1rem 1.25rem;
+  }
+  .fee-ledger-table-wrap { border-radius: 1rem; border: 1px solid var(--fh-border); overflow: hidden; background: var(--fh-card); box-shadow: 0 1px 3px rgba(15,23,42,.06); }
+  .fee-ledger-table-wrap .table thead th {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(248,250,252,.98) !important; font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; color: var(--fh-muted) !important;
+    border-bottom: 1px solid var(--fh-border) !important; white-space: nowrap;
+  }
+  html.dark .fee-ledger-table-wrap .table thead th { background: rgba(15,23,42,.95) !important; }
+  .fee-stmt { font-size: .8125rem; border-radius: 12px; overflow: hidden; border: 1px solid var(--fh-border); }
+  .fee-stmt thead th { font-size: .65rem; text-transform: uppercase; letter-spacing: .06em; color: var(--fh-muted); background: rgba(248,250,252,.9); }
+  html.dark .fee-stmt thead th { background: rgba(15,23,42,.8); }
+  .fee-defaulter { background: rgba(254, 226, 226, .35) !important; border-left: 4px solid #dc2626 !important; }
+  html.dark .fee-defaulter { background: rgba(127, 29, 29, .25) !important; }
+  .chart-box { height: 260px; position: relative; }
+  @media (min-width: 992px) { .chart-box { height: 280px; } }
+  .fee-structure-class-card {
+    background: var(--fh-card); border: 1px solid var(--fh-border); border-radius: 1.25rem;
+    box-shadow: 0 2px 12px rgba(15,23,42,.06), 0 1px 3px rgba(15,23,42,.04);
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+    overflow: hidden;
+  }
+  .fee-structure-class-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 16px 40px rgba(15,23,42,.1);
+    border-color: rgba(79,70,229,.25);
+  }
+  html.dark .fee-structure-class-card:hover { box-shadow: 0 16px 48px rgba(0,0,0,.45); }
+  .fee-structure-class-card .fee-class-hero {
+    font-size: clamp(1.35rem, 2.5vw, 1.85rem); font-weight: 800; letter-spacing: -.02em;
+    color: var(--fh-brand); line-height: 1.15;
+  }
+  .fee-structure-detail {
+    border-top: 1px solid var(--fh-border);
+    background: rgba(248,250,252,.5);
+  }
+  html.dark .fee-structure-detail { background: rgba(15,23,42,.35); }
+  .fee-structure-detail .table thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: rgba(248,250,252,.98) !important; font-size: .68rem; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--fh-muted) !important;
+  }
+  html.dark .fee-structure-detail .table thead th { background: rgba(15,23,42,.95) !important; }
+  .fee-badge-ok { background: rgba(34,197,94,.15); color: #15803d; }
+  .fee-badge-warn { background: rgba(234,179,8,.18); color: #a16207; }
+  .fee-badge-muted { background: rgba(100,116,139,.12); color: var(--fh-muted); }
+  html.dark .fee-badge-ok { color: #4ade80; }
+  html.dark .fee-badge-warn { color: #fbbf24; }
+  .fee-class-accordion .accordion-button {
+    background: var(--fh-card) !important;
+    color: inherit !important;
+    box-shadow: none !important;
+  }
+  .fee-class-accordion .accordion-button:not(.collapsed) {
+    background: rgba(79,70,229,.06) !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+  }
+  .fee-class-accordion .accordion-button::after {
+    flex-shrink: 0; margin-left: .75rem;
+  }
+  @media print {
+    .fee-hub .breadcrumb, .fee-kpi-card, .fee-hub > .row:first-of-type { display: none !important; }
+    .fee-ledger-filter-bar { position: static !important; box-shadow: none !important; }
+    .fee-hub { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+  }
+</style>
+
+<div class="fee-hub">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Fee &amp; billing</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h1 class="h4 fw-bold mb-1">Fee &amp; billing hub</h1>
+      <p class="small mb-0" style="color: var(--fh-muted);">Class-wise structures · student ledger · collections · defaulters</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <form method="get" class="d-flex align-items-center gap-2">
+        <label class="small text-muted mb-0">Academic year</label>
+        <select name="ay" class="form-select form-select-sm" style="width: auto; min-width: 10rem;" onchange="this.form.submit()">
+          {% for y in academic_years %}
+          <option value="{{ y.id }}" {% if academic_year and academic_year.id == y.id %}selected{% endif %}>{{ y.name }}</option>
+          {% empty %}
+          <option value="">—</option>
+          {% endfor %}
+        </select>
+      </form>
+      <a href="{% url 'core:school_fee_types' %}" class="btn btn-outline-secondary btn-sm rounded-pill">Fee types</a>
+      <a href="{% url 'core:school_fee_structure' %}" class="btn btn-outline-secondary btn-sm rounded-pill">Edit structures</a>
+      <a href="{% url 'core:school_fee_payments' %}" class="btn btn-outline-primary btn-sm rounded-pill">All payments</a>
+      <a href="{% url 'core:school_fee_add' %}" class="btn btn-primary btn-sm rounded-pill">Record payment</a>
+    </div>
+  </div>
+
+  {# —— KPI cards —— #}
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-xl-3">
+      <div class="fee-kpi-card">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="small fw-semibold text-muted text-uppercase" style="letter-spacing:.05em;">Students</div>
+            <div class="h4 fw-bold mb-0 mt-1">{{ kpis.total_students|inri }}</div>
+          </div>
+          <div class="fee-kpi-icon bg-primary bg-opacity-10 text-primary"><i class="bi bi-people-fill"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-xl-3">
+      <div class="fee-kpi-card">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="small fw-semibold text-muted text-uppercase" style="letter-spacing:.05em;">Total billed</div>
+            <div class="h5 fw-bold mb-0 mt-1">₹{{ kpis.total_billed|inr }}</div>
+          </div>
+          <div class="fee-kpi-icon bg-info bg-opacity-10 text-info"><i class="bi bi-receipt"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-xl-3">
+      <div class="fee-kpi-card">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="small fw-semibold text-muted text-uppercase" style="letter-spacing:.05em;">Collected</div>
+            <div class="h5 fw-bold mb-0 mt-1 text-success">₹{{ kpis.total_collected|inr }}</div>
+          </div>
+          <div class="fee-kpi-icon bg-success bg-opacity-10 text-success"><i class="bi bi-cash-stack"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-xl-3">
+      <div class="fee-kpi-card">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="small fw-semibold text-muted text-uppercase" style="letter-spacing:.05em;">Pending</div>
+            <div class="h5 fw-bold mb-0 mt-1 text-warning">₹{{ kpis.total_pending|inr }}</div>
+          </div>
+          <div class="fee-kpi-icon bg-warning bg-opacity-10 text-warning"><i class="bi bi-hourglass-split"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-xl-3">
+      <div class="fee-kpi-card border-danger border-opacity-25">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="small fw-semibold text-danger text-uppercase" style="letter-spacing:.05em;">Overdue</div>
+            <div class="h5 fw-bold mb-0 mt-1 text-danger">₹{{ kpis.overdue_amount|inr }}</div>
+          </div>
+          <div class="fee-kpi-icon bg-danger bg-opacity-10 text-danger"><i class="bi bi-exclamation-triangle-fill"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-xl-3">
+      <div class="fee-kpi-card">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="small fw-semibold text-muted text-uppercase" style="letter-spacing:.05em;">Today</div>
+            <div class="h5 fw-bold mb-0 mt-1">₹{{ kpis.today_collections|inr }}</div>
+          </div>
+          <div class="fee-kpi-icon bg-secondary bg-opacity-10 text-secondary"><i class="bi bi-calendar-day"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-xl-3">
+      <div class="fee-kpi-card">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="small fw-semibold text-muted text-uppercase" style="letter-spacing:.05em;">This month</div>
+            <div class="h5 fw-bold mb-0 mt-1">₹{{ kpis.month_collections|inr }}</div>
+            {% if kpis.month_trend_pct is not None %}
+            <div class="small mt-1 {% if kpis.month_trend_pct >= 0 %}text-success{% else %}text-danger{% endif %}">
+              {% if kpis.month_trend_pct >= 0 %}<i class="bi bi-arrow-up-right"></i>{% else %}<i class="bi bi-arrow-down-right"></i>{% endif %}
+              {{ kpis.month_trend_pct|floatformat:1 }}% vs last month
+            </div>
+            {% endif %}
+          </div>
+          <div class="fee-kpi-icon bg-primary bg-opacity-10 text-primary"><i class="bi bi-graph-up-arrow"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-xl-3">
+      <div class="fee-kpi-card">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="small fw-semibold text-muted text-uppercase" style="letter-spacing:.05em;">Defaulters</div>
+            <div class="h4 fw-bold mb-0 mt-1 text-danger">{{ kpis.defaulters_count|inri }}</div>
+          </div>
+          <div class="fee-kpi-icon bg-danger bg-opacity-10 text-danger"><i class="bi bi-person-x-fill"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# —— Charts —— #}
+  <div class="row g-3 mb-4">
+    <div class="col-lg-5">
+      <div class="fee-section-card h-100">
+        <div class="fee-section-head d-flex justify-content-between align-items-center">
+          <span class="fw-bold">Monthly collections</span>
+        </div>
+        <div class="p-3"><div class="chart-box"><canvas id="feeChartBar"></canvas></div></div>
+      </div>
+    </div>
+    <div class="col-lg-3">
+      <div class="fee-section-card h-100">
+        <div class="fee-section-head"><span class="fw-bold">Paid vs pending</span></div>
+        <div class="p-3"><div class="chart-box"><canvas id="feeChartPie"></canvas></div></div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="fee-section-card h-100">
+        <div class="fee-section-head"><span class="fw-bold">Billed by class</span></div>
+        <div class="p-3"><div class="chart-box"><canvas id="feeChartClass"></canvas></div></div>
+      </div>
+    </div>
+  </div>
+
+  {# —— Fee structure by class (summary + details) —— #}
+  <div class="fee-section-card mb-4" id="fee-structure-by-class">
+    <div class="fee-section-head d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div>
+        <span class="fw-bold">Fee structure by class</span>
+        <span class="small text-muted d-block">Summary per class — open a row for fee lines, apply dues, and student preview.</span>
+      </div>
+      <a href="{% url 'core:school_fee_structure' %}" class="btn btn-sm btn-outline-primary rounded-pill">Add / edit structures</a>
+    </div>
+    <div class="p-3 p-lg-4">
+      <span id="fee-hub-clone-url-template" class="d-none">{% url 'core:school_fee_structure_clone' 888888888 %}</span>
+      {% if not fee_class_summaries %}
+      <p class="text-center text-muted py-5 mb-0">No classes for this academic year. <a href="{% url 'core:school_fee_structure' %}">Configure fee structures</a> after adding classes.</p>
+      {% else %}
+      <div class="accordion fee-class-accordion" id="feeClassAccordion">
+        {% for c in fee_class_summaries %}
+        <div class="accordion-item fee-structure-class-card border-0 mb-3">
+          <h2 class="accordion-header" id="feeClassH{{ c.classroom_id }}">
+            <button class="accordion-button collapsed rounded-4 py-3 px-3 px-lg-4 shadow-none fee-class-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#feeClassC{{ c.classroom_id }}" aria-expanded="false" aria-controls="feeClassC{{ c.classroom_id }}">
+              <div class="w-100 pe-2">
+                <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+                  <div class="flex-grow-1" style="min-width: 12rem;">
+                    <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                      <span class="fw-bold fs-6">{{ c.class_name }}</span>
+                      {% if c.sections_label and c.sections_label != "—" %}
+                      <span class="badge rounded-pill fee-badge-muted fw-normal">{{ c.sections_label }}</span>
+                      {% endif %}
+                    </div>
+                    <div class="small text-muted">Students <strong class="text-body">{{ c.student_count|inri }}</strong>
+                      {% if c.applied_students %}· Applied dues <strong class="text-body">{{ c.applied_students|inri }}</strong>{% endif %}
+                    </div>
+                    <div class="small text-primary fw-semibold mt-1 d-none d-sm-block"><i class="bi bi-chevron-expand me-1"></i>View details</div>
+                  </div>
+                  <div class="text-end">
+                    <div class="small text-muted text-uppercase fw-semibold mb-0" style="letter-spacing:.06em;">Total / student</div>
+                    <div class="fee-class-hero">₹{{ c.total_per_student|inr }}</div>
+                  </div>
+                  <div class="d-flex flex-wrap gap-3 align-items-end">
+                    <div>
+                      <div class="small text-muted text-uppercase fw-semibold" style="letter-spacing:.04em;">Expected</div>
+                      <div class="fw-bold">₹{{ c.total_expected|inr }}</div>
+                    </div>
+                    <div>
+                      <div class="small text-success text-uppercase fw-semibold" style="letter-spacing:.04em;">Collected</div>
+                      <div class="fw-bold text-success">₹{{ c.collected|inr }}</div>
+                    </div>
+                    <div>
+                      <div class="small text-warning text-uppercase fw-semibold" style="letter-spacing:.04em;">Pending</div>
+                      <div class="fw-bold text-warning">₹{{ c.pending|inr }}</div>
+                    </div>
+                    <div>
+                      {% if c.status_key == 'clear' %}
+                      <span class="badge rounded-pill fee-badge-ok px-3 py-2">{{ c.status_label }}</span>
+                      {% elif c.status_key == 'outstanding' %}
+                      <span class="badge rounded-pill fee-badge-warn px-3 py-2">{{ c.status_label }}</span>
+                      {% else %}
+                      <span class="badge rounded-pill fee-badge-muted px-3 py-2">{{ c.status_label }}</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </button>
+          </h2>
+          <div id="feeClassC{{ c.classroom_id }}" class="accordion-collapse collapse" aria-labelledby="feeClassH{{ c.classroom_id }}">
+            <div class="accordion-body fee-structure-detail p-3 p-lg-4 pt-0">
+              <div class="d-flex flex-wrap gap-2 mb-4 pt-2 border-top border-opacity-50">
+                <a href="{% url 'core:school_fee_structure' %}" class="btn btn-sm btn-outline-secondary rounded-pill"><i class="bi bi-pencil-square me-1"></i>Edit fee structure</a>
+                <a href="{% url 'core:school_fees_index' %}{% if academic_year %}?ay={{ academic_year.id }}&{% else %}?{% endif %}lclass={{ c.classroom_id }}#fee-student-ledger" class="btn btn-sm btn-outline-primary rounded-pill"><i class="bi bi-journal-text me-1"></i>View student ledger</a>
+                <a href="{% url 'core:school_fees_index' %}{% if academic_year %}?ay={{ academic_year.id }}&{% else %}?{% endif %}lclass={{ c.classroom_id }}&lst=OVERDUE#fee-student-ledger" class="btn btn-sm btn-outline-danger rounded-pill"><i class="bi bi-bell me-1"></i>Send due reminder</a>
+              </div>
+              <p class="small text-muted mb-3">Use <strong>Apply</strong> to post dues for all students in this class (optional section). <strong>Clone</strong> copies one fee line to other classes.</p>
+
+              <div class="row g-4">
+                <div class="col-lg-5">
+                  <h3 class="h6 fw-bold mb-3">{{ c.class_name }} — fee structure</h3>
+                  {% if c.breakdown %}
+                  <div class="table-responsive rounded-3 border" style="border-color: var(--fh-border) !important;">
+                    <table class="table table-sm align-middle mb-0">
+                      <thead><tr><th>Fee type</th><th class="text-end">Amount</th><th class="text-end">Clone</th></tr></thead>
+                      <tbody>
+                        {% for line in c.breakdown %}
+                        <tr>
+                          <td>
+                            <div class="fw-semibold">{{ line.fee_type_name }}</div>
+                            <div class="small text-muted">{{ line.frequency }}{% if line.due_day %} · Due day {{ line.due_day }}{% endif %}</div>
+                          </td>
+                          <td class="text-end font-monospace fw-bold">₹{{ line.amount|inr }}</td>
+                          <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-light border rounded-pill" data-bs-toggle="modal" data-bs-target="#feeHubCloneModal" data-structure-id="{{ line.id }}" data-fee-label="{{ line.fee_type_name }}" data-source-classroom="{{ c.classroom_id }}">Clone</button>
+                          </td>
+                        </tr>
+                        {% endfor %}
+                        <tr class="table-light fw-bold">
+                          <td>Total</td>
+                          <td class="text-end font-monospace">₹{{ c.total_per_student|inr }}</td>
+                          <td></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  {% else %}
+                  <p class="text-muted small mb-0">No active fee lines for this class in the selected year. <a href="{% url 'core:school_fee_structure' %}">Add structure</a>.</p>
+                  {% endif %}
+                </div>
+                <div class="col-lg-7">
+                  <h3 class="h6 fw-bold mb-3">Collection snapshot</h3>
+                  <div class="row g-2 mb-4">
+                    <div class="col-6 col-sm-3">
+                      <div class="rounded-3 border p-3 h-100" style="border-color: var(--fh-border) !important;">
+                        <div class="small text-muted">Applied students</div>
+                        <div class="fs-5 fw-bold">{{ c.applied_students|inri }}</div>
+                      </div>
+                    </div>
+                    <div class="col-6 col-sm-3">
+                      <div class="rounded-3 border p-3 h-100" style="border-color: var(--fh-border) !important;">
+                        <div class="small text-muted">Discount students</div>
+                        <div class="fs-5 fw-bold">{{ c.discount_students_count|inri }}</div>
+                      </div>
+                    </div>
+                    <div class="col-6 col-sm-3">
+                      <div class="rounded-3 border p-3 h-100 border-success border-opacity-25">
+                        <div class="small text-success">Paid (cleared)</div>
+                        <div class="fs-5 fw-bold text-success">{{ c.paid_students_count|inri }}</div>
+                      </div>
+                    </div>
+                    <div class="col-6 col-sm-3">
+                      <div class="rounded-3 border p-3 h-100 border-warning border-opacity-25">
+                        <div class="small text-warning">Pending balance</div>
+                        <div class="fs-5 fw-bold text-warning">{{ c.pending_students_count|inri }}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <h3 class="h6 fw-bold mb-2">Apply to students</h3>
+                  {% if c.structures %}
+                  <div class="vstack gap-3 mb-4">
+                    {% for struct in c.structures %}
+                    <form method="post" action="{% url 'core:school_fee_structure_apply' struct.id %}" class="row g-2 align-items-end p-3 rounded-3 border" style="border-color: var(--fh-border) !important;">
+                      {% csrf_token %}
+                      <div class="col-12 col-sm-4 col-md-3">
+                        <label class="form-label small text-muted mb-0">{{ struct.fee_type.name }}</label>
+                        <div class="small fw-semibold">₹{{ struct.amount|inr }}</div>
+                      </div>
+                      <div class="col-6 col-sm-4 col-md-3">
+                        <label class="form-label small text-muted mb-0">Due date</label>
+                        <input type="date" name="due_date" class="form-control form-control-sm rounded-3" required>
+                      </div>
+                      <div class="col-6 col-sm-4 col-md-3">
+                        <label class="form-label small text-muted mb-0">Section</label>
+                        <select name="section_id" class="form-select form-select-sm rounded-3">
+                          <option value="">All sections</option>
+                          {% for sec in fee_sections %}
+                          {% if sec.classroom_id == c.classroom_id %}
+                          <option value="{{ sec.id }}">{{ sec.name }}</option>
+                          {% endif %}
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="col-12 col-md-3">
+                        <button type="submit" class="btn btn-sm btn-primary rounded-pill w-100">Apply dues</button>
+                      </div>
+                    </form>
+                    {% endfor %}
+                  </div>
+                  {% endif %}
+
+                  <h3 class="h6 fw-bold mb-2">Applied dues preview</h3>
+                  {% if c.preview_rows %}
+                  <div class="table-responsive rounded-3 border" style="max-height: 320px; border-color: var(--fh-border) !important;">
+                    <table class="table table-sm table-hover align-middle mb-0 fee-stmt">
+                      <thead>
+                        <tr>
+                          <th>Student</th>
+                          <th class="text-end">Total due</th>
+                          <th class="text-end">Discount</th>
+                          <th class="text-end">Final due</th>
+                          <th class="text-end">Paid</th>
+                          <th class="text-end">Balance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for pr in c.preview_rows %}
+                        <tr>
+                          <td>
+                            <div class="fw-semibold">{{ pr.name }}</div>
+                            <div class="small text-muted">{{ pr.section }}</div>
+                          </td>
+                          <td class="text-end font-monospace small">₹{{ pr.total_due|inr }}</td>
+                          <td class="text-end font-monospace small text-secondary">₹{{ pr.discount|inr }}</td>
+                          <td class="text-end font-monospace small">₹{{ pr.final_due|inr }}</td>
+                          <td class="text-end font-monospace small text-success">₹{{ pr.paid|inr }}</td>
+                          <td class="text-end font-monospace small {% if pr.balance > 0 %}text-warning fw-semibold{% else %}text-success{% endif %}">₹{{ pr.balance|inr }}</td>
+                        </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p class="small text-muted mt-2 mb-0">Showing up to 50 students with dues, sorted by balance.</p>
+                  {% else %}
+                  <p class="text-muted small mb-0">No fee dues recorded for students in this class for the selected year.</p>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="modal fade" id="feeHubCloneModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content rounded-4 border-0 shadow">
+        <form method="post" id="feeHubCloneForm" action="">
+          {% csrf_token %}
+          <div class="modal-header border-0 pb-0">
+            <div>
+              <h5 class="modal-title fw-bold">Clone fee line</h5>
+              <p class="small text-muted mb-0" id="feeHubCloneLabel">Select target classes below.</p>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body pt-2">
+            <div class="small fw-semibold text-muted mb-2">Target classes</div>
+            <div class="vstack gap-2" style="max-height: 280px; overflow-y: auto;">
+              {% for room in classrooms %}
+              <label class="d-flex align-items-center gap-2 small mb-0 clone-class-option" data-classroom-id="{{ room.id }}">
+                <input type="checkbox" name="target_classrooms" value="{{ room.id }}" class="form-check-input">
+                {{ room.name }}
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="modal-footer border-0">
+            <button type="button" class="btn btn-light rounded-pill" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary rounded-pill">Clone selected</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <script>
+  (function () {
+    var modal = document.getElementById("feeHubCloneModal");
+    var tplEl = document.getElementById("fee-hub-clone-url-template");
+    var form = document.getElementById("feeHubCloneForm");
+    var labelEl = document.getElementById("feeHubCloneLabel");
+    if (!modal || !tplEl || !form) return;
+    modal.addEventListener("show.bs.modal", function (e) {
+      var btn = e.relatedTarget;
+      if (!btn) return;
+      var sid = btn.getAttribute("data-structure-id");
+      var feeLabel = btn.getAttribute("data-fee-label") || "Fee line";
+      var srcClass = btn.getAttribute("data-source-classroom");
+      var tpl = tplEl.textContent.trim();
+      if (sid) form.action = tpl.replace("888888888", sid);
+      if (labelEl) labelEl.textContent = "Cloning: " + feeLabel + " — choose target classes.";
+      modal.querySelectorAll(".clone-class-option").forEach(function (lbl) {
+        var cid = lbl.getAttribute("data-classroom-id");
+        var inp = lbl.querySelector("input[type=checkbox]");
+        if (srcClass && cid === srcClass) {
+          lbl.classList.add("d-none");
+          if (inp) { inp.checked = false; inp.disabled = true; }
+        } else {
+          lbl.classList.remove("d-none");
+          if (inp) inp.disabled = false;
+        }
+      });
+    });
+  })();
+  </script>
+
+  {# —— Student fee ledger (filterable) —— #}
+  <div class="fee-section-card mb-4 fee-ledger-wrap" id="fee-student-ledger">
+    <div class="fee-section-head border-0 pb-0">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-2">
+        <div>
+          <span class="fw-bold fs-6">Student fee ledger</span>
+          <span class="small text-muted d-block">Filter by class, status, fee type, dates, and payment mode. Totals reflect the current filter.</span>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          <a class="btn btn-sm btn-outline-secondary rounded-pill" href="{% url 'core:school_fee_ledger_export_csv' %}?{{ ledger_filter_qs }}"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Export CSV</a>
+          <button type="button" class="btn btn-sm btn-outline-dark rounded-pill" onclick="window.print();"><i class="bi bi-printer me-1"></i>Print / PDF</button>
+        </div>
+      </div>
+      <div class="fee-ledger-totals mb-3">
+        <div class="row g-2 text-center text-md-start">
+          <div class="col-6 col-md-auto flex-grow-1">
+            <div class="small text-muted text-uppercase fw-semibold" style="letter-spacing:.04em;">Students</div>
+            <div class="fs-5 fw-bold">{{ ledger_totals.student_count|inri }}</div>
+          </div>
+          <div class="col-6 col-md-auto flex-grow-1">
+            <div class="small text-muted text-uppercase fw-semibold" style="letter-spacing:.04em;">Total fee</div>
+            <div class="fs-5 fw-bold">₹{{ ledger_totals.total_fee|inr }}</div>
+          </div>
+          <div class="col-6 col-md-auto flex-grow-1">
+            <div class="small text-muted text-uppercase fw-semibold" style="letter-spacing:.04em;">Discounts</div>
+            <div class="fs-5 fw-bold text-secondary">₹{{ ledger_totals.total_discount|inr }}</div>
+          </div>
+          <div class="col-6 col-md-auto flex-grow-1">
+            <div class="small text-muted text-uppercase fw-semibold" style="letter-spacing:.04em;">Paid</div>
+            <div class="fs-5 fw-bold text-success">₹{{ ledger_totals.paid|inr }}</div>
+          </div>
+          <div class="col-6 col-md-auto flex-grow-1">
+            <div class="small text-muted text-uppercase fw-semibold" style="letter-spacing:.04em;">Pending</div>
+            <div class="fs-5 fw-bold text-warning">₹{{ ledger_totals.pending|inr }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <form method="get" class="fee-ledger-filter-bar" id="ledger-filter-form">
+      {% if academic_year %}<input type="hidden" name="ay" value="{{ academic_year.id }}">{% endif %}
+      <div class="row g-2 align-items-end">
+        <div class="col-12 col-lg-auto">
+          <label class="form-label small text-muted mb-0">Scope</label>
+          <div class="form-control form-control-sm rounded-3 bg-body-secondary border-0 py-1 small">
+            {% if academic_year %}{{ academic_year.name }}{% else %}All academic years{% endif %}
+            <span class="text-muted">· change via header</span>
+          </div>
+        </div>
+        <div class="col-6 col-lg-4 col-xl-2">
+          <label class="form-label small text-muted mb-0" for="lclass">Class</label>
+          <select name="lclass" id="lclass" class="form-select form-select-sm rounded-3">
+            <option value="">All classes</option>
+            {% for c in classrooms %}
+            <option value="{{ c.id }}" {% if ledger_filters.classroom_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-lg-4 col-xl-2">
+          <label class="form-label small text-muted mb-0" for="lsec">Section</label>
+          <select name="lsec" id="lsec" class="form-select form-select-sm rounded-3">
+            <option value="">All sections</option>
+            {% for sec in ledger_sections %}
+            <option value="{{ sec.id }}" data-classrooms="{{ sec.classroom_ids_csv }}" {% if ledger_filters.section_id == sec.id %}selected{% endif %}>{{ sec.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-lg-6 col-xl-2">
+          <label class="form-label small text-muted mb-0" for="ledger_q">Student</label>
+          <input type="search" name="ledger_q" id="ledger_q" class="form-control form-control-sm rounded-3" placeholder="Name or admission no…" value="{{ ledger_filters.search_q }}">
+        </div>
+        <div class="col-6 col-lg-3 col-xl-1">
+          <label class="form-label small text-muted mb-0" for="lst">Status</label>
+          <select name="lst" id="lst" class="form-select form-select-sm rounded-3">
+            <option value="">All</option>
+            <option value="PAID" {% if ledger_filters.status_filter == 'PAID' %}selected{% endif %}>Paid</option>
+            <option value="PARTIAL" {% if ledger_filters.status_filter == 'PARTIAL' %}selected{% endif %}>Partial</option>
+            <option value="DUE" {% if ledger_filters.status_filter == 'DUE' %}selected{% endif %}>Due</option>
+            <option value="OVERDUE" {% if ledger_filters.status_filter == 'OVERDUE' %}selected{% endif %}>Overdue</option>
+          </select>
+        </div>
+        <div class="col-6 col-lg-3 col-xl-2">
+          <label class="form-label small text-muted mb-0" for="lft">Fee type</label>
+          <select name="lft" id="lft" class="form-select form-select-sm rounded-3">
+            <option value="">All types</option>
+            {% for ft in fee_types_dd %}
+            <option value="{{ ft.id }}" {% if ledger_filters.fee_type_id == ft.id %}selected{% endif %}>{{ ft.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-lg-3 col-xl-2">
+          <label class="form-label small text-muted mb-0" for="ldf">Due from</label>
+          <input type="date" name="ldf" id="ldf" class="form-control form-control-sm rounded-3" value="{% if ledger_filters.date_from %}{{ ledger_filters.date_from|date:'Y-m-d' }}{% endif %}">
+        </div>
+        <div class="col-6 col-lg-3 col-xl-2">
+          <label class="form-label small text-muted mb-0" for="ldt">Due to</label>
+          <input type="date" name="ldt" id="ldt" class="form-control form-control-sm rounded-3" value="{% if ledger_filters.date_to %}{{ ledger_filters.date_to|date:'Y-m-d' }}{% endif %}">
+        </div>
+        <div class="col-6 col-lg-4 col-xl-2">
+          <label class="form-label small text-muted mb-0" for="lpm">Payment mode</label>
+          <select name="lpm" id="lpm" class="form-select form-select-sm rounded-3">
+            <option value="" {% if not ledger_filters.payment_mode %}selected{% endif %}>Any mode</option>
+            {% for pm in payment_mode_choices %}
+            <option value="{{ pm }}" {% if ledger_filters.payment_mode == pm %}selected{% endif %}>{{ pm }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-lg-auto d-flex flex-wrap gap-2 pt-1">
+          <button type="submit" class="btn btn-sm btn-primary rounded-pill px-4"><i class="bi bi-funnel me-1"></i>Apply</button>
+          <a href="{% url 'core:school_fees_index' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}#fee-student-ledger" class="btn btn-sm btn-outline-secondary rounded-pill">Reset</a>
+        </div>
+      </div>
+    </form>
+
+    <div class="fee-ledger-table-wrap">
+      <div class="table-responsive" style="max-height: 70vh;">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="width:2rem;"></th>
+              <th>Student</th>
+              <th>Admission</th>
+              <th>Class</th>
+              <th>Section</th>
+              <th class="text-end">Total fee</th>
+              <th class="text-end">Discount</th>
+              <th class="text-end">Paid</th>
+              <th class="text-end">Pending</th>
+              <th>Last payment</th>
+              <th>Status</th>
+              <th class="text-end">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in ledger_page %}
+            <tr class="fee-ledger-row" data-bs-toggle="collapse" data-bs-target="#ledger-{{ item.student.id }}" role="button" aria-expanded="false">
+              <td><i class="bi bi-chevron-down text-muted small"></i></td>
+              <td class="fw-semibold">{{ item.student.user.get_full_name|default:item.student.user.username }}</td>
+              <td class="small font-monospace">{{ item.admission }}</td>
+              <td class="small">{{ item.class_name }}</td>
+              <td class="small">{{ item.section_name }}</td>
+              <td class="text-end font-monospace">₹{{ item.total_fee|inr }}</td>
+              <td class="text-end font-monospace text-muted">₹{{ item.total_discount|inr }}</td>
+              <td class="text-end font-monospace text-success">₹{{ item.paid|inr }}</td>
+              <td class="text-end font-monospace text-warning">₹{{ item.pending|inr }}</td>
+              <td class="small">{% if item.last_payment %}{{ item.last_payment|date:"M j, Y" }}{% else %}—{% endif %}</td>
+              <td>
+                {% if item.overall_status == 'PAID' %}<span class="badge rounded-pill text-bg-success">Paid</span>
+                {% elif item.overall_status == 'OVERDUE' %}<span class="badge rounded-pill" style="background:#7f1d1d;">Overdue</span>
+                {% elif item.overall_status == 'PARTIAL' %}<span class="badge rounded-pill text-bg-warning text-dark">Partial</span>
+                {% else %}<span class="badge rounded-pill text-bg-danger">Due</span>{% endif %}
+              </td>
+              <td class="text-end text-nowrap" onclick="event.stopPropagation();">
+                {% if item.collect_fee_id %}
+                <a href="{% url 'core:school_fee_collect' item.collect_fee_id %}" class="btn btn-sm btn-primary rounded-pill py-0 px-2">Collect</a>
+                {% else %}
+                <a href="{% url 'core:school_fee_add' %}?student={{ item.student.id }}" class="btn btn-sm btn-outline-primary rounded-pill py-0 px-2">Add</a>
+                {% endif %}
+              </td>
+            </tr>
+            <tr class="collapse bg-light bg-opacity-50" id="ledger-{{ item.student.id }}">
+              <td colspan="12" class="p-0 border-0">
+                <div class="p-3 border-top" style="border-color: var(--fh-border) !important;">
+                  <div class="small text-muted mb-2 fw-semibold text-uppercase" style="letter-spacing:.06em;">Fee line ledger</div>
+                  <table class="table fee-stmt mb-0">
+                    <thead>
+                      <tr>
+                        <th>Fee type</th>
+                        <th class="text-end">Original</th>
+                        <th class="text-end">Discount</th>
+                        <th class="text-end">Net due</th>
+                        <th class="text-end">Paid</th>
+                        <th class="text-end">Balance</th>
+                        <th>Due date</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for line in item.lines %}
+                      <tr>
+                        <td>{{ line.label }}</td>
+                        <td class="text-end font-monospace">₹{{ line.amount|inr }}</td>
+                        <td class="text-end font-monospace text-muted">₹{{ line.discount|inr }}</td>
+                        <td class="text-end font-monospace">₹{{ line.effective|inr }}</td>
+                        <td class="text-end font-monospace text-success">₹{{ line.paid|inr }}</td>
+                        <td class="text-end font-monospace">₹{{ line.balance|inr }}</td>
+                        <td class="small">{{ line.due_date|date:"M j, Y" }}</td>
+                        <td>
+                          {% if line.line_status == 'PAID' %}<span class="badge bg-success bg-opacity-25 text-success">Paid</span>
+                          {% elif line.line_status == 'PARTIAL' %}<span class="badge bg-warning bg-opacity-25 text-dark">Partial</span>
+                          {% else %}<span class="badge bg-danger bg-opacity-25 text-danger">Due</span>{% endif %}
+                        </td>
+                      </tr>
+                      {% empty %}
+                      <tr><td colspan="8" class="text-muted small">No fee lines for this filter.</td></tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                  <a href="{% url 'core:school_fee_add' %}?student={{ item.student.id }}" class="btn btn-sm btn-outline-secondary mt-2 rounded-pill">Quick record payment</a>
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="12" class="text-center text-muted py-5">No students match these filters.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if ledger_page.paginator.num_pages > 1 %}
+      <div class="p-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-2" style="border-color: var(--fh-border) !important;">
+        <span class="small text-muted">Page {{ ledger_page.number }} of {{ ledger_page.paginator.num_pages }} · {{ ledger_page.paginator.count }} students</span>
+        <nav class="d-flex gap-2">
+          {% if ledger_page.has_previous %}
+          <a class="btn btn-sm btn-outline-secondary rounded-pill" href="?{% if ledger_filter_qs %}{{ ledger_filter_qs }}&{% endif %}ledger_page={{ ledger_page.previous_page_number }}#fee-student-ledger">Previous</a>
+          {% endif %}
+          {% if ledger_page.has_next %}
+          <a class="btn btn-sm btn-outline-secondary rounded-pill" href="?{% if ledger_filter_qs %}{{ ledger_filter_qs }}&{% endif %}ledger_page={{ ledger_page.next_page_number }}#fee-student-ledger">Next</a>
+          {% endif %}
+        </nav>
+      </div>
+      {% endif %}
+    </div>
+
+    {# Filtered analytics (ledger scope) #}
+    <div class="row g-3 mt-2 mb-2">
+      <div class="col-md-4">
+        <div class="fee-section-card h-100 mb-0">
+          <div class="fee-section-head py-2"><span class="fw-bold small">Paid vs pending <span class="text-muted fw-normal">(filtered)</span></span></div>
+          <div class="p-2"><div class="chart-box" style="height:220px;"><canvas id="ledgerChartPie"></canvas></div></div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="fee-section-card h-100 mb-0">
+          <div class="fee-section-head py-2"><span class="fw-bold small">Revenue by class <span class="text-muted fw-normal">(filtered)</span></span></div>
+          <div class="p-2"><div class="chart-box" style="height:220px;"><canvas id="ledgerChartClass"></canvas></div></div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="fee-section-card h-100 mb-0">
+          <div class="fee-section-head py-2"><span class="fw-bold small">Overdue students by class</span></div>
+          <div class="p-2"><div class="chart-box" style="height:220px;"><canvas id="ledgerChartOverdue"></canvas></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    var classSel = document.getElementById("lclass");
+    var secSel = document.getElementById("lsec");
+    if (!classSel || !secSel) return;
+    function filterSections() {
+      var cid = classSel.value;
+      var opts = secSel.querySelectorAll("option");
+      opts.forEach(function (opt, i) {
+        if (i === 0) { opt.hidden = false; return; }
+        var csv = (opt.getAttribute("data-classrooms") || "").trim();
+        var ids = csv ? csv.split(",") : [];
+        var show = !cid || ids.indexOf(cid) !== -1;
+        opt.hidden = !show;
+        if (!show && opt.selected) { secSel.value = ""; }
+      });
+    }
+    classSel.addEventListener("change", filterSections);
+    filterSections();
+  })();
+  </script>
+
+  {# —— Payment preview —— #}
+  <div class="fee-section-card mb-4">
+    <div class="fee-section-head d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <span class="fw-bold">Recent payments</span>
+      <div class="d-flex gap-2">
+        <a href="{% url 'core:school_fee_payments' %}" class="btn btn-sm btn-outline-primary rounded-pill">Full history &amp; filters</a>
+        <a href="{% url 'core:school_fee_payments_export_csv' %}" class="btn btn-sm btn-outline-secondary rounded-pill"><i class="bi bi-download me-1"></i>Export CSV</a>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Receipt</th>
+            <th>Student</th>
+            <th>Class</th>
+            <th>Fee type</th>
+            <th class="text-end">Amount</th>
+            <th>Mode</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in payment_preview %}
+          <tr>
+            <td class="font-monospace small">{{ r.receipt_no }}</td>
+            <td class="fw-semibold small">{{ r.student.user.get_full_name|default:r.student.user.username }}</td>
+            <td class="small">{{ r.class_name }}</td>
+            <td class="small">{{ r.fee_type }}</td>
+            <td class="text-end font-monospace">₹{{ r.amount|inr }}</td>
+            <td class="small">{{ r.mode }}</td>
+            <td class="small">{{ r.date|date:"M j, Y" }}</td>
+            <td>
+              {% if r.status == 'PAID' %}<span class="badge text-bg-success">Paid</span>
+              {% elif r.status == 'OVERDUE' %}<span class="badge text-bg-danger">Overdue</span>
+              {% elif r.status == 'PARTIAL' %}<span class="badge text-bg-warning text-dark">Partial</span>
+              {% else %}<span class="badge text-bg-secondary">Pending</span>{% endif %}
+            </td>
+            <td><a href="{% url 'core:school_fee_receipt_pdf' r.payment.id %}" class="btn btn-sm btn-link p-0" target="_blank" rel="noopener">PDF</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="9" class="text-muted text-center py-3">No payments yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# —— Defaulters —— #}
+  <div class="fee-section-card border-danger border-opacity-25">
+    <div class="fee-section-head d-flex justify-content-between align-items-center flex-wrap gap-2 bg-danger bg-opacity-10">
+      <div>
+        <span class="fw-bold text-danger"><i class="bi bi-exclamation-octagon me-2"></i>Defaulters &amp; overdue</span>
+        <span class="small text-muted d-block">Follow up for pending balances past due date.</span>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Student</th>
+            <th>Class</th>
+            <th class="text-end">Due amount</th>
+            <th>Days overdue</th>
+            <th>Contact</th>
+            <th>Remind</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in defaulters %}
+          <tr class="fee-defaulter">
+            <td class="fw-semibold">{{ d.student.user.get_full_name|default:d.student.user.username }}</td>
+            <td>{{ d.class_name }}</td>
+            <td class="text-end font-monospace fw-bold text-danger">₹{{ d.due_amount|inr }}</td>
+            <td><span class="badge text-bg-danger">{{ d.days_overdue }} days</span></td>
+            <td class="small">
+              {% if d.student.parent_phone %}
+              {{ d.student.parent_phone }}
+              {% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td>
+              <div class="btn-group btn-group-sm">
+                {% if d.student.parent_phone %}
+                <a class="btn btn-outline-success" target="_blank" rel="noopener" title="WhatsApp — store parent phone with country code (no +), e.g. 919876543210" href="https://api.whatsapp.com/send?phone={{ d.student.parent_phone|cut:' '|cut:'-'|cut:'+'|cut:'('|cut:')' }}&text=Fee%20reminder%3A%20Please%20clear%20pending%20school%20fee%20dues.%20Thank%20you."><i class="bi bi-whatsapp"></i></a>
+                <a class="btn btn-outline-secondary" href="sms:{{ d.student.parent_phone }}?body=Fee%20reminder%20-%20please%20clear%20pending%20dues."><i class="bi bi-chat-dots"></i></a>
+                <a class="btn btn-outline-dark" href="tel:{{ d.student.parent_phone }}"><i class="bi bi-telephone"></i></a>
+                {% endif %}
+                {% if d.student.user.email %}
+                <a class="btn btn-outline-primary" href="mailto:{{ d.student.user.email }}?subject=Fee%20reminder&body=Dear%20parent,%0A%0APlease%20clear%20pending%20fee%20dues.%0A%0AThanks."><i class="bi bi-envelope"></i></a>
+                {% else %}
+                <button type="button" class="btn btn-outline-secondary" disabled title="No email"><i class="bi bi-envelope"></i></button>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No overdue balances in this period. Great!</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  function fmtINR(n) {
+    try {
+      return new Intl.NumberFormat("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n);
+    } catch (e) { return String(n); }
+  }
+  var commonOpts = { responsive: true, maintainAspectRatio: false };
+  var rupeeTick = {
+    ticks: {
+      callback: function (v) { return "₹" + fmtINR(v); }
+    }
+  };
+  var rupeeTooltip = {
+    plugins: {
+      tooltip: {
+        callbacks: {
+          label: function (ctx) {
+            var raw = ctx.parsed && (ctx.parsed.y !== undefined ? ctx.parsed.y : ctx.parsed.x);
+            if (raw === undefined) raw = ctx.raw;
+            var lbl = ctx.dataset && ctx.dataset.label ? ctx.dataset.label : "";
+            return lbl ? (lbl + ": ₹" + fmtINR(raw)) : ("₹" + fmtINR(raw));
+          }
+        }
+      }
+    }
+  };
+  var barLabels = {{ chart_bar_labels|safe }};
+  var barVals = {{ chart_bar_values|safe }};
+  var piePaid = {{ chart_pie_paid }};
+  var piePending = {{ chart_pie_pending }};
+  var classLabels = {{ chart_class_labels|safe }};
+  var classVals = {{ chart_class_values|safe }};
+
+  var elBar = document.getElementById("feeChartBar");
+  if (elBar && typeof Chart !== "undefined") {
+    new Chart(elBar.getContext("2d"), {
+      type: "bar",
+      data: {
+        labels: barLabels,
+        datasets: [{
+          label: "Collected (₹)",
+          data: barVals,
+          borderRadius: 8,
+          backgroundColor: "rgba(79, 70, 229, 0.55)",
+          borderColor: "rgba(79, 70, 229, 1)",
+          borderWidth: 1
+        }]
+      },
+      options: Object.assign({}, commonOpts, {
+        plugins: Object.assign({}, rupeeTooltip.plugins, { legend: { display: false } }),
+        scales: {
+          y: Object.assign({ beginAtZero: true, grid: { color: "rgba(148,163,184,0.2)" } }, rupeeTick),
+          x: { grid: { display: false } }
+        }
+      })
+    });
+  }
+
+  var elPie = document.getElementById("feeChartPie");
+  if (elPie && typeof Chart !== "undefined") {
+    new Chart(elPie.getContext("2d"), {
+      type: "doughnut",
+      data: {
+        labels: ["Collected", "Pending"],
+        datasets: [{
+          data: [piePaid, piePending],
+          backgroundColor: ["rgba(16, 185, 129, 0.75)", "rgba(245, 158, 11, 0.75)"],
+          borderWidth: 0
+        }]
+      },
+      options: Object.assign({}, commonOpts, {
+        plugins: {
+          legend: { position: "bottom" },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) {
+                var v = ctx.raw;
+                return (ctx.label || "") + ": ₹" + fmtINR(v);
+              }
+            }
+          }
+        },
+        cutout: "58%"
+      })
+    });
+  }
+
+  var elC = document.getElementById("feeChartClass");
+  if (elC && typeof Chart !== "undefined") {
+    new Chart(elC.getContext("2d"), {
+      type: "bar",
+      data: {
+        labels: classLabels,
+        datasets: [{
+          label: "Billed (₹)",
+          data: classVals,
+          indexAxis: "y",
+          borderRadius: 6,
+          backgroundColor: "rgba(14, 165, 233, 0.55)"
+        }]
+      },
+      options: Object.assign({}, commonOpts, {
+        plugins: Object.assign({}, rupeeTooltip.plugins, { legend: { display: false } }),
+        scales: {
+          x: Object.assign({ beginAtZero: true, grid: { color: "rgba(148,163,184,0.2)" } }, rupeeTick),
+          y: { grid: { display: false } }
+        }
+      })
+    });
+  }
+
+  var lp = {{ ledger_chart_pie_paid|default:"0" }};
+  var lpend = {{ ledger_chart_pie_pending|default:"0" }};
+  var lcl = {{ ledger_chart_class_labels|safe }};
+  var lcv = {{ ledger_chart_class_values|safe }};
+  var lol = {{ ledger_chart_overdue_labels|safe }};
+  var lov = {{ ledger_chart_overdue_values|safe }};
+
+  var elLP = document.getElementById("ledgerChartPie");
+  if (elLP && typeof Chart !== "undefined") {
+    new Chart(elLP.getContext("2d"), {
+      type: "doughnut",
+      data: {
+        labels: ["Paid", "Pending"],
+        datasets: [{
+          data: [Math.max(0, lp), Math.max(0, lpend)],
+          backgroundColor: ["rgba(16, 185, 129, 0.78)", "rgba(245, 158, 11, 0.78)"],
+          borderWidth: 0
+        }]
+      },
+      options: Object.assign({}, commonOpts, {
+        plugins: {
+          legend: { position: "bottom" },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) {
+                return (ctx.label || "") + ": ₹" + fmtINR(ctx.raw);
+              }
+            }
+          }
+        },
+        cutout: "55%"
+      })
+    });
+  }
+
+  var elLC = document.getElementById("ledgerChartClass");
+  if (elLC && typeof Chart !== "undefined" && lcl.length) {
+    new Chart(elLC.getContext("2d"), {
+      type: "bar",
+      data: {
+        labels: lcl,
+        datasets: [{
+          label: "Total fee (₹)",
+          data: lcv,
+          borderRadius: 6,
+          backgroundColor: "rgba(14, 165, 233, 0.55)"
+        }]
+      },
+      options: Object.assign({}, commonOpts, {
+        plugins: Object.assign({}, rupeeTooltip.plugins, { legend: { display: false } }),
+        scales: {
+          y: Object.assign({ beginAtZero: true, grid: { color: "rgba(148,163,184,0.2)" } }, rupeeTick),
+          x: { grid: { display: false }, ticks: { maxRotation: 45, minRotation: 0, autoSkip: true } }
+        }
+      })
+    });
+  }
+
+  var elLO = document.getElementById("ledgerChartOverdue");
+  if (elLO && typeof Chart !== "undefined" && lol.length) {
+    new Chart(elLO.getContext("2d"), {
+      type: "bar",
+      data: {
+        labels: lol,
+        datasets: [{
+          label: "Overdue students",
+          data: lov,
+          indexAxis: "y",
+          borderRadius: 6,
+          backgroundColor: "rgba(220, 38, 38, 0.55)"
+        }]
+      },
+      options: Object.assign({}, commonOpts, {
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) { return Math.round(Number(ctx.raw) || 0) + " students"; }
+            }
+          }
+        },
+        scales: {
+          x: { beginAtZero: true, ticks: { stepSize: 1 } },
+          y: { grid: { display: false } }
+        }
+      })
+    });
+  }
+})();
+</script>
+{% endblock %}

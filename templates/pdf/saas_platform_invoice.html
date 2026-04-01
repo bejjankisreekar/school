@@ -1,3 +1,4 @@
+{% load nav_tags %}
 <!DOCTYPE html>
 <html>
 <head>
@@ -19,14 +20,14 @@
   <table>
     <tr><th>Invoice #</th><td>{{ invoice.invoice_number }}</td></tr>
     <tr><th>Period</th><td>{{ invoice.month|stringformat:"02d" }} / {{ invoice.year }}</td></tr>
-    <tr><th>Students</th><td>{{ invoice.students_count }} @ ₹{{ invoice.price_per_student }}/student</td></tr>
-    <tr><th>Gross</th><td>₹ {{ invoice.gross_amount }}</td></tr>
-    <tr><th>Discount</th><td>₹ {{ invoice.discount_amount }}</td></tr>
-    <tr><th>Final amount</th><td class="amt">₹ {{ invoice.final_amount }}</td></tr>
+    <tr><th>Students</th><td>{{ invoice.students_count }} @ ₹{{ invoice.price_per_student|inr }}/student</td></tr>
+    <tr><th>Gross</th><td>₹ {{ invoice.gross_amount|inr }}</td></tr>
+    <tr><th>Discount</th><td>₹ {{ invoice.discount_amount|inr }}</td></tr>
+    <tr><th>Final amount</th><td class="amt">₹ {{ invoice.final_amount|inr }}</td></tr>
     <tr><th>Status</th><td>{{ invoice.get_status_display }}</td></tr>
     <tr><th>Due date</th><td>{{ invoice.due_date }}</td></tr>
-    <tr><th>Paid to date</th><td>₹ {{ paid }}</td></tr>
-    <tr><th>Balance</th><td class="amt">₹ {{ remaining }}</td></tr>
+    <tr><th>Paid to date</th><td>₹ {{ paid|inr }}</td></tr>
+    <tr><th>Balance</th><td class="amt">₹ {{ remaining|inr }}</td></tr>
   </table>
   <p class="footer">Generated {{ generated_on|date:"M j, Y H:i" }} — For internal billing and audit.</p>
 </body>

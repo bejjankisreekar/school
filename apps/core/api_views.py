@@ -184,9 +184,21 @@ def api_admin_sections(request, school_code: str):
         return JsonResponse({"error": "School not found"}, status=404)
     classroom_id = request.GET.get("classroom_id")
     with tenant_context(school):
-        qs = Section.objects.select_related("classroom").order_by("classroom", "name")
         if classroom_id:
-            qs = qs.filter(classroom_id=classroom_id)
-        return JsonResponse({
-            "sections": [{"id": s.id, "name": s.name, "classroom_id": s.classroom_id} for s in qs],
-        })
+            try:
+                cr = ClassRoom.objects.prefetch_related("sections").get(pk=int(classroom_id))
+            except (ValueError, TypeError, ClassRoom.DoesNotExist):
+                return JsonResponse({"sections": []})
+            secs = cr.sections.all().order_by("name")
+            return JsonResponse(
+                {
+                    "sections": [
+                        {"id": s.id, "name": s.name, "classroom_id": cr.id} for s in secs
+                    ],
+                }
+            )
+        out = []
+        for c in ClassRoom.objects.prefetch_related("sections").order_by("name"):
+            for s in c.sections.all():
+                out.append({"id": s.id, "name": s.name, "classroom_id": c.id})
+        return JsonResponse({"sections": out})

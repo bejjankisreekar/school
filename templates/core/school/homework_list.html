@@ -1,61 +1,206 @@
 {% extends "base.html" %}
 {% block title %}Homework | School ERP{% endblock %}
 {% block content %}
-<div class="container-fluid px-0">
+<style>
+  .hw-page { margin: -0.5rem -1rem 0; padding: 1rem 1rem 2rem; min-height: calc(100vh - 100px); }
+  @media (min-width: 992px) { .hw-page { margin: -0.5rem -1.5rem 0; padding: 1.25rem 1.5rem 2.5rem; } }
+  .hw-table-card {
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color-translucent);
+    border-radius: 1.25rem;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 12px 32px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+  }
+  .hw-table-wrap { overflow-x: auto; }
+  .hw-table-wrap table { margin-bottom: 0; }
+  .hw-table-wrap thead th {
+    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--bs-secondary-color); border-bottom-width: 1px; white-space: nowrap;
+    background: rgba(var(--bs-secondary-rgb), 0.08);
+  }
+  .hw-table-wrap tbody tr { transition: background 0.15s ease; }
+  .hw-table-wrap tbody tr:hover { background: rgba(13, 110, 253, 0.06) !important; }
+  .hw-actions .btn { width: 2.25rem; height: 2.25rem; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+  .hw-scope-mini {
+    border-radius: 0.85rem;
+    border: 1px solid var(--bs-border-color-translucent);
+    overflow: hidden;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .hw-scope-mini .hw-choice-grid-mini {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+  .hw-choice-card-mini {
+    display: flex; align-items: center; gap: 0.5rem; margin: 0;
+    padding: 0.5rem 0.65rem; border-radius: 0.65rem;
+    border: 1px solid var(--bs-border-color-translucent);
+    cursor: pointer; font-size: 0.85rem; font-weight: 600;
+  }
+  .hw-choice-card-mini:has(input:checked) {
+    border-color: var(--bs-primary);
+    background: rgba(13, 110, 253, 0.08);
+  }
+  /* Custom overlays — avoid class "modal" (DaisyUI conflicts with Bootstrap). */
+  .hwx-layer {
+    display: none !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 2147483640 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 1rem !important;
+    box-sizing: border-box !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    overflow: auto !important;
+    pointer-events: none !important;
+  }
+  .hwx-layer.hwx-open {
+    display: flex !important;
+    pointer-events: auto !important;
+  }
+  .hwx-layer .hwx-scrim {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: 0 !important;
+    background: rgba(15, 23, 42, 0.55) !important;
+    pointer-events: auto !important;
+  }
+  .hwx-layer .hwx-panel {
+    position: relative !important;
+    z-index: 1 !important;
+    width: 100% !important;
+    max-width: 32rem !important;
+    max-height: min(92vh, 880px) !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background: #fff !important;
+    color: #0f172a !important;
+    border-radius: 1rem !important;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45) !important;
+    border: 1px solid rgba(15, 23, 42, 0.1) !important;
+    pointer-events: auto !important;
+    margin: auto !important;
+  }
+  .hwx-layer.hwx-wide .hwx-panel { max-width: 40rem; }
+  .hwx-layer .hwx-panel-body { overflow-y: auto; flex: 1 1 auto; }
+  html.dark .hwx-layer .hwx-panel,
+  body.dark-mode .hwx-layer .hwx-panel {
+    background: #1e293b !important;
+    color: #f1f5f9 !important;
+    border-color: rgba(148, 163, 184, 0.3) !important;
+  }
+  html.dark .hwx-layer .hwx-panel .btn-close,
+  body.dark-mode .hwx-layer .hwx-panel .btn-close {
+    filter: invert(1) grayscale(100%); opacity: 0.85;
+  }
+  .hw-view-dl dt { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--bs-secondary-color); margin-bottom: 0.15rem; }
+  .hw-view-dl dd { margin-bottom: 0.85rem; font-size: 0.95rem; }
+  .hw-view-dl dd:last-child { margin-bottom: 0; }
+</style>
+
+<div class="hw-page" id="hw-master-page">
   <nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb">
+    <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
       <li class="breadcrumb-item active">Homework</li>
     </ol>
   </nav>
+
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-    <h1 class="h4 fw-bold mb-0">All Homework</h1>
-    <a href="{% url 'core:school_homework_create' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Create Homework</a>
+    <div>
+      <h1 class="h4 fw-bold mb-0">All homework</h1>
+      <p class="small text-muted mb-0">Assignments by class and section — view, edit, or remove.</p>
+    </div>
+    <a href="{% url 'core:school_homework_create' %}" class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm">
+      <i class="bi bi-plus-lg me-1"></i> Create homework
+    </a>
   </div>
 
   <div class="card border-0 shadow-sm rounded-4 mb-3">
-    <div class="card-body py-2">
+    <div class="card-body py-3">
       <form method="get" class="d-flex flex-wrap gap-2 align-items-end">
         <div>
           <label class="form-label small mb-1">Class</label>
-          <select name="classroom" class="form-select form-select-sm">
-            <option value="">All Classes</option>
+          <select name="classroom" class="form-select form-select-sm rounded-3" style="min-width: 12rem;">
+            <option value="">All classes</option>
             {% for c in classrooms %}
             <option value="{{ c.id }}" {% if filters.classroom == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
             {% endfor %}
           </select>
         </div>
-        <div>
-          <button class="btn btn-primary btn-sm" type="submit">Filter</button>
-        </div>
+        <button class="btn btn-primary btn-sm rounded-pill px-3" type="submit">Filter</button>
       </form>
     </div>
   </div>
 
-  {% if homework_list %}
-  <div class="row g-3">
-    {% for hw in homework_list %}
-    <div class="col-md-6 col-xl-4">
-      <div class="card border-0 shadow-sm rounded-4 h-100 {% if hw.due_date < today %}border border-danger-subtle{% endif %}">
-        <div class="card-body d-flex flex-column">
-          <h6 class="fw-bold mb-2">{{ hw.title }}</h6>
-          <p class="text-muted small mb-2">{{ hw.description|truncatewords:30 }}</p>
-          <p class="small mb-1">
-            <strong>Classes:</strong> {{ hw.classes.all|join:", "|default:"—" }}
-          </p>
-          <p class="small mb-1">
-            <strong>Sections:</strong> {{ hw.sections.all|join:", "|default:"—" }}
-          </p>
-          <p class="small mb-2 {% if hw.due_date < today %}text-danger fw-semibold{% else %}text-muted{% endif %}">
-            ⏰ Due: {{ hw.due_date }}{% if hw.due_date < today %} (Overdue){% endif %}
-          </p>
-          {% if hw.assigned_by %}
-          <p class="small text-muted mb-0">By: {{ hw.assigned_by.get_full_name|default:hw.assigned_by.username }}</p>
-          {% endif %}
-        </div>
-      </div>
-    </div>
+  {% if messages %}
+  <div class="mb-3">
+    {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} rounded-3 border-0 shadow-sm mb-2" role="alert">{{ message }}</div>
     {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if homework_list %}
+  <div class="hw-table-card">
+    <div class="px-3 py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <span class="fw-semibold">Assignments</span>
+      <span class="badge rounded-pill bg-body-secondary text-body border">{{ homework_list|length }} total</span>
+    </div>
+    <div class="hw-table-wrap">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th class="ps-3 ps-lg-4">Subject</th>
+            <th>Title</th>
+            <th>Class</th>
+            <th>Section</th>
+            <th>Due date</th>
+            <th>Status</th>
+            <th class="text-end pe-3 pe-lg-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for hw in homework_list %}
+          <tr class="{% if hw.due_date < today %}table-warning{% endif %}">
+            <td class="ps-3 ps-lg-4 small">
+              {% if hw.subject %}<span class="fw-semibold">{{ hw.subject.name }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td>
+              <div class="fw-semibold text-truncate" style="max-width: 14rem;">{{ hw.title }}</div>
+            </td>
+            <td class="small text-muted">{% for c in hw.classes.all %}{{ c.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</td>
+            <td class="small text-muted">{% for s in hw.sections.all %}{{ s.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</td>
+            <td class="small {% if hw.due_date < today %}text-danger fw-semibold{% endif %}">{{ hw.due_date|date:"d M Y" }}</td>
+            <td>
+              {% if hw.due_date < today %}
+              <span class="badge rounded-pill text-bg-danger">Overdue</span>
+              {% else %}
+              <span class="badge rounded-pill text-bg-success">Active</span>
+              {% endif %}
+            </td>
+            <td class="text-end pe-3 pe-lg-4 hw-actions">
+              <button type="button" class="btn btn-sm btn-outline-secondary rounded-3 hw-btn-view" title="View details" data-hw-id="{{ hw.id }}" aria-label="View">
+                <i class="bi bi-eye"></i>
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-primary rounded-3 hw-btn-edit" title="Edit homework" data-hw-id="{{ hw.id }}" data-update-url="{% url 'core:school_homework_update' hw.id %}" aria-label="Edit">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-danger rounded-3 hw-btn-delete" title="Delete homework" data-hw-id="{{ hw.id }}" data-delete-url="{% url 'core:school_homework_delete' hw.id %}" data-hw-title="{{ hw.title|escape }}" aria-label="Delete">
+                <i class="bi bi-trash"></i>
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
   {% else %}
   <div class="card border-0 shadow-sm rounded-4">
@@ -65,4 +210,311 @@
   </div>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block modals %}
+{{ homework_payload|json_script:"hw-payload" }}
+<div id="hwxView" class="hwx-layer hwx-wide" aria-hidden="true">
+  <div class="hwx-scrim" data-hwx-close="hwxView" role="presentation"></div>
+  <div class="hwx-panel" role="dialog" aria-modal="true" aria-labelledby="hwxViewTitle">
+    <div class="d-flex justify-content-between align-items-start gap-2 p-3 border-bottom flex-shrink-0">
+      <h5 class="fw-bold mb-0" id="hwxViewTitle">Homework details</h5>
+      <button type="button" class="btn-close" data-hwx-close="hwxView" aria-label="Close"></button>
+    </div>
+    <div class="hwx-panel-body p-3">
+      <dl class="hw-view-dl mb-0">
+        <dt>Subject</dt>
+        <dd id="hwx_v_subject">—</dd>
+        <dt>Title</dt>
+        <dd id="hwx_v_title">—</dd>
+        <dt>Description / instructions</dt>
+        <dd id="hwx_v_description" class="text-break" style="white-space: pre-wrap;">—</dd>
+        <dt>Assigned class(es)</dt>
+        <dd id="hwx_v_classes">—</dd>
+        <dt>Section(s)</dt>
+        <dd id="hwx_v_sections">—</dd>
+        <dt>Assigned date</dt>
+        <dd id="hwx_v_created">—</dd>
+        <dt>Due date</dt>
+        <dd id="hwx_v_due">—</dd>
+        <dt>Attachment</dt>
+        <dd id="hwx_v_attachment">—</dd>
+        <dt>Created by</dt>
+        <dd id="hwx_v_creator">—</dd>
+        <dt>Status</dt>
+        <dd id="hwx_v_status">—</dd>
+      </dl>
+    </div>
+    <div class="d-flex justify-content-end gap-2 p-3 border-top bg-light bg-opacity-50 flex-shrink-0 rounded-bottom">
+      <button type="button" class="btn btn-primary rounded-pill px-4" data-hwx-close="hwxView">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="hwxEdit" class="hwx-layer" aria-hidden="true">
+  <div class="hwx-scrim" data-hwx-close="hwxEdit" role="presentation"></div>
+  <div class="hwx-panel" role="dialog" aria-modal="true" aria-labelledby="hwxEditTitle">
+    <form id="hwxEditForm" method="post" enctype="multipart/form-data" action="{% if homework_edit_id %}{% url 'core:school_homework_update' homework_edit_id %}{% endif %}">
+      {% csrf_token %}
+      <div class="d-flex justify-content-between align-items-start gap-2 p-3 border-bottom flex-shrink-0">
+        <div>
+          <h5 class="fw-bold mb-0" id="hwxEditTitle">Edit homework</h5>
+          <p class="small text-muted mb-0">Update fields and save — validation runs on the server.</p>
+        </div>
+        <button type="button" class="btn-close" data-hwx-close="hwxEdit" aria-label="Close"></button>
+      </div>
+      <div class="hwx-panel-body p-3">
+        {% if homework_edit_form.non_field_errors %}
+        <div class="alert alert-danger rounded-3 small">{{ homework_edit_form.non_field_errors }}</div>
+        {% endif %}
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="{{ homework_edit_form.title.id_for_label }}">Title</label>
+          {{ homework_edit_form.title }}
+          {% if homework_edit_form.title.errors %}<div class="text-danger small mt-1">{{ homework_edit_form.title.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="{{ homework_edit_form.subject.id_for_label }}">Subject</label>
+          {{ homework_edit_form.subject }}
+          {% if homework_edit_form.subject.errors %}<div class="text-danger small mt-1">{{ homework_edit_form.subject.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="{{ homework_edit_form.due_date.id_for_label }}">Due date</label>
+          {{ homework_edit_form.due_date }}
+          {% if homework_edit_form.due_date.errors %}<div class="text-danger small mt-1">{{ homework_edit_form.due_date.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="{{ homework_edit_form.description.id_for_label }}">Description</label>
+          {{ homework_edit_form.description }}
+          {% if homework_edit_form.description.errors %}<div class="text-danger small mt-1">{{ homework_edit_form.description.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold d-block" for="{{ homework_edit_form.attachment.id_for_label }}">Attachment</label>
+          <p class="small text-muted mb-1 d-none" id="hwx_edit_file_hint">Current file: <a href="#" id="hwx_edit_file_link" target="_blank" rel="noopener"></a></p>
+          {{ homework_edit_form.attachment }}
+          {% if homework_edit_form.attachment.errors %}<div class="text-danger small mt-1">{{ homework_edit_form.attachment.errors.0 }}</div>{% endif %}
+        </div>
+        <p class="small text-uppercase text-muted fw-semibold mb-2" style="letter-spacing: 0.06em;">Classes</p>
+        {% if homework_edit_form.classes.errors %}<div class="text-danger small mb-2">{{ homework_edit_form.classes.errors.0 }}</div>{% endif %}
+        <div class="hw-scope-mini mb-3">
+          <div class="hw-choice-grid-mini">
+            {% for cb in homework_edit_form.classes %}
+            <label class="hw-choice-card-mini" for="{{ cb.id_for_label }}">{{ cb.tag }}<span>{{ cb.choice_label }}</span></label>
+            {% endfor %}
+          </div>
+        </div>
+        <p class="small text-uppercase text-muted fw-semibold mb-2" style="letter-spacing: 0.06em;">Sections</p>
+        {% if homework_edit_form.sections.errors %}<div class="text-danger small mb-2">{{ homework_edit_form.sections.errors.0 }}</div>{% endif %}
+        <div class="hw-scope-mini">
+          <div class="hw-choice-grid-mini">
+            {% for cb in homework_edit_form.sections %}
+            <label class="hw-choice-card-mini" for="{{ cb.id_for_label }}">{{ cb.tag }}<span>{{ cb.choice_label }}</span></label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="d-flex justify-content-end gap-2 p-3 border-top bg-light bg-opacity-50 flex-shrink-0 rounded-bottom">
+        <button type="button" class="btn btn-light rounded-pill" data-hwx-close="hwxEdit">Cancel</button>
+        <button type="submit" class="btn btn-primary rounded-pill px-4">Save changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="hwxDelete" class="hwx-layer" aria-hidden="true">
+  <div class="hwx-scrim" data-hwx-close="hwxDelete" role="presentation"></div>
+  <div class="hwx-panel" role="dialog" aria-modal="true" aria-labelledby="hwxDeleteTitle">
+    <form id="hwxDeleteForm" method="post" action="">
+      {% csrf_token %}
+      <div class="d-flex justify-content-between align-items-start gap-2 p-3 border-bottom flex-shrink-0">
+        <h5 class="fw-bold text-danger mb-0" id="hwxDeleteTitle">Delete homework?</h5>
+        <button type="button" class="btn-close" data-hwx-close="hwxDelete" aria-label="Close"></button>
+      </div>
+      <div class="hwx-panel-body p-3">
+        <p class="mb-2">Are you sure you want to delete <strong id="hwx_delete_title"></strong>?</p>
+        <p class="small text-muted mb-0">This action cannot be undone.</p>
+      </div>
+      <div class="d-flex justify-content-end gap-2 p-3 border-top bg-light bg-opacity-50 flex-shrink-0 rounded-bottom">
+        <button type="button" class="btn btn-light rounded-pill" data-hwx-close="hwxDelete">Cancel</button>
+        <button type="submit" class="btn btn-danger rounded-pill px-4">Delete</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block after_bootstrap %}
+<script>
+(function () {
+  var OPEN = "hwx-open";
+
+  function parsePayload() {
+    var el = document.getElementById("hw-payload");
+    if (!el) return {};
+    try {
+      return JSON.parse(el.textContent || "{}");
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function hwxAnyOpen() {
+    return document.querySelector(".hwx-layer." + OPEN);
+  }
+
+  function hwxOpen(id) {
+    var layer = document.getElementById(id);
+    if (!layer) return;
+    layer.classList.add(OPEN);
+    layer.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+  }
+
+  function hwxClose(id) {
+    var layer = document.getElementById(id);
+    if (!layer) return;
+    layer.classList.remove(OPEN);
+    layer.setAttribute("aria-hidden", "true");
+    if (!hwxAnyOpen()) document.body.style.overflow = "";
+  }
+
+  function hwxCloseAll() {
+    document.querySelectorAll(".hwx-layer." + OPEN).forEach(function (layer) {
+      layer.classList.remove(OPEN);
+      layer.setAttribute("aria-hidden", "true");
+    });
+    document.body.style.overflow = "";
+  }
+
+  function textOrDash(el, val) {
+    if (!el) return;
+    el.textContent = val != null && String(val).length ? val : "—";
+  }
+
+  function boot() {
+    var payload = parsePayload();
+    var editIdOnLoad = {% if homework_edit_id %}{{ homework_edit_id }}{% else %}null{% endif %};
+
+    document.addEventListener("click", function (e) {
+      var closeEl = e.target.closest("[data-hwx-close]");
+      if (closeEl) {
+        e.preventDefault();
+        var cid = closeEl.getAttribute("data-hwx-close");
+        if (cid) hwxClose(cid);
+        return;
+      }
+    });
+
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && hwxAnyOpen()) {
+        e.preventDefault();
+        hwxCloseAll();
+      }
+    });
+
+    var root = document.getElementById("hw-master-page");
+    if (!root) return;
+
+    root.addEventListener("click", function (e) {
+      var viewBtn = e.target.closest(".hw-btn-view");
+      if (viewBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var id = String(viewBtn.getAttribute("data-hw-id") || "");
+        var row = payload[id];
+        if (!row) return;
+        textOrDash(document.getElementById("hwx_v_subject"), row.subject);
+        textOrDash(document.getElementById("hwx_v_title"), row.title);
+        textOrDash(document.getElementById("hwx_v_description"), row.description);
+        textOrDash(document.getElementById("hwx_v_classes"), row.classes_display);
+        textOrDash(document.getElementById("hwx_v_sections"), row.sections_display);
+        textOrDash(document.getElementById("hwx_v_created"), row.created_display);
+        textOrDash(document.getElementById("hwx_v_due"), row.due_date_display);
+        var attEl = document.getElementById("hwx_v_attachment");
+        if (attEl) {
+          if (row.attachment_url && row.attachment_name) {
+            attEl.innerHTML = '<a href="' + row.attachment_url.replace(/"/g, "&quot;") + '" target="_blank" rel="noopener" class="fw-semibold">' +
+              String(row.attachment_name).replace(/</g, "&lt;") + "</a>";
+          } else {
+            attEl.textContent = "—";
+          }
+        }
+        textOrDash(document.getElementById("hwx_v_creator"), row.created_by);
+        var st = document.getElementById("hwx_v_status");
+        if (st) {
+          if (row.status === "Overdue") {
+            st.innerHTML = '<span class="badge rounded-pill text-bg-danger">Overdue</span>';
+          } else {
+            st.innerHTML = '<span class="badge rounded-pill text-bg-success">Active</span>';
+          }
+        }
+        hwxOpen("hwxView");
+        return;
+      }
+
+      var editBtn = e.target.closest(".hw-btn-edit");
+      if (editBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var eid = String(editBtn.getAttribute("data-hw-id") || "");
+        var row = payload[eid];
+        var form = document.getElementById("hwxEditForm");
+        if (!form || !row) return;
+        form.action = editBtn.getAttribute("data-update-url") || "";
+        form.querySelectorAll('input[name="title"]').forEach(function (inp) { inp.value = row.title || ""; });
+        form.querySelectorAll('textarea[name="description"]').forEach(function (inp) { inp.value = row.description || ""; });
+        var due = form.querySelector('input[name="due_date"]');
+        if (due) due.value = row.due_date_iso || "";
+        var sub = form.querySelector('select[name="subject"]');
+        if (sub) sub.value = row.subject_id != null ? String(row.subject_id) : "";
+        var cids = row.class_ids || [];
+        var sids = row.section_ids || [];
+        form.querySelectorAll('input[name="classes"]').forEach(function (cb) {
+          var v = parseInt(cb.value, 10);
+          cb.checked = cids.some(function (x) { return Number(x) === v; });
+        });
+        form.querySelectorAll('input[name="sections"]').forEach(function (cb) {
+          var v = parseInt(cb.value, 10);
+          cb.checked = sids.some(function (x) { return Number(x) === v; });
+        });
+        var hint = document.getElementById("hwx_edit_file_hint");
+        var link = document.getElementById("hwx_edit_file_link");
+        if (row.attachment_url && row.attachment_name) {
+          if (hint) hint.classList.remove("d-none");
+          if (link) {
+            link.href = row.attachment_url;
+            link.textContent = row.attachment_name;
+          }
+        } else {
+          if (hint) hint.classList.add("d-none");
+        }
+        var fileInput = form.querySelector('input[type="file"][name="attachment"]');
+        if (fileInput) fileInput.value = "";
+        hwxOpen("hwxEdit");
+        return;
+      }
+
+      var delBtn = e.target.closest(".hw-btn-delete");
+      if (delBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var dform = document.getElementById("hwxDeleteForm");
+        if (dform) dform.action = delBtn.getAttribute("data-delete-url") || "";
+        var t = document.getElementById("hwx_delete_title");
+        if (t) t.textContent = delBtn.getAttribute("data-hw-title") || "";
+        hwxOpen("hwxDelete");
+      }
+    });
+
+    if (editIdOnLoad) {
+      hwxOpen("hwxEdit");
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+})();
+</script>
 {% endblock %}

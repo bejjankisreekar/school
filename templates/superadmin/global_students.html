@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load nav_tags %}
 {% block title %}All Students (Global View) | Super Admin{% endblock %}
 {% block extra_head %}
 <style>
@@ -186,9 +187,9 @@
               {% elif r.fee_status == 'Pending' %}<span class="badge text-bg-warning text-dark">Pending</span>
               {% else %}<span class="text-muted">—</span>{% endif %}
             </td>
-            <td class="text-end font-monospace">₹{{ r.fee_total }}</td>
-            <td class="text-end font-monospace text-success">₹{{ r.fee_paid }}</td>
-            <td class="text-end font-monospace">₹{{ r.fee_pending }}</td>
+            <td class="text-end font-monospace">₹{{ r.fee_total|inr }}</td>
+            <td class="text-end font-monospace text-success">₹{{ r.fee_paid|inr }}</td>
+            <td class="text-end font-monospace">₹{{ r.fee_pending|inr }}</td>
             <td class="small text-muted">{{ r.phone|default:"—" }}</td>
           </tr>
           {% empty %}

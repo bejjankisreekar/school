@@ -200,6 +200,16 @@ urlpatterns = [
     path("homework/", views.homework_list, name="homework_list"),
     path("school/homework/", views.school_homework_list, name="school_homework_list"),
     path("school/homework/create/", views.school_homework_create, name="school_homework_create"),
+    path(
+        "school/homework/<int:pk>/update/",
+        views.school_homework_update,
+        name="school_homework_update",
+    ),
+    path(
+        "school/homework/<int:pk>/delete/",
+        views.school_homework_delete,
+        name="school_homework_delete",
+    ),
     path("student/homework/<int:homework_id>/submit/", views.student_homework_submit, name="student_homework_submit"),
     path("reports/", views.reports_list, name="reports_list"),
 
@@ -213,9 +223,32 @@ urlpatterns = [
     # Fee & Billing (Basic Plan)
     path("school/fees/", views.school_fees_index, name="school_fees_index"),
     path("school/fees/types/", views.school_fee_types, name="school_fee_types"),
+    path(
+        "school/fees/types/<int:pk>/update/",
+        views.school_fee_type_update,
+        name="school_fee_type_update",
+    ),
+    path(
+        "school/fees/types/<int:pk>/delete/",
+        views.school_fee_type_delete,
+        name="school_fee_type_delete",
+    ),
     path("school/fees/structure/", views.school_fee_structure, name="school_fee_structure"),
+    path(
+        "school/fees/structure/<int:structure_id>/apply/",
+        views.school_fee_structure_apply,
+        name="school_fee_structure_apply",
+    ),
+    path(
+        "school/fees/structure/<int:structure_id>/clone/",
+        views.school_fee_structure_clone,
+        name="school_fee_structure_clone",
+    ),
     path("school/fees/add/", views.school_fee_add, name="school_fee_add"),
     path("school/fees/collection/", views.school_fee_collection, name="school_fee_collection"),
+    path("school/fees/payments/", views.school_fee_payments, name="school_fee_payments"),
+    path("school/fees/payments/export.csv", views.school_fee_payments_export_csv, name="school_fee_payments_export_csv"),
+    path("school/fees/ledger/export.csv", views.school_fee_ledger_export_csv, name="school_fee_ledger_export_csv"),
     path("school/fees/collect/<int:fee_id>/", views.school_fee_collect, name="school_fee_collect"),
     path("school/fees/receipt/<int:payment_id>/pdf/", views.school_fee_receipt_pdf, name="school_fee_receipt_pdf"),
 

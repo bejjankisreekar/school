@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load nav_tags %}
 {% block title %}Billing — Generate & collect | School ERP{% endblock %}
 {% block content %}
 <div class="container-fluid px-0">
@@ -25,7 +26,7 @@
               <select name="fee_structure" class="form-select" required>
                 <option value="">— Select —</option>
                 {% for s in structures %}
-                <option value="{{ s.id }}">{{ s.fee_type.name }}{% if s.classroom %} — {{ s.classroom }}{% endif %} ({{ s.amount }})</option>
+                <option value="{{ s.id }}">{{ s.fee_type.name }}{% if s.classroom %} — {{ s.classroom }}{% endif %} (₹{{ s.amount|inr }})</option>
                 {% endfor %}
               </select>
             </div>
@@ -81,7 +82,7 @@
                 <select name="record_fee" id="record_fee" class="form-select" required>
                   {% for row in pending_rows %}
                   <option value="{{ row.fee.id }}" {% if row.fee.id == preselected_fee_id %}selected{% endif %}>
-                    {{ row.fee.fee_structure.fee_type.name }} — due {{ row.fee.due_date }} — balance {{ row.balance }}
+                    {{ row.fee.fee_structure.fee_type.name }} — due {{ row.fee.due_date }} — balance ₹{{ row.balance|inr }}
                   </option>
                   {% endfor %}
                 </select>

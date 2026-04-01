@@ -104,7 +104,7 @@
     </a>
     {% endif %}
     {% if request|school_has_feature:'fees' and request.user.role != 'TEACHER' %}
-    <a href="{% if request.user.role == 'ADMIN' %}{% url 'core:school_fees_index' %}{% elif request.user.role == 'STUDENT' %}{% url 'core:student_fees' %}{% else %}#{% endif %}" class="sidebar-nav-item {% if request.user.role == 'ADMIN' %}{% nav_active_names request 'school_fees_index' 'school_fee_types' 'school_fee_structure' 'school_fee_collection' 'school_fee_collect' 'school_fee_add' %}{% elif request.user.role == 'STUDENT' %}{% nav_active_names request 'student_fees' %}{% endif %}">
+    <a href="{% if request.user.role == 'ADMIN' %}{% url 'core:school_fees_index' %}{% elif request.user.role == 'STUDENT' %}{% url 'core:student_fees' %}{% else %}#{% endif %}" class="sidebar-nav-item {% if request.user.role == 'ADMIN' %}{% nav_active_names request 'school_fees_index' 'school_fee_types' 'school_fee_structure' 'school_fee_collection' 'school_fee_collect' 'school_fee_add' 'school_fee_payments' 'school_fee_payments_export_csv' 'school_fee_structure_apply' 'school_fee_structure_clone' %}{% elif request.user.role == 'STUDENT' %}{% nav_active_names request 'student_fees' %}{% endif %}">
       <span class="sidebar-nav-icon"><i class="bi bi-currency-dollar"></i></span>
       <span class="sidebar-nav-text">Billing</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>

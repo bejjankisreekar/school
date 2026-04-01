@@ -104,7 +104,8 @@ class HomeworkAdmin(admin.ModelAdmin):
 
 @admin.register(FeeType)
 class FeeTypeAdmin(admin.ModelAdmin):
-    list_display = ("name", "code")
+    list_display = ("name", "code", "is_active", "created_on")
+    list_filter = ("is_active",)
 
 
 @admin.register(FeeStructure)
@@ -115,8 +116,16 @@ class FeeStructureAdmin(admin.ModelAdmin):
 
 @admin.register(Fee)
 class FeeAdmin(admin.ModelAdmin):
-    list_display = ("student", "fee_structure", "amount", "due_date", "status")
-    list_filter = ("status",)
+    list_display = (
+        "student",
+        "fee_structure",
+        "amount",
+        "concession_percent",
+        "concession_fixed",
+        "due_date",
+        "status",
+    )
+    list_filter = ("status", "concession_kind")
 
 
 @admin.register(Payment)

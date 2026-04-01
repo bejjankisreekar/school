@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load nav_tags %}
 {% block title %}Billing invoices | Platform{% endblock %}
 {% block extra_head %}
 <style>
@@ -88,15 +89,15 @@
           <tr>
             <td class="text-nowrap">
               <code>{{ inv.invoice_number }}</code>
-              <span class="d-block small text-muted">{{ inv.students_count }} students × ₹{{ inv.price_per_student }}</span>
+              <span class="d-block small text-muted">{{ inv.students_count }} students × ₹{{ inv.price_per_student|inr }}</span>
             </td>
             <td>
               <span class="badge rounded-pill bg-primary-subtle text-primary-emphasis">{{ inv.school.code }}</span>
               <span class="small">{{ inv.school.name }}</span>
             </td>
-            <td class="text-end font-monospace">{{ inv.final_amount }}</td>
-            <td class="text-end font-monospace text-success">{{ row.paid }}</td>
-            <td class="text-end font-monospace">{% if row.remaining > 0 %}{{ row.remaining }}{% else %}0{% endif %}</td>
+            <td class="text-end font-monospace">₹{{ inv.final_amount|inr }}</td>
+            <td class="text-end font-monospace text-success">₹{{ row.paid|inr }}</td>
+            <td class="text-end font-monospace">{% if row.remaining > 0 %}₹{{ row.remaining|inr }}{% else %}₹0{% endif %}</td>
             <td>
               {% if inv.status == "paid" %}
               <span class="badge text-bg-success">Paid</span>

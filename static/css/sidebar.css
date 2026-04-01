@@ -720,3 +720,64 @@ body.dark-mode .app-header-dropdown-item:hover {
 nav[aria-label="breadcrumb"] {
   display: none !important;
 }
+
+/* -----------------------------------------------------------------------------
+   Bootstrap 5 modals vs DaisyUI (Tailwind theme dist/styles.css)
+   Daisy styles `.modal` for <dialog> UIs: visibility:hidden, pointer-events:none,
+   display:grid until `.modal-open`. Bootstrap uses `.modal.fade` + `.show`.
+   Result: backdrop shows, dialog stays invisible. Reset only `.modal.fade`.
+   ----------------------------------------------------------------------------- */
+.modal.fade {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 1055 !important;
+  display: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  outline: 0 !important;
+  pointer-events: none !important;
+  visibility: visible !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  place-items: initial !important;
+  align-items: initial !important;
+  justify-items: initial !important;
+  grid-template-columns: unset !important;
+  grid-template-rows: unset !important;
+}
+.modal.fade.show {
+  display: block !important;
+  pointer-events: auto !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+.modal.fade .modal-dialog {
+  pointer-events: auto !important;
+  visibility: visible !important;
+  position: relative !important;
+  z-index: 2 !important;
+  width: auto !important;
+  margin: 1.75rem auto !important;
+}
+.modal.fade .modal-content {
+  position: relative !important;
+  z-index: 1 !important;
+  pointer-events: auto !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+.modal-backdrop {
+  z-index: 1050 !important;
+}
+.modal-backdrop.fade {
+  z-index: 1050 !important;
+}
