@@ -2,9 +2,18 @@ INPUT_CLASS = "form-control"
 BS_INPUT = "form-control form-select"  # for selects
 
 from decimal import Decimal
+import re
 
 from django import forms
+from django.forms.models import BaseInlineFormSet, inlineformset_factory
 from django.contrib.auth import get_user_model
+from django.contrib.auth.hashers import make_password
+from django.contrib.auth.password_validation import (
+    CommonPasswordValidator,
+    get_default_password_validators,
+    validate_password,
+)
+from django.core.exceptions import ValidationError
 from django.db.models import Q, Sum
 from apps.customers.models import Coupon, Plan, SaaSPlatformPayment, School, SchoolSubscription
 from apps.school_data.models import (
@@ -12,6 +21,7 @@ from apps.school_data.models import (
     Marks,
     Attendance,
     Exam,
+    ExamSession,
     Student,
     Teacher,
     Section,
@@ -185,6 +195,152 @@ class ExamCreateForm(forms.ModelForm):
             self.fields["section"].choices = [(s.name, s.name) for s in Section.objects.order_by("name")]
 
 
+class SchoolExamSessionEditForm(forms.ModelForm):
+    """School admin: edit exam session metadata (not individual papers).
+
+    Omits ``display_order`` so edit works on tenant DBs that predate migration 0039/0041
+    (column may not exist). Order stays at model default until migrations are applied.
+    """
+
+    class Meta:
+        model = ExamSession
+        fields = ["name", "classroom", "class_name", "section"]
+        widgets = {
+            "name": forms.TextInput(
+                attrs={"class": INPUT_CLASS, "placeholder": "e.g. Annual Exam 2026", "maxlength": 100}
+            ),
+            "classroom": forms.Select(attrs={"class": BS_INPUT}),
+            "class_name": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Class name"}),
+            "section": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Section"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["classroom"].queryset = ClassRoom.objects.select_related("academic_year").order_by(
+            "academic_year__start_date", "name"
+        )
+        self.fields["classroom"].required = False
+        self.fields["class_name"].required = False
+        self.fields["section"].required = False
+
+
+class ExamSessionPaperInlineForm(forms.ModelForm):
+    """One subject paper row when editing an exam session (admin)."""
+
+    class Meta:
+        model = Exam
+        fields = [
+            "name",
+            "subject",
+            "date",
+            "start_time",
+            "end_time",
+            "teacher",
+            "total_marks",
+            "marks_teacher_edit_locked",
+        ]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Paper title"}),
+            "date": forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
+            "start_time": forms.TimeInput(attrs={"type": "time", "class": INPUT_CLASS}),
+            "end_time": forms.TimeInput(attrs={"type": "time", "class": INPUT_CLASS}),
+            "total_marks": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 1, "max": 1000}),
+            "marks_teacher_edit_locked": forms.CheckboxInput(
+                attrs={"class": "form-check-input", "role": "switch"}
+            ),
+        }
+
+    def __init__(self, *args, school=None, **kwargs):
+        self.school = school
+        super().__init__(*args, **kwargs)
+        self.fields["subject"].queryset = Subject.objects.order_by("name")
+        self.fields["subject"].widget.attrs.update({"class": BS_INPUT})
+        self.fields["subject"].required = False
+        self.fields["name"].required = False
+        self.fields["date"].required = False
+        if school:
+            self.fields["teacher"].queryset = Teacher.objects.filter(user__school=school).select_related(
+                "user"
+            ).order_by("user__first_name", "user__last_name", "user__username")
+        else:
+            self.fields["teacher"].queryset = Teacher.objects.none()
+        self.fields["teacher"].required = False
+        self.fields["teacher"].widget.attrs.update({"class": BS_INPUT})
+        self.fields["total_marks"].required = False
+        self.fields["marks_teacher_edit_locked"].required = False
+
+    def clean(self):
+        data = super().clean()
+        if data.get("DELETE"):
+            return data
+        subj = data.get("subject")
+        dt = data.get("date")
+        name = (data.get("name") or "").strip()
+        # Skip validation for completely empty extra rows
+        if not subj and not dt and not name and not self.instance.pk:
+            return data
+        if not subj:
+            raise forms.ValidationError("Subject is required for each paper row you fill in.")
+        if not dt:
+            raise forms.ValidationError("Exam date is required.")
+        st = data.get("start_time")
+        et = data.get("end_time")
+        if st and et and et <= st:
+            raise forms.ValidationError("End time must be after start time.")
+        if (st and not et) or (et and not st):
+            raise forms.ValidationError("Set both start and end time, or leave both empty for an all-day paper.")
+
+        session = getattr(self.instance, "session", None)
+        if not session or not session.pk:
+            return data
+
+        meta = getattr(self.formset, "session_meta", None) or {}
+        cn = (meta.get("class_name") or "").strip() or (session.class_name or "").strip()
+        sn = (meta.get("section") or "").strip() or (session.section or "").strip()
+        teacher_obj = data.get("teacher")
+        tid = teacher_obj.pk if teacher_obj else None
+        pk = self.instance.pk if self.instance.pk else None
+
+        from apps.core import views as exam_views
+
+        if exam_views._exam_class_section_date_conflict_outside_session(cn, sn, dt, session.pk, exclude_pk=pk):
+            raise forms.ValidationError(
+                "Another exam outside this session already uses this class, section, and date."
+            )
+        if exam_views._exam_teacher_date_conflict(tid, dt, exclude_pk=pk):
+            raise forms.ValidationError("This teacher already has another exam on that date.")
+        if exam_views._exam_duplicate(cn, sn, dt, subj, exclude_pk=pk):
+            raise forms.ValidationError("An exam already exists for this class, section, date, and subject.")
+        return data
+
+
+class ExamPaperInlineFormSet(BaseInlineFormSet):
+    """Passes school into each paper form; ``session_meta`` is set from the session form for validation."""
+
+    def __init__(self, *args, school=None, **kwargs):
+        self.school = school
+        self.session_meta = {}
+        super().__init__(*args, **kwargs)
+
+    def get_form_kwargs(self, index):
+        kwargs = super().get_form_kwargs(index)
+        kwargs["school"] = self.school
+        return kwargs
+
+
+ExamSessionPaperFormSet = inlineformset_factory(
+    ExamSession,
+    Exam,
+    form=ExamSessionPaperInlineForm,
+    formset=ExamPaperInlineFormSet,
+    fk_name="session",
+    extra=2,
+    can_delete=True,
+    min_num=0,
+    validate_min=False,
+)
+
+
 class TeacherExamSessionPaperForm(forms.Form):
     """Teacher: creates one exam session + one subject paper (real ERP structure)."""
 
@@ -278,26 +434,202 @@ class ContactEnquiryForm(forms.ModelForm):
 class SchoolEnrollmentSignupForm(forms.ModelForm):
     """Public /enroll/ — request a new school tenant (no login)."""
 
+    password1 = forms.CharField(
+        label="Password",
+        strip=False,
+        widget=forms.PasswordInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "autocomplete": "new-password",
+                "placeholder": "Choose a secure password",
+            }
+        ),
+    )
+    password2 = forms.CharField(
+        label="Confirm password",
+        strip=False,
+        widget=forms.PasswordInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "autocomplete": "new-password",
+                "placeholder": "Confirm password",
+            }
+        ),
+    )
+    intended_plan = forms.CharField(
+        required=False,
+        initial="core",
+        widget=forms.HiddenInput(attrs={"id": "id_intended_plan"}),
+    )
+    notes = forms.CharField(
+        required=False,
+        max_length=250,
+        label="Additional Notes / Requirements",
+        widget=forms.Textarea(
+            attrs={
+                "class": INPUT_CLASS,
+                "rows": 4,
+                "placeholder": "Enter any custom requirements, branch details, onboarding notes, or special requests…",
+                "maxlength": "250",
+                "id": "id_enroll_notes",
+            }
+        ),
+    )
+
     class Meta:
         model = SchoolEnrollmentRequest
-        fields = ["institution_name", "contact_name", "email", "phone", "notes"]
+        fields = [
+            "institution_name",
+            "institution_code",
+            "email",
+            "phone",
+            "contact_name",
+            "address",
+            "city",
+            "state",
+            "pincode",
+            "student_count",
+            "teacher_count",
+            "branch_count",
+            "preferred_username",
+            "notes",
+            "intended_plan",
+        ]
         widgets = {
             "institution_name": forms.TextInput(
-                attrs={"class": INPUT_CLASS, "placeholder": "Official school name", "autocomplete": "organization"}
-            ),
-            "contact_name": forms.TextInput(
-                attrs={"class": INPUT_CLASS, "placeholder": "Your full name", "autocomplete": "name"}
-            ),
-            "email": forms.EmailInput(attrs={"class": INPUT_CLASS, "autocomplete": "email"}),
-            "phone": forms.TextInput(attrs={"class": INPUT_CLASS, "autocomplete": "tel"}),
-            "notes": forms.Textarea(
                 attrs={
                     "class": INPUT_CLASS,
-                    "rows": 3,
-                    "placeholder": "Optional: city, student count, or other context",
+                    "placeholder": "Official school name",
+                    "autocomplete": "organization",
+                }
+            ),
+            "institution_code": forms.TextInput(
+                attrs={
+                    "class": INPUT_CLASS,
+                    "placeholder": "e.g. NHS123",
+                    "autocomplete": "off",
+                    "maxlength": "6",
+                    "pattern": "[A-Z]{3}[0-9]{3}",
+                    "title": "ABC123 — 3 uppercase letters + 3 digits",
+                }
+            ),
+            "contact_name": forms.TextInput(
+                attrs={
+                    "class": INPUT_CLASS,
+                    "placeholder": "Principal or admin full name",
+                    "autocomplete": "name",
+                }
+            ),
+            "email": forms.EmailInput(
+                attrs={"class": INPUT_CLASS, "placeholder": "school@example.com", "autocomplete": "email"}
+            ),
+            "phone": forms.TextInput(
+                attrs={"class": INPUT_CLASS, "placeholder": "+91 …", "autocomplete": "tel"}
+            ),
+            "address": forms.Textarea(
+                attrs={"class": INPUT_CLASS, "rows": 2, "placeholder": "Street, area, landmark"}
+            ),
+            "city": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "City", "autocomplete": "address-level2"}),
+            "state": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "State", "autocomplete": "address-level1"}),
+            "pincode": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "PIN / ZIP", "autocomplete": "postal-code"}),
+            "student_count": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 0, "placeholder": "Approx."}),
+            "teacher_count": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 0, "placeholder": "Approx."}),
+            "branch_count": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 0, "placeholder": "1 if single campus"}),
+            "preferred_username": forms.TextInput(
+                attrs={
+                    "class": INPUT_CLASS,
+                    "placeholder": "Login username for your admin account",
+                    "autocomplete": "username",
                 }
             ),
         }
+        labels = {
+            "institution_name": "School name",
+            "institution_code": "School code",
+            "contact_name": "Principal / admin name",
+            "email": "School email",
+            "phone": "Contact number",
+            "address": "School address",
+            "student_count": "Number of students",
+            "teacher_count": "Number of teachers",
+            "branch_count": "Branches / campuses",
+            "preferred_username": "Username",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["phone"].required = True
+        self.fields["institution_name"].required = True
+        self.fields["institution_code"].required = True
+        self.fields["email"].required = True
+        self.fields["contact_name"].required = True
+        self.fields["preferred_username"].required = True
+
+    def clean_intended_plan(self):
+        raw = (self.cleaned_data.get("intended_plan") or "core").strip().lower()
+        if raw == "monthly":
+            raw = "basic"
+        # UI: Core / Advance map to billing tiers used by provisioning
+        if raw == "core":
+            return "basic"
+        if raw == "advance":
+            return "standard"
+        allowed = frozenset({"trial", "basic", "standard", "enterprise", "yearly"})
+        if raw not in allowed:
+            raise ValidationError("Invalid plan selection.")
+        return raw
+
+    def clean_preferred_username(self):
+        u = (self.cleaned_data.get("preferred_username") or "").strip()
+        if not u:
+            return u
+        UserModel = get_user_model()
+        if UserModel.objects.filter(username=u).exists():
+            raise ValidationError(
+                "This username is already taken. Choose another or sign in if you already have an account."
+            )
+        return u
+
+    def clean_institution_code(self):
+        raw = (self.cleaned_data.get("institution_code") or "").strip()
+        if not raw:
+            raise ValidationError("Enter a unique school code (e.g. ABC123).")
+        from apps.core.tenant_provisioning import validate_school_code_format
+
+        try:
+            code = validate_school_code_format(raw)
+        except ValidationError as exc:
+            raise ValidationError(
+                exc.messages[0] if exc.messages else str(exc)
+            ) from None
+        if School.objects.filter(code=code).exists():
+            raise ValidationError(
+                "School code already exists. Please choose another code."
+            )
+        return code
+
+    def clean_password2(self):
+        p1 = self.cleaned_data.get("password1")
+        p2 = self.cleaned_data.get("password2")
+        if p1 is None or p2 is None:
+            return p2
+        if p1 != p2:
+            raise ValidationError("The two password fields do not match.")
+        # Enrollment: skip "too common" check; keep other AUTH_PASSWORD_VALIDATORS (e.g. length).
+        enrollment_validators = [
+            v
+            for v in get_default_password_validators()
+            if not isinstance(v, CommonPasswordValidator)
+        ]
+        validate_password(p2, user=None, password_validators=enrollment_validators)
+        return p2
+
+    def save(self, commit=True):
+        enrollment = super().save(commit=False)
+        enrollment.pending_password_hash = make_password(self.cleaned_data["password2"])
+        if commit:
+            enrollment.save()
+        return enrollment
 
 
 class SuperAdminEnrollmentProvisionForm(forms.Form):
@@ -337,6 +669,14 @@ class SchoolExamSingleForm(forms.Form):
         widget=forms.Select(attrs={"class": BS_INPUT, "id": "id_single_subject"}),
     )
     date = forms.DateField(widget=forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS, "id": "id_single_date"}))
+    start_time = forms.TimeField(
+        required=False,
+        widget=forms.TimeInput(attrs={"type": "time", "class": INPUT_CLASS, "id": "id_single_start_time"}),
+    )
+    end_time = forms.TimeField(
+        required=False,
+        widget=forms.TimeInput(attrs={"type": "time", "class": INPUT_CLASS, "id": "id_single_end_time"}),
+    )
     total_marks = forms.IntegerField(min_value=1, max_value=1000, initial=100, widget=forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 1}))
     teacher = forms.TypedChoiceField(choices=[], required=False, empty_value=None, widget=forms.Select(attrs={"class": BS_INPUT}))
 
@@ -357,6 +697,16 @@ class SchoolExamSingleForm(forms.Form):
             return int(val)
         except (TypeError, ValueError):
             return None
+
+    def clean(self):
+        data = super().clean()
+        st = data.get("start_time")
+        et = data.get("end_time")
+        if (st and not et) or (et and not st):
+            raise forms.ValidationError("Set both start and end time, or leave both empty for an all-day paper.")
+        if st and et and et <= st:
+            raise forms.ValidationError("End time must be after start time.")
+        return data
 
 
 class SchoolExamEditForm(forms.ModelForm):

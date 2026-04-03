@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* Manual theme toggle uses <html class="dark"> — default Tailwind v4 dark: is prefers-color-scheme only. */
+@custom-variant dark (&:where(.dark, .dark *));
 @plugin "daisyui";
 
 /**

@@ -6,3 +6,6 @@ class SchoolDataConfig(AppConfig):
     name = "apps.school_data"
     label = "school_data"
     verbose_name = "School Data (Tenant)"
+
+    def ready(self):
+        from . import signals  # noqa: F401 — register receivers

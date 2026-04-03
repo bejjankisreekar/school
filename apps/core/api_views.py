@@ -3,8 +3,19 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django_tenants.utils import tenant_context
 
+from apps.accounts.models import User
 from apps.customers.models import School
 from apps.school_data.models import Student, Fee, Payment, Marks, Exam, ClassRoom, Section, Attendance
+
+
+def _can_access_school_admin_api(request, school: School) -> bool:
+    """Superadmin may query any tenant; school users only their own school (by id)."""
+    u = getattr(request, "user", None)
+    if not u or not u.is_authenticated:
+        return False
+    if getattr(u, "role", None) == User.Roles.SUPERADMIN:
+        return True
+    return getattr(u, "school_id", None) == school.pk
 
 
 def _get_school_pro(school_code: str) -> School | None:
@@ -148,6 +159,8 @@ def api_admin_classrooms(request, school_code: str):
         school = School.objects.get(code=school_code)
     except School.DoesNotExist:
         return JsonResponse({"error": "School not found"}, status=404)
+    if not _can_access_school_admin_api(request, school):
+        return JsonResponse({"error": "Forbidden"}, status=403)
     with tenant_context(school):
         classrooms = ClassRoom.objects.select_related("academic_year").order_by("academic_year", "name")
         return JsonResponse({
@@ -158,30 +171,42 @@ def api_admin_classrooms(request, school_code: str):
 @require_GET
 def api_admin_classrooms_by_id(request, school_id: int):
     """GET /api/admin/schools/by-id/<id>/classrooms/ - For AdminStudentForm (uses pk from select)."""
+    if not getattr(request, "user", None) or not request.user.is_authenticated:
+        return JsonResponse({"error": "Unauthorized"}, status=401)
     try:
         school = School.objects.get(pk=school_id)
     except School.DoesNotExist:
         return JsonResponse({"error": "School not found"}, status=404)
+    if not _can_access_school_admin_api(request, school):
+        return JsonResponse({"error": "Forbidden"}, status=403)
     return api_admin_classrooms(request, school.code)
 
 
 @require_GET
 def api_admin_sections_by_id(request, school_id: int):
     """GET /api/admin/schools/by-id/<id>/sections/?classroom_id=X - For AdminStudentForm."""
+    if not getattr(request, "user", None) or not request.user.is_authenticated:
+        return JsonResponse({"error": "Unauthorized"}, status=401)
     try:
         school = School.objects.get(pk=school_id)
     except School.DoesNotExist:
         return JsonResponse({"error": "School not found"}, status=404)
+    if not _can_access_school_admin_api(request, school):
+        return JsonResponse({"error": "Forbidden"}, status=403)
     return api_admin_sections(request, school.code)
 
 
 @require_GET
 def api_admin_sections(request, school_code: str):
     """GET /api/admin/schools/<school_code>/sections/?classroom_id=X - For AdminStudentForm."""
+    if not getattr(request, "user", None) or not request.user.is_authenticated:
+        return JsonResponse({"error": "Unauthorized"}, status=401)
     try:
         school = School.objects.get(code=school_code)
     except School.DoesNotExist:
         return JsonResponse({"error": "School not found"}, status=404)
+    if not _can_access_school_admin_api(request, school):
+        return JsonResponse({"error": "Forbidden"}, status=403)
     classroom_id = request.GET.get("classroom_id")
     with tenant_context(school):
         if classroom_id:

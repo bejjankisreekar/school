@@ -1,7 +1,11 @@
 """
-Ensures tenant schema is set when authenticated users with a school access localhost.
-Student/teacher/admin/parent views use school_data and timetable (tenant apps).
-When on public schema (localhost) with no subdomain, switch to user's school schema.
+Force the DB schema to the signed-in user's school for almost all routes.
+
+TenantMainMiddleware sets the schema from the Host header. On a shared host (localhost) or when
+a user is logged in as School B but the hostname resolves to School A, queries would otherwise run
+in the wrong schema (critical data leak). TenantSchemaFromUserMiddleware overrides that by calling
+connection.set_tenant(user.school) after authentication, except for explicit exempt paths (accounts,
+API, marketing, superadmin, public admission/results portals).
 
 Trial expiry: redirects school users (non-superadmin) to dashboard when trial expired.
 
@@ -10,13 +14,16 @@ Feature middleware: loads school_features onto request for feature-based access 
 from django.utils.deprecation import MiddlewareMixin
 from django.shortcuts import redirect
 from django.urls import reverse
-from django_tenants.utils import get_public_schema_name
 
 from apps.accounts.models import User
+from apps.core.tenant_bind import path_exempts_user_tenant_bind
+from apps.core.tenant_scope import ensure_tenant_for_request
 
 # Sidebar / feature_required: superadmin sees every module without a school plan.
 _SUPERADMIN_ALL_FEATURES = frozenset(
     {
+        "students",
+        "teachers",
         "attendance",
         "exams",
         "timetable",
@@ -71,24 +78,10 @@ class SchoolFeaturesMiddleware(MiddlewareMixin):
             request.school_features = _get_school_features(request)
 
 
-TENANT_PATHS = (
-    "/student/",
-    "/teacher/",
-    "/school/",
-    "/parent/",
-    "/attendance/",
-    "/marks/",
-    "/homework/",
-    "/reports/",
-    "/students/",
-    "/teachers/",
-)
-
-
 class TenantSchemaFromUserMiddleware(MiddlewareMixin):
     """
-    When on public schema and user has a school, switch to that school's schema
-    for tenant-dependent paths. This allows localhost:8000 to work for students/admins.
+    Bind connection to request.user.school for every authenticated user with a school,
+    unless the path is exempt (see apps.core.tenant_bind).
     """
     def process_request(self, request):
         if not hasattr(request, "user") or not request.user.is_authenticated:
@@ -97,17 +90,32 @@ class TenantSchemaFromUserMiddleware(MiddlewareMixin):
         school = getattr(user, "school", None)
         if not school:
             return
-        from django.db import connection
-        if connection.schema_name != get_public_schema_name():
-            return  # Already on a tenant schema
-        path = request.path
-        if path.startswith("/admin/"):
-            # Super admin paths - use public schema; views use tenant_context when needed
+        path = request.path or "/"
+        if path_exempts_user_tenant_bind(path):
             return
-        for prefix in TENANT_PATHS:
-            if path.startswith(prefix):
-                connection.set_tenant(school)
-                break
+        from django.db import connection
+
+        connection.set_tenant(school)
+
+    def process_view(self, request, view_func, view_args, view_kwargs):
+        """
+        Re-apply tenant binding immediately before the view runs. Some middleware or
+        early DB access can leave the connection on public or another host-resolved tenant;
+        this prevents cross-school reads of school_data_* rows (e.g. classes list).
+        """
+        ensure_tenant_for_request(request)
+        return None
+
+
+class TenantSchemaFinalEnsureMiddleware(MiddlewareMixin):
+    """
+    Last process_request hook: re-bind connection to the user's school after Session,
+    Messages, and other middleware. Defense-in-depth against stray public/host schema.
+    Academic ORM (Subject, Section, ClassRoom) must see only the active tenant schema first.
+    """
+
+    def process_request(self, request):
+        ensure_tenant_for_request(request)
 
 
 class TrialExpiryMiddleware(MiddlewareMixin):

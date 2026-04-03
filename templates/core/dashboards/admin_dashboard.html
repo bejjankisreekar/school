@@ -1,854 +1,632 @@
 {% extends "base.html" %}
 {% load nav_tags %}
+{% load humanize %}
 {% block title %}School Admin Dashboard | School ERP{% endblock %}
 {% block extra_head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-{% endblock %}
-
-{% block content %}
-<div class="admin-dashboard-page w-100">
-  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-4">
-    <div>
-      <h1 class="h4 fw-bold text-body mb-1">School Admin Dashboard</h1>
-      <p class="text-muted small mb-0">Key metrics and actions for today.</p>
-    </div>
-    {% if current_plan %}
-    <div class="rounded-3 border bg-body-secondary px-3 py-2 small">
-      <span class="fw-medium text-body">Plan: {{ current_plan.name|title }}</span>
-      {% if current_plan.price_per_student > 0 %}
-      <span class="text-muted">(₹{{ current_plan.price_per_student|inr:0 }}/student/month)</span>
-      {% endif %}
-      {% if trial_expired %}<span class="badge text-bg-danger ms-1">Trial expired</span>{% endif %}
-    </div>
-    {% endif %}
-  </div>
-
-  {# Row 1: Students, Teachers, Billing or Classes, Attendance or Sections #}
-  <div class="dashboard-kpi-grid mb-4">
-      <a href="{% url 'core:school_students_list' %}" class="text-decoration-none text-reset">
-        <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all">
-          <div class="card-body dashboard-card-body">
-            <div class="d-flex align-items-center gap-3">
-              <div class="rounded-3 bg-primary bg-opacity-10 p-3 text-primary"><i class="bi bi-people-fill fs-3"></i></div>
-              <div>
-                <div class="text-uppercase small text-muted fw-semibold">Students</div>
-                <div class="fs-3 fw-bold text-body">{{ total_students }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </a>
-      <a href="{% url 'core:school_teachers_list' %}" class="text-decoration-none text-reset">
-        <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all">
-          <div class="card-body dashboard-card-body">
-            <div class="d-flex align-items-center gap-3">
-              <div class="rounded-3 bg-info bg-opacity-10 p-3 text-info"><i class="bi bi-person-badge-fill fs-3"></i></div>
-              <div>
-                <div class="text-uppercase small text-muted fw-semibold">Teachers</div>
-                <div class="fs-3 fw-bold text-body">{{ total_teachers }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </a>
-      {% if fees_enabled %}
-      <a href="{% url 'core:school_fees_index' %}" class="text-decoration-none text-reset">
-        <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all">
-          <div class="card-body dashboard-card-body">
-            <div class="d-flex align-items-center gap-3">
-              <div class="rounded-3 bg-success bg-opacity-10 p-3 text-success"><i class="bi bi-currency-rupee fs-3"></i></div>
-              <div>
-                <div class="text-uppercase small text-muted fw-semibold">Fee collection (monthly)</div>
-                <div class="fs-3 fw-bold text-body">₹{{ fee_month_amt|inr:0 }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </a>
-      {% else %}
-      <a href="{% url 'core:school_classes' %}" class="text-decoration-none text-reset">
-        <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all">
-          <div class="card-body dashboard-card-body">
-            <div class="d-flex align-items-center gap-3">
-              <div class="rounded-3 bg-success bg-opacity-10 p-3 text-success"><i class="bi bi-grid-3x3-gap-fill fs-3"></i></div>
-              <div>
-                <div class="text-uppercase small text-muted fw-semibold">Classes</div>
-                <div class="fs-3 fw-bold text-body">{{ total_classes }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </a>
-      {% endif %}
-      {% if attendance_enabled %}
-      <a href="{% url 'core:attendance_list' %}" class="text-decoration-none text-reset">
-        <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all">
-          <div class="card-body dashboard-card-body">
-            <div class="d-flex align-items-center gap-3">
-              <div class="rounded-3 bg-warning bg-opacity-10 p-3 text-warning"><i class="bi bi-calendar-check fs-3"></i></div>
-              <div>
-                <div class="text-uppercase small text-muted fw-semibold">Attendance today</div>
-                <div class="fs-3 fw-bold text-body">{{ today_attendance_pct }}%</div>
-              </div>
-            </div>
-            <p class="small text-muted mb-0 mt-2">Students marked present today.</p>
-          </div>
-        </div>
-      </a>
-      {% else %}
-      <a href="{% url 'core:school_sections' %}" class="text-decoration-none text-reset">
-        <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all">
-          <div class="card-body dashboard-card-body">
-            <div class="d-flex align-items-center gap-3">
-              <div class="rounded-3 bg-warning bg-opacity-10 p-3 text-warning"><i class="bi bi-diagram-3 fs-3"></i></div>
-              <div>
-                <div class="text-uppercase small text-muted fw-semibold">Sections</div>
-                <div class="fs-3 fw-bold text-body">{{ total_sections }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </a>
-      {% endif %}
-  </div>
-
-  {# Fee insight strip #}
-  {% if fees_enabled %}
-  <div class="card border-0 shadow-sm rounded-4 mb-4">
-    <div class="card-body dashboard-card-body">
-      <h2 class="h6 fw-semibold mb-3"><i class="bi bi-wallet2 me-2 text-success"></i>Fee overview</h2>
-      <div class="dashboard-stat-grid">
-          <div class="rounded-3 border p-4 h-100">
-            <div class="small text-muted">Today collected</div>
-            <div class="fs-4 fw-bold text-body">₹{{ fee_today_amt|inr:0 }}</div>
-          </div>
-          <div class="rounded-3 border p-4 h-100">
-            <div class="small text-muted">This month</div>
-            <div class="fs-4 fw-bold text-body">₹{{ fee_month_amt|inr:0 }}</div>
-          </div>
-          <div class="rounded-3 border p-4 h-100 {% if pending_fees > 0 %}border-warning{% endif %}">
-            <div class="small text-muted">Pending dues</div>
-            <div class="fs-4 fw-bold {% if pending_fees > 0 %}text-warning-emphasis{% endif %}">₹{{ pending_fees|inr:0 }}</div>
-          </div>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  {# Attendance today (students + staff) #}
-  {% if attendance_enabled %}
-  <div class="card border-0 shadow-sm rounded-4 mb-4">
-    <div class="card-body dashboard-card-body">
-      <h2 class="h6 fw-semibold mb-3"><i class="bi bi-clipboard-data me-2 text-primary"></i>Attendance today</h2>
-      <div class="dashboard-two-col-grid">
-        <div>
-          <div class="d-flex justify-content-between align-items-center rounded-3 bg-primary bg-opacity-10 px-3 py-2">
-            <span class="small fw-medium">Students present</span>
-            <span class="fs-5 fw-bold">{{ today_attendance_pct }}%</span>
-          </div>
-          <p class="small text-muted mt-2 mb-0">Of enrolled students (present status for {{ today_iso }}).</p>
-        </div>
-        <div>
-          <div class="d-flex justify-content-between align-items-center rounded-3 bg-info bg-opacity-10 px-3 py-2">
-            <span class="small fw-medium">Staff present</span>
-            <span class="fs-5 fw-bold">{{ staff_attendance_pct }}%</span>
-          </div>
-          <p class="small text-muted mt-2 mb-0">Teachers marked present today vs total teachers.</p>
-        </div>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  {# Row 2: Exams or Subjects, Birthdays, Pending attendance or structure, Academic year #}
-  <div class="dashboard-insights-grid mb-4">
-      {% if exams_enabled %}
-      <div class="card border-0 shadow-sm rounded-4 dashboard-insight-card h-100">
-        <div class="card-body dashboard-card-body dashboard-insight-card-inner d-flex flex-column">
-          <div class="dashboard-insight-header flex-shrink-0">
-            <h2 class="h6 fw-semibold mb-1"><i class="bi bi-journal-text me-2 text-danger"></i>Upcoming exams</h2>
-            <p class="small text-muted mb-2">Next 7 days</p>
-          </div>
-          {% if upcoming_exams_count %}
-          <div class="fs-5 fw-bold text-body mb-2 flex-shrink-0">{{ upcoming_exams_count }} scheduled</div>
-          {% if upcoming_exams_count > 10 %}
-          <p class="small text-muted mb-2 flex-shrink-0 dashboard-insight-count-hint">Showing 10 of {{ upcoming_exams_count }} items · scroll for more</p>
-          {% endif %}
-          <div class="card-scroll dashboard-insight-scroll flex-grow-1 min-h-0">
-            <ul class="list-unstyled mb-0 small">
-              {% for exam in upcoming_exams %}
-              <li class="dashboard-insight-item">
-                <span class="fw-medium">{{ exam.name }}</span>
-                <span class="text-muted">· {{ exam.class_name }}-{{ exam.section }}</span>
-                <div class="text-muted small">{{ exam.date|date:"D, d M Y" }}</div>
-              </li>
-              {% endfor %}
-            </ul>
-          </div>
-          <div class="dashboard-insight-footer flex-shrink-0 pt-2 mt-2 border-top border-light">
-            <a href="{% url 'core:school_exams_list' %}" class="small fw-medium">View all exams</a>
-          </div>
-          {% else %}
-          <div class="flex-grow-1 d-flex flex-column justify-content-center">
-            <p class="text-muted small mb-3">Schedule papers for your classes.</p>
-            <a href="{% url 'core:school_exam_create' %}" class="btn btn-outline-danger btn-sm rounded-pill align-self-start">Create your first exam</a>
-          </div>
-          {% endif %}
-        </div>
-      </div>
-      {% else %}
-      <a href="{% url 'core:school_subjects' %}" class="text-decoration-none text-reset d-block h-100">
-        <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all dashboard-insight-card dashboard-insight-card--static">
-          <div class="card-body dashboard-card-body dashboard-insight-card-inner d-flex flex-column justify-content-center">
-            <h2 class="h6 fw-semibold mb-2 text-body"><i class="bi bi-book me-2 text-primary"></i>Subjects</h2>
-            <div class="fs-3 fw-bold text-body">{{ total_subjects }}</div>
-            <p class="small text-muted mb-0 mt-2">Manage curriculum subjects.</p>
-          </div>
-        </div>
-      </a>
-      {% endif %}
-
-      <div class="card border-0 shadow-sm rounded-4 dashboard-insight-card h-100">
-        <div class="card-body dashboard-card-body dashboard-insight-card-inner d-flex flex-column">
-          <div class="dashboard-insight-header flex-shrink-0">
-            <h2 class="h6 fw-semibold mb-1"><i class="bi bi-cake2 me-2 text-danger"></i>Birthdays today</h2>
-          </div>
-          {% if today_birthdays %}
-          {% with bc=today_birthdays|length %}
-          {% if bc > 10 %}
-          <p class="small text-muted flex-shrink-0 mb-2 dashboard-insight-count-hint">Showing 10 of {{ bc }} items · scroll for more</p>
-          {% endif %}
-          <div class="card-scroll dashboard-insight-scroll flex-grow-1 min-h-0">
-            <ul class="list-unstyled mb-0 small">
-              {% for s in today_birthdays %}
-              <li class="dashboard-insight-item">
-                <span class="fw-medium">{{ s.user.get_full_name|default:s.user.username }}</span>
-                <span class="text-muted">
-                  — {% if s.classroom %}{{ s.classroom.name }}{% else %}—{% endif %}{% if s.section %} · {{ s.section.name }}{% endif %}
-                </span>
-              </li>
-              {% endfor %}
-            </ul>
-          </div>
-          {% endwith %}
-          {% else %}
-          <div class="flex-grow-1 d-flex flex-column justify-content-center">
-            <p class="text-muted small mb-0">No student birthdays today.</p>
-            <a href="{% url 'core:school_students_list' %}" class="small fw-medium mt-2">View students</a>
-          </div>
-          {% endif %}
-        </div>
-      </div>
-
-      {% if attendance_enabled %}
-      <div class="card border-0 shadow-sm rounded-4 dashboard-insight-card h-100">
-        <div class="card-body dashboard-card-body dashboard-insight-card-inner d-flex flex-column">
-          <div class="dashboard-insight-header flex-shrink-0">
-            <h2 class="h6 fw-semibold mb-1"><i class="bi bi-exclamation-triangle me-2 text-warning"></i>Pending attendance</h2>
-          </div>
-          {% if pending_attendance %}
-          {% with pc=pending_attendance|length %}
-          {% if pc > 10 %}
-          <p class="small text-muted flex-shrink-0 mb-2 dashboard-insight-count-hint">Showing 10 of {{ pc }} items · scroll for more</p>
-          {% endif %}
-          <div class="card-scroll dashboard-insight-scroll flex-grow-1 min-h-0">
-            <ul class="list-group list-group-flush">
-              {% for row in pending_attendance %}
-              <li class="list-group-item dashboard-insight-item px-0 d-flex justify-content-between align-items-start gap-2 border-bottom border-light">
-                <div>
-                  <a href="{% url 'core:attendance_list' %}?classroom_id={{ row.classroom_id }}&section_id={{ row.section_id }}&attendance_date={{ today_iso }}" class="fw-medium text-decoration-none">
-                    {{ row.class_name }} · {{ row.section_name }}
-                  </a>
-                  <div class="small text-muted">{{ row.marked }}/{{ row.total }} marked</div>
-                </div>
-                <span class="badge text-bg-warning flex-shrink-0">{{ row.missing }} left</span>
-              </li>
-              {% endfor %}
-            </ul>
-          </div>
-          {% endwith %}
-          {% else %}
-          <div class="flex-grow-1 d-flex flex-column justify-content-center">
-            <p class="text-muted small mb-3">Every class has been marked for today.</p>
-            <a href="{% url 'core:attendance_list' %}" class="btn btn-outline-success btn-sm rounded-pill align-self-start">Open attendance</a>
-          </div>
-          {% endif %}
-        </div>
-      </div>
-      {% else %}
-      <a href="{% url 'core:school_classes' %}" class="text-decoration-none text-reset d-block h-100">
-        <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all dashboard-insight-card dashboard-insight-card--static">
-          <div class="card-body dashboard-card-body dashboard-insight-card-inner d-flex flex-column justify-content-center">
-            <h2 class="h6 fw-semibold mb-2 text-body"><i class="bi bi-building me-2 text-secondary"></i>School structure</h2>
-            <div class="small text-muted">Classes</div>
-            <div class="fs-4 fw-bold text-body">{{ total_classes }}</div>
-            <div class="small text-muted mt-2">Sections</div>
-            <div class="fs-4 fw-bold text-body">{{ total_sections }}</div>
-          </div>
-        </div>
-      </a>
-      {% endif %}
-
-      <a href="{% url 'core:school_academic_years' %}" class="text-decoration-none text-reset d-block h-100">
-        <div class="card border-0 shadow-sm h-100 rounded-4 hover-shadow transition-all dashboard-insight-card dashboard-insight-card--static">
-          <div class="card-body dashboard-card-body dashboard-insight-card-inner d-flex flex-column justify-content-center">
-            <div class="d-flex align-items-center gap-3">
-              <div class="rounded-3 bg-secondary bg-opacity-10 p-3 text-secondary"><i class="bi bi-calendar3 fs-3"></i></div>
-              <div>
-                <div class="text-uppercase small text-muted fw-semibold">Academic year</div>
-                <div class="fs-5 fw-bold text-body">{{ active_academic_year_label }}</div>
-                <p class="small text-muted mb-0 mt-1">Manage years and terms.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </a>
-  </div>
-
-  {# Charts #}
-  {% if show_class_chart or show_attendance_trend %}
-  <div class="dashboard-charts-grid mb-4">
-    {% if show_class_chart %}
-      <div class="card border-0 shadow-sm rounded-4 h-100">
-        <div class="card-body dashboard-card-body">
-          <h2 class="h6 fw-semibold mb-3">Students by class</h2>
-          <div style="height: 260px;">
-            <canvas id="classDistChart"></canvas>
-          </div>
-        </div>
-      </div>
-    {% endif %}
-    {% if show_attendance_trend %}
-      <div class="card border-0 shadow-sm rounded-4 h-100">
-        <div class="card-body dashboard-card-body">
-          <h2 class="h6 fw-semibold mb-3">Attendance trend (last 7 days)</h2>
-          <p class="small text-muted">% of enrolled students marked present per day.</p>
-          <div style="height: 240px;">
-            <canvas id="attendanceTrendChart"></canvas>
-          </div>
-        </div>
-      </div>
-    {% endif %}
-  </div>
-  {% endif %}
-
-  {# Top students — only when marks exist #}
-  {% if top_students %}
-  {% with ts_count=top_students|length %}
-  <div class="card border-0 shadow-sm rounded-4 mb-4 dashboard-insight-card dashboard-insight-card--wide">
-    <div class="card-body dashboard-card-body dashboard-insight-card-inner d-flex flex-column">
-      <div class="dashboard-insight-header flex-shrink-0">
-        <h2 class="h6 fw-semibold mb-2"><i class="bi bi-trophy me-2 text-warning"></i>Top performing students</h2>
-        {% if ts_count > 10 %}
-        <p class="small text-muted mb-0 dashboard-insight-count-hint">Showing 10 of {{ ts_count }} items · scroll for more</p>
-        {% endif %}
-      </div>
-      <div class="card-scroll dashboard-insight-scroll dashboard-insight-scroll--table flex-grow-1 min-h-0 mt-2">
-        <div class="table-responsive">
-          <table class="table table-sm table-hover align-middle mb-0">
-            <thead class="table-light"><tr><th>#</th><th>Student</th><th>Class</th><th class="text-end">Best %</th></tr></thead>
-            <tbody>
-              {% for item in top_students %}
-              <tr>
-                <td>{{ forloop.counter }}</td>
-                <td>{{ item.student.user.get_full_name|default:item.student.user.username }}</td>
-                <td>{% if item.student.classroom %}{{ item.student.classroom.name }}{% if item.student.section %}-{{ item.student.section.name }}{% endif %}{% else %}—{% endif %}</td>
-                <td class="text-end fw-medium">{{ item.percentage }}%</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-  {% endwith %}
-  {% endif %}
-
-  {# Quick actions — grouped SaaS-style cards #}
-  <div class="card border-0 shadow-sm rounded-4 quick-actions-panel">
-    <div class="card-body dashboard-card-body quick-actions-panel-body">
-      <div class="d-flex align-items-center gap-2 mb-4">
-        <div class="rounded-3 bg-primary bg-opacity-10 p-2 text-primary"><i class="bi bi-lightning-charge-fill"></i></div>
-        <div>
-          <h2 class="h5 fw-bold text-body mb-0">Quick actions</h2>
-          <p class="text-muted small mb-0">Jump to common tasks</p>
-        </div>
-      </div>
-
-      <section class="quick-actions-group mb-4">
-        <h3 class="quick-actions-group-title"><i class="bi bi-mortarboard me-2 text-primary"></i>Student management</h3>
-        <div class="quick-actions-grid">
-          <a href="{% url 'core:school_student_add' %}" class="quick-action-card qa-theme-student text-decoration-none">
-            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-person-plus"></i></span>
-            <span class="qa-title">Add student</span>
-            <span class="qa-desc">Register a new student</span>
-          </a>
-          <a href="{% url 'core:school_students_list' %}" class="quick-action-card qa-theme-student text-decoration-none">
-            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-people"></i></span>
-            <span class="qa-title">Student list</span>
-            <span class="qa-desc">Browse and manage students</span>
-          </a>
-          {% if attendance_enabled %}
-          <a href="{% url 'core:attendance_list' %}" class="quick-action-card qa-theme-attendance text-decoration-none">
-            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-calendar-check"></i></span>
-            <span class="qa-title">Mark attendance</span>
-            <span class="qa-desc">Record daily attendance</span>
-          </a>
-          {% endif %}
-          <a href="{% url 'core:school_promote_students' %}" class="quick-action-card qa-theme-student text-decoration-none">
-            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-arrow-up-circle"></i></span>
-            <span class="qa-title">Promote students</span>
-            <span class="qa-desc">Move classes between years</span>
-          </a>
-        </div>
-      </section>
-
-      <section class="quick-actions-group mb-4">
-        <h3 class="quick-actions-group-title"><i class="bi bi-journal-bookmark me-2 text-warning"></i>Academic management</h3>
-        <div class="quick-actions-grid">
-          {% if exams_enabled %}
-          <a href="{% url 'core:school_exam_create' %}" class="quick-action-card qa-theme-exam text-decoration-none">
-            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-calendar-plus"></i></span>
-            <span class="qa-title">Create exam</span>
-            <span class="qa-desc">Schedule papers and sessions</span>
-          </a>
-          <a href="{% url 'core:school_exams_list' %}" class="quick-action-card qa-theme-exam text-decoration-none">
-            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-pencil-square"></i></span>
-            <span class="qa-title">Exams &amp; marks</span>
-            <span class="qa-desc">View exams and enter marks</span>
-          </a>
-          {% endif %}
-          <a href="{% url 'core:school_subjects' %}" class="quick-action-card qa-theme-academic text-decoration-none">
-            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-book"></i></span>
-            <span class="qa-title">Subjects</span>
-            <span class="qa-desc">Manage curriculum subjects</span>
-          </a>
-          <a href="{% url 'core:school_class_add' %}" class="quick-action-card qa-theme-academic text-decoration-none">
-            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-building-add"></i></span>
-            <span class="qa-title">Add class</span>
-            <span class="qa-desc">Create a new class</span>
-          </a>
-          <a href="{% url 'core:school_section_add' %}" class="quick-action-card qa-theme-academic text-decoration-none">
-            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-layout-three-columns"></i></span>
-            <span class="qa-title">Add section</span>
-            <span class="qa-desc">Add a class section</span>
-          </a>
-          {% if request|feature_access:"timetable" %}
-          <a href="{% url 'timetable:school_timetable_index' %}" class="quick-action-card qa-theme-academic text-decoration-none">
-            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-calendar-week"></i></span>
-            <span class="qa-title">Master Schedule</span>
-            <span class="qa-desc">View and edit schedules</span>
-          </a>
-          {% endif %}
-          <a href="{% url 'core:school_academic_years' %}" class="quick-action-card qa-theme-academic text-decoration-none">
-            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-calendar3"></i></span>
-            <span class="qa-title">Academic years</span>
-            <span class="qa-desc">Years, terms, and setup</span>
-          </a>
-        </div>
-      </section>
-
-      <section class="quick-actions-group mb-0">
-        <h3 class="quick-actions-group-title"><i class="bi bi-shield-check me-2 text-indigo-qa"></i>Administration</h3>
-        <div class="quick-actions-grid">
-          <a href="{% url 'core:school_teacher_add' %}" class="quick-action-card qa-theme-teacher text-decoration-none">
-            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-person-workspace"></i></span>
-            <span class="qa-title">Add teacher</span>
-            <span class="qa-desc">Onboard a faculty member</span>
-          </a>
-          <a href="{% url 'core:school_teachers_list' %}" class="quick-action-card qa-theme-teacher text-decoration-none">
-            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-person-lines-fill"></i></span>
-            <span class="qa-title">Teachers</span>
-            <span class="qa-desc">Faculty directory and roles</span>
-          </a>
-          <a href="{% url 'reports:dashboard' %}" class="quick-action-card qa-theme-reports text-decoration-none">
-            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-bar-chart-line"></i></span>
-            <span class="qa-title">Analytics</span>
-            <span class="qa-desc">School analytics</span>
-          </a>
-          {% if fees_enabled %}
-          <a href="{% url 'core:school_fees_index' %}" class="quick-action-card qa-theme-fees text-decoration-none">
-            <span class="qa-icon-wrap" aria-hidden="true"><i class="bi bi-wallet2"></i></span>
-            <span class="qa-title">Billing</span>
-            <span class="qa-desc">Collection and structures</span>
-          </a>
-          {% endif %}
-        </div>
-      </section>
-    </div>
-  </div>
-</div>
-
-{{ class_distribution|json_script:"class-distribution-data" }}
-{{ attendance_trend|json_script:"attendance-trend-data" }}
 <style>
-  .hover-shadow:hover { box-shadow: 0 .5rem 1rem rgba(0,0,0,.08) !important; }
-
-  .admin-dashboard-page {
+  .sd-page {
+    --sd-blue: #1e3a8a;
+    --sd-purple: #6d28d9;
+    --sd-teal: #0d9488;
+    --sd-cyan: #0891b2;
+    --sd-radius: 18px;
     max-width: 100%;
   }
-
-  .dashboard-card-body {
-    padding: 1.5rem 1.5rem;
-  }
-  @media (min-width: 992px) {
-    .dashboard-card-body {
-      padding: 1.75rem 2rem;
-    }
-  }
-
-  .dashboard-kpi-grid {
-    display: grid;
-    gap: 1.25rem;
-    grid-template-columns: repeat(2, 1fr);
-  }
-  @media (min-width: 576px) {
-    .dashboard-kpi-grid {
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    }
-  }
-
-  .dashboard-stat-grid {
-    display: grid;
-    gap: 1.25rem;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  }
-
-  .dashboard-two-col-grid {
-    display: grid;
-    gap: 1.25rem;
-    grid-template-columns: 1fr;
+  .sd-bg {
+    background: linear-gradient(165deg, rgba(30, 58, 138, 0.06) 0%, rgba(109, 40, 217, 0.05) 40%, rgba(13, 148, 136, 0.06) 100%);
+    border-radius: var(--sd-radius);
+    padding: 1.25rem 1rem 2rem;
+    margin: -0.25rem -0.5rem 0;
   }
   @media (min-width: 768px) {
-    .dashboard-two-col-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+    .sd-bg { padding: 1.5rem 1.5rem 2.25rem; margin: 0; }
+  }
+  html.dark .sd-bg,
+  body.dark-mode .sd-bg {
+    background: linear-gradient(165deg, rgba(30, 58, 138, 0.15) 0%, rgba(109, 40, 217, 0.12) 50%, rgba(15, 23, 42, 0.5) 100%);
   }
 
-  .dashboard-charts-grid {
-    display: grid;
-    gap: 1.25rem;
-    grid-template-columns: 1fr;
+  .sd-welcome {
+    border-radius: var(--sd-radius);
+    padding: 1.35rem 1.35rem 1.5rem;
+    background: linear-gradient(120deg, #1e40af 0%, #5b21b6 45%, #0e7490 100%);
+    color: #fff;
+    box-shadow: 0 16px 40px -12px rgba(30, 64, 175, 0.45);
+    position: relative;
+    overflow: hidden;
   }
-  @media (min-width: 992px) {
-    .dashboard-charts-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+  .sd-welcome::after {
+    content: "";
+    position: absolute;
+    right: -20%;
+    top: -40%;
+    width: 55%;
+    height: 180%;
+    background: radial-gradient(circle, rgba(255,255,255,0.14) 0%, transparent 65%);
+    pointer-events: none;
   }
+  .sd-welcome h1 {
+    font-size: clamp(1.25rem, 2.5vw, 1.6rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.35rem;
+    position: relative;
+    z-index: 1;
+  }
+  .sd-welcome .sd-sub {
+    opacity: 0.92;
+    font-size: 0.95rem;
+    margin: 0 0 1rem;
+    position: relative;
+    z-index: 1;
+  }
+  .sd-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+    position: relative;
+    z-index: 1;
+  }
+  .sd-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 999px;
+    padding: 0.35rem 0.85rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+  .sd-pill i { opacity: 0.9; }
 
-  /* Insight row: stable grid + equal-height cards */
-  .dashboard-insights-grid {
+  .sd-kpi-grid {
     display: grid;
-    gap: 1.25rem;
+    gap: 1rem;
     grid-template-columns: repeat(2, 1fr);
-    align-items: stretch;
+    margin-top: 1.25rem;
   }
-  @media (min-width: 576px) {
-    .dashboard-insights-grid {
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    }
+  @media (min-width: 768px) {
+    .sd-kpi-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (min-width: 1200px) {
+    .sd-kpi-grid { grid-template-columns: repeat(6, 1fr); }
   }
 
-  .dashboard-insight-card {
+  .sd-kpi {
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(12px);
+    border-radius: var(--sd-radius);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+    padding: 1.1rem 1.15rem;
+    min-height: 118px;
     display: flex;
     flex-direction: column;
-    min-height: 300px;
-    max-height: 360px;
+    transition: transform 0.22s ease, box-shadow 0.22s ease;
+    text-decoration: none;
+    color: inherit;
+    position: relative;
     overflow: hidden;
   }
-  .dashboard-insight-card--static {
-    min-height: 300px;
-    max-height: 360px;
+  html.dark .sd-kpi,
+  body.dark-mode .sd-kpi {
+    background: rgba(30, 41, 59, 0.82);
+    border-color: rgba(148, 163, 184, 0.15);
   }
-  .dashboard-insight-card--wide {
-    max-height: 400px;
-    min-height: 260px;
+  .sd-kpi::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    border-radius: var(--sd-radius) var(--sd-radius) 0 0;
   }
-  .dashboard-insight-card .dashboard-insight-card-inner {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow: hidden;
+  .sd-kpi.t-blue::before { background: linear-gradient(90deg, #2563eb, #1d4ed8); }
+  .sd-kpi.t-purple::before { background: linear-gradient(90deg, #7c3aed, #6d28d9); }
+  .sd-kpi.t-teal::before { background: linear-gradient(90deg, #14b8a6, #0d9488); }
+  .sd-kpi.t-cyan::before { background: linear-gradient(90deg, #06b6d4, #0891b2); }
+  .sd-kpi.t-green::before { background: linear-gradient(90deg, #22c55e, #16a34a); }
+  .sd-kpi.t-orange::before { background: linear-gradient(90deg, #fb923c, #ea580c); }
+  .sd-kpi:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 14px 36px rgba(30, 64, 175, 0.12);
   }
-
-  .dashboard-insight-footer {
-    border-color: var(--bs-border-color) !important;
+  .sd-kpi-icon {
+    width: 2.65rem;
+    height: 2.65rem;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+    margin-bottom: 0.5rem;
   }
-
-  .card-scroll.dashboard-insight-scroll {
-    min-height: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding-right: 6px;
-    margin-right: -4px;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-gutter: stable;
+  .sd-kpi.t-blue .sd-kpi-icon { background: linear-gradient(135deg, rgba(37, 99, 235, 0.15), rgba(29, 78, 216, 0.1)); color: #1d4ed8; }
+  .sd-kpi.t-purple .sd-kpi-icon { background: linear-gradient(135deg, rgba(124, 58, 237, 0.15), rgba(109, 40, 217, 0.1)); color: #6d28d9; }
+  .sd-kpi.t-teal .sd-kpi-icon { background: linear-gradient(135deg, rgba(20, 184, 166, 0.18), rgba(13, 148, 136, 0.1)); color: #0f766e; }
+  .sd-kpi.t-cyan .sd-kpi-icon { background: linear-gradient(135deg, rgba(6, 182, 212, 0.18), rgba(8, 145, 178, 0.1)); color: #0e7490; }
+  .sd-kpi.t-green .sd-kpi-icon { background: linear-gradient(135deg, rgba(34, 197, 94, 0.18), rgba(22, 163, 74, 0.1)); color: #15803d; }
+  .sd-kpi.t-orange .sd-kpi-icon { background: linear-gradient(135deg, rgba(251, 146, 60, 0.2), rgba(234, 88, 12, 0.12)); color: #c2410c; }
+  .sd-kpi-val {
+    font-size: 1.65rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    color: var(--bs-body-color);
   }
-
-  .dashboard-insight-scroll--table {
-    max-height: 220px;
-  }
-
-  .card-scroll::-webkit-scrollbar {
-    width: 6px;
-  }
-  .card-scroll::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .card-scroll::-webkit-scrollbar-thumb {
-    background: #d0d7de;
-    border-radius: 10px;
-  }
-  html.dark .card-scroll::-webkit-scrollbar-thumb {
-    background: #475569;
-  }
-  .card-scroll {
-    scrollbar-width: thin;
-    scrollbar-color: #d0d7de transparent;
-  }
-  html.dark .card-scroll {
-    scrollbar-color: #475569 transparent;
-  }
-
-  .dashboard-insight-item {
-    padding: 10px 4px 10px 0;
-    border-bottom: 1px solid var(--bs-border-color-translucent);
-  }
-  .dashboard-insight-item:last-child {
-    border-bottom: none;
-  }
-  .list-group .dashboard-insight-item {
-    border-bottom: 1px solid var(--bs-border-color-translucent);
-  }
-
-  .dashboard-insight-count-hint {
-    font-size: 0.75rem;
-    line-height: 1.35;
-  }
-
-  .quick-actions-panel-body {
-    padding-bottom: 2rem;
-  }
-
-  .quick-actions-panel {
-    --qa-radius: 12px;
-    --qa-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
-    --qa-shadow-hover: 0 12px 28px rgba(0, 0, 0, 0.14);
-  }
-  html.dark .quick-actions-panel {
-    --qa-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
-    --qa-shadow-hover: 0 14px 36px rgba(0, 0, 0, 0.45);
-  }
-
-  .quick-actions-group-title {
-    font-size: 0.8rem;
+  .sd-kpi-label {
+    font-size: 0.68rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--bs-secondary-color);
-    margin-bottom: 0.875rem;
-    padding-bottom: 0.35rem;
-    border-bottom: 1px solid var(--bs-border-color);
+    margin-top: 0.15rem;
   }
-  .text-indigo-qa { color: #6366f1 !important; }
-  html.dark .text-indigo-qa { color: #818cf8 !important; }
+  .sd-kpi-hint {
+    font-size: 0.72rem;
+    color: var(--bs-secondary-color);
+    margin-top: auto;
+    padding-top: 0.35rem;
+  }
 
-  .quick-actions-grid {
+  .sd-card {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(14px);
+    border-radius: var(--sd-radius);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+    padding: 1.25rem 1.35rem;
+    height: 100%;
+  }
+  html.dark .sd-card,
+  body.dark-mode .sd-card {
+    background: rgba(30, 41, 59, 0.85);
+    border-color: rgba(148, 163, 184, 0.14);
+  }
+  .sd-card h3 {
+    font-size: 0.95rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .sd-card .sd-chart-h {
+    color: var(--bs-body-color);
+  }
+  .sd-card p.sd-muted {
+    font-size: 0.8rem;
+    color: var(--bs-secondary-color);
+    margin: 0 0 1rem;
+  }
+
+  .sd-chart-box { height: 260px; position: relative; }
+  .sd-chart-box.sm { height: 220px; }
+
+  .sd-charts-row {
     display: grid;
-    gap: 1.25rem;
+    gap: 1.15rem;
+    grid-template-columns: 1fr;
+    margin-top: 1.25rem;
+  }
+  @media (min-width: 992px) {
+    .sd-charts-row { grid-template-columns: 1fr 1fr; }
+  }
+
+  .sd-empty-setup {
+    border-radius: var(--sd-radius);
+    border: 2px dashed rgba(99, 102, 241, 0.35);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.06), rgba(14, 165, 233, 0.05));
+    padding: 2rem 1.5rem;
+    text-align: center;
+    margin-top: 1.25rem;
+  }
+  .sd-empty-setup h2 { font-size: 1.15rem; font-weight: 800; margin-bottom: 0.5rem; }
+  .sd-empty-setup p { color: var(--bs-secondary-color); max-width: 28rem; margin: 0 auto 1rem; }
+
+  .sd-qa-grid {
+    display: grid;
+    gap: 0.85rem;
     grid-template-columns: repeat(2, 1fr);
   }
-  @media (min-width: 768px) {
-    .quick-actions-grid {
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    }
+  @media (min-width: 576px) {
+    .sd-qa-grid { grid-template-columns: repeat(3, 1fr); }
   }
-  @media (min-width: 1200px) {
-    .quick-actions-grid {
-      grid-template-columns: repeat(4, 1fr);
-    }
+  @media (min-width: 992px) {
+    .sd-qa-grid { grid-template-columns: repeat(6, 1fr); }
   }
-
-  .quick-action-card {
+  .sd-qa {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    text-align: left;
-    background: var(--bs-body-bg);
-    color: var(--bs-body-color);
-    border-radius: var(--qa-radius);
-    padding: 1.15rem 1.15rem 1.25rem;
-    box-shadow: var(--qa-shadow);
-    border: 1px solid var(--bs-border-color-translucent);
-    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.2s ease;
-    cursor: pointer;
-    min-height: 128px;
-    position: relative;
-    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 14px;
+    padding: 0.95rem 0.9rem;
+    min-height: 108px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s;
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.04);
   }
-  .quick-action-card::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    transition: opacity 0.25s ease;
-    pointer-events: none;
-    border-radius: inherit;
+  html.dark .sd-qa,
+  body.dark-mode .sd-qa {
+    background: rgba(30, 41, 59, 0.75);
   }
-  .quick-action-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--qa-shadow-hover);
-    border-color: rgba(0, 0, 0, 0.06);
+  .sd-qa:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 28px rgba(79, 70, 229, 0.12);
+    border-color: rgba(99, 102, 241, 0.35);
   }
-  html.dark .quick-action-card:hover {
-    border-color: rgba(255, 255, 255, 0.12);
+  .sd-qa i {
+    font-size: 1.4rem;
+    margin-bottom: 0.4rem;
+    background: linear-gradient(135deg, #4f46e5, #0891b2);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
-  .quick-action-card:hover::before {
-    opacity: 1;
-  }
-  .quick-action-card:hover .qa-icon-wrap i {
-    transform: scale(1.1);
-  }
-  .quick-action-card:focus-visible {
-    outline: 2px solid var(--bs-primary);
-    outline-offset: 2px;
-  }
+  .sd-qa span { font-weight: 700; font-size: 0.82rem; line-height: 1.25; }
 
-  .qa-icon-wrap {
-    width: 2.75rem;
-    height: 2.75rem;
+  .sd-feed {
+    max-height: 340px;
+    overflow-y: auto;
+    padding-right: 6px;
+  }
+  .sd-feed-item {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.65rem 0;
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+    font-size: 0.86rem;
+  }
+  .sd-feed-item:last-child { border-bottom: none; }
+  .sd-feed-ico {
+    width: 2.25rem;
+    height: 2.25rem;
     border-radius: 10px;
-    display: inline-flex;
+    display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.35rem;
-    margin-bottom: 0.65rem;
-    transition: transform 0.25s ease;
+    flex-shrink: 0;
+    font-size: 1rem;
   }
-  .qa-icon-wrap i {
-    display: block;
-    transition: transform 0.25s ease;
-  }
-  .qa-title {
-    font-weight: 700;
-    font-size: 0.95rem;
-    line-height: 1.25;
-    margin-bottom: 0.25rem;
-    color: inherit;
-  }
-  .qa-desc {
-    font-size: 0.78rem;
-    line-height: 1.35;
+  .sd-feed-ico.primary { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
+  .sd-feed-ico.purple { background: rgba(124, 58, 237, 0.12); color: #6d28d9; }
+  .sd-feed-ico.warning { background: rgba(245, 158, 11, 0.15); color: #c2410c; }
+  .sd-feed-ico.success { background: rgba(34, 197, 94, 0.12); color: #15803d; }
+  .sd-feed-ico.info { background: rgba(6, 182, 212, 0.12); color: #0e7490; }
+  .sd-feed-ico.teal { background: rgba(13, 148, 136, 0.14); color: #0f766e; }
+  .sd-time {
+    font-size: 0.72rem;
     color: var(--bs-secondary-color);
-    margin: 0;
+    white-space: nowrap;
   }
 
-  /* Theme accents: icon chip + hover glow */
-  .qa-theme-student .qa-icon-wrap {
-    background: linear-gradient(135deg, rgba(79, 140, 255, 0.2), rgba(122, 168, 255, 0.28));
-    color: #2563eb;
+  .sd-side-widget {
+    border-radius: var(--sd-radius);
+    padding: 1.1rem 1.2rem;
+    margin-bottom: 1rem;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    background: rgba(255, 255, 255, 0.85);
   }
-  html.dark .qa-theme-student .qa-icon-wrap {
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(96, 165, 250, 0.2));
-    color: #93c5fd;
+  html.dark .sd-side-widget,
+  body.dark-mode .sd-side-widget {
+    background: rgba(30, 41, 59, 0.75);
   }
-  .qa-theme-student:hover::before {
-    background: radial-gradient(120% 80% at 100% 0%, rgba(79, 140, 255, 0.12), transparent 55%);
+  .sd-side-widget h4 {
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--bs-secondary-color);
+    margin: 0 0 0.5rem;
   }
-
-  .qa-theme-teacher .qa-icon-wrap {
-    background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(167, 139, 250, 0.28));
-    color: #7c3aed;
-  }
-  html.dark .qa-theme-teacher .qa-icon-wrap {
-    background: linear-gradient(135deg, rgba(139, 92, 246, 0.28), rgba(167, 139, 250, 0.15));
-    color: #c4b5fd;
-  }
-  .qa-theme-teacher:hover::before {
-    background: radial-gradient(120% 80% at 100% 0%, rgba(139, 92, 246, 0.12), transparent 55%);
-  }
-
-  .qa-theme-attendance .qa-icon-wrap {
-    background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(74, 222, 128, 0.25));
-    color: #15803d;
-  }
-  html.dark .qa-theme-attendance .qa-icon-wrap {
-    background: linear-gradient(135deg, rgba(34, 197, 94, 0.25), rgba(74, 222, 128, 0.12));
-    color: #86efac;
-  }
-  .qa-theme-attendance:hover::before {
-    background: radial-gradient(120% 80% at 100% 0%, rgba(34, 197, 94, 0.12), transparent 55%);
-  }
-
-  .qa-theme-exam .qa-icon-wrap {
-    background: linear-gradient(135deg, rgba(249, 115, 22, 0.22), rgba(251, 146, 60, 0.28));
-    color: #c2410c;
-  }
-  html.dark .qa-theme-exam .qa-icon-wrap {
-    background: linear-gradient(135deg, rgba(249, 115, 22, 0.28), rgba(251, 146, 60, 0.15));
-    color: #fdba74;
-  }
-  .qa-theme-exam:hover::before {
-    background: radial-gradient(120% 80% at 100% 0%, rgba(249, 115, 22, 0.12), transparent 55%);
-  }
-
-  .qa-theme-academic .qa-icon-wrap {
-    background: linear-gradient(135deg, rgba(6, 182, 212, 0.18), rgba(34, 211, 238, 0.22));
-    color: #0e7490;
-  }
-  html.dark .qa-theme-academic .qa-icon-wrap {
-    background: linear-gradient(135deg, rgba(6, 182, 212, 0.25), rgba(34, 211, 238, 0.12));
-    color: #67e8f9;
-  }
-  .qa-theme-academic:hover::before {
-    background: radial-gradient(120% 80% at 100% 0%, rgba(6, 182, 212, 0.1), transparent 55%);
-  }
-
-  .qa-theme-reports .qa-icon-wrap {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.22), rgba(129, 140, 248, 0.28));
-    color: #4f46e5;
-  }
-  html.dark .qa-theme-reports .qa-icon-wrap {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(129, 140, 248, 0.15));
-    color: #a5b4fc;
-  }
-  .qa-theme-reports:hover::before {
-    background: radial-gradient(120% 80% at 100% 0%, rgba(99, 102, 241, 0.12), transparent 55%);
-  }
-
-  .qa-theme-fees .qa-icon-wrap {
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(52, 211, 153, 0.25));
-    color: #047857;
-  }
-  html.dark .qa-theme-fees .qa-icon-wrap {
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.28), rgba(52, 211, 153, 0.12));
-    color: #6ee7b7;
-  }
-  .qa-theme-fees:hover::before {
-    background: radial-gradient(120% 80% at 100% 0%, rgba(16, 185, 129, 0.1), transparent 55%);
-  }
+  .hover-shadow:hover { box-shadow: 0 .5rem 1rem rgba(0,0,0,.08) !important; }
 </style>
+{% endblock %}
+
+{% block content %}
+<div class="sd-page w-100">
+  <div class="sd-bg">
+    {# Welcome #}
+    <div class="sd-welcome mb-0">
+      <h1>Welcome back, {{ admin_display_name }} <span aria-hidden="true">👋</span></h1>
+      <p class="sd-sub mb-0">Here&apos;s what&apos;s happening in your school today</p>
+      <div class="sd-meta-row">
+        <span class="sd-pill"><i class="bi bi-calendar3"></i> {% now "l, F j, Y" %}</span>
+        <span class="sd-pill"><i class="bi bi-mortarboard"></i> {{ active_academic_year_label|default:"—" }}</span>
+        {% if trial_active %}
+        <span class="sd-pill"><i class="bi bi-gift"></i> Plan: Free Trial{% if trial_days_left is not None %} · {{ trial_days_left }} day{% if trial_days_left != 1 %}s{% endif %} left{% endif %}</span>
+        {% elif current_plan %}
+        <span class="sd-pill"><i class="bi bi-check2-circle"></i> {% if plan_display_name %}{{ plan_display_name }}{% else %}{{ current_plan.name|title }}{% endif %}{% if current_plan.price_per_student and current_plan.price_per_student > 0 %} · ₹{{ current_plan.price_per_student|floatformat:0 }}/stu/mo{% endif %}</span>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if show_enrollment_welcome %}
+    <div class="alert border-0 rounded-4 shadow-sm mt-3 mb-0 py-4 px-4 position-relative overflow-hidden" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(14, 165, 233, 0.1) 50%, rgba(34, 197, 94, 0.08) 100%); border: 1px solid rgba(99, 102, 241, 0.2) !important;">
+      <div class="position-relative">
+        <h2 class="h5 fw-bold text-body mb-2">Welcome to EduManage ERP</h2>
+        <p class="text-muted small mb-3 mb-md-4">Your school workspace is ready. You&apos;re on a <strong>14-day trial</strong> with full access.</p>
+        <div class="row g-3">
+          <div class="col-6 col-md-4 col-lg">
+            <a href="{% url 'core:school_academic_years' %}" class="text-decoration-none text-reset d-block h-100">
+              <div class="card border-0 shadow-sm h-100 rounded-3 hover-shadow transition-all bg-white bg-opacity-90">
+                <div class="card-body p-3 text-center">
+                  <div class="text-primary mb-2"><i class="bi bi-calendar3 fs-4"></i></div>
+                  <div class="small fw-semibold">Academic year</div>
+                </div>
+              </div>
+            </a>
+          </div>
+          <div class="col-6 col-md-4 col-lg">
+            <a href="{% url 'core:school_classes' %}" class="text-decoration-none text-reset d-block h-100">
+              <div class="card border-0 shadow-sm h-100 rounded-3 hover-shadow transition-all bg-white bg-opacity-90">
+                <div class="card-body p-3 text-center">
+                  <div class="text-success mb-2"><i class="bi bi-grid-3x3-gap fs-4"></i></div>
+                  <div class="small fw-semibold">Classes</div>
+                </div>
+              </div>
+            </a>
+          </div>
+          <div class="col-6 col-md-4 col-lg">
+            <a href="{% url 'core:school_teachers_list' %}" class="text-decoration-none text-reset d-block h-100">
+              <div class="card border-0 shadow-sm h-100 rounded-3 hover-shadow transition-all bg-white bg-opacity-90">
+                <div class="card-body p-3 text-center">
+                  <div class="text-info mb-2"><i class="bi bi-person-badge fs-4"></i></div>
+                  <div class="small fw-semibold">Teachers</div>
+                </div>
+              </div>
+            </a>
+          </div>
+          <div class="col-6 col-md-4 col-lg">
+            <a href="{% url 'core:school_students_list' %}" class="text-decoration-none text-reset d-block h-100">
+              <div class="card border-0 shadow-sm h-100 rounded-3 hover-shadow transition-all bg-white bg-opacity-90">
+                <div class="card-body p-3 text-center">
+                  <div class="text-warning mb-2"><i class="bi bi-people fs-4"></i></div>
+                  <div class="small fw-semibold">Students</div>
+                </div>
+              </div>
+            </a>
+          </div>
+          <div class="col-6 col-md-4 col-lg">
+            <a href="{% url 'core:school_fee_structure' %}" class="text-decoration-none text-reset d-block h-100">
+              <div class="card border-0 shadow-sm h-100 rounded-3 hover-shadow transition-all bg-white bg-opacity-90">
+                <div class="card-body p-3 text-center">
+                  <div class="text-danger mb-2"><i class="bi bi-currency-rupee fs-4"></i></div>
+                  <div class="small fw-semibold">Fee structure</div>
+                </div>
+              </div>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# KPI row #}
+    <div class="sd-kpi-grid">
+      <a href="{% url 'core:school_students_list' %}" class="sd-kpi t-blue">
+        <div class="sd-kpi-icon"><i class="bi bi-people-fill"></i></div>
+        <div class="sd-kpi-val">{{ total_students }}</div>
+        <div class="sd-kpi-label">Students</div>
+        <div class="sd-kpi-hint">Total enrolled</div>
+      </a>
+      <a href="{% url 'core:school_teachers_list' %}" class="sd-kpi t-purple">
+        <div class="sd-kpi-icon"><i class="bi bi-person-badge-fill"></i></div>
+        <div class="sd-kpi-val">{{ total_teachers }}</div>
+        <div class="sd-kpi-label">Teachers</div>
+        <div class="sd-kpi-hint">Faculty on record</div>
+      </a>
+      <a href="{% url 'core:school_classes' %}" class="sd-kpi t-teal">
+        <div class="sd-kpi-icon"><i class="bi bi-grid-3x3-gap-fill"></i></div>
+        <div class="sd-kpi-val">{{ total_classes }}</div>
+        <div class="sd-kpi-label">Classes</div>
+        <div class="sd-kpi-hint">Grade levels</div>
+      </a>
+      <a href="{% url 'core:school_sections' %}" class="sd-kpi t-cyan">
+        <div class="sd-kpi-icon"><i class="bi bi-diagram-3-fill"></i></div>
+        <div class="sd-kpi-val">{{ total_sections }}</div>
+        <div class="sd-kpi-label">Sections</div>
+        <div class="sd-kpi-hint">Active sections</div>
+      </a>
+      {% if attendance_enabled %}
+      <a href="{% url 'core:attendance_list' %}" class="sd-kpi t-green">
+        <div class="sd-kpi-icon"><i class="bi bi-calendar-check"></i></div>
+        <div class="sd-kpi-val">{{ today_attendance_pct }}%</div>
+        <div class="sd-kpi-label">Attendance today</div>
+        <div class="sd-kpi-hint">Students present</div>
+      </a>
+      {% else %}
+      <a href="{% url 'core:school_subjects' %}" class="sd-kpi t-green">
+        <div class="sd-kpi-icon"><i class="bi bi-book-half"></i></div>
+        <div class="sd-kpi-val">{{ total_subjects }}</div>
+        <div class="sd-kpi-label">Subjects</div>
+        <div class="sd-kpi-hint">In master list</div>
+      </a>
+      {% endif %}
+      {% if fees_enabled %}
+      <a href="{% url 'core:school_fees_index' %}" class="sd-kpi t-orange">
+        <div class="sd-kpi-icon"><i class="bi bi-currency-rupee"></i></div>
+        <div class="sd-kpi-val">₹{{ fee_month_amt|inr:0 }}</div>
+        <div class="sd-kpi-label">Fees (month)</div>
+        <div class="sd-kpi-hint">Collected this month</div>
+      </a>
+      {% else %}
+      <div class="sd-kpi t-orange" style="cursor: default;">
+        <div class="sd-kpi-icon"><i class="bi bi-wallet2"></i></div>
+        <div class="sd-kpi-val">—</div>
+        <div class="sd-kpi-label">Fees</div>
+        <div class="sd-kpi-hint">Module not enabled</div>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if dashboard_sparse %}
+    <div class="sd-empty-setup">
+      <h2>No students yet</h2>
+      <p>Start by creating academic years, classes, and sections — then add students and teachers.</p>
+      <a href="{% url 'core:school_academic_years' %}" class="btn btn-primary btn-lg rounded-pill px-4 shadow-sm">Start setup</a>
+    </div>
+    {% endif %}
+
+    {# Charts: growth + fees #}
+    <div class="sd-charts-row">
+      <div class="sd-card">
+        <h3 class="sd-chart-h"><i class="bi bi-graph-up-arrow text-primary"></i> Student growth trend</h3>
+        <p class="sd-muted">New students admitted per month (last 6 months)</p>
+        <div class="sd-chart-box">
+          <canvas id="sdStudentGrowthChart" aria-label="Student growth chart"></canvas>
+        </div>
+      </div>
+      <div class="sd-card">
+        <h3 class="sd-chart-h"><i class="bi bi-bar-chart-line-fill text-success"></i> Fee collection overview</h3>
+        <p class="sd-muted">{% if fees_enabled %}Daily collection (last 7 days){% else %}Enable the fees module to track collections{% endif %}</p>
+        <div class="sd-chart-box">
+          <canvas id="sdFeeBarChart" aria-label="Fee collection chart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    {# Attendance trend full width #}
+    {% if attendance_enabled and show_attendance_trend %}
+    <div class="sd-card mt-3">
+      <h3 class="sd-chart-h"><i class="bi bi-activity text-teal" style="color: #0d9488 !important;"></i> Attendance trend</h3>
+      <p class="sd-muted">% of enrolled students marked present (last 7 days)</p>
+      <div class="sd-chart-box sm">
+        <canvas id="sdAttendanceChart" aria-label="Attendance trend chart"></canvas>
+      </div>
+    </div>
+    {% elif attendance_enabled %}
+    <div class="sd-card mt-3">
+      <h3 class="sd-chart-h"><i class="bi bi-activity text-teal" style="color: #0d9488 !important;"></i> Attendance trend</h3>
+      <p class="sd-muted mb-0">Mark attendance to see a trend for the last 7 days.</p>
+    </div>
+    {% endif %}
+
+    {# Quick actions #}
+    <div class="sd-card mt-3">
+      <h3 class="sd-chart-h mb-3"><i class="bi bi-lightning-charge-fill text-warning"></i> Quick actions</h3>
+      <div class="sd-qa-grid">
+        <a href="{% url 'core:school_student_add' %}" class="sd-qa"><i class="bi bi-person-plus"></i><span>Add student</span></a>
+        <a href="{% url 'core:school_teacher_add' %}" class="sd-qa"><i class="bi bi-person-workspace"></i><span>Add teacher</span></a>
+        <a href="{% url 'core:school_class_add' %}" class="sd-qa"><i class="bi bi-building-add"></i><span>Create class</span></a>
+        <a href="{% url 'core:school_section_add' %}" class="sd-qa"><i class="bi bi-layout-three-columns"></i><span>Create section</span></a>
+        <a href="{% url 'core:school_subject_add' %}" class="sd-qa"><i class="bi bi-journal-plus"></i><span>Add subject</span></a>
+        <a href="{% url 'core:school_fee_structure' %}" class="sd-qa"><i class="bi bi-currency-exchange"></i><span>Fee structure</span></a>
+      </div>
+    </div>
+
+    {# Recent activity + sidebar #}
+    <div class="row g-3 mt-1">
+      <div class="col-lg-8">
+        <div class="sd-card h-100">
+          <h3 class="sd-chart-h mb-2"><i class="bi bi-clock-history text-primary"></i> Recent activity</h3>
+          <p class="sd-muted">Latest changes across your school workspace</p>
+          {% if recent_activities %}
+          <div class="sd-feed">
+            {% for act in recent_activities %}
+            <div class="sd-feed-item">
+              <div class="sd-feed-ico {{ act.tone }}"><i class="bi {{ act.icon }}"></i></div>
+              <div class="flex-grow-1 min-w-0">
+                <div>{{ act.text }}</div>
+                <div class="sd-time">{{ act.ts|naturaltime }}</div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <p class="text-muted small mb-0">No recent activity yet. Add students, teachers, or classes to see updates here.</p>
+          {% endif %}
+        </div>
+      </div>
+      <div class="col-lg-4">
+        {% if fees_enabled %}
+        <div class="sd-side-widget">
+          <h4>Fee snapshot</h4>
+          <div class="small text-muted">Today</div>
+          <div class="fs-5 fw-bold">₹{{ fee_today_amt|inr:0 }}</div>
+          <div class="small text-muted mt-2">Pending dues</div>
+          <div class="fs-6 fw-bold {% if pending_fees > 0 %}text-warning{% endif %}">₹{{ pending_fees|inr:0 }}</div>
+        </div>
+        {% endif %}
+        {% if attendance_enabled %}
+        <div class="sd-side-widget">
+          <h4>Attendance today</h4>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="small text-muted">Students</span>
+            <span class="fw-bold">{{ today_attendance_pct }}%</span>
+          </div>
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="small text-muted">Staff</span>
+            <span class="fw-bold">{{ staff_attendance_pct }}%</span>
+          </div>
+        </div>
+        {% endif %}
+        <div class="sd-side-widget mb-0">
+          <h4>Academic year</h4>
+          <p class="mb-2 fw-bold">{{ active_academic_year_label }}</p>
+          <a href="{% url 'core:school_academic_years' %}" class="small fw-semibold">Manage years</a>
+        </div>
+      </div>
+    </div>
+
+    {# Optional: top students #}
+    {% if top_students %}
+    <div class="sd-card mt-3">
+      <h3 class="sd-chart-h mb-3"><i class="bi bi-trophy text-warning"></i> Top performing students</h3>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0">
+          <thead class="table-light"><tr><th>#</th><th>Student</th><th>Class</th><th class="text-end">Best %</th></tr></thead>
+          <tbody>
+            {% for item in top_students %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td>{{ item.student.user.get_full_name|default:item.student.user.username }}</td>
+              <td>{% if item.student.classroom %}{{ item.student.classroom.name }}{% if item.student.section %}-{{ item.student.section.name }}{% endif %}{% else %}—{% endif %}</td>
+              <td class="text-end fw-medium">{{ item.percentage }}%</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{{ student_growth_trend|json_script:"sd-student-growth-data" }}
+{{ fee_collection_daily|json_script:"sd-fee-daily-data" }}
+{{ attendance_trend|json_script:"sd-attendance-trend-data" }}
 <script>
 document.addEventListener("DOMContentLoaded", function() {
-  const isDark = document.documentElement.classList.contains("dark");
-  const textColor = isDark ? "#94a3b8" : "#64748b";
-  const gridColor = isDark ? "rgba(100,116,139,0.2)" : "rgba(148,163,184,0.3)";
+  const isDark = document.documentElement.classList.contains("dark") || document.body.classList.contains("dark-mode");
+  const tick = isDark ? "#94a3b8" : "#64748b";
+  const grid = isDark ? "rgba(100,116,139,0.18)" : "rgba(148,163,184,0.25)";
 
-  const classData = JSON.parse(document.getElementById("class-distribution-data")?.textContent || "[]");
-  const trendData = JSON.parse(document.getElementById("attendance-trend-data")?.textContent || "[]");
-
-  const classCtx = document.getElementById("classDistChart");
-  if (classCtx && classData.length) {
-    new Chart(classCtx, {
-      type: "bar",
+  const growthRaw = JSON.parse(document.getElementById("sd-student-growth-data")?.textContent || "[]");
+  const growthEl = document.getElementById("sdStudentGrowthChart");
+  if (growthEl && growthRaw.length) {
+    new Chart(growthEl, {
+      type: "line",
       data: {
-        labels: classData.map(function(d) { return d.label; }),
+        labels: growthRaw.map(function(d) { return d.label; }),
         datasets: [{
-          label: "Students",
-          data: classData.map(function(d) { return d.count; }),
-          backgroundColor: "rgba(13,110,253,0.45)",
-          borderColor: "#0d6efd",
-          borderWidth: 1
+          label: "New students",
+          data: growthRaw.map(function(d) { return d.count; }),
+          borderColor: "#4f46e5",
+          backgroundColor: "rgba(79, 70, 229, 0.12)",
+          fill: true,
+          tension: 0.35,
+          pointRadius: 4,
+          pointBackgroundColor: "#6366f1",
+          borderWidth: 2,
         }]
       },
       options: {
@@ -856,27 +634,58 @@ document.addEventListener("DOMContentLoaded", function() {
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          y: { beginAtZero: true, ticks: { color: textColor, precision: 0 }, grid: { color: gridColor } },
-          x: { ticks: { color: textColor }, grid: { color: gridColor } }
+          y: { beginAtZero: true, ticks: { color: tick, precision: 0 }, grid: { color: grid } },
+          x: { ticks: { color: tick, maxRotation: 35 }, grid: { color: grid } }
         }
       }
     });
   }
 
-  const trendCtx = document.getElementById("attendanceTrendChart");
-  if (trendCtx && trendData.length) {
-    new Chart(trendCtx, {
+  const feeRaw = JSON.parse(document.getElementById("sd-fee-daily-data")?.textContent || "[]");
+  const feeEl = document.getElementById("sdFeeBarChart");
+  if (feeEl && feeRaw.length) {
+    new Chart(feeEl, {
+      type: "bar",
+      data: {
+        labels: feeRaw.map(function(d) { return d.short + " " + d.label; }),
+        datasets: [{
+          label: "₹ collected",
+          data: feeRaw.map(function(d) { return d.amount; }),
+          backgroundColor: feeRaw.map(function(_, i) {
+            return "rgba(13, 148, 136, " + (0.35 + (i % 3) * 0.1) + ")";
+          }),
+          borderColor: "#0d9488",
+          borderWidth: 1,
+          borderRadius: 8,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { color: tick }, grid: { color: grid } },
+          x: { ticks: { color: tick, maxRotation: 45 }, grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  const attRaw = JSON.parse(document.getElementById("sd-attendance-trend-data")?.textContent || "[]");
+  const attEl = document.getElementById("sdAttendanceChart");
+  if (attEl && attRaw.length) {
+    new Chart(attEl, {
       type: "line",
       data: {
-        labels: trendData.map(function(d) { return d.short + " " + d.label; }),
+        labels: attRaw.map(function(d) { return d.short + " " + d.label; }),
         datasets: [{
           label: "% present",
-          data: trendData.map(function(d) { return d.pct; }),
+          data: attRaw.map(function(d) { return d.pct; }),
+          borderColor: "#0d9488",
+          backgroundColor: "rgba(13, 148, 136, 0.15)",
           fill: true,
-          backgroundColor: "rgba(25,135,84,0.15)",
-          borderColor: "#198754",
-          tension: 0.25,
-          pointRadius: 3
+          tension: 0.35,
+          pointRadius: 3,
         }]
       },
       options: {
@@ -887,10 +696,10 @@ document.addEventListener("DOMContentLoaded", function() {
           y: {
             beginAtZero: true,
             max: 100,
-            ticks: { color: textColor, callback: function(v) { return v + "%"; } },
-            grid: { color: gridColor }
+            ticks: { color: tick, callback: function(v) { return v + "%"; } },
+            grid: { color: grid }
           },
-          x: { ticks: { color: textColor, maxRotation: 45 }, grid: { color: gridColor } }
+          x: { ticks: { color: tick, maxRotation: 45 }, grid: { color: grid } }
         }
       }
     });

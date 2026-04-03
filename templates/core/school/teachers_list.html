@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Teachers | Campus ERP{% endblock %}
 {% block content %}
-<div class="container-fluid px-0">
+<div class="container-fluid px-0 teachers-list-page">
   <style>
     /* Match Students list: premium dashboard interactions */
     .teachers-stats-card {
@@ -60,21 +60,28 @@
       vertical-align: middle;
       border-bottom: 1px solid var(--erp-table-row-border);
     }
-    .erp-data-table tbody tr {
+    .teachers-list-page .teachers-table.erp-data-table tbody tr {
       cursor: pointer;
       transition: background-color 0.2s ease;
     }
-    .erp-data-table tbody tr:nth-child(even) {
-      background-color: #fafafa;
+    /* Alternating rows: light vs grey */
+    .teachers-list-page .teachers-table.erp-data-table tbody tr:nth-child(odd) {
+      background-color: #f8fafc;
     }
-    html.dark .erp-data-table tbody tr:nth-child(even) {
-      background-color: rgba(30, 41, 59, 0.45);
+    .teachers-list-page .teachers-table.erp-data-table tbody tr:nth-child(even) {
+      background-color: #e2e8f0;
     }
-    .erp-data-table tbody tr:hover {
-      background-color: #f9fafb !important;
+    html.dark .teachers-list-page .teachers-table.erp-data-table tbody tr:nth-child(odd) {
+      background-color: rgba(15, 23, 42, 0.45);
     }
-    html.dark .erp-data-table tbody tr:hover {
-      background-color: rgba(79, 70, 229, 0.10) !important;
+    html.dark .teachers-list-page .teachers-table.erp-data-table tbody tr:nth-child(even) {
+      background-color: rgba(51, 65, 85, 0.55);
+    }
+    .teachers-list-page .teachers-table.erp-data-table tbody tr:hover {
+      background-color: rgba(79, 70, 229, 0.12) !important;
+    }
+    html.dark .teachers-list-page .teachers-table.erp-data-table tbody tr:hover {
+      background-color: rgba(99, 102, 241, 0.22) !important;
     }
     .teachers-table.erp-data-table th:nth-child(3),
     .teachers-table.erp-data-table td:nth-child(3),
@@ -95,6 +102,50 @@
     .erp-data-table .teachers-actions-btn {
       width: 40px;
       height: 40px;
+    }
+
+    /* Assigned classes — single-line chips + overflow (enterprise table pattern) */
+    .teacher-classes-cell {
+      vertical-align: middle !important;
+      max-width: 240px;
+    }
+    .teacher-class-chips {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      gap: 6px;
+      max-width: 220px;
+      min-height: 28px;
+      overflow: hidden;
+    }
+    .teacher-class-chip {
+      flex-shrink: 0;
+      font-size: 13px;
+      line-height: 1.25;
+      padding: 4px 10px;
+      border-radius: 18px;
+      background: #eef2f7;
+      border: 1px solid #d5dbe3;
+      color: #334155;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    html.dark .teacher-class-chip:not(.teacher-class-chip--more) {
+      background: rgba(148, 163, 184, 0.14);
+      border-color: rgba(148, 163, 184, 0.28);
+      color: #e2e8f0;
+    }
+    .teacher-class-chip--more {
+      cursor: help;
+      background: rgba(79, 70, 229, 0.1);
+      border-color: rgba(79, 70, 229, 0.28);
+      color: #4338ca;
+      font-weight: 600;
+    }
+    html.dark .teacher-class-chip--more {
+      background: rgba(99, 102, 241, 0.22);
+      border-color: rgba(129, 140, 248, 0.35);
+      color: #c7d2fe;
     }
 
     .teachers-actions-btn {
@@ -130,39 +181,91 @@
       padding: 0.5rem 0.75rem;
     }
 
-    /* Same as Students: icon-only filter actions */
-    .students-filter-action-btn {
-      width: 42px;
-      height: 42px;
-      border-radius: 14px;
+    .teachers-actions-cell {
+      white-space: nowrap !important;
+      vertical-align: middle !important;
+    }
+    .teachers-actions-inline {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      border: 1px solid rgba(15, 23, 42, 0.12);
-      background: rgba(255, 255, 255, 0.90);
-      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
-      color: #0f172a;
-      text-decoration: none;
-      transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease;
-      user-select: none;
+      gap: 0.35rem;
+      flex-wrap: nowrap;
     }
-    .students-filter-action-btn:hover {
-      transform: translateY(-2px) scale(1.03);
-      box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
-      border-color: rgba(79, 70, 229, 0.25);
-      background: rgba(79, 70, 229, 0.06);
-      color: #1e293b;
+    .teachers-actions-inline .dropdown {
+      flex-shrink: 0;
     }
-    .students-filter-action-btn:focus-visible {
-      outline: 0;
-      box-shadow: 0 0 0 0.2rem rgba(79, 70, 229, 0.18), 0 14px 28px rgba(15, 23, 42, 0.12);
+
+    .teacher-avatar-initials {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      color: #fff;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      flex-shrink: 0;
     }
-    @media (max-width: 991.98px) {
-      .students-filter-action-btn {
-        width: 44px;
-        height: 44px;
-      }
+    html.dark .teacher-avatar-initials {
+      border-color: rgba(148, 163, 184, 0.25);
     }
+
+    .teachers-view-toggle .btn.active {
+      background: rgba(79, 70, 229, 0.12);
+      border-color: rgba(79, 70, 229, 0.35);
+      color: #4338ca;
+      font-weight: 600;
+    }
+    html.dark .teachers-view-toggle .btn.active {
+      background: rgba(99, 102, 241, 0.25);
+      border-color: rgba(129, 140, 248, 0.4);
+      color: #c7d2fe;
+    }
+
+    .teacher-browse-card {
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      border: 1px solid rgba(15, 23, 42, 0.08) !important;
+    }
+    .teacher-browse-card:hover {
+      border-color: rgba(79, 70, 229, 0.22) !important;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08) !important;
+    }
+    html.dark .teacher-browse-card {
+      border-color: rgba(148, 163, 184, 0.15) !important;
+    }
+    .teacher-browse-avatar {
+      width: 72px;
+      height: 72px;
+      border-radius: 16px;
+      object-fit: cover;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      flex-shrink: 0;
+    }
+    html.dark .teacher-browse-avatar {
+      border-color: rgba(148, 163, 184, 0.2);
+    }
+    .teacher-browse-avatar--initials {
+      width: 72px;
+      height: 72px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.125rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      color: #fff;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+    }
+    .teacher-browse-card .teacher-class-chips {
+      max-width: 100%;
+    }
+
   </style>
 
   <nav aria-label="breadcrumb" class="mb-3">
@@ -172,12 +275,30 @@
     </ol>
   </nav>
 
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
     <div>
       <h1 class="h4 fw-bold mb-0">Teachers</h1>
       <div class="text-muted small mt-1">Quick visibility + clean filters for teacher management.</div>
     </div>
-    <a href="{% url 'core:school_teacher_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Teacher</a>
+    <div class="d-flex align-items-center flex-wrap gap-2 ms-auto">
+      <div class="btn-group teachers-view-toggle" role="group" aria-label="Layout">
+        <a
+          href="{{ teachers_view_list_url }}"
+          class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 {% if view_mode == 'list' %}active{% endif %}"
+          title="Table list"
+        >
+          <i class="bi bi-list-ul"></i><span class="d-none d-sm-inline">List</span>
+        </a>
+        <a
+          href="{{ teachers_view_card_url }}"
+          class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 {% if view_mode == 'card' %}active{% endif %}"
+          title="Card grid"
+        >
+          <i class="bi bi-grid-3x3-gap"></i><span class="d-none d-sm-inline">Cards</span>
+        </a>
+      </div>
+      <a href="{% url 'core:school_teacher_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Teacher</a>
+    </div>
   </div>
 
   {% if stats %}
@@ -254,7 +375,8 @@
 
   <div class="card border-0 shadow-sm rounded-4 mb-4">
     <div class="card-body p-3 p-lg-4">
-      <form method="get" class="row g-2 align-items-end">
+      <form method="get" class="row g-3 g-lg-2 align-items-end erp-filter-toolbar">
+        <input type="hidden" name="view" value="{{ view_mode }}">
         <div class="col-12 col-lg-4">
           <label class="form-label small text-muted mb-1">Search</label>
           <input type="text" name="q" value="{{ filters.q|default:'' }}" class="form-control" placeholder="Name / username">
@@ -279,7 +401,7 @@
         <div class="col-12 col-lg-2 d-flex align-items-end gap-2 flex-nowrap">
           <button
             type="submit"
-            class="students-filter-action-btn"
+            class="erp-filter-icon-btn"
             data-bs-toggle="tooltip"
             data-bs-title="Apply Filters"
             aria-label="Apply Filters"
@@ -287,8 +409,8 @@
             <i class="bi bi-funnel"></i>
           </button>
           <a
-            class="students-filter-action-btn"
-            href="{% url 'core:school_teachers_list' %}"
+            class="erp-filter-icon-btn"
+            href="{% url 'core:school_teachers_list' %}?view={{ view_mode }}"
             data-bs-toggle="tooltip"
             data-bs-title="Clear Filters"
             aria-label="Clear Filters"
@@ -301,6 +423,24 @@
     </div>
   </div>
 
+  {% if not teachers %}
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+      {% if not has_active_filters %}
+      <div class="text-center py-5 px-4 rounded-4" style="background: linear-gradient(165deg, rgba(79, 70, 229, 0.06) 0%, rgba(14, 165, 233, 0.05) 45%, rgba(255, 255, 255, 0) 100%);">
+        <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3 shadow-sm" style="width: 4.5rem; height: 4.5rem; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 55%, #0ea5e9 100%);">
+          <span class="fs-2" role="img" aria-hidden="true">👩‍🏫</span>
+        </div>
+        <h2 class="h4 fw-bold mb-2" style="letter-spacing: -0.02em;">No Teachers Added Yet</h2>
+        <p class="text-muted mb-4 mx-auto" style="max-width: 26rem;">Start by adding teachers for your school. You can assign subjects and classes after each profile is created.</p>
+        <a href="{% url 'core:school_teacher_add' %}" class="btn btn-lg text-white shadow px-4 rounded-pill" style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #2563eb 100%); border: none;">
+          <i class="bi bi-plus-lg me-2"></i>Add First Teacher
+        </a>
+      </div>
+      {% else %}
+      <div class="card-body text-center text-muted py-5">No teachers match your filters.</div>
+      {% endif %}
+    </div>
+  {% elif view_mode == 'list' %}
   <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0 teachers-table erp-data-table">
@@ -314,7 +454,7 @@
             <th>Assigned Classes</th>
             <th>Phone</th>
             <th>Status</th>
-            <th class="text-center" style="width: 140px;">Actions</th>
+            <th class="text-center" style="min-width: 108px;">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -323,11 +463,9 @@
               <td class="text-center text-muted small">{{ forloop.counter }}</td>
               <td>
                 {% if t.profile_image %}
-                  <img src="{{ t.profile_image.url }}" class="rounded-circle border" style="width:40px;height:40px;object-fit:cover;" alt="Photo">
+                  <img src="{{ t.profile_image.url }}" class="rounded-circle border" style="width:40px;height:40px;object-fit:cover;" alt="">
                 {% else %}
-                  <div class="rounded-circle bg-light border d-flex align-items-center justify-content-center text-muted" style="width:40px;height:40px;">
-                    <i class="bi bi-person"></i>
-                  </div>
+                  <span class="teacher-avatar-initials" aria-hidden="true">{% if t.user.first_name and t.user.last_name %}{{ t.user.first_name|slice:":1"|upper }}{{ t.user.last_name|slice:":1"|upper }}{% elif t.user.first_name %}{{ t.user.first_name|slice:":2"|upper }}{% elif t.user.last_name %}{{ t.user.last_name|slice:":2"|upper }}{% else %}{{ t.user.username|slice:":2"|upper }}{% endif %}</span>
                 {% endif %}
               </td>
               <td>{{ t.employee_id|default:"—" }}</td>
@@ -338,58 +476,163 @@
               </td>
               <td>
                 {% for s in t.subjects.all %}
-                  <span class="badge bg-primary bg-opacity-25 text-primary me-1">{{ s.name }}</span>
+                  <span class="badge rounded-pill badge-erp badge-erp-primary me-1">{{ s.name }}</span>
                 {% empty %}
                   —
                 {% endfor %}
               </td>
-              <td>
-                {% for c in t.classrooms.all %}
-                  <span class="badge bg-secondary bg-opacity-25 text-secondary me-1">{{ c.name }}</span>
-                {% empty %}
-                  —
-                {% endfor %}
+              <td class="teacher-classes-cell">
+                {% with all_classes=t.classrooms.all %}
+                  {% if all_classes %}
+                    <div
+                      class="teacher-class-chips"
+                      title="{% for c in all_classes %}{{ c.name }}{% if not forloop.last %}, {% endif %}{% endfor %}"
+                    >
+                      {% for c in all_classes|slice:":2" %}
+                        <span class="teacher-class-chip">{{ c.name }}</span>
+                      {% endfor %}
+                      {% if all_classes|length > 2 %}
+                        {% with rest=all_classes|slice:"2:" %}
+                          <span
+                            class="teacher-class-chip teacher-class-chip--more"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            data-bs-title="{% for c in rest %}{{ c.name }}{% if not forloop.last %}, {% endif %}{% endfor %}"
+                          >+{{ all_classes|length|add:"-2" }}</span>
+                        {% endwith %}
+                      {% endif %}
+                    </div>
+                  {% else %}
+                    —
+                  {% endif %}
+                {% endwith %}
               </td>
               <td>{{ t.phone_number|default:"—" }}</td>
               <td>
                 {% if t.user.is_active %}
-                  <span class="badge rounded-pill text-bg-success">Active</span>
+                  <span class="badge rounded-pill badge-erp badge-erp-active">Active</span>
                 {% else %}
-                  <span class="badge rounded-pill text-bg-secondary">Inactive</span>
+                  <span class="badge rounded-pill badge-erp badge-erp-inactive">Inactive</span>
                 {% endif %}
               </td>
-              <td class="text-center" style="width: 200px;">
-                <a href="{% url 'core:school_teacher_view' t.id %}" class="teachers-actions-btn me-1 text-decoration-none text-body" title="View profile" aria-label="View profile"><i class="bi bi-eye"></i></a>
-                <div class="dropdown d-inline-block">
-                  <button class="teachers-actions-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Teacher actions">
-                    <i class="bi bi-gear"></i>
-                  </button>
-                  <ul class="dropdown-menu dropdown-menu-end teachers-actions-menu">
-                    <li><a class="dropdown-item" href="{% url 'core:school_teacher_view' t.id %}"><i class="bi bi-eye me-2"></i>View</a></li>
-                    <li><a class="dropdown-item" href="{% url 'core:school_teacher_edit' t.id %}"><i class="bi bi-pencil me-2"></i>Edit</a></li>
-                    <li><button class="dropdown-item" type="button" disabled><i class="bi bi-diagram-3 me-2"></i>Assign class</button></li>
-                    <li><hr class="dropdown-divider"></li>
-                    <li>
-                      <button
-                        type="button"
-                        class="dropdown-item text-danger"
-                        data-bs-toggle="modal"
-                        data-bs-target="#deleteTeacherModal"
-                        data-delete-url="{% url 'core:school_teacher_delete' t.id %}"
-                        data-teacher-name="{{ t.user.get_full_name|default:t.user.username }}"
-                      ><i class="bi bi-trash me-2"></i>Delete</button>
-                    </li>
-                  </ul>
+              <td class="text-center teachers-actions-cell">
+                <div class="teachers-actions-inline">
+                  <a href="{% url 'core:school_teacher_view' t.id %}" class="teachers-actions-btn text-decoration-none text-body" title="View profile" aria-label="View profile"><i class="bi bi-eye"></i></a>
+                  <div class="dropdown">
+                    <button class="teachers-actions-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Teacher actions">
+                      <i class="bi bi-gear"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end teachers-actions-menu">
+                      <li><a class="dropdown-item" href="{% url 'core:school_teacher_view' t.id %}"><i class="bi bi-eye me-2"></i>View</a></li>
+                      <li><a class="dropdown-item" href="{% url 'core:school_teacher_edit' t.id %}"><i class="bi bi-pencil me-2"></i>Edit</a></li>
+                      <li><button class="dropdown-item" type="button" disabled><i class="bi bi-diagram-3 me-2"></i>Assign class</button></li>
+                      <li><hr class="dropdown-divider"></li>
+                      <li>
+                        <button
+                          type="button"
+                          class="dropdown-item text-danger"
+                          data-bs-toggle="modal"
+                          data-bs-target="#deleteTeacherModal"
+                          data-delete-url="{% url 'core:school_teacher_delete' t.id %}"
+                          data-teacher-name="{{ t.user.get_full_name|default:t.user.username }}"
+                        ><i class="bi bi-trash me-2"></i>Delete</button>
+                      </li>
+                    </ul>
+                  </div>
                 </div>
               </td>
             </tr>
-          {% empty %}
-            <tr><td colspan="9" class="text-center text-muted py-4">No teachers found.</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   </div>
+  {% else %}
+  <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
+    {% for t in teachers %}
+      <div class="col">
+        <div class="card h-100 border-0 shadow-sm rounded-4 teacher-browse-card">
+          <div class="card-body d-flex gap-3">
+            <div class="flex-shrink-0">
+              {% if t.profile_image %}
+                <img src="{{ t.profile_image.url }}" class="teacher-browse-avatar" width="72" height="72" alt="">
+              {% else %}
+                <div class="teacher-browse-avatar--initials" aria-hidden="true">{% if t.user.first_name and t.user.last_name %}{{ t.user.first_name|slice:":1"|upper }}{{ t.user.last_name|slice:":1"|upper }}{% elif t.user.first_name %}{{ t.user.first_name|slice:":2"|upper }}{% elif t.user.last_name %}{{ t.user.last_name|slice:":2"|upper }}{% else %}{{ t.user.username|slice:":2"|upper }}{% endif %}</div>
+              {% endif %}
+            </div>
+            <div class="flex-grow-1 min-w-0">
+              <a class="text-decoration-none fw-semibold text-body d-block text-truncate" href="{% url 'core:school_teacher_view' t.id %}">{{ t.user.get_full_name|default:t.user.username }}</a>
+              <div class="small text-muted text-truncate">ID {{ t.employee_id|default:"—" }} · {{ t.phone_number|default:"—" }}</div>
+              <div class="small mt-2">
+                <span class="text-muted">Subjects:</span>
+                {% for s in t.subjects.all %}
+                  <span class="badge rounded-pill badge-erp badge-erp-primary me-1">{{ s.name }}</span>
+                {% empty %}
+                  <span class="text-muted">—</span>
+                {% endfor %}
+              </div>
+              <div class="small mt-1 teacher-classes-cell">
+                <span class="text-muted">Classes:</span>
+                {% with all_classes=t.classrooms.all %}
+                  {% if all_classes %}
+                    <div class="teacher-class-chips d-inline-flex mt-1" title="{% for c in all_classes %}{{ c.name }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+                      {% for c in all_classes|slice:":2" %}
+                        <span class="teacher-class-chip">{{ c.name }}</span>
+                      {% endfor %}
+                      {% if all_classes|length > 2 %}
+                        {% with rest=all_classes|slice:"2:" %}
+                          <span
+                            class="teacher-class-chip teacher-class-chip--more"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            data-bs-title="{% for c in rest %}{{ c.name }}{% if not forloop.last %}, {% endif %}{% endfor %}"
+                          >+{{ all_classes|length|add:"-2" }}</span>
+                        {% endwith %}
+                      {% endif %}
+                    </div>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                {% endwith %}
+              </div>
+              <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-3 pt-2 border-top border-slate-100 dark:border-slate-700">
+                <div>
+                  {% if t.user.is_active %}
+                    <span class="badge rounded-pill badge-erp badge-erp-active">Active</span>
+                  {% else %}
+                    <span class="badge rounded-pill badge-erp badge-erp-inactive">Inactive</span>
+                  {% endif %}
+                </div>
+                <div class="teachers-actions-inline">
+                  <a href="{% url 'core:school_teacher_view' t.id %}" class="teachers-actions-btn text-decoration-none text-body" title="View" aria-label="View profile"><i class="bi bi-eye"></i></a>
+                  <div class="dropdown">
+                    <button class="teachers-actions-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions"><i class="bi bi-gear"></i></button>
+                    <ul class="dropdown-menu dropdown-menu-end teachers-actions-menu">
+                      <li><a class="dropdown-item" href="{% url 'core:school_teacher_view' t.id %}"><i class="bi bi-eye me-2"></i>View</a></li>
+                      <li><a class="dropdown-item" href="{% url 'core:school_teacher_edit' t.id %}"><i class="bi bi-pencil me-2"></i>Edit</a></li>
+                      <li><button class="dropdown-item" type="button" disabled><i class="bi bi-diagram-3 me-2"></i>Assign class</button></li>
+                      <li><hr class="dropdown-divider"></li>
+                      <li>
+                        <button
+                          type="button"
+                          class="dropdown-item text-danger"
+                          data-bs-toggle="modal"
+                          data-bs-target="#deleteTeacherModal"
+                          data-delete-url="{% url 'core:school_teacher_delete' t.id %}"
+                          data-teacher-name="{{ t.user.get_full_name|default:t.user.username }}"
+                        ><i class="bi bi-trash me-2"></i>Delete</button>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
 
   <div class="modal fade" id="deleteTeacherModal" tabindex="-1" aria-labelledby="deleteTeacherModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">

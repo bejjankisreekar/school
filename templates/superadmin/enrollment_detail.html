@@ -18,9 +18,24 @@
       <div class="card-body">
         <h2 class="h6 fw-bold mb-3">Request details</h2>
         <dl class="row small mb-0">
+          <dt class="col-sm-4 text-muted">School code</dt><dd class="col-sm-8">{{ enrollment.institution_code|default:"—" }}</dd>
           <dt class="col-sm-4 text-muted">Contact</dt><dd class="col-sm-8">{{ enrollment.contact_name }}</dd>
           <dt class="col-sm-4 text-muted">Email</dt><dd class="col-sm-8">{{ enrollment.email }}</dd>
           <dt class="col-sm-4 text-muted">Phone</dt><dd class="col-sm-8">{{ enrollment.phone|default:"—" }}</dd>
+          <dt class="col-sm-4 text-muted">Address</dt><dd class="col-sm-8">{{ enrollment.address|default:"—"|linebreaksbr }}</dd>
+          <dt class="col-sm-4 text-muted">City / State / PIN</dt>
+          <dd class="col-sm-8">{{ enrollment.city|default:"" }}{% if enrollment.city and enrollment.state %}, {% endif %}{{ enrollment.state|default:"" }} {{ enrollment.pincode|default:"" }}</dd>
+          <dt class="col-sm-4 text-muted">Students / Teachers / Branches</dt>
+          <dd class="col-sm-8">
+            {% if enrollment.student_count is not None %}{{ enrollment.student_count }}{% else %}—{% endif %}
+            /
+            {% if enrollment.teacher_count is not None %}{{ enrollment.teacher_count }}{% else %}—{% endif %}
+            /
+            {% if enrollment.branch_count is not None %}{{ enrollment.branch_count }}{% else %}—{% endif %}
+          </dd>
+          <dt class="col-sm-4 text-muted">Preferred username</dt><dd class="col-sm-8">{{ enrollment.preferred_username|default:"—" }}</dd>
+          <dt class="col-sm-4 text-muted">Password</dt><dd class="col-sm-8 text-muted">Stored securely (hashed). Set final password when creating the admin user.</dd>
+          <dt class="col-sm-4 text-muted">Plan preference</dt><dd class="col-sm-8">{{ enrollment.intended_plan|default:"—" }}</dd>
           <dt class="col-sm-4 text-muted">Notes</dt><dd class="col-sm-8">{{ enrollment.notes|default:"—"|linebreaksbr }}</dd>
         </dl>
         {% if enrollment.school %}

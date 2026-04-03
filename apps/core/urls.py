@@ -141,6 +141,16 @@ urlpatterns = [
     # School Admin: Exam list and create
     path("school/exams/", views.school_exams_list, name="school_exams_list"),
     path("school/exams/create/", views.school_exam_create, name="school_exam_create"),
+    path(
+        "school/exams/session/<int:session_id>/edit/",
+        views.school_exam_session_edit,
+        name="school_exam_session_edit",
+    ),
+    path(
+        "school/exams/session/<int:session_id>/delete/",
+        views.school_exam_session_delete,
+        name="school_exam_session_delete",
+    ),
     path("school/exams/session/<int:session_id>/", views.school_exam_session_detail, name="school_exam_session_detail"),
     path(
         "school/exams/session/<int:session_id>/marks-lock-all/",

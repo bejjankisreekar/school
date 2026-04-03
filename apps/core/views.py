@@ -1,5 +1,5 @@
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, login as auth_login
 from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
 from django.core.files.storage import default_storage
@@ -14,13 +14,18 @@ from io import BytesIO
 import csv
 import json
 from urllib.parse import urlencode
+import logging
 from django.utils import timezone
 
+logger = logging.getLogger(__name__)
+
 from django.db import connection, transaction
-from django.db.models import Count, F, Max, Min, Prefetch, Q, Sum
+from django.db.models import Case, Count, F, IntegerField, Max, Min, Prefetch, Q, Sum, Value, When
+from django.db.models.functions import Lower
 from django.db.models.expressions import RawSQL
 from django.core.paginator import Paginator
 from django.db.utils import DatabaseError, InternalError, OperationalError, ProgrammingError
+from apps.core.tenant_scope import ensure_tenant_for_request
 from apps.customers.billing_engine import (
     ensure_invoice_for_period,
     record_invoice_payment,
@@ -33,6 +38,7 @@ from apps.customers.models import (
     SaaSPlatformPayment,
     School,
 )
+from apps.school_data.exam_session_compat import examsession_create_compat
 from apps.school_data.models import (
     Student,
     Teacher,
@@ -87,8 +93,10 @@ from .utils import (
 )
 from .forms import (
     ContactEnquiryForm,
+    ExamSessionPaperFormSet,
     SaaSPlatformPaymentForm,
     SchoolEnrollmentSignupForm,
+    SchoolExamSessionEditForm,
     SuperAdminEnrollmentDeclineForm,
     SuperAdminEnrollmentProvisionForm,
 )
@@ -119,21 +127,35 @@ def about(request):
     return render(request, "marketing/about.html")
 
 
+@transaction.non_atomic_requests
 def school_enrollment_signup(request):
-    """Public signup: stores a pending enrollment for super admin to provision a tenant schema."""
+    """
+    Public self-service signup: creates School (tenant + migrations), admin User, seeds tenant,
+    logs the user in, redirects to school admin dashboard.
+    """
+    from .enrollment_storage import ensure_school_enrollment_storage
+    from .self_service_enrollment import SelfServiceEnrollmentError, provision_school_and_admin_user
+
     success = request.GET.get("success") == "1"
+    enroll_generic_error = (
+        "We couldn't complete your enrollment right now. Please try again in a few moments, "
+        "or contact support if the problem continues."
+    )
     if request.method == "POST":
         form = SchoolEnrollmentSignupForm(request.POST)
         if form.is_valid():
+            ensure_school_enrollment_storage()
             try:
-                form.save()
-            except ProgrammingError:
-                form.add_error(
-                    None,
-                    "Enrollment storage is not initialized. Run: python manage.py ensure_school_enrollment_table",
-                )
+                _, user = provision_school_and_admin_user(form.cleaned_data)
+            except SelfServiceEnrollmentError as exc:
+                form.add_error(None, str(exc))
+            except Exception:
+                logger.exception("Self-service enrollment failed")
+                form.add_error(None, enroll_generic_error)
             else:
-                return redirect(f"{reverse('core:school_enroll')}?success=1")
+                auth_login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+                request.session["show_enrollment_welcome"] = True
+                return redirect("core:admin_dashboard")
     else:
         form = SchoolEnrollmentSignupForm()
     return render(request, "marketing/enroll.html", {"form": form, "success": success})
@@ -299,14 +321,52 @@ def superadmin_enrollment_detail(request, pk: int):
                     return redirect("core:superadmin_enrollments")
                 try:
                     connection.set_schema_to_public()
-                    school = provision_school_from_enrollment(
-                        institution_name=enrollment.institution_name,
-                        contact_email=enrollment.email,
-                        phone=enrollment.phone or "",
-                        address_notes=enrollment.notes or "",
-                        subscription_plan=sub,
-                        saas_plan=saas,
+                    addr_parts = []
+                    if (enrollment.address or "").strip():
+                        addr_parts.append(enrollment.address.strip())
+                    loc = ", ".join(
+                        x
+                        for x in [enrollment.city, enrollment.state, enrollment.pincode]
+                        if (x or "").strip()
                     )
+                    if loc:
+                        addr_parts.append(loc)
+                    meta_bits = []
+                    if (enrollment.institution_code or "").strip():
+                        meta_bits.append(f"Code: {enrollment.institution_code.strip()}")
+                    for label, val in (
+                        ("Students", enrollment.student_count),
+                        ("Teachers", enrollment.teacher_count),
+                        ("Branches", enrollment.branch_count),
+                    ):
+                        if val is not None:
+                            meta_bits.append(f"{label}: {val}")
+                    if (enrollment.preferred_username or "").strip():
+                        meta_bits.append(f"Preferred login: {enrollment.preferred_username.strip()}")
+                    if (enrollment.intended_plan or "").strip():
+                        meta_bits.append(f"Plan preference: {enrollment.intended_plan.strip()}")
+                    notes_tail = enrollment.notes or ""
+                    if meta_bits:
+                        notes_tail = (notes_tail + "\n\n" if notes_tail else "") + " · ".join(meta_bits)
+                    address_notes = "\n\n".join(p for p in [*addr_parts, notes_tail] if p).strip()
+                    from django.core.exceptions import ValidationError as ProvValidationError
+
+                    try:
+                        school = provision_school_from_enrollment(
+                            institution_name=enrollment.institution_name,
+                            contact_email=enrollment.email,
+                            phone=enrollment.phone or "",
+                            address_notes=address_notes,
+                            subscription_plan=sub,
+                            saas_plan=saas,
+                            school_code=(enrollment.institution_code or "").strip() or None,
+                        )
+                    except ProvValidationError as exc:
+                        messages.error(
+                            request,
+                            exc.messages[0] if getattr(exc, "messages", None) else str(exc),
+                        )
+                        return redirect("core:superadmin_enrollment_detail", pk=enrollment.pk)
                     mark_enrollment_provisioned(enrollment, school, request.user)
                     messages.success(
                         request,
@@ -1009,9 +1069,14 @@ def superadmin_billing_sales(request):
 def admin_dashboard(request):
     school = request.user.school
     empty_ctx = {
+        "school": None,
+        "show_enrollment_welcome": False,
         "current_plan": None,
         "plan_name": "",
+        "plan_display_name": None,
         "plan_features": [],
+        "trial_active": False,
+        "trial_days_left": None,
         "trial_expired": False,
         "total_students": 0,
         "total_teachers": 0,
@@ -1039,12 +1104,21 @@ def admin_dashboard(request):
         "attendance_trend": [],
         "show_class_chart": False,
         "show_attendance_trend": False,
+        "student_growth_trend": [],
+        "show_student_growth_chart": False,
+        "fee_collection_daily": [],
+        "show_fee_daily_chart": False,
+        "recent_activities": [],
+        "dashboard_sparse": True,
+        "admin_display_name": "",
         "today_iso": date.today().isoformat(),
     }
     if not school:
         return render(request, "core/dashboards/admin_dashboard.html", empty_ctx)
     if school.is_trial_expired():
         return render(request, "core/dashboards/trial_expired.html", {"school": school})
+
+    ensure_tenant_for_request(request)
 
     today = date.today()
     month_start = today.replace(day=1)
@@ -1238,23 +1312,178 @@ def admin_dashboard(request):
     else:
         show_attendance_trend = False
 
+    # Charts: student growth (last 6 months, new students per month) + fee bars (last 7 days)
+    months_pair = []
+    y, m = today.year, today.month
+    for _ in range(6):
+        months_pair.append((y, m))
+        m -= 1
+        if m == 0:
+            m = 12
+            y -= 1
+    months_pair.reverse()
+    student_growth_trend = []
+    for y, m in months_pair:
+        n_new = Student.objects.filter(
+            user__school=school,
+            created_on__year=y,
+            created_on__month=m,
+        ).count()
+        student_growth_trend.append(
+            {
+                "label": date(y, m, 1).strftime("%b %Y"),
+                "short": date(y, m, 1).strftime("%b"),
+                "count": n_new,
+            }
+        )
+    show_student_growth_chart = True
+
+    fee_collection_daily = []
+    for i in range(6, -1, -1):
+        d = today - timedelta(days=i)
+        amt = 0.0
+        if has_fees:
+            try:
+                amt = float(
+                    Payment.objects.filter(
+                        payment_date=d,
+                        fee__student__user__school=school,
+                    ).aggregate(s=Sum("amount"))["s"]
+                    or 0
+                )
+            except Exception:
+                amt = 0.0
+        fee_collection_daily.append(
+            {
+                "label": d.strftime("%d %b"),
+                "short": d.strftime("%a"),
+                "amount": amt,
+            }
+        )
+    show_fee_daily_chart = has_fees
+
+    # Recent activity feed (merged, sorted)
+    recent_activities = []
+    try:
+        for s in (
+            Student.objects.filter(user__school=school)
+            .select_related("user")
+            .order_by("-created_on")[:6]
+        ):
+            recent_activities.append(
+                {
+                    "ts": s.created_on,
+                    "icon": "bi-person-plus",
+                    "tone": "primary",
+                    "text": f"Student enrolled: {s.user.get_full_name() or s.user.username}",
+                }
+            )
+        for t in (
+            Teacher.objects.filter(user__school=school)
+            .select_related("user")
+            .order_by("-created_on")[:5]
+        ):
+            recent_activities.append(
+                {
+                    "ts": t.created_on,
+                    "icon": "bi-person-workspace",
+                    "tone": "purple",
+                    "text": f"Teacher added: {t.user.get_full_name() or t.user.username}",
+                }
+            )
+        for sec in Section.objects.order_by("-created_on")[:4]:
+            recent_activities.append(
+                {
+                    "ts": sec.created_on,
+                    "icon": "bi-diagram-3",
+                    "tone": "warning",
+                    "text": f"Section created: {sec.name}",
+                }
+            )
+        for cr in ClassRoom.objects.order_by("-created_on")[:4]:
+            recent_activities.append(
+                {
+                    "ts": cr.created_on,
+                    "icon": "bi-grid-3x3-gap",
+                    "tone": "success",
+                    "text": f"Class created: {cr.name}",
+                }
+            )
+        for subj in Subject.objects.order_by("-created_on")[:4]:
+            recent_activities.append(
+                {
+                    "ts": subj.created_on,
+                    "icon": "bi-book",
+                    "tone": "info",
+                    "text": f"Subject added: {subj.name}",
+                }
+            )
+        if has_fees:
+            for pay in (
+                Payment.objects.filter(fee__student__user__school=school)
+                .select_related("fee__student__user")
+                .order_by("-created_on")[:6]
+            ):
+                recent_activities.append(
+                    {
+                        "ts": pay.created_on,
+                        "icon": "bi-currency-rupee",
+                        "tone": "teal",
+                        "text": f"Fee collected ₹{float(pay.amount):,.0f}",
+                    }
+                )
+    except Exception:
+        recent_activities = []
+    recent_activities.sort(key=lambda x: x["ts"], reverse=True)
+    recent_activities = recent_activities[:14]
+
+    dashboard_sparse = (
+        total_students == 0
+        and total_teachers == 0
+        and total_classes == 0
+        and total_sections == 0
+    )
+
     from apps.customers.subscription import PLAN_FEATURES
 
+    sub_plan = school.plan
+    trial_active = (
+        school.school_status == School.SchoolStatus.TRIAL
+        and sub_plan
+        and (sub_plan.name or "").lower() == "trial"
+        and school.trial_end_date
+        and school.trial_end_date >= today
+    )
+    trial_days_left = None
+    if trial_active and school.trial_end_date:
+        trial_days_left = max((school.trial_end_date - today).days, 0)
+
     saas = school.saas_plan
-    if saas:
+    plan_display_name = None
+    if trial_active:
+        current_plan = sub_plan
+        plan_name = "trial"
+        plan_display_name = "Free Trial"
+        plan_features = list(
+            dict.fromkeys(PLAN_FEATURES.get("pro", []) + PLAN_FEATURES.get("basic", []))
+        )
+    elif saas:
         current_plan = saas
         plan_name = (saas.name or "").lower()
         plan_features = list(saas.features.values_list("code", flat=True))
     else:
-        sub = school.plan
-        plan_name = (sub.name if sub else "").lower() or "basic"
+        plan_name = (sub_plan.name if sub_plan else "").lower() or "basic"
         plan_features = PLAN_FEATURES.get(plan_name, [])
-        current_plan = sub
+        current_plan = sub_plan
+
+    show_enrollment_welcome = bool(request.session.pop("show_enrollment_welcome", False))
 
     return render(
         request,
         "core/dashboards/admin_dashboard.html",
         {
+            "school": school,
+            "show_enrollment_welcome": show_enrollment_welcome,
             "total_students": total_students,
             "total_teachers": total_teachers,
             "today_attendance_pct": today_attendance_pct,
@@ -1281,10 +1510,22 @@ def admin_dashboard(request):
             "attendance_trend": attendance_trend,
             "show_class_chart": show_class_chart,
             "show_attendance_trend": show_attendance_trend,
+            "student_growth_trend": student_growth_trend,
+            "show_student_growth_chart": show_student_growth_chart,
+            "fee_collection_daily": fee_collection_daily,
+            "show_fee_daily_chart": show_fee_daily_chart,
+            "recent_activities": recent_activities,
+            "dashboard_sparse": dashboard_sparse,
+            "admin_display_name": (request.user.get_full_name() or "").strip()
+            or getattr(request.user, "username", "")
+            or "Admin",
             "today_iso": today.isoformat(),
             "current_plan": current_plan,
             "plan_name": plan_name,
+            "plan_display_name": plan_display_name,
             "plan_features": plan_features,
+            "trial_active": trial_active,
+            "trial_days_left": trial_days_left,
             "trial_expired": school.is_trial_expired(),
         },
     )
@@ -1325,6 +1566,7 @@ def _homework_queryset_for_teacher(teacher, user):
     return (
         Homework.objects.filter(q)
         .distinct()
+        .defer("attachment")
         .select_related("subject", "assigned_by", "teacher", "teacher__user")
         .prefetch_related("classes", "sections")
         .order_by("-due_date", "-created_at")
@@ -1410,6 +1652,12 @@ def teacher_dashboard(request):
             Exam.objects.filter(_teacher_visible_exam_q(teacher))
             .filter(date__gte=today)
             .select_related("session", "subject", "teacher__user")
+            .defer(
+                "session__updated_at",
+                "session__display_order",
+                "session__modified_by",
+                "session__modified_at",
+            )
             .order_by("date", "subject__name")
         )
         upcoming_exams_count = uq.count()
@@ -1634,9 +1882,14 @@ def student_dashboard(request):
             subject_chart_labels.append(m.subject.name)
             subject_chart_data.append(pct)
 
-    # Homework from student's school
+    # Homework from student's school (attachment omitted in SELECT — column may be missing pre-migrate)
     if school:
-        homework = list(Homework.objects.all().select_related("subject").order_by("due_date")[:20])
+        homework = list(
+            Homework.objects.all()
+            .defer("attachment")
+            .select_related("subject")
+            .order_by("due_date")[:20]
+        )
     else:
         homework = []
 
@@ -2239,6 +2492,12 @@ def _student_exam_summaries(student):
     exam_marks = (
         Marks.objects.filter(student=student, exam__isnull=False)
         .select_related("exam", "exam__session", "subject")
+        .defer(
+            "exam__session__updated_at",
+            "exam__session__display_order",
+            "exam__session__modified_by",
+            "exam__session__modified_at",
+        )
     )
     by_session = {}
     standalone_by_exam = {}
@@ -2307,11 +2566,16 @@ def _student_exam_summaries(student):
         cn = student.classroom.name
         sn = student.section.name
         from_marks_session_ids = {e["session_id"] for e in exams if e.get("is_session") and e.get("session_id")}
-        scheduled = ExamSession.objects.filter(class_name__iexact=cn, section__iexact=sn).annotate(
-            paper_count=Count("papers", distinct=True),
-            dmin=Min("papers__date"),
-            dmax=Max("papers__date"),
-        ).filter(paper_count__gt=0)
+        scheduled = (
+            _examsession_queryset()
+            .filter(class_name__iexact=cn, section__iexact=sn)
+            .annotate(
+                paper_count=Count("papers", distinct=True),
+                dmin=Min("papers__date"),
+                dmax=Max("papers__date"),
+            )
+            .filter(paper_count__gt=0)
+        )
         if from_marks_session_ids:
             scheduled = scheduled.exclude(id__in=from_marks_session_ids)
         for sess in scheduled:
@@ -2400,6 +2664,22 @@ def student_exams_list(request):
     return render(request, "core/student/exams_list.html", {"exams": exams})
 
 
+def _examsession_queryset():
+    """Defer columns some tenant DBs lack until migrations 0039/0041/0043 are applied."""
+    return ExamSession.objects.defer(
+        "updated_at",
+        "display_order",
+        "modified_by",
+        "modified_at",
+    )
+
+
+def _can_manage_exam_session_admin_actions(user) -> bool:
+    """School admin and platform superadmin may edit/delete exam sessions (UI + API parity)."""
+    role = getattr(user, "role", None)
+    return role in (User.Roles.ADMIN, User.Roles.SUPERADMIN)
+
+
 @student_required
 def student_exam_session_detail(request, session_id):
     """Student: schedule + marks for all papers under one exam session."""
@@ -2409,7 +2689,7 @@ def student_exam_session_detail(request, session_id):
     if not student or not student.classroom or not student.section:
         raise PermissionDenied
     session_obj = get_object_or_404(
-        ExamSession.objects.select_related("classroom", "created_by"),
+        _examsession_queryset().select_related("classroom"),
         pk=session_id,
     )
     if (
@@ -2990,7 +3270,7 @@ def student_report_card_session_view(request, session_id):
     if not student:
         raise PermissionDenied
     session_obj = get_object_or_404(
-        ExamSession.objects.select_related("classroom", "created_by"),
+        _examsession_queryset().select_related("classroom"),
         pk=session_id,
     )
     if not student.classroom or not student.section:
@@ -3071,7 +3351,7 @@ def student_report_card_session_pdf(request, session_id):
     student = getattr(request.user, "student_profile", None)
     if not student:
         raise PermissionDenied
-    session_obj = get_object_or_404(ExamSession.objects.all(), pk=session_id)
+    session_obj = get_object_or_404(_examsession_queryset(), pk=session_id)
     if not student.classroom or not student.section:
         raise PermissionDenied
     if (
@@ -3330,6 +3610,20 @@ def school_students_list(request):
     sections = Section.objects.all().order_by("name")
     years = AcademicYear.objects.order_by("-start_date")
 
+    filters_active = any(
+        [
+            q,
+            admission,
+            roll,
+            classroom_id,
+            section_id,
+            academic_year_id,
+            gender,
+            status,
+            branch,
+        ]
+    )
+
     return render(request, "core/school/students_list.html", {
         "students": students,
         "classrooms": classrooms,
@@ -3337,6 +3631,7 @@ def school_students_list(request):
         "years": years,
         "stats": stats,
         "school": school,
+        "filters_active": filters_active,
         "filters": {
             "q": q,
             "admission": admission,
@@ -4046,6 +4341,18 @@ def school_teachers_list(request):
         "classroom": class_id,
         "status": status,
     }
+    has_active_filters = bool(
+        q or employee_id or subject_id or class_id or status
+    )
+
+    view_mode = (request.GET.get("view") or "list").strip().lower()
+    if view_mode not in ("list", "card"):
+        view_mode = "list"
+    params = request.GET.copy()
+    params["view"] = "list"
+    teachers_view_list_url = f"{request.path}?{params.urlencode()}"
+    params["view"] = "card"
+    teachers_view_card_url = f"{request.path}?{params.urlencode()}"
 
     return render(
         request,
@@ -4055,6 +4362,10 @@ def school_teachers_list(request):
             "stats": stats,
             "filters": filters,
             "filter_options": filter_options,
+            "has_active_filters": has_active_filters,
+            "view_mode": view_mode,
+            "teachers_view_list_url": teachers_view_list_url,
+            "teachers_view_card_url": teachers_view_card_url,
         },
     )
 
@@ -4230,18 +4541,45 @@ def school_sections(request):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     from django.core.paginator import Paginator
 
     qs = Section.objects.prefetch_related("classrooms").annotate(student_count=Count("students")).order_by("name")
+    total_sections = Section.objects.count()
     search = request.GET.get("q", "").strip()
     if search:
         qs = qs.filter(Q(name__icontains=search) | Q(description__icontains=search))
+
+    if request.GET.get("export") == "csv":
+        resp = HttpResponse(content_type="text/csv")
+        resp["Content-Disposition"] = 'attachment; filename="sections.csv"'
+        w = csv.writer(resp)
+        w.writerow(["Section Name", "Description", "Classes", "Total Students"])
+        for sec in qs:
+            classes = ", ".join(sec.classrooms.all().values_list("name", flat=True))
+            w.writerow([
+                sec.name,
+                (sec.description or "").replace("\n", " ").strip(),
+                classes,
+                sec.student_count,
+            ])
+        return resp
+
     paginator = Paginator(qs, 15)
     page = request.GET.get("page", 1)
     sections = paginator.get_page(page)
+    stats = None
+    if total_sections > 0:
+        stats = {
+            "total_sections": total_sections,
+            "total_students": Student.objects.count(),
+            "linked_classes": ClassRoom.objects.annotate(n=Count("sections")).filter(n__gt=0).count(),
+        }
     return render(request, "core/school/sections.html", {
         "sections": sections,
+        "total_sections": total_sections,
         "filters": {"q": search},
+        "stats": stats,
     })
 
 
@@ -4251,6 +4589,7 @@ def school_section_add(request):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     from .forms import SectionForm
 
     form = SectionForm(school, request.POST or None)
@@ -4266,6 +4605,7 @@ def school_section_edit(request, section_id):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     section = get_object_or_404(Section, id=section_id)
     from .forms import SectionForm
     form = SectionForm(school, request.POST or None, instance=section)
@@ -4282,6 +4622,7 @@ def school_section_delete(request, section_id):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     section = get_object_or_404(Section, id=section_id)
     if request.method != "POST":
         return redirect("core:school_sections")
@@ -4300,6 +4641,7 @@ def school_academic_years(request):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     from django.core.paginator import Paginator
 
     # PostgreSQL: clear aborted transaction state before running list queries.
@@ -4353,6 +4695,7 @@ def school_academic_year_add(request):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     from .forms import AcademicYearForm
 
     if request.method == "POST":
@@ -4381,6 +4724,7 @@ def school_academic_year_set_active(request, year_id):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     if request.method != "POST":
         return redirect("core:school_academic_years")
     ay = get_object_or_404(AcademicYear, id=year_id)
@@ -4395,6 +4739,7 @@ def school_academic_year_edit(request, year_id):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     ay = get_object_or_404(AcademicYear, id=year_id)
     from .forms import AcademicYearForm
     form = AcademicYearForm(request.POST or None, instance=ay)
@@ -4421,6 +4766,7 @@ def school_academic_year_delete(request, year_id):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     if request.method != "POST":
         return redirect("core:school_academic_years")
     ay = get_object_or_404(AcademicYear, id=year_id)
@@ -4498,6 +4844,7 @@ def school_promote_students(request):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     from .forms import PromoteStudentsFilterForm, PromoteStudentsActionForm
 
     filter_form = PromoteStudentsFilterForm(school, request.GET or None)
@@ -4659,6 +5006,7 @@ def school_year_end_promote(request):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     active_year = get_active_academic_year_obj()
     to_year_id = request.POST.get("to_year")
     to_year = AcademicYear.objects.filter(id=to_year_id).first() if to_year_id else None
@@ -4731,6 +5079,7 @@ def school_classes(request):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     from django.core.paginator import Paginator
 
     qs = ClassRoom.objects.all().select_related("academic_year").annotate(
@@ -4764,8 +5113,10 @@ def school_classes(request):
     page = request.GET.get("page", 1)
     classes = paginator.get_page(page)
     academic_years = AcademicYear.objects.all().order_by("-start_date")
+    total_classes = ClassRoom.objects.count()
     return render(request, "core/school/classes/list.html", {
         "classes": classes,
+        "total_classes": total_classes,
         "academic_years": academic_years,
         "filters": {"academic_year": academic_year_id, "q": search},
     })
@@ -4776,6 +5127,7 @@ def school_class_add(request):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     from .forms import ClassRoomForm
     form = ClassRoomForm(school, request.POST or None)
     if request.method == "POST" and form.is_valid():
@@ -4791,6 +5143,7 @@ def school_class_edit(request, class_id):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     classroom = get_object_or_404(ClassRoom, id=class_id)
     from .forms import ClassRoomForm
     form = ClassRoomForm(school, request.POST or None, instance=classroom)
@@ -4808,6 +5161,7 @@ def school_class_delete(request, class_id):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     if request.method != "POST":
         return redirect("core:school_classes")
     classroom = get_object_or_404(ClassRoom, id=class_id)
@@ -4829,9 +5183,11 @@ def school_subjects(request):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     from django.core.paginator import Paginator
 
     qs = Subject.objects.all().order_by("name")
+    total_subjects = Subject.objects.count()
     search = request.GET.get("q", "").strip()
     if search:
         qs = qs.filter(Q(name__icontains=search) | Q(code__icontains=search))
@@ -4840,6 +5196,7 @@ def school_subjects(request):
     subjects = paginator.get_page(page)
     return render(request, "core/school/subjects/list.html", {
         "subjects": subjects,
+        "total_subjects": total_subjects,
         "filters": {"q": search},
     })
 
@@ -4849,6 +5206,7 @@ def school_subject_add(request):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     from .forms import SubjectForm
     form = SubjectForm(school, request.POST or None)
     if request.method == "POST" and form.is_valid():
@@ -4863,6 +5221,7 @@ def school_subject_edit(request, subject_id):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     subject = get_object_or_404(Subject, id=subject_id)
     from .forms import SubjectForm
     form = SubjectForm(school, request.POST or None, instance=subject)
@@ -4879,6 +5238,7 @@ def school_subject_delete(request, subject_id):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     if request.method != "POST":
         return redirect("core:school_subjects")
     subject = get_object_or_404(Subject, id=subject_id)
@@ -5020,7 +5380,7 @@ def attendance_list(request):
         except (TypeError, ValueError):
             return None
 
-    def _redirect_with_params(cid, sid, d_str, q_str, focus_sid=None):
+    def _redirect_with_params(cid, sid, d_str, q_str, focus_sid=None, page=None, per_page=None):
         params = {"attendance_date": d_str}
         if cid:
             params["classroom_id"] = cid
@@ -5030,7 +5390,34 @@ def attendance_list(request):
             params["q"] = q_str
         if focus_sid:
             params["student_id"] = focus_sid
+        if page is not None and str(page).strip():
+            params["page"] = page
+        if per_page is not None and str(per_page).strip():
+            params["per_page"] = per_page
         return redirect(reverse("core:attendance_list") + "?" + urlencode(params))
+
+    def _parse_roll_per_page(raw):
+        if raw is None:
+            return "10"
+        s = str(raw).strip().lower()
+        if s == "all":
+            return "all"
+        try:
+            n = int(s)
+            if n in (10, 25, 50, 100):
+                return str(n)
+        except (TypeError, ValueError):
+            pass
+        return "10"
+
+    def _roll_per_page_int(param):
+        """Return page size for Paginator, or None for 'all'."""
+        if param == "all":
+            return None
+        try:
+            return int(param)
+        except (TypeError, ValueError):
+            return 10
 
     if request.method == "POST":
         classroom_id = _parse_int(request.POST.get("classroom_id"))
@@ -5038,23 +5425,41 @@ def attendance_list(request):
         date_str = request.POST.get("attendance_date", "").strip()
         search_q = request.POST.get("q", "").strip()
         post_focus_sid = _parse_int(request.POST.get("student_id"))
+        post_page = (request.POST.get("page") or "1").strip()
+        post_per_page = _parse_roll_per_page(request.POST.get("per_page"))
+
+        wants_json = (
+            request.headers.get("x-requested-with") == "XMLHttpRequest"
+            or "application/json" in (request.headers.get("accept") or "")
+        )
 
         if not classroom_id or not section_id or not date_str:
-            messages.error(request, "Please select class, section, and date before saving.")
+            msg = "Please select class, section, and date before saving."
+            if wants_json:
+                return JsonResponse({"ok": False, "message": "Failed to save attendance"}, status=400)
+            messages.error(request, msg)
             return redirect("core:attendance_list")
 
         try:
             att_date = date.fromisoformat(date_str)
         except (ValueError, TypeError):
+            if wants_json:
+                return JsonResponse({"ok": False, "message": "Failed to save attendance"}, status=400)
             messages.error(request, "Invalid attendance date.")
             return redirect("core:attendance_list")
 
         if att_date > today:
+            if wants_json:
+                return JsonResponse({"ok": False, "message": "Failed to save attendance"}, status=400)
             messages.error(request, "Cannot mark attendance for a future date.")
-            return _redirect_with_params(classroom_id, section_id, date_str, search_q, post_focus_sid)
+            return _redirect_with_params(
+                classroom_id, section_id, date_str, search_q, post_focus_sid, post_page, post_per_page
+            )
 
         classroom = ClassRoom.objects.filter(pk=classroom_id).first()
         if not classroom or not classroom.sections.filter(pk=section_id).exists():
+            if wants_json:
+                return JsonResponse({"ok": False, "message": "Failed to save attendance"}, status=400)
             messages.error(request, "Invalid class or section combination.")
             return redirect("core:attendance_list")
 
@@ -5070,12 +5475,16 @@ def attendance_list(request):
                 connection.rollback()
             except Exception:
                 pass
+            if wants_json:
+                return JsonResponse({"ok": False, "message": "Failed to save attendance"}, status=500)
             messages.error(
                 request,
                 "Student list could not be loaded (database schema may be outdated). Run "
                 f"{tenant_migrate_cli_hint(school)} then refresh.",
             )
-            return _redirect_with_params(classroom_id, section_id, date_str, search_q, post_focus_sid)
+            return _redirect_with_params(
+                classroom_id, section_id, date_str, search_q, post_focus_sid, post_page, post_per_page
+            )
         if search_q:
             sq = search_q.strip()
             stud_qs = stud_qs.filter(
@@ -5088,15 +5497,40 @@ def attendance_list(request):
         students = list(stud_qs)
 
         if not students:
+            if wants_json:
+                return JsonResponse({"ok": False, "message": "Failed to save attendance"}, status=400)
             messages.error(request, "No students match the current filters.")
-            return _redirect_with_params(classroom_id, section_id, date_str, search_q, post_focus_sid)
+            return _redirect_with_params(
+                classroom_id, section_id, date_str, search_q, post_focus_sid, post_page, post_per_page
+            )
+
+        submitted_student_ids = []
+        for key in request.POST:
+            if not key.startswith("status_"):
+                continue
+            try:
+                submitted_student_ids.append(int(key.replace("status_", "", 1)))
+            except ValueError:
+                continue
+        if not submitted_student_ids:
+            if wants_json:
+                return JsonResponse({"ok": False, "message": "Failed to save attendance"}, status=400)
+            messages.error(request, "No attendance rows to save.")
+            return _redirect_with_params(
+                classroom_id, section_id, date_str, search_q, post_focus_sid, post_page, post_per_page
+            )
+
+        students_by_id = {s.id: s for s in students}
 
         valid_status = set(Attendance.Status.values)
         active_ay = get_active_academic_year_obj()
 
         try:
             with transaction.atomic():
-                for student in students:
+                for sid in submitted_student_ids:
+                    student = students_by_id.get(sid)
+                    if not student:
+                        continue
                     status = request.POST.get(f"status_{student.id}", Attendance.Status.PRESENT)
                     if status not in valid_status:
                         status = Attendance.Status.PRESENT
@@ -5118,6 +5552,8 @@ def attendance_list(request):
                 pass
             err = (str(exc) or "").lower()
             if "academic_year" in err or "column" in err or "does not exist" in err:
+                if wants_json:
+                    return JsonResponse({"ok": False, "message": "Failed to save attendance"}, status=500)
                 messages.error(
                     request,
                     "Attendance could not be saved: this school’s database schema is missing newer columns "
@@ -5125,30 +5561,62 @@ def attendance_list(request):
                     f"{tenant_migrate_cli_hint(school)}",
                 )
             else:
+                if wants_json:
+                    return JsonResponse({"ok": False, "message": "Failed to save attendance"}, status=500)
                 messages.error(
                     request,
                     "Attendance could not be saved due to a database error. If this persists, run "
                     f"{tenant_migrate_cli_hint(school)} and try again.",
                 )
-            return _redirect_with_params(classroom_id, section_id, date_str, search_q, post_focus_sid)
+            return _redirect_with_params(
+                classroom_id, section_id, date_str, search_q, post_focus_sid, post_page, post_per_page
+            )
         except (InternalError, DatabaseError):
             # Do not call rollback() inside atomic(); outer handler after block exit.
             try:
                 connection.rollback()
             except Exception:
                 pass
+            if wants_json:
+                return JsonResponse({"ok": False, "message": "Failed to save attendance"}, status=500)
             messages.error(
                 request,
                 "Attendance could not be saved (database error—often a failed transaction or outdated schema). "
                 f"Run {tenant_migrate_cli_hint(school)} then try again.",
             )
-            return _redirect_with_params(classroom_id, section_id, date_str, search_q, post_focus_sid)
+            return _redirect_with_params(
+                classroom_id, section_id, date_str, search_q, post_focus_sid, post_page, post_per_page
+            )
 
+        try:
+            marked_ids = set(
+                Attendance.objects.filter(student__in=students, date=att_date).values_list(
+                    "student_id", flat=True
+                )
+            )
+        except (ProgrammingError, InternalError, DatabaseError):
+            marked_ids = set()
+
+        marked_total = len(marked_ids)
+        pending_total = max(0, len(students) - marked_total)
+
+        if wants_json:
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "message": "Attendance saved successfully",
+                    "marked_count": len(submitted_student_ids),
+                    "pending_count": pending_total,
+                    "summary": {"marked": marked_total, "pending": pending_total},
+                }
+            )
         messages.success(
             request,
-            f"Attendance saved for {len(students)} student(s) on {att_date}.",
+            f"Attendance saved for {len(submitted_student_ids)} student(s) on {att_date}.",
         )
-        return _redirect_with_params(classroom_id, section_id, date_str, search_q, post_focus_sid)
+        return _redirect_with_params(
+            classroom_id, section_id, date_str, search_q, post_focus_sid, post_page, post_per_page
+        )
 
     # GET
     focus_student = None
@@ -5194,7 +5662,15 @@ def attendance_list(request):
     future_date = att_date > today
 
     students_with_status = []
+    attendance_summary = {"marked": 0, "pending": 0}
+    attendance_state = None  # "marked" | "pending" | None
     section_valid_for_class = True
+    per_page_param = _parse_roll_per_page(request.GET.get("per_page"))
+    roll_call_total = 0
+    roll_call_page_obj = None
+    roll_call_paginator = None
+    roll_call_items = []
+    roll_call_qs_base = ""
     if classroom_id and section_id:
         classroom = ClassRoom.objects.filter(pk=classroom_id).first()
         if not classroom:
@@ -5240,13 +5716,99 @@ def attendance_list(request):
                     except Exception:
                         pass
                     att_map = {}
-                students_with_status = [
-                    {
-                        "student": s,
-                        "status": att_map.get(s.id, Attendance.Status.PRESENT),
-                    }
-                    for s in students
-                ]
+                # Cumulative attendance % (single aggregation; avoids N+1)
+                student_ids = [s.id for s in students]
+                active_ay_for_pct = get_active_academic_year_obj()
+                pct_map = {}
+                if student_ids:
+                    try:
+                        agg_qs = Attendance.objects.filter(student_id__in=student_ids)
+                        if active_ay_for_pct is not None:
+                            agg_qs = agg_qs.filter(academic_year_id=active_ay_for_pct.id)
+                        pct_map = {
+                            r["student_id"]: r
+                            for r in agg_qs.values("student_id").annotate(
+                                total_marked=Count("id"),
+                                present_days=Count("id", filter=Q(status=Attendance.Status.PRESENT)),
+                                absent_days=Count("id", filter=Q(status=Attendance.Status.ABSENT)),
+                                leave_days=Count("id", filter=Q(status=Attendance.Status.LEAVE)),
+                            )
+                        }
+                    except (ProgrammingError, InternalError, DatabaseError):
+                        try:
+                            connection.rollback()
+                        except Exception:
+                            pass
+                        pct_map = {}
+                students_with_status = []
+                marked = 0
+                for s in students:
+                    is_marked = s.id in att_map
+                    if is_marked:
+                        marked += 1
+                    att_pct = None
+                    att_pct_band = None
+                    att_tooltip = ""
+                    agg = pct_map.get(s.id)
+                    if agg and agg.get("total_marked"):
+                        present = int(agg["present_days"])
+                        total_m = int(agg["total_marked"])
+                        absent = int(agg["absent_days"])
+                        leave = int(agg["leave_days"])
+                        att_pct = round((present / total_m) * 100) if total_m else None
+                        if att_pct is not None:
+                            if att_pct >= 90:
+                                att_pct_band = "high"
+                            elif att_pct >= 75:
+                                att_pct_band = "mid"
+                            else:
+                                att_pct_band = "low"
+                        att_tooltip = (
+                            f"Present: {present} · Absent: {absent} · Leave: {leave} · Total marked: {total_m}"
+                        )
+                    students_with_status.append(
+                        {
+                            "student": s,
+                            "status": att_map.get(s.id, Attendance.Status.PRESENT),
+                            "is_marked": is_marked,
+                            "att_pct": att_pct,
+                            "att_pct_band": att_pct_band,
+                            "att_tooltip": att_tooltip,
+                        }
+                    )
+                attendance_summary = {"marked": marked, "pending": max(0, len(students) - marked)}
+                attendance_state = "marked" if marked > 0 else "pending"
+
+    roll_call_total = len(students_with_status)
+    if roll_call_total:
+        pp_int = _roll_per_page_int(per_page_param)
+        if pp_int is None:
+            paginator = Paginator(students_with_status, max(roll_call_total, 1))
+        else:
+            paginator = Paginator(students_with_status, pp_int)
+        roll_call_page_obj = paginator.get_page(request.GET.get("page"))
+        roll_call_paginator = paginator
+        _si = roll_call_page_obj.start_index
+        row_base = _si() if callable(_si) else _si
+        for idx, item in enumerate(roll_call_page_obj.object_list):
+            item["row_number"] = row_base + idx
+        roll_call_items = roll_call_page_obj.object_list
+
+    params_base = {"attendance_date": date_str, "per_page": per_page_param}
+    if classroom_id:
+        params_base["classroom_id"] = classroom_id
+    if section_id:
+        params_base["section_id"] = section_id
+    if search_q:
+        params_base["q"] = search_q
+    if focus_student_id:
+        params_base["student_id"] = focus_student_id
+    roll_call_qs_base = urlencode(params_base)
+
+    active_ay_ctx = get_active_academic_year_obj()
+    attendance_pct_scope_label = (
+        f"Active academic year ({active_ay_ctx.name})" if active_ay_ctx else "All recorded sessions"
+    )
 
     return render(
         request,
@@ -5258,10 +5820,19 @@ def attendance_list(request):
             "attendance_date": date_str,
             "search_q": search_q,
             "students_with_status": students_with_status,
+            "roll_call_items": roll_call_items,
+            "roll_call_total": roll_call_total,
+            "roll_call_page_obj": roll_call_page_obj,
+            "roll_call_paginator": roll_call_paginator,
+            "per_page_param": per_page_param,
+            "roll_call_qs_base": roll_call_qs_base,
+            "attendance_summary": attendance_summary,
+            "attendance_state": attendance_state,
             "future_date": future_date,
             "section_valid_for_class": section_valid_for_class,
             "status_choices": Attendance.Status.choices,
             "focus_student": focus_student,
+            "attendance_pct_scope_label": attendance_pct_scope_label,
         },
     )
 
@@ -5349,7 +5920,9 @@ def homework_list(request):
                 Homework.objects.filter(
                     classes=student.classroom,
                     sections=student.section,
-                ).prefetch_related("classes", "sections", "assigned_by")
+                )
+                .defer("attachment")
+                .prefetch_related("classes", "sections", "assigned_by")
             )
         mapped_subject_ids = list(
             ClassSectionSubjectTeacher.objects.filter(
@@ -5360,7 +5933,7 @@ def homework_list(request):
         # Legacy: homework tied to a subject assigned to this class+section
         hw_legacy = Homework.objects.filter(
             subject_id__in=mapped_subject_ids,
-        ).select_related("subject", "teacher", "teacher__user")
+        ).defer("attachment").select_related("subject", "teacher", "teacher__user")
         hw_ids_legacy = set(hw_legacy.values_list("id", flat=True))
         hw_new = [h for h in hw_class_section if h.id not in hw_ids_legacy]
         assignments_raw = list(hw_legacy) + hw_new
@@ -5455,7 +6028,9 @@ def student_homework_submit(request, homework_id):
         return redirect("core:homework_list")
 
     homework = get_object_or_404(
-        Homework.objects.prefetch_related("classes", "sections").select_related("subject"),
+        Homework.objects.defer("attachment")
+        .prefetch_related("classes", "sections")
+        .select_related("subject"),
         id=homework_id,
     )
     # Check access: new model (classes+sections) or legacy (subject)
@@ -5495,8 +6070,9 @@ def student_homework_submit(request, homework_id):
 
 
 def _school_homework_list_queryset(request):
+    # Omit attachment in SELECT when tenant DB predates migration 0037/0040 (column may be missing).
     qs = (
-        Homework.objects.all()
+        Homework.objects.defer("attachment")
         .prefetch_related("classes", "sections")
         .select_related("assigned_by", "subject", "teacher", "teacher__user")
         .order_by("-due_date", "-created_at")
@@ -5520,11 +6096,10 @@ def _homework_row_payload(hw, today):
     section_ids = [s.id for s in hw.sections.all()]
     classes_names = ", ".join(c.name for c in hw.classes.all())
     sections_names = ", ".join(s.name for s in hw.sections.all())
+    # Do not touch hw.attachment here: list queryset uses defer("attachment") and the column
+    # may be missing on some tenants — any SELECT for attachment aborts Postgres transactions.
     att_url = ""
     att_name = ""
-    if hw.attachment:
-        att_url = hw.attachment.url
-        att_name = hw.attachment.name.rsplit("/", 1)[-1]
     overdue = hw.due_date < today
     return {
         "id": hw.id,
@@ -5553,11 +6128,21 @@ def _school_homework_list_context(request, homework_list, homework_edit_form=Non
     payload = {str(hw.id): _homework_row_payload(hw, today) for hw in homework_list}
     edit_form = homework_edit_form if homework_edit_form is not None else HomeworkCreateForm(user=request.user)
     classroom_filter = (request.GET.get("classroom") or "").strip()
+    try:
+        classrooms = list(
+            ClassRoom.objects.select_related("academic_year").order_by(
+                "academic_year__start_date", "name"
+            )
+        )
+    except (ProgrammingError, InternalError, DatabaseError, OperationalError):
+        try:
+            connection.rollback()
+        except Exception:
+            pass
+        classrooms = []
     return {
         "homework_list": homework_list,
-        "classrooms": ClassRoom.objects.select_related("academic_year").order_by(
-            "academic_year__start_date", "name"
-        ),
+        "classrooms": classrooms,
         "filters": {"classroom": classroom_filter},
         "today": today,
         "homework_edit_form": edit_form,
@@ -5573,9 +6158,26 @@ def school_homework_list(request):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    try:
+        if getattr(connection, "needs_rollback", False):
+            connection.rollback()
+    except Exception:
+        pass
     qs, _ = _school_homework_list_queryset(request)
-    homework_list = list(qs)
+    try:
+        homework_list = list(qs)
+    except (ProgrammingError, InternalError, DatabaseError, OperationalError):
+        try:
+            connection.rollback()
+        except Exception:
+            pass
+        homework_list = []
     ctx = _school_homework_list_context(request, homework_list)
+    try:
+        if getattr(connection, "needs_rollback", False):
+            connection.rollback()
+    except Exception:
+        pass
     return render(request, "core/school/homework_list.html", ctx)
 
 
@@ -5587,7 +6189,7 @@ def school_homework_update(request, pk):
         return redirect("core:admin_dashboard")
     from .forms import HomeworkCreateForm
 
-    hw = get_object_or_404(Homework, pk=pk)
+    hw = get_object_or_404(Homework.objects.defer("attachment"), pk=pk)
     if request.method != "POST":
         return redirect("core:school_homework_list")
     form = HomeworkCreateForm(request.POST, request.FILES, instance=hw, user=request.user)
@@ -5613,7 +6215,7 @@ def school_homework_delete(request, pk):
         return redirect("core:admin_dashboard")
     if request.method != "POST":
         return redirect("core:school_homework_list")
-    hw = get_object_or_404(Homework, pk=pk)
+    hw = get_object_or_404(Homework.objects.defer("attachment"), pk=pk)
     title = hw.title
     hw.delete()
     messages.success(request, f'Homework "{title}" was deleted.')
@@ -5866,7 +6468,13 @@ def teacher_exams(request):
         qs = (
             Exam.objects.filter(_teacher_visible_exam_q(teacher))
             .distinct()
-            .select_related("session", "session__created_by", "subject", "teacher__user")
+            .select_related("session", "subject", "teacher__user")
+            .defer(
+                "session__updated_at",
+                "session__display_order",
+                "session__modified_by",
+                "session__modified_at",
+            )
         )
     else:
         qs = Exam.objects.none()
@@ -5874,39 +6482,33 @@ def teacher_exams(request):
     papers = list(qs.order_by("-session_id", "-date", "subject__name"))
     session_groups = []
     seen_session = set()
-    standalone_papers = []
     for p in papers:
-        if p.session_id:
-            if p.session_id in seen_session:
-                continue
-            seen_session.add(p.session_id)
-            sess = p.session
-            if not sess:
-                continue
-            sess_papers = [x for x in papers if x.session_id == p.session_id]
-            sess_papers.sort(key=lambda x: (x.date or date.min, x.subject_id or 0))
-            # Papers are already limited to this teacher via _teacher_visible_exam_q; do not
-            # gate again on _teacher_exam_session_access (can drop rows if checks diverge).
-            if sess_papers:
-                dts = [x.date for x in sess_papers if x.date]
-                session_groups.append({
-                    "session": sess,
-                    "papers": sess_papers,
-                    "date_min": min(dts) if dts else None,
-                    "date_max": max(dts) if dts else None,
-                })
-        else:
-            standalone_papers.append(p)
+        if not p.session_id:
+            continue
+        if p.session_id in seen_session:
+            continue
+        seen_session.add(p.session_id)
+        sess = p.session
+        if not sess:
+            continue
+        sess_papers = [x for x in papers if x.session_id == p.session_id]
+        sess_papers.sort(key=lambda x: (x.date or date.min, x.subject_id or 0))
+        if sess_papers:
+            dts = [x.date for x in sess_papers if x.date]
+            session_groups.append({
+                "session": sess,
+                "papers": sess_papers,
+                "date_min": min(dts) if dts else None,
+                "date_max": max(dts) if dts else None,
+            })
 
     session_groups.sort(key=lambda g: (g["session"].created_at, g["session"].pk), reverse=True)
-    standalone_papers.sort(key=lambda x: (x.date or date.min), reverse=True)
 
     return render(
         request,
         "core/teacher/exams.html",
         {
             "exam_session_groups": session_groups,
-            "standalone_papers": standalone_papers,
         },
     )
 
@@ -5922,7 +6524,7 @@ def teacher_exam_session_detail(request, session_id):
         return HttpResponseForbidden("This feature is not enabled for this school.")
     teacher = getattr(request.user, "teacher_profile", None)
     session_obj = get_object_or_404(
-        ExamSession.objects.select_related("classroom", "created_by"),
+        _examsession_queryset().select_related("classroom"),
         pk=session_id,
     )
     if not _teacher_exam_session_access(session_obj, school, teacher):
@@ -5943,12 +6545,35 @@ def teacher_exam_session_detail(request, session_id):
     )
 
 
+def _parse_iso_date_param(val):
+    if not val or not str(val).strip():
+        return None
+    try:
+        return date.fromisoformat(str(val).strip())
+    except (ValueError, TypeError):
+        return None
+
+
+def _exam_session_card_status(session, today):
+    """UI status for a session row (uses annotated paper_count / date_min / date_max)."""
+    pc = getattr(session, "paper_count", 0) or 0
+    dmin = getattr(session, "date_min", None)
+    dmax = getattr(session, "date_max", None) or dmin
+    if pc == 0 or dmin is None:
+        return "draft", "Draft"
+    if dmin > today:
+        return "upcoming", "Upcoming"
+    if dmax is not None and dmax < today:
+        return "completed", "Completed"
+    return "ongoing", "Ongoing"
+
+
 @admin_required
 @feature_required("exams")
 def school_exams_list(request):
     """
-    School Admin: exam sessions (multi-subject papers).
-    Filter by class, section, teacher, subject, search.
+    School Admin: exam sessions (grouped multi-subject papers).
+    Default order: latest paper dates first, then by session created time.
     """
     school = request.user.school
     if not school:
@@ -5960,24 +6585,37 @@ def school_exams_list(request):
     teacher_id = request.GET.get("teacher") or ""
     subject_id = request.GET.get("subject") or ""
     q = (request.GET.get("q") or "").strip()
+    ex_session = request.GET.get("ex_session") or ""
+    exam_status = (request.GET.get("exam_status") or "").strip().lower()
+    date_from_s = request.GET.get("date_from") or ""
+    date_to_s = request.GET.get("date_to") or ""
 
-    # Recover if a previous DB error left the connection in aborted state.
     try:
         if getattr(connection, "needs_rollback", False):
             connection.rollback()
     except Exception:
         pass
 
+    today = timezone.localdate()
     exam_sessions_enabled = True
+    exam_sessions = []
+    session_picklist = []
+
+    def _session_base_qs():
+        # Do not select_related("created_by"): INNER JOIN hides sessions if that user row is missing.
+        return _examsession_queryset().select_related("classroom")
+
+    def _attach_session_card_labels(rows):
+        for s in rows:
+            st_key, st_label = _exam_session_card_status(s, today)
+            s.card_status_key = st_key
+            s.card_status_label = st_label
+
     try:
-        session_qs = (
-            ExamSession.objects.select_related("created_by", "classroom")
-            .annotate(
-                paper_count=Count("papers", distinct=True),
-                date_min=Min("papers__date"),
-                date_max=Max("papers__date"),
-            )
-            .order_by("-created_at", "-id", "name", "class_name", "section")
+        session_qs = _session_base_qs().annotate(
+            paper_count=Count("papers", distinct=True),
+            date_min=Min("papers__date"),
+            date_max=Max("papers__date"),
         )
 
         if class_id:
@@ -6003,15 +6641,87 @@ def school_exams_list(request):
         if q:
             session_qs = session_qs.filter(name__icontains=q)
 
+        if ex_session.isdigit():
+            session_qs = session_qs.filter(pk=int(ex_session))
+
+        if exam_status in {"upcoming", "completed", "ongoing", "draft"}:
+            if exam_status == "draft":
+                session_qs = session_qs.filter(Q(paper_count=0) | Q(date_min__isnull=True))
+            elif exam_status == "upcoming":
+                session_qs = session_qs.filter(date_min__gt=today)
+            elif exam_status == "completed":
+                session_qs = session_qs.filter(date_max__lt=today).exclude(date_max__isnull=True)
+            elif exam_status == "ongoing":
+                session_qs = (
+                    session_qs.filter(date_min__lte=today)
+                    .filter(Q(date_max__gte=today) | Q(date_max__isnull=True))
+                    .exclude(date_min__isnull=True)
+                )
+
+        df = _parse_iso_date_param(date_from_s)
+        dt = _parse_iso_date_param(date_to_s)
+        if df and dt:
+            session_qs = session_qs.filter(date_max__gte=df, date_min__lte=dt)
+        elif df:
+            session_qs = session_qs.filter(date_max__gte=df)
+        elif dt:
+            session_qs = session_qs.filter(date_min__lte=dt)
+
+        session_qs = session_qs.order_by(
+            F("date_max").desc(nulls_last=True),
+            F("date_min").desc(nulls_last=True),
+            "-created_at",
+            "-id",
+        )
         exam_sessions = list(session_qs)
-    except (ProgrammingError, InternalError, DatabaseError):
-        # Tenant schema has not run the ExamSession/session_id migration yet.
-        exam_sessions_enabled = False
-        exam_sessions = []
+        _attach_session_card_labels(exam_sessions)
+
+        session_picklist = list(
+            _session_base_qs().order_by(Lower("name"), "id").values("id", "name")[:400]
+        )
+    except (ProgrammingError, InternalError, DatabaseError, OperationalError):
         try:
             connection.rollback()
         except Exception:
             pass
+        # Fallback: list sessions without paper aggregates (e.g. missing session_id on exam).
+        try:
+            fq = _session_base_qs()
+            if class_id:
+                try:
+                    classroom_obj = ClassRoom.objects.get(id=class_id)
+                    fq = fq.filter(class_name=classroom_obj.name)
+                except ClassRoom.DoesNotExist:
+                    fq = ExamSession.objects.none()
+            if section_id:
+                try:
+                    sec = Section.objects.get(id=section_id)
+                    fq = fq.filter(section__iexact=sec.name)
+                except Section.DoesNotExist:
+                    fq = ExamSession.objects.none()
+            if q:
+                fq = fq.filter(name__icontains=q)
+            if ex_session.isdigit():
+                fq = fq.filter(pk=int(ex_session))
+            fq = fq.order_by("-created_at", "-id")
+            exam_sessions = list(fq)
+            for s in exam_sessions:
+                s.paper_count = 0
+                s.date_min = None
+                s.date_max = None
+            _attach_session_card_labels(exam_sessions)
+            session_picklist = list(
+                _session_base_qs().order_by(Lower("name"), "id").values("id", "name")[:400]
+            )
+            exam_sessions_enabled = True
+        except (ProgrammingError, InternalError, DatabaseError, OperationalError):
+            exam_sessions_enabled = False
+            exam_sessions = []
+            session_picklist = []
+            try:
+                connection.rollback()
+            except Exception:
+                pass
 
     try:
         if getattr(connection, "needs_rollback", False):
@@ -6020,25 +6730,39 @@ def school_exams_list(request):
         pass
 
     try:
-        classrooms = ClassRoom.objects.all().order_by("name")
-        sections = Section.objects.all().order_by("name")
+        classrooms = list(ClassRoom.objects.all().order_by("name"))
+        sections = list(Section.objects.all().order_by("name"))
         teachers = (
-            Teacher.objects.filter(user__school=school).select_related("user").order_by(
-                "user__first_name", "user__last_name"
+            list(
+                Teacher.objects.filter(user__school=school)
+                .select_related("user")
+                .order_by("user__first_name", "user__last_name")
             )
             if school
-            else Teacher.objects.none()
+            else []
         )
-        subjects = Subject.objects.all().order_by("name")
-    except (ProgrammingError, InternalError, DatabaseError):
+        subjects = list(Subject.objects.all().order_by("name"))
+    except (ProgrammingError, InternalError, DatabaseError, OperationalError):
         try:
             connection.rollback()
         except Exception:
             pass
-        classrooms = ClassRoom.objects.none()
-        sections = Section.objects.none()
-        teachers = Teacher.objects.none()
-        subjects = Subject.objects.none()
+        classrooms = []
+        sections = []
+        teachers = []
+        subjects = []
+
+    filters_ctx = {
+        "classroom": class_id,
+        "section": section_id,
+        "teacher": teacher_id,
+        "subject": subject_id,
+        "q": q,
+        "ex_session": ex_session,
+        "exam_status": exam_status,
+        "date_from": date_from_s,
+        "date_to": date_to_s,
+    }
 
     return render(
         request,
@@ -6050,15 +6774,150 @@ def school_exams_list(request):
             "sections": sections,
             "teachers": teachers,
             "subjects": subjects,
-            "filters": {
-                "classroom": class_id,
-                "section": section_id,
-                "teacher": teacher_id,
-                "subject": subject_id,
-                "q": q,
-            },
+            "session_picklist": session_picklist,
+            "filters": filters_ctx,
+            "can_manage_exam_session_cards": _can_manage_exam_session_admin_actions(request.user),
         },
     )
+
+
+@admin_required
+@feature_required("exams")
+def school_exam_session_edit(request, session_id):
+    """School admin: edit exam session and all subject papers (dates, teachers, marks lock, etc.)."""
+    school = request.user.school
+    if not school:
+        add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
+        return redirect("core:admin_dashboard")
+    if not _can_manage_exam_session_admin_actions(request.user):
+        return HttpResponseForbidden("Only school administrators can edit exam sessions.")
+
+    session_obj = get_object_or_404(
+        _examsession_queryset().select_related("classroom"),
+        pk=session_id,
+    )
+
+    paper_qs = (
+        Exam.objects.filter(session=session_obj)
+        .select_related("subject", "teacher__user")
+        .order_by("date", "subject__name")
+    )
+
+    if request.method == "POST":
+        form = SchoolExamSessionEditForm(request.POST, instance=session_obj)
+        formset = ExamSessionPaperFormSet(
+            request.POST,
+            instance=session_obj,
+            queryset=paper_qs,
+            school=school,
+        )
+        form_ok = form.is_valid()
+        formset.session_meta = form.cleaned_data if form_ok else {}
+        formset_ok = formset.is_valid()
+        if form_ok and formset_ok:
+            with transaction.atomic():
+                obj = form.save(commit=False)
+                if obj.classroom_id and not (obj.class_name or "").strip():
+                    obj.class_name = obj.classroom.name
+                obj.modified_by = request.user
+                obj.modified_at = timezone.now()
+                try:
+                    obj.save()
+                except ProgrammingError:
+                    try:
+                        connection.rollback()
+                    except Exception:
+                        pass
+                    ExamSession.objects.filter(pk=obj.pk).update(
+                        name=obj.name,
+                        class_name=obj.class_name,
+                        section=obj.section,
+                        classroom=obj.classroom,
+                    )
+
+                saved = formset.save(commit=False)
+                for del_obj in formset.deleted_objects:
+                    del_obj.delete()
+                for paper in saved:
+                    paper.session = obj
+                    paper.class_name = obj.class_name
+                    paper.section = obj.section
+                    paper.classroom = obj.classroom
+                    if paper.subject_id and not (paper.name or "").strip():
+                        paper.name = paper.subject.name[:100]
+                    if paper.total_marks is None:
+                        paper.total_marks = 100
+                    if not paper.created_by_id:
+                        paper.created_by = request.user
+                    paper.save()
+                formset.save_m2m()
+
+            logger.info(
+                "exam_session_updated",
+                extra={
+                    "user_id": request.user.id,
+                    "session_id": obj.pk,
+                    "session_name": obj.name,
+                },
+            )
+            messages.success(request, "Exam session and subject papers were updated.")
+            return redirect("core:school_exam_session_detail", session_id=obj.pk)
+    else:
+        form = SchoolExamSessionEditForm(instance=session_obj)
+        formset = ExamSessionPaperFormSet(
+            instance=session_obj,
+            queryset=paper_qs,
+            school=school,
+        )
+
+    return render(
+        request,
+        "core/school/exam_session_edit.html",
+        {
+            "session": session_obj,
+            "form": form,
+            "formset": formset,
+        },
+    )
+
+
+@admin_required
+@feature_required("exams")
+@require_POST
+def school_exam_session_delete(request, session_id):
+    """School admin: delete an exam session and all papers (cascade)."""
+    school = request.user.school
+    if not school:
+        add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
+        return redirect("core:admin_dashboard")
+    if not _can_manage_exam_session_admin_actions(request.user):
+        return HttpResponseForbidden("Only school administrators can delete exam sessions.")
+
+    row = ExamSession.objects.filter(pk=session_id).values("id", "name").first()
+    if not row:
+        messages.warning(
+            request,
+            "That exam session was not found. It may have been removed, or the link is out of date.",
+        )
+        return redirect("core:school_exams_list")
+    sid = row["id"]
+    name = row["name"] or ""
+    paper_count = Exam.objects.filter(session_id=sid).count()
+
+    with transaction.atomic():
+        ExamSession.objects.filter(pk=sid).delete()
+
+    logger.info(
+        "exam_session_deleted",
+        extra={
+            "user_id": request.user.id,
+            "session_id": sid,
+            "session_name": name,
+            "papers_deleted": paper_count,
+        },
+    )
+    messages.success(request, f"Exam session “{name}” and its papers were removed.")
+    return redirect("core:school_exams_list")
 
 
 @admin_required
@@ -6070,10 +6929,19 @@ def school_exam_session_detail(request, session_id):
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:admin_dashboard")
 
-    session_obj = get_object_or_404(
-        ExamSession.objects.select_related("created_by", "classroom"),
-        pk=session_id,
-    )
+    try:
+        session_obj = (
+            _examsession_queryset()
+            .select_related("classroom")
+            .get(pk=session_id)
+        )
+    except ExamSession.DoesNotExist:
+        messages.warning(
+            request,
+            "That exam session was not found. It may have been removed, or the link is out of date.",
+        )
+        return redirect("core:school_exams_list")
+
     papers = list(
         _exam_papers_full_qs()
         .filter(session=session_obj)
@@ -6085,6 +6953,7 @@ def school_exam_session_detail(request, session_id):
         {
             "session": session_obj,
             "papers": papers,
+            "can_manage_exam_session": _can_manage_exam_session_admin_actions(request.user),
         },
     )
 
@@ -6175,6 +7044,21 @@ def _exam_class_section_date_conflict(class_name, section_name, dt, exclude_pk=N
     return qs.exists()
 
 
+def _exam_class_section_date_conflict_outside_session(
+    class_name, section_name, dt, session_id, exclude_pk=None
+):
+    """
+    Same as _exam_class_section_date_conflict but ignores papers already in this session
+    (a session may hold multiple subjects on the same day).
+    """
+    qs = Exam.objects.filter(class_name=class_name, section__iexact=section_name, date=dt).exclude(
+        session_id=session_id
+    )
+    if exclude_pk:
+        qs = qs.exclude(pk=exclude_pk)
+    return qs.exists()
+
+
 def _exam_teacher_date_conflict(teacher_id, dt, exclude_pk=None):
     if not teacher_id:
         return False
@@ -6182,6 +7066,36 @@ def _exam_teacher_date_conflict(teacher_id, dt, exclude_pk=None):
     if exclude_pk:
         qs = qs.exclude(pk=exclude_pk)
     return qs.exists()
+
+
+def _exam_times_from_post(request, key_suffix):
+    """
+    Read exam_start_time_{suffix} and exam_end_time_{suffix} from POST.
+    Returns (None, None) if both empty; (start, end) time objects if both set.
+    Raises ValueError if only one is set, parsing fails, or end <= start.
+    """
+    from datetime import datetime
+
+    raw_st = (request.POST.get(f"exam_start_time_{key_suffix}") or "").strip()
+    raw_et = (request.POST.get(f"exam_end_time_{key_suffix}") or "").strip()
+    if not raw_st and not raw_et:
+        return None, None
+    if not raw_st or not raw_et:
+        raise ValueError("set both start and end time, or leave both empty")
+
+    def _parse(s):
+        for fmt in ("%H:%M", "%H:%M:%S"):
+            try:
+                return datetime.strptime(s, fmt).time()
+            except ValueError:
+                continue
+        raise ValueError("invalid time")
+
+    st = _parse(raw_st)
+    et = _parse(raw_et)
+    if et <= st:
+        raise ValueError("end time must be after start time")
+    return st, et
 
 
 def _exam_read_qs():
@@ -6196,7 +7110,15 @@ def _exam_read_qs():
 
 def _exam_papers_full_qs():
     """Exam papers with session and times for schedule / detail screens."""
-    return Exam.objects.select_related("subject", "teacher__user", "created_by", "session")
+    return (
+        Exam.objects.select_related("subject", "teacher__user", "created_by", "session")
+        .defer(
+            "session__updated_at",
+            "session__display_order",
+            "session__modified_by",
+            "session__modified_at",
+        )
+    )
 
 
 def _parse_exam_calendar_date(value):
@@ -6405,7 +7327,7 @@ def school_exam_create(request):
                             with transaction.atomic():
                                 for classroom, sn in pair_items:
                                     cn = classroom.name
-                                    session = ExamSession.objects.create(
+                                    session = examsession_create_compat(
                                         name=exam_name_base[:100],
                                         class_name=cn,
                                         section=sn,
@@ -6434,6 +7356,11 @@ def school_exam_create(request):
                                                 f"{cn} {sn} {dt} ({subj.name}) — duplicate exam"
                                             )
                                             continue
+                                        try:
+                                            start_t, end_t = _exam_times_from_post(request, str(subj_id))
+                                        except ValueError as exc:
+                                            skipped.append(f"{subj.name}: {exc}")
+                                            continue
                                         paper_name = subj.name[:100]
                                         raw_tid = (request.POST.get(f"exam_teacher_{subj_id}") or "").strip()
                                         chosen_teacher = None
@@ -6449,6 +7376,8 @@ def school_exam_create(request):
                                             class_name=cn,
                                             section=sn,
                                             date=dt,
+                                            start_time=start_t,
+                                            end_time=end_t,
                                             subject=subj,
                                             total_marks=tm,
                                             teacher=paper_teacher,
@@ -6489,7 +7418,7 @@ def school_exam_create(request):
                     )
                     session_name = single_form.cleaned_data["name"].strip()[:100]
                     with transaction.atomic():
-                        session = ExamSession.objects.create(
+                        session = examsession_create_compat(
                             name=session_name,
                             class_name=cn,
                             section=sn,
@@ -6509,6 +7438,8 @@ def school_exam_create(request):
                             class_name=cn,
                             section=sn,
                             date=dt,
+                            start_time=single_form.cleaned_data.get("start_time"),
+                            end_time=single_form.cleaned_data.get("end_time"),
                             subject=subj,
                             total_marks=tm,
                             teacher=paper_teacher,
@@ -6760,7 +7691,7 @@ def teacher_exam_create(request):
                     .first()
                 )
                 with transaction.atomic():
-                    session = ExamSession.objects.create(
+                    session = examsession_create_compat(
                         name=session_name,
                         class_name=cn,
                         section=sn,
@@ -8426,7 +9357,13 @@ def parent_announcements(request):
             hw_legacy_ids.update(
                 Homework.objects.filter(classes=c.classroom, sections=c.section).values_list("id", flat=True)
             )
-    hw = list(Homework.objects.filter(id__in=hw_legacy_ids).prefetch_related("classes", "sections").select_related("subject").order_by("-due_date")[:20])
+    hw = list(
+        Homework.objects.filter(id__in=hw_legacy_ids)
+        .defer("attachment")
+        .prefetch_related("classes", "sections")
+        .select_related("subject")
+        .order_by("-due_date")[:20]
+    )
     return render(request, "core/parent/announcements.html", {
         "announcements": hw,
         "title": "Homework / Announcements",

@@ -1,7 +1,11 @@
 """
-Tenant-schema models for School ERP. Each school has its own PostgreSQL schema.
-These models have no school FK - the schema defines the tenant.
-User FK to accounts.User is kept (User lives in public schema).
+Tenant-schema models for School ERP. Each school has its own PostgreSQL schema (django-tenants).
+
+Row isolation is by schema, not by a company_id/school_id column: queries run inside
+``connection.set_tenant(school)`` / ``tenant_context(school)`` only see that school's rows.
+Public-schema models (e.g. customers.School, accounts.User.school) identify which tenant applies.
+
+User FKs to accounts.User are allowed (User rows live in the public schema).
 """
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -394,6 +398,28 @@ class ExamSession(models.Model):
         related_name="exam_sessions_created",
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="Updated when the session or its papers change.",
+    )
+    display_order = models.PositiveIntegerField(
+        default=0,
+        db_index=True,
+        help_text="Manual card order (0 = use default date-based sort).",
+    )
+    modified_by = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="exam_sessions_modified",
+        help_text="Last school admin who changed this session (name/class/section, etc.).",
+    )
+    modified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When session metadata was last edited by an admin.",
+    )
 
     class Meta:
         ordering = ["-created_at", "-id"]

@@ -1,5 +1,4 @@
 """Admin frontend management: Schools, Teachers, Students — SuperAdmin only."""
-import re
 from datetime import date
 from urllib.parse import urlencode
 
@@ -10,10 +9,14 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.core.paginator import Paginator
 from django.db.models import Count, Prefetch, Q
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.urls import reverse
 
 from apps.accounts.decorators import superadmin_required
-from apps.core.tenant_provisioning import allocate_unique_schema_name
+from apps.core.tenant_provisioning import (
+    generate_unique_school_code_from_name,
+    schema_name_for_school_code,
+)
 from apps.customers.models import Coupon, Feature, Plan, School, SchoolSubscription, SubscriptionPlan
 from apps.school_data.models import Teacher, Student, ClassRoom, Section, Subject
 from .forms import AdminCouponForm, AdminSchoolForm, AdminTeacherForm, AdminStudentForm
@@ -51,14 +54,6 @@ def _sync_school_subscription_from_saas(school: School) -> None:
         school.plan = sp
         if (sp.name or "").lower() != "trial":
             school.trial_end_date = None
-
-
-def _generate_school_code(name):
-    """Auto-generate school code from name, e.g. 'Green Valley' -> 'GV001'."""
-    parts = re.sub(r"[^a-zA-Z0-9\s]", "", name).split()
-    initials = "".join(p[:1].upper() for p in parts[:3]) or "SCH"
-    count = School.objects.filter(code__startswith=initials).count() + 1
-    return f"{initials}{count:03d}"
 
 
 def _rollback_safe():
@@ -130,8 +125,15 @@ def admin_school_create(request):
     form = AdminSchoolForm(request.POST or None)
     if form.is_valid():
         school = form.save(commit=False)
-        school.code = _generate_school_code(school.name)
-        school.schema_name = allocate_unique_schema_name(school.code)
+        try:
+            school.code = generate_unique_school_code_from_name(school.name)
+            school.schema_name = schema_name_for_school_code(school.code)
+        except ValidationError as exc:
+            messages.error(
+                request,
+                exc.messages[0] if getattr(exc, "messages", None) else str(exc),
+            )
+            return render(request, "admin/school_form.html", {"form": form, "title": "Create School"})
         if not school.saas_plan_id:
             school.saas_plan = Plan.objects.filter(name="Starter").first()
         _sync_school_subscription_from_saas(school)

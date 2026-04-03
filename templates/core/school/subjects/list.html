@@ -14,19 +14,25 @@
       <h1 class="h4 fw-bold mb-0">Subject master list</h1>
       <p class="text-muted small mb-0">Define each subject once for your school (master list).</p>
     </div>
-    <a href="{% url 'core:school_subject_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Subject</a>
+    {% if total_subjects %}
+      <a href="{% url 'core:school_subject_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Subject</a>
+    {% endif %}
   </div>
 
+  {% if total_subjects == 0 %}
+    {% url 'core:school_subject_add' as subject_add_url %}
+    {% include "core/school/includes/empty_module_state.html" with em_title="No subjects created yet" em_body="Add subjects for exams, marks, and assignments. Your school workspace is isolated — nothing is shared with other schools." em_icon="bi-journal-text" em_cta_label="+ Create first subject" em_url=subject_add_url %}
+  {% else %}
   <div class="card border-0 shadow-sm rounded-3 mb-4">
     <div class="card-body">
-      <form method="get" class="row g-3">
+      <form method="get" class="row g-3 g-lg-2 align-items-end erp-filter-toolbar">
         <div class="col-md-4">
           <label class="form-label small">Search</label>
-          <input type="text" name="q" class="form-control form-control-sm" placeholder="Name or code" value="{{ filters.q }}">
+          <input type="text" name="q" class="form-control" placeholder="Name or code" value="{{ filters.q }}">
         </div>
         <div class="col-md-3 d-flex align-items-end gap-2">
-          <button type="submit" class="btn btn-outline-primary btn-sm">Search</button>
-          <a href="{% url 'core:school_subjects' %}" class="btn btn-outline-secondary btn-sm">Clear</a>
+          <button type="submit" class="btn btn-sm btn-primary">Search</button>
+          <a href="{% url 'core:school_subjects' %}" class="btn btn-sm btn-erp-secondary">Clear</a>
         </div>
       </form>
     </div>
@@ -72,7 +78,7 @@
             </div>
           </div>
           {% empty %}
-          <tr><td colspan="3" class="text-center text-muted py-4">No subjects yet. Add subjects to get started.</td></tr>
+          <tr><td colspan="3" class="text-center text-muted py-4">No subjects match your search. <a href="{% url 'core:school_subjects' %}">Clear filters</a>.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -87,5 +93,6 @@
     </div>
     {% endif %}
   </div>
+  {% endif %}
 </div>
 {% endblock %}

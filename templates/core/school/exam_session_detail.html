@@ -19,7 +19,12 @@
         <span class="text-muted">· created {{ session.created_at|date:"M d, Y" }}</span>
       </p>
     </div>
-    <a href="{% url 'core:school_exams_list' %}" class="btn btn-outline-secondary btn-sm">Back to exams</a>
+    <div class="d-flex flex-wrap gap-2">
+      {% if can_manage_exam_session %}
+      <a href="{% url 'core:school_exam_session_edit' session.id %}" class="btn btn-outline-primary btn-sm rounded-pill">Edit session</a>
+      {% endif %}
+      <a href="{% url 'core:school_exams_list' %}" class="btn btn-outline-secondary btn-sm rounded-pill">Back to exams</a>
+    </div>
   </div>
 
   <div class="card border-0 shadow-sm rounded-4 overflow-hidden">

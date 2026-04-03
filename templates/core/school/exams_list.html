@@ -1,79 +1,233 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Exams | School ERP{% endblock %}
 
 {% block extra_head %}
 <style>
-  .exam-card {
-    border-radius: 14px;
-    border: 1px solid var(--bs-border-color-translucent);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
-    transition: box-shadow 0.2s ease, transform 0.15s ease;
-    height: 100%;
+  /* Exams list — card polish + hover “pop” (scoped to this page) */
+  .exam-card-col {
+    perspective: 1000px;
+  }
+  .exam-grid-card {
+    position: relative;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 1rem;
+    background: var(--bs-body-bg);
+    box-shadow:
+      0 1px 2px rgba(15, 23, 42, 0.04),
+      0 4px 16px rgba(15, 23, 42, 0.06);
     overflow: hidden;
+    height: 100%;
+    transform: translateZ(0);
+    transition:
+      transform 0.35s cubic-bezier(0.34, 1.2, 0.64, 1),
+      box-shadow 0.35s ease,
+      border-color 0.25s ease;
   }
-  html.dark .exam-card {
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  html.dark .exam-grid-card {
+    border-color: rgba(148, 163, 184, 0.15);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.2),
+      0 8px 28px rgba(0, 0, 0, 0.35);
   }
-  .exam-card:hover {
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
-    transform: translateY(-2px);
+  .exam-grid-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 4px;
+    background: linear-gradient(90deg, #2563eb, #0ea5e9, #6366f1);
+    opacity: 0.85;
+    transition: height 0.35s cubic-bezier(0.34, 1.2, 0.64, 1), opacity 0.25s ease;
   }
-  .exam-card-head {
-    background: linear-gradient(135deg, rgba(13, 110, 253, 0.1) 0%, rgba(13, 202, 240, 0.06) 100%);
-    border-bottom: 1px solid var(--bs-border-color-translucent);
-    padding: 1rem 1.15rem;
+  .exam-grid-card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(
+      120% 80% at 100% 0%,
+      rgba(37, 99, 235, 0.07),
+      transparent 55%
+    );
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
   }
-  .exam-card-title {
+  .exam-grid-card:hover {
+    transform: translateY(-10px) scale(1.02);
+    border-color: rgba(37, 99, 235, 0.35);
+    box-shadow:
+      0 12px 28px rgba(37, 99, 235, 0.18),
+      0 24px 48px rgba(15, 23, 42, 0.12);
+    z-index: 2;
+  }
+  html.dark .exam-grid-card:hover {
+    border-color: rgba(96, 165, 250, 0.4);
+    box-shadow:
+      0 12px 32px rgba(37, 99, 235, 0.25),
+      0 24px 56px rgba(0, 0, 0, 0.45);
+  }
+  .exam-grid-card:hover::before {
+    height: 5px;
+    opacity: 1;
+  }
+  .exam-grid-card:hover::after {
+    opacity: 1;
+  }
+  .exam-grid-card .exam-card-body {
+    position: relative;
+    z-index: 1;
+    padding: 1.25rem 1.25rem 1.1rem;
+  }
+  .exam-session-action-btns {
+    border-top: 1px dashed rgba(148, 163, 184, 0.35);
+  }
+  html.dark .exam-session-action-btns {
+    border-top-color: rgba(148, 163, 184, 0.22);
+  }
+  /* Icon-only actions: one style for View / Edit / Delete; hover keeps same palette */
+  a.exam-session-icon-btn,
+  button.exam-session-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0;
+    border-radius: 0.45rem;
+    border: 1px solid rgba(100, 116, 139, 0.35);
+    background: rgba(255, 255, 255, 0.6);
+    color: #64748b;
+    text-decoration: none;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: none;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+  a.exam-session-icon-btn i,
+  button.exam-session-icon-btn i {
+    font-size: 0.8125rem;
+  }
+  a.exam-session-icon-btn:hover,
+  a.exam-session-icon-btn:focus-visible,
+  button.exam-session-icon-btn:hover,
+  button.exam-session-icon-btn:focus-visible {
+    color: #64748b;
+    border-color: rgba(100, 116, 139, 0.45);
+    background: rgba(241, 245, 249, 0.95);
+    opacity: 1;
+  }
+  html.dark a.exam-session-icon-btn,
+  html.dark button.exam-session-icon-btn {
+    border-color: rgba(148, 163, 184, 0.28);
+    background: rgba(30, 41, 59, 0.5);
+    color: #94a3b8;
+  }
+  html.dark a.exam-session-icon-btn:hover,
+  html.dark a.exam-session-icon-btn:focus-visible,
+  html.dark button.exam-session-icon-btn:hover,
+  html.dark button.exam-session-icon-btn:focus-visible {
+    color: #94a3b8;
+    border-color: rgba(148, 163, 184, 0.4);
+    background: rgba(51, 65, 85, 0.65);
+  }
+  .exam-grid-card:hover a.exam-session-icon-btn,
+  .exam-grid-card:hover button.exam-session-icon-btn {
+    color: #64748b;
+    border-color: rgba(100, 116, 139, 0.35);
+  }
+  html.dark .exam-grid-card:hover a.exam-session-icon-btn,
+  html.dark .exam-grid-card:hover button.exam-session-icon-btn {
+    color: #94a3b8;
+    border-color: rgba(148, 163, 184, 0.28);
+  }
+  .exam-grid-card .exam-card-title {
     font-size: 1.05rem;
     font-weight: 700;
-    line-height: 1.35;
+    letter-spacing: -0.02em;
+    line-height: 1.3;
     color: var(--bs-body-color);
-    margin: 0;
   }
-  .exam-meta-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.5rem;
-    font-size: 0.8125rem;
-    margin-bottom: 0.45rem;
-  }
-  .exam-meta-row:last-child { margin-bottom: 0; }
-  .exam-meta-label {
-    flex-shrink: 0;
-    width: 4.5rem;
-    color: var(--bs-secondary-color);
+  .exam-grid-card .exam-type-pill {
+    font-size: 0.65rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.03em;
-    font-size: 0.68rem;
-    font-weight: 600;
-    padding-top: 0.1rem;
+    letter-spacing: 0.06em;
+    padding: 0.35em 0.65em;
+    border-radius: 999px;
   }
-  .exam-meta-value { flex: 1; min-width: 0; }
+  .exam-grid-card--session .exam-type-pill {
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.15), rgba(14, 165, 233, 0.12));
+    color: #1d4ed8;
+  }
+  html.dark .exam-grid-card--session .exam-type-pill {
+    color: #93c5fd;
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.35), rgba(14, 165, 233, 0.2));
+  }
+  .exam-grid-card .exam-meta-list li {
+    padding: 0.2rem 0;
+    border-bottom: 1px dashed rgba(148, 163, 184, 0.25);
+    font-size: 0.8125rem;
+  }
+  .exam-grid-card .exam-meta-list li:last-child {
+    border-bottom: 0;
+  }
+  .exam-card-cta {
+    border-radius: 0.65rem;
+    font-weight: 600;
+    transition: transform 0.25s cubic-bezier(0.34, 1.2, 0.64, 1), box-shadow 0.25s ease;
+  }
+  .exam-grid-card:hover .exam-card-cta {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(37, 99, 235, 0.25);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .exam-grid-card,
+    .exam-grid-card::before,
+    .exam-grid-card::after,
+    .exam-card-cta {
+      transition: none;
+    }
+    .exam-grid-card:hover {
+      transform: none;
+    }
+    .exam-grid-card:hover .exam-card-cta {
+      transform: none;
+    }
+  }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid px-0">
   <nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb">
+    <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
       <li class="breadcrumb-item active">Exams</li>
     </ol>
   </nav>
 
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-4">
     <div>
-      <h1 class="h4 fw-bold mb-0">Exams</h1>
-      <p class="text-muted small mb-0">Sessions are grouped by exam name, class, and section. Newest sessions appear first.</p>
+      <h1 class="h4 fw-bold mb-1">Exams</h1>
+      <p class="text-muted small mb-0">Exam sessions (latest dates first).</p>
     </div>
-    <a href="{% url 'core:school_exam_create' %}" class="btn btn-primary btn-sm rounded-pill shadow-sm"><i class="bi bi-plus-lg"></i> Create exam</a>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="{% url 'core:school_exam_create' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Create exam</a>
+    </div>
   </div>
 
-  <div class="card border-0 shadow-sm rounded-4 mb-4">
-    <div class="card-body py-3">
-      <form method="get" class="row g-2 g-md-3 align-items-end">
+  {% if not exam_sessions_enabled %}
+  <div class="alert alert-warning border-0 rounded-3 mb-4">
+    Exam sessions could not be loaded. Run tenant migrations for <code>school_data</code> (ExamSession).
+  </div>
+  {% endif %}
+
+  <div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body">
+      <form method="get" class="row g-3 g-lg-2 align-items-end erp-filter-toolbar">
         <div class="col-6 col-lg">
-          <label class="form-label small mb-1">Class</label>
+          <label class="form-label small text-muted mb-1">Class</label>
           <select name="classroom" class="form-select form-select-sm">
             <option value="">All</option>
             {% for c in classrooms %}
@@ -82,7 +236,7 @@
           </select>
         </div>
         <div class="col-6 col-lg">
-          <label class="form-label small mb-1">Section</label>
+          <label class="form-label small text-muted mb-1">Section</label>
           <select name="section" class="form-select form-select-sm">
             <option value="">All</option>
             {% for s in sections %}
@@ -91,7 +245,26 @@
           </select>
         </div>
         <div class="col-6 col-lg">
-          <label class="form-label small mb-1">Teacher</label>
+          <label class="form-label small text-muted mb-1">Session</label>
+          <select name="ex_session" class="form-select form-select-sm">
+            <option value="">All sessions</option>
+            {% for opt in session_picklist %}
+              <option value="{{ opt.id }}" {% if filters.ex_session == opt.id|stringformat:"s" %}selected{% endif %}>{{ opt.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-lg">
+          <label class="form-label small text-muted mb-1">Status</label>
+          <select name="exam_status" class="form-select form-select-sm">
+            <option value="" {% if not filters.exam_status %}selected{% endif %}>All</option>
+            <option value="draft" {% if filters.exam_status == 'draft' %}selected{% endif %}>Draft</option>
+            <option value="upcoming" {% if filters.exam_status == 'upcoming' %}selected{% endif %}>Upcoming</option>
+            <option value="ongoing" {% if filters.exam_status == 'ongoing' %}selected{% endif %}>Ongoing</option>
+            <option value="completed" {% if filters.exam_status == 'completed' %}selected{% endif %}>Completed</option>
+          </select>
+        </div>
+        <div class="col-6 col-lg">
+          <label class="form-label small text-muted mb-1">Teacher</label>
           <select name="teacher" class="form-select form-select-sm">
             <option value="">All</option>
             {% for t in teachers %}
@@ -100,7 +273,7 @@
           </select>
         </div>
         <div class="col-6 col-lg">
-          <label class="form-label small mb-1">Subject</label>
+          <label class="form-label small text-muted mb-1">Subject</label>
           <select name="subject" class="form-select form-select-sm">
             <option value="">All</option>
             {% for sub in subjects %}
@@ -108,83 +281,134 @@
             {% endfor %}
           </select>
         </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label small text-muted mb-1">From</label>
+          <input type="date" name="date_from" class="form-control form-control-sm" value="{{ filters.date_from }}">
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label small text-muted mb-1">To</label>
+          <input type="date" name="date_to" class="form-control form-control-sm" value="{{ filters.date_to }}">
+        </div>
         <div class="col-12 col-lg">
-          <label class="form-label small mb-1">Search</label>
-          <input type="text" name="q" class="form-control form-control-sm" placeholder="Session name…" value="{{ filters.q }}">
+          <label class="form-label small text-muted mb-1">Search</label>
+          <input type="text" name="q" class="form-control form-control-sm" placeholder="Session or exam name…" value="{{ filters.q }}">
         </div>
         <div class="col-12 col-lg-auto d-flex gap-2">
-          <button type="submit" class="btn btn-outline-primary btn-sm flex-grow-1 flex-lg-grow-0 rounded-pill px-3">Apply</button>
-          <a href="{% url 'core:school_exams_list' %}" class="btn btn-outline-secondary btn-sm rounded-pill">Clear</a>
+          <button type="submit" class="btn btn-sm btn-primary px-3">Apply</button>
+          <a href="{% url 'core:school_exams_list' %}" class="btn btn-sm btn-erp-secondary">Clear</a>
         </div>
       </form>
     </div>
   </div>
 
-  {% if not exam_sessions_enabled %}
-  <div class="alert alert-warning border-0 rounded-3 mb-4">
-    Exam sessions are not available yet on this database. Run latest migrations to enable grouped multi-subject exams.
-  </div>
-  {% endif %}
-
-  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-    <h2 class="h6 fw-bold mb-0"><i class="bi bi-collection me-2 text-primary"></i>Exam sessions</h2>
-    {% if exam_sessions %}
-    <span class="badge rounded-pill bg-body-secondary text-body border">{{ exam_sessions|length }} session{{ exam_sessions|pluralize }}</span>
-    {% endif %}
-  </div>
-
   {% if exam_sessions %}
-  <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3 mb-4">
+  <h2 class="h6 fw-semibold text-muted text-uppercase small mb-3" style="letter-spacing:0.04em;">Exam sessions</h2>
+  <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4 mb-4">
     {% for s in exam_sessions %}
-    <div class="col">
-      <div class="card exam-card bg-body">
-        <div class="exam-card-head">
-          <h3 class="exam-card-title">{{ s.name }}</h3>
-        </div>
-        <div class="card-body p-3 d-flex flex-column">
-          <div class="exam-meta-row">
-            <span class="exam-meta-label">Class</span>
-            <span class="exam-meta-value fw-semibold">{{ s.class_name }}</span>
+    <div class="col exam-card-col">
+      <div class="exam-grid-card exam-grid-card--session d-flex flex-column h-100">
+        <div class="exam-card-body d-flex flex-column flex-grow-1">
+          <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+            <h3 class="exam-card-title mb-0 pe-1">{{ s.name }}</h3>
+            <span class="exam-type-pill flex-shrink-0">Session</span>
           </div>
-          <div class="exam-meta-row">
-            <span class="exam-meta-label">Section</span>
-            <span class="exam-meta-value"><span class="badge rounded-pill bg-info bg-opacity-25 text-info-emphasis">{{ s.section }}</span></span>
-          </div>
-          <div class="exam-meta-row">
-            <span class="exam-meta-label">Papers</span>
-            <span class="exam-meta-value">{{ s.paper_count }} subject{{ s.paper_count|pluralize }}</span>
-          </div>
-          <div class="exam-meta-row">
-            <span class="exam-meta-label">Dates</span>
-            <span class="exam-meta-value">
-              {% if s.date_min and s.date_max %}
-                {% if s.date_min == s.date_max %}{{ s.date_min|date:"M j, Y" }}{% else %}{{ s.date_min|date:"M j" }} – {{ s.date_max|date:"M j, Y" }}{% endif %}
-              {% else %}
-                <span class="text-muted">—</span>
-              {% endif %}
-            </span>
-          </div>
-          <div class="exam-meta-row">
-            <span class="exam-meta-label">By</span>
-            <span class="exam-meta-value text-muted">{{ s.created_by.get_full_name|default:s.created_by.username }}</span>
-          </div>
-          <div class="mt-3 pt-2 border-top border-opacity-50">
-            <a href="{% url 'core:school_exam_session_detail' s.id %}" class="btn btn-primary btn-sm w-100 rounded-pill">
-              <i class="bi bi-eye me-1"></i> View session
+          <p class="small mb-3">
+            {% if s.card_status_key == 'draft' %}<span class="badge rounded-pill text-bg-secondary">{{ s.card_status_label }}</span>
+            {% elif s.card_status_key == 'upcoming' %}<span class="badge rounded-pill text-bg-info">{{ s.card_status_label }}</span>
+            {% elif s.card_status_key == 'ongoing' %}<span class="badge rounded-pill text-bg-primary">{{ s.card_status_label }}</span>
+            {% else %}<span class="badge rounded-pill text-bg-success">{{ s.card_status_label }}</span>{% endif %}
+          </p>
+          <ul class="list-unstyled text-muted mb-3 flex-grow-1 exam-meta-list">
+            <li><span class="text-body-secondary fw-semibold">Class</span> · {{ s.class_name|default:"—" }}</li>
+            <li><span class="text-body-secondary fw-semibold">Section</span> · {{ s.section|default:"—" }}</li>
+            <li><span class="text-body-secondary fw-semibold">Papers</span> · {{ s.paper_count }}</li>
+            <li><span class="text-body-secondary fw-semibold">Dates</span> · {% if s.date_min %}{{ s.date_min|date:"M j, Y" }}{% if s.date_max and s.date_max != s.date_min %} – {{ s.date_max|date:"M j, Y" }}{% endif %}{% else %}—{% endif %}</li>
+            <li><span class="text-body-secondary fw-semibold">Created</span> · {{ s.created_at|date:"M j, Y" }}</li>
+          </ul>
+          {% if can_manage_exam_session_cards %}
+          <div class="exam-session-action-btns d-flex justify-content-end align-items-center gap-1 mt-auto pt-3 w-100">
+            <a href="{% url 'core:school_exam_session_detail' s.id %}" class="exam-session-icon-btn" title="View" aria-label="View session">
+              <i class="bi bi-eye" aria-hidden="true"></i>
             </a>
+            <a href="{% url 'core:school_exam_session_edit' s.id %}" class="exam-session-icon-btn" title="Edit" aria-label="Edit session">
+              <i class="bi bi-pencil" aria-hidden="true"></i>
+            </a>
+            <button
+              type="button"
+              class="exam-session-icon-btn delete-exam-session-trigger"
+              title="Delete"
+              aria-label="Delete session"
+              data-bs-toggle="modal"
+              data-bs-target="#deleteExamSessionModal"
+              data-session-id="{{ s.id }}"
+              data-session-name="{{ s.name }}"
+            >
+              <i class="bi bi-trash" aria-hidden="true"></i>
+            </button>
           </div>
+          {% else %}
+          <a href="{% url 'core:school_exam_session_detail' s.id %}" class="btn btn-sm btn-primary exam-card-cta w-100 mt-auto">
+            <i class="bi bi-arrow-right-circle me-1"></i>View session
+          </a>
+          {% endif %}
         </div>
       </div>
     </div>
     {% endfor %}
   </div>
-  {% else %}
-  <div class="card border border-dashed rounded-4 bg-body-secondary bg-opacity-25 mb-4">
+  {% endif %}
+
+  {% if not exam_sessions %}
+  <div class="card border-0 shadow-sm rounded-3">
     <div class="card-body text-center text-muted py-5">
       <i class="bi bi-inbox fs-1 d-block mb-2 opacity-50"></i>
-      <p class="mb-0">No exam sessions match your filters.</p>
+      <p class="mb-2">No exams match your filters.</p>
+      <a href="{% url 'core:school_exam_create' %}" class="btn btn-sm btn-primary">Create exam</a>
     </div>
   </div>
   {% endif %}
 </div>
+
+{% if can_manage_exam_session_cards %}
+<div class="modal fade" id="deleteExamSessionModal" tabindex="-1" aria-labelledby="deleteExamSessionModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+      <div class="modal-header border-0 pb-0">
+        <h2 class="modal-title h5 fw-bold" id="deleteExamSessionModalLabel">Delete exam session?</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <p class="text-body mb-2" id="deleteExamSessionModalBody"></p>
+        <p class="text-danger small mb-0"><strong>This cannot be undone.</strong> All papers in this session and their linked marks will be permanently removed.</p>
+      </div>
+      <div class="modal-footer border-0 pt-0 gap-2">
+        <button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+        <form id="deleteExamSessionForm" method="post" action="" class="d-inline">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-danger rounded-pill px-4">Delete session</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var modalEl = document.getElementById("deleteExamSessionModal");
+  if (!modalEl) return;
+  var urlTpl = "{% url 'core:school_exam_session_delete' 999999999 %}";
+  var bodyEl = document.getElementById("deleteExamSessionModalBody");
+  var formEl = document.getElementById("deleteExamSessionForm");
+  modalEl.addEventListener("show.bs.modal", function (event) {
+    var btn = event.relatedTarget;
+    if (!btn || !btn.classList.contains("delete-exam-session-trigger")) return;
+    var sid = btn.getAttribute("data-session-id");
+    var sname = btn.getAttribute("data-session-name") || "";
+    if (formEl && sid) formEl.action = urlTpl.replace("999999999", sid);
+    if (bodyEl) {
+      bodyEl.textContent = "Are you sure you want to delete \"" + sname + "\"?";
+    }
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}

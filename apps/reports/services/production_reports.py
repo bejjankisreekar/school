@@ -376,7 +376,9 @@ def report_teaching_load_by_subject(school) -> dict:
 
 
 def report_homework_completion(school) -> dict:
-    recent = list(Homework.objects.order_by("-created_at")[:12])
+    recent = list(
+        Homework.objects.defer("attachment").order_by("-created_at")[:12]
+    )
     labels: list[str] = []
     values: list[float] = []
     for hw in recent:

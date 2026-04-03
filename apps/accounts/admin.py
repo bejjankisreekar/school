@@ -1,7 +1,14 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from .models import User
+from .models import User, UserProfile
+
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    raw_id_fields = ("user", "reporting_manager", "profile_updated_by")
+    list_display = ("user", "employee_code", "department", "designation", "profile_updated_at")
+    search_fields = ("user__username", "user__email", "employee_code", "official_email")
 
 
 @admin.register(User)

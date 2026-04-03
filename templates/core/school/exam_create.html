@@ -1,33 +1,84 @@
 {% extends "base.html" %}
-{% block title %}Create Exam | School ERP{% endblock %}
+{% block title %}Create exam | School ERP{% endblock %}
 {% block extra_head %}
 <link href="https://cdn.jsdelivr.net/npm/tom-select/dist/css/tom-select.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/tom-select/dist/js/tom-select.complete.min.js"></script>
 <style>
+  .exam-create-page {
+    max-width: 1040px;
+  }
+  .exam-create-page .ec-kicker {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+    margin-bottom: 0.35rem;
+  }
+  .exam-create-page .ec-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    margin-bottom: 0.35rem;
+  }
+  .exam-create-page .ec-lead {
+    font-size: 0.9375rem;
+    color: var(--bs-secondary-color);
+    max-width: 40rem;
+  }
   .exam-create-page .form-control,
+  .exam-create-page .form-select,
   .exam-create-page .ts-control {
     border-radius: 10px;
-    padding: 10px 12px;
+    padding: 0.55rem 0.85rem;
   }
   .exam-create-page .ts-wrapper .ts-control {
-    min-height: 46px;
+    min-height: 44px;
   }
   .exam-create-page .exam-scheduler-card .ts-wrapper.multi .ts-control {
-    min-height: 52px;
+    min-height: 48px;
   }
   .exam-create-page .ts-wrapper.focus .ts-control {
-    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.12);
   }
-  .exam-create-page .mode-pill .btn-check:checked + .btn {
-    background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
-    border-color: #0a58ca;
+  .exam-create-page .ec-mode .btn-check:checked + .btn {
+    background: var(--bs-primary);
+    border-color: var(--bs-primary);
     color: #fff;
   }
-  .exam-create-page .scheduler-accent {
-    border-top: 4px solid #0d6efd;
+  .exam-create-page .ec-section-title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--bs-secondary-color);
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--bs-border-color);
   }
-  #subjectScheduleTable tbody tr td {
+  .exam-create-page .ec-subcard {
+    border-radius: 14px;
+    border: 1px solid var(--bs-border-color);
+    background: var(--bs-body-bg);
+  }
+  html:not(.dark) .exam-create-page .ec-subcard {
+    background: rgba(var(--bs-primary-rgb), 0.03);
+  }
+  .exam-create-page #subjectScheduleTable tbody tr td {
     vertical-align: middle;
+  }
+  .exam-create-page #subjectScheduleTable thead th {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--bs-secondary-color);
+    white-space: nowrap;
+  }
+  .exam-create-page .ec-time-hint {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
   }
 </style>
 {% endblock %}
@@ -35,192 +86,236 @@
 {% block content %}
 <div class="container-fluid px-0 exam-create-page">
   <nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb">
+    <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
       <li class="breadcrumb-item"><a href="{% url 'core:school_exams_list' %}">Exams</a></li>
-      <li class="breadcrumb-item active">Create Exam</li>
+      <li class="breadcrumb-item active" aria-current="page">Create</li>
     </ol>
   </nav>
 
-  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-4">
+  <div class="d-flex flex-column flex-md-row align-items-start justify-content-between gap-3 mb-4">
     <div>
-      <h1 class="h4 fw-bold mb-1">Create exam</h1>
-      <p class="text-muted small mb-0">Schedule one exam, or batch many subjects with a date per subject across classes and sections.</p>
+      <p class="ec-kicker mb-0">Exams</p>
+      <h1 class="ec-title">Create assessments</h1>
+      <p class="ec-lead mb-0">Add one paper with session details, or schedule many subjects at once with a date and optional time window per subject.</p>
     </div>
+    <a href="{% url 'core:school_exams_list' %}" class="btn btn-outline-secondary btn-sm rounded-pill align-self-md-center">
+      <i class="bi bi-arrow-left me-1"></i>Back to exams
+    </a>
   </div>
 
-  <div class="card border-0 shadow-lg rounded-4 p-4 p-lg-5 mb-4">
-    <div class="mb-4">
-      <span class="text-uppercase small fw-semibold text-muted d-block mb-2">Creation mode</span>
-      <div class="btn-group mode-pill flex-wrap" role="group" aria-label="Mode">
-        <input type="radio" class="btn-check" name="exam_mode_ui" id="mode_single" value="single" checked autocomplete="off">
-        <label class="btn btn-outline-primary px-4 rounded-start-pill" for="mode_single"><i class="bi bi-file-earmark-plus me-1"></i> Single exam</label>
-        <input type="radio" class="btn-check" name="exam_mode_ui" id="mode_multiple" value="multiple" autocomplete="off">
-        <label class="btn btn-outline-primary px-4 rounded-end-pill" for="mode_multiple"><i class="bi bi-calendar3-range me-1"></i> Multi-exam scheduler</label>
+  <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-5">
+    <div class="card-body p-4 p-lg-5">
+      <div class="mb-4 pb-2 border-bottom">
+        <span class="ec-section-title mb-0 d-block border-0 pb-0">Creation mode</span>
+        <div class="btn-group ec-mode flex-wrap" role="group" aria-label="Creation mode">
+          <input type="radio" class="btn-check" name="exam_mode_ui" id="mode_single" value="single" checked autocomplete="off">
+          <label class="btn btn-outline-primary px-4 rounded-start-pill" for="mode_single"><i class="bi bi-file-earmark-plus me-1"></i>Single exam</label>
+          <input type="radio" class="btn-check" name="exam_mode_ui" id="mode_multiple" value="multiple" autocomplete="off">
+          <label class="btn btn-outline-primary px-4 rounded-end-pill" for="mode_multiple"><i class="bi bi-calendar3-range me-1"></i>Bulk scheduler</label>
+        </div>
       </div>
+
+      {# Single exam #}
+      <form method="post" id="form-single" class="exam-mode-panel">
+        {% csrf_token %}
+        <input type="hidden" name="create_mode" value="single">
+        {% if single_form.non_field_errors %}
+        <div class="alert alert-danger rounded-3 small">{{ single_form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="ec-subcard p-4 mb-0">
+          <div class="ec-section-title">Session</div>
+          <div class="row g-3 mb-4">
+            <div class="col-md-8">
+              <label class="form-label fw-semibold small" for="{{ single_form.name.id_for_label }}">Exam session name</label>
+              {{ single_form.name }}
+              {% if single_form.name.errors %}<div class="text-danger small mt-1">{{ single_form.name.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+
+          <div class="ec-section-title">Class &amp; section</div>
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold small" for="{{ single_form.class_name.id_for_label }}">Class</label>
+              {{ single_form.class_name }}
+              {% if single_form.class_name.errors %}<div class="text-danger small mt-1">{{ single_form.class_name.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold small" for="{{ single_form.section.id_for_label }}">Section</label>
+              {{ single_form.section }}
+              {% if single_form.section.errors %}<div class="text-danger small mt-1">{{ single_form.section.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+
+          <div class="ec-section-title">Subject paper</div>
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold small" for="{{ single_form.subject.id_for_label }}">Subject</label>
+              {{ single_form.subject }}
+              {% if single_form.subject.errors %}<div class="text-danger small mt-1">{{ single_form.subject.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold small" for="{{ single_form.date.id_for_label }}">Exam date</label>
+              {{ single_form.date }}
+              {% if single_form.date.errors %}<div class="text-danger small mt-1">{{ single_form.date.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6 col-lg-4">
+              <label class="form-label fw-semibold small" for="{{ single_form.start_time.id_for_label }}">Start time <span class="text-muted fw-normal">(optional)</span></label>
+              {{ single_form.start_time }}
+              {% if single_form.start_time.errors %}<div class="text-danger small mt-1">{{ single_form.start_time.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6 col-lg-4">
+              <label class="form-label fw-semibold small" for="{{ single_form.end_time.id_for_label }}">End time <span class="text-muted fw-normal">(optional)</span></label>
+              {{ single_form.end_time }}
+              {% if single_form.end_time.errors %}<div class="text-danger small mt-1">{{ single_form.end_time.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <p class="ec-time-hint mb-0"><i class="bi bi-info-circle me-1"></i>Leave times empty for an all-day entry on the calendar. If you set one, set both; end must be after start.</p>
+            </div>
+            <div class="col-md-6 col-lg-4">
+              <label class="form-label fw-semibold small" for="{{ single_form.total_marks.id_for_label }}">Total marks</label>
+              {{ single_form.total_marks }}
+              {% if single_form.total_marks.errors %}<div class="text-danger small mt-1">{{ single_form.total_marks.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+
+          <div class="ec-section-title">Teacher <span class="text-muted fw-normal text-lowercase" style="letter-spacing:0;">(optional)</span></div>
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label class="form-label fw-semibold small" for="{{ single_form.teacher.id_for_label }}">Assign teacher</label>
+              {{ single_form.teacher }}
+            </div>
+          </div>
+        </div>
+
+        <div id="singleConflict" class="alert alert-warning small mt-3 d-none rounded-3" role="alert"></div>
+
+        <div class="d-flex flex-wrap justify-content-end gap-2 mt-4 pt-2">
+          <a href="{% url 'core:school_exams_list' %}" class="btn btn-outline-secondary rounded-pill px-3">Cancel</a>
+          <button type="submit" class="btn btn-primary rounded-pill px-4">Create exam</button>
+        </div>
+      </form>
+
+      {# Bulk scheduler #}
+      <form method="post" id="form-scheduler" class="exam-mode-panel d-none">
+        {% csrf_token %}
+        <input type="hidden" name="create_mode" value="multiple">
+
+        {% if scheduler_form.non_field_errors %}
+        <div class="alert alert-danger rounded-3 small">{{ scheduler_form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="ec-subcard p-4 exam-scheduler-card border-primary border-opacity-25">
+          <div class="ec-section-title">Session defaults</div>
+          <div class="row g-3 mb-2">
+            <div class="col-lg-8">
+              <label class="form-label fw-semibold small" for="{{ scheduler_form.exam_name.id_for_label }}">Exam name <span class="text-danger">*</span></label>
+              {{ scheduler_form.exam_name }}
+              {% if scheduler_form.exam_name.errors %}<div class="text-danger small mt-1">{{ scheduler_form.exam_name.errors.0 }}</div>{% endif %}
+              <p class="form-text small mb-0">{{ scheduler_form.exam_name.help_text }}</p>
+            </div>
+            <div class="col-lg-4">
+              <label class="form-label fw-semibold small" for="{{ scheduler_form.total_marks.id_for_label }}">Total marks (each paper)</label>
+              {{ scheduler_form.total_marks }}
+            </div>
+          </div>
+          <p class="small text-muted mb-0">One session is created per class–section pair. Each ticked subject becomes a paper with its own date, optional time window, and teacher.</p>
+
+          <div class="ec-section-title mt-4">Classes &amp; sections</div>
+          <div class="row g-3 mb-2">
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="classSelect">Classes</label>
+              <select id="classSelect" name="classes" multiple autocomplete="off" aria-describedby="classHelp"></select>
+              <div id="classHelp" class="form-text small">Select one or more classes.</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="sectionSelect">Sections</label>
+              <select id="sectionSelect" name="sections" multiple autocomplete="off" aria-describedby="sectionHelp"></select>
+              <div id="sectionHelp" class="form-text small">Only sections linked to selected classes are listed.</div>
+            </div>
+          </div>
+
+          <div class="ec-section-title mt-4">Subjects, dates &amp; times</div>
+          <p class="small text-muted mb-3">Include a subject, set its date, and optionally a start and end time (both required if you use times). Sundays shift to Monday when picked.</p>
+
+          <div class="table-responsive border rounded-3 bg-white shadow-sm" style="max-height: 520px;">
+            <table class="table table-hover align-middle mb-0" id="subjectScheduleTable">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th class="text-center" style="width: 3rem;">On</th>
+                  <th>Subject</th>
+                  <th style="min-width: 9.5rem;">Date</th>
+                  <th style="min-width: 7rem;">Start</th>
+                  <th style="min-width: 7rem;">End</th>
+                  <th style="min-width: 11rem;">Teacher</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for sub in all_subjects %}
+                <tr class="subject-schedule-row">
+                  <td class="text-center">
+                    <input type="checkbox" name="subject_include" value="{{ sub.id }}" class="form-check-input subject-include"
+                           id="sub_inc_{{ sub.id }}" data-subject-id="{{ sub.id }}" data-subject-name="{{ sub.name|escape }}">
+                  </td>
+                  <td>
+                    <label class="fw-medium mb-0" for="sub_inc_{{ sub.id }}">{{ sub.name }}</label>
+                  </td>
+                  <td>
+                    <input type="date" name="exam_date_{{ sub.id }}" id="exam_date_{{ sub.id }}"
+                           class="form-control form-control-sm exam-date-input" disabled
+                           data-subject-id="{{ sub.id }}" autocomplete="off">
+                  </td>
+                  <td>
+                    <input type="time" name="exam_start_time_{{ sub.id }}" id="exam_start_time_{{ sub.id }}"
+                           class="form-control form-control-sm exam-start-input" disabled
+                           data-subject-id="{{ sub.id }}" autocomplete="off" aria-label="Start time for {{ sub.name }}">
+                  </td>
+                  <td>
+                    <input type="time" name="exam_end_time_{{ sub.id }}" id="exam_end_time_{{ sub.id }}"
+                           class="form-control form-control-sm exam-end-input" disabled
+                           data-subject-id="{{ sub.id }}" autocomplete="off" aria-label="End time for {{ sub.name }}">
+                  </td>
+                  <td>
+                    <select name="exam_teacher_{{ sub.id }}" id="exam_teacher_{{ sub.id }}"
+                            class="form-select form-select-sm exam-teacher-select" disabled
+                            data-subject-id="{{ sub.id }}" aria-label="Teacher for {{ sub.name }}">
+                      <option value="">Auto (mapped teacher)</option>
+                      {% for t in scheduler_teachers %}
+                      <option value="{{ t.id }}">{{ t.user.get_full_name|default:t.user.username }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" class="text-muted text-center py-4">No subjects in the catalog. Add subjects first.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card border-0 bg-body-secondary bg-opacity-50 rounded-4 mt-4" id="schedulePreviewCard">
+          <div class="card-header bg-transparent border-0 py-3 d-flex flex-wrap align-items-center justify-content-between gap-2 rounded-top-4">
+            <span class="fw-semibold"><i class="bi bi-eye me-1 text-primary"></i>Preview</span>
+            <button type="button" id="btnGeneratePreview" class="btn btn-sm btn-primary rounded-pill">Generate preview</button>
+          </div>
+          <div class="card-body pt-0">
+            <p class="mb-0 small text-muted" id="schedulePreviewHint">Choose classes, sections, and included subjects, then preview before saving.</p>
+            <ul class="mb-0 small mt-2 list-unstyled d-none" id="schedulePreview"></ul>
+          </div>
+        </div>
+
+        <div id="schedulerConflict" class="alert alert-warning small mt-3 d-none rounded-3" role="alert"></div>
+
+        <div class="d-flex flex-wrap justify-content-end gap-2 mt-4 pt-2">
+          <a href="{% url 'core:school_exams_list' %}" class="btn btn-outline-secondary rounded-pill px-3">Cancel</a>
+          <button type="submit" class="btn btn-primary rounded-pill px-4" id="btnSchedulerSubmit">
+            <i class="bi bi-check2-circle me-1"></i>Create exams
+          </button>
+        </div>
+      </form>
     </div>
-
-    {# Single #}
-    <form method="post" id="form-single" class="exam-mode-panel">
-      {% csrf_token %}
-      <input type="hidden" name="create_mode" value="single">
-      {% if single_form.non_field_errors %}<div class="alert alert-danger">{{ single_form.non_field_errors }}</div>{% endif %}
-
-      <div class="card border rounded-4 bg-body-tertiary bg-opacity-25 p-3 p-md-4 mb-0">
-        <h5 class="fw-semibold mb-3"><i class="bi bi-pencil-square text-primary me-2"></i>Exam details</h5>
-        <div class="row g-3">
-          <div class="col-md-6">
-            <label class="form-label fw-semibold">Exam name</label>
-            {{ single_form.name }}
-            {% if single_form.name.errors %}<div class="text-danger small">{{ single_form.name.errors.0 }}</div>{% endif %}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label fw-semibold">Subject</label>
-            {{ single_form.subject }}
-            {% if single_form.subject.errors %}<div class="text-danger small">{{ single_form.subject.errors.0 }}</div>{% endif %}
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">Class</label>
-            {{ single_form.class_name }}
-            {% if single_form.class_name.errors %}<div class="text-danger small">{{ single_form.class_name.errors.0 }}</div>{% endif %}
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">Section</label>
-            {{ single_form.section }}
-            {% if single_form.section.errors %}<div class="text-danger small">{{ single_form.section.errors.0 }}</div>{% endif %}
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">Assign teacher <span class="text-muted fw-normal">(optional)</span></label>
-            {{ single_form.teacher }}
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">Exam date</label>
-            {{ single_form.date }}
-            {% if single_form.date.errors %}<div class="text-danger small">{{ single_form.date.errors.0 }}</div>{% endif %}
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">Total marks</label>
-            {{ single_form.total_marks }}
-          </div>
-        </div>
-      </div>
-
-      <div id="singleConflict" class="alert alert-warning small mt-3 d-none" role="alert"></div>
-
-      <div class="d-flex justify-content-end gap-2 mt-4">
-        <a href="{% url 'core:school_exams_list' %}" class="btn btn-outline-secondary rounded-3">Cancel</a>
-        <button type="submit" class="btn btn-primary rounded-3 px-4">Create exam</button>
-      </div>
-    </form>
-
-    {# Multi-exam scheduler #}
-    <form method="post" id="form-scheduler" class="exam-mode-panel d-none">
-      {% csrf_token %}
-      <input type="hidden" name="create_mode" value="multiple">
-
-      {% if scheduler_form.non_field_errors %}<div class="alert alert-danger">{{ scheduler_form.non_field_errors }}</div>{% endif %}
-
-      <div class="card shadow-sm border-0 rounded-4 p-4 exam-scheduler-card bg-body-tertiary bg-opacity-50 scheduler-accent">
-        <h5 class="fw-semibold mb-3"><i class="bi bi-info-circle text-primary me-2"></i>Exam details</h5>
-        <div class="row g-3 mb-4">
-          <div class="col-md-8">
-            <label class="form-label fw-semibold">Exam name <span class="text-danger">*</span></label>
-            {{ scheduler_form.exam_name }}
-            {% if scheduler_form.exam_name.errors %}<div class="text-danger small">{{ scheduler_form.exam_name.errors.0 }}</div>{% endif %}
-            <div class="form-text">{{ scheduler_form.exam_name.help_text }}</div>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">Total marks (each)</label>
-            {{ scheduler_form.total_marks }}
-          </div>
-        </div>
-        <p class="small text-muted mb-4">Assign a teacher per subject in the table below (or leave <strong>Auto</strong> to use the single mapped class teacher when there is exactly one).</p>
-
-        <h5 class="fw-semibold mb-3"><i class="bi bi-diagram-3 text-primary me-2"></i>Select classes &amp; sections</h5>
-        <div class="row g-3 mb-2">
-          <div class="col-md-6">
-            <label class="form-label small text-muted" for="classSelect">Classes</label>
-            <select id="classSelect" name="classes" multiple autocomplete="off" aria-describedby="classHelp"></select>
-            <div id="classHelp" class="form-text">Choose one or more classes.</div>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label small text-muted" for="sectionSelect">Sections</label>
-            <select id="sectionSelect" name="sections" multiple autocomplete="off" aria-describedby="sectionHelp"></select>
-            <div id="sectionHelp" class="form-text">Only sections linked to the selected classes appear here.</div>
-          </div>
-        </div>
-
-        <h5 class="fw-semibold mt-4 mb-3"><i class="bi bi-journal-bookmark text-primary me-2"></i>Subjects &amp; dates</h5>
-        <p class="small text-muted mb-2">Tick each subject to include; set the exam date and optional teacher on the same row.</p>
-
-        <div class="table-responsive border rounded-3 bg-white shadow-sm" style="max-height: 480px;">
-          <table class="table table-hover align-middle mb-0" id="subjectScheduleTable">
-            <thead class="table-light sticky-top">
-              <tr>
-                <th style="width: 48px;" class="text-center">Include</th>
-                <th>Subject</th>
-                <th style="min-width: 200px;">Exam date</th>
-                <th style="min-width: 220px;">Teacher</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for sub in all_subjects %}
-              <tr class="subject-schedule-row">
-                <td class="text-center">
-                  <input type="checkbox" name="subject_include" value="{{ sub.id }}" class="form-check-input subject-include"
-                         id="sub_inc_{{ sub.id }}" data-subject-id="{{ sub.id }}" data-subject-name="{{ sub.name|escape }}">
-                </td>
-                <td>
-                  <label class="fw-medium mb-0" for="sub_inc_{{ sub.id }}">{{ sub.name }}</label>
-                </td>
-                <td>
-                  <input type="date" name="exam_date_{{ sub.id }}" id="exam_date_{{ sub.id }}"
-                         class="form-control form-control-sm exam-date-input" disabled
-                         data-subject-id="{{ sub.id }}" autocomplete="off">
-                </td>
-                <td>
-                  <select name="exam_teacher_{{ sub.id }}" id="exam_teacher_{{ sub.id }}"
-                          class="form-select form-select-sm exam-teacher-select" disabled
-                          data-subject-id="{{ sub.id }}" aria-label="Teacher for {{ sub.name }}">
-                    <option value="">Auto (mapped teacher)</option>
-                    {% for t in scheduler_teachers %}
-                    <option value="{{ t.id }}">{{ t.user.get_full_name|default:t.user.username }}</option>
-                    {% endfor %}
-                  </select>
-                </td>
-              </tr>
-              {% empty %}
-              <tr><td colspan="4" class="text-muted text-center py-4">No subjects in the catalog. Add subjects first.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        <p class="small text-muted mt-2 mb-0">
-          <i class="bi bi-lightbulb me-1"></i>
-          Sundays move to Monday automatically when you pick a Sunday. The server also blocks duplicate class/section/date clashes.
-        </p>
-      </div>
-
-      <div class="card border-info mt-4 rounded-4 shadow-sm" id="schedulePreviewCard">
-        <div class="card-header bg-info bg-opacity-10 py-3 d-flex flex-wrap align-items-center justify-content-between gap-2 rounded-top-4 border-0">
-          <strong><i class="bi bi-eye me-1"></i> Preview schedule</strong>
-          <button type="button" id="btnGeneratePreview" class="btn btn-sm btn-info rounded-3">Generate preview</button>
-        </div>
-        <div class="card-body py-3">
-          <div class="mb-0 small text-muted" id="schedulePreviewHint">Select classes, sections, and subjects with dates, then preview before saving.</div>
-          <ul class="mb-0 small mt-2 list-unstyled d-none" id="schedulePreview"></ul>
-        </div>
-      </div>
-
-      <div id="schedulerConflict" class="alert alert-warning small mt-3 d-none" role="alert"></div>
-
-      <div class="d-flex justify-content-end gap-2 mt-4">
-        <a href="{% url 'core:school_exams_list' %}" class="btn btn-outline-secondary rounded-3">Cancel</a>
-        <button type="submit" class="btn btn-primary rounded-3 px-4 shadow-sm" id="btnSchedulerSubmit">
-          <i class="bi bi-check2-circle me-1"></i> Create exams
-        </button>
-      </div>
-    </form>
   </div>
 </div>
 
@@ -294,26 +389,28 @@
     return ids;
   }
 
+  function rowInputsForSid(sid) {
+    return {
+      date: document.querySelector("#exam_date_" + sid),
+      start: document.querySelector("#exam_start_time_" + sid),
+      end: document.querySelector("#exam_end_time_" + sid),
+      teacher: document.querySelector("#exam_teacher_" + sid)
+    };
+  }
+
   function bindSubjectRows() {
     document.querySelectorAll("input.subject-include").forEach(function(cb) {
       cb.addEventListener("change", function() {
         var sid = cb.value;
-        var inp = document.querySelector("#exam_date_" + sid);
-        var sel = document.querySelector("#exam_teacher_" + sid);
-        if (inp) {
-          if (cb.checked) {
-            inp.disabled = false;
-            inp.required = true;
-          } else {
-            inp.disabled = true;
-            inp.required = false;
-            inp.value = "";
-          }
-        }
-        if (sel) {
-          sel.disabled = !cb.checked;
-          if (!cb.checked) sel.value = "";
-        }
+        var r = rowInputsForSid(sid);
+        var on = cb.checked;
+        [r.date, r.start, r.end, r.teacher].forEach(function(el) {
+          if (!el) return;
+          el.disabled = !on;
+          if (!on && el.tagName === "INPUT") el.value = "";
+          if (!on && el.tagName === "SELECT") el.value = "";
+        });
+        if (r.date) r.date.required = on;
         checkSchedulerConflicts();
       });
     });
@@ -326,6 +423,9 @@
     document.querySelectorAll("#subjectScheduleTable select.exam-teacher-select").forEach(function(sel) {
       sel.addEventListener("change", checkSchedulerConflicts);
     });
+    document.querySelectorAll("#subjectScheduleTable input.exam-start-input, #subjectScheduleTable input.exam-end-input").forEach(function(inp) {
+      inp.addEventListener("change", checkSchedulerConflicts);
+    });
   }
 
   function teacherLabelForSid(sid) {
@@ -333,6 +433,15 @@
     if (!sel || !sel.value) return "Auto (mapped)";
     var opt = sel.options[sel.selectedIndex];
     return opt ? opt.text.trim() : "Auto (mapped)";
+  }
+
+  function timeLabelForSid(sid) {
+    var r = rowInputsForSid(sid);
+    var st = r.start && r.start.value;
+    var en = r.end && r.end.value;
+    if (st && en) return st + " – " + en;
+    if (st || en) return "(incomplete times)";
+    return "All day";
   }
 
   function skipSunday(inp) {
@@ -424,10 +533,10 @@
     }
     var missing = ids.filter(function(sid) { return !dates[sid]; });
     if (missing.length) {
-      hint.textContent = "Set a date for every checked subject.";
+      hint.textContent = "Set a date for every included subject.";
       return;
     }
-    hint.textContent = "One exam session per class–section; each line is a subject paper. Click Create when ready.";
+    hint.textContent = "One session per class–section; each line is a subject paper. Submit to create.";
     ul.classList.remove("d-none");
     pairs.forEach(function(p) {
       ids.forEach(function(sid) {
@@ -435,8 +544,8 @@
         var cb = document.querySelector('input.subject-include[value="' + sid + '"]');
         var subjName = cb && cb.getAttribute("data-subject-name") ? cb.getAttribute("data-subject-name") : sid;
         var li = document.createElement("li");
-        li.className = "mb-1 border-bottom pb-1";
-        li.textContent = "Session: " + examBase + " | " + p.cn + " · " + p.sn + " → " + subjName + " on " + dt + " · Teacher: " + teacherLabelForSid(sid);
+        li.className = "mb-2 pb-2 border-bottom border-light";
+        li.textContent = examBase + " · " + p.cn + " · " + p.sn + " → " + subjName + " on " + dt + " · " + timeLabelForSid(sid) + " · " + teacherLabelForSid(sid);
         ul.appendChild(li);
       });
     });
@@ -513,6 +622,36 @@
   var sd = document.getElementById("id_single_date");
   if (sd) sd.addEventListener("change", checkSingleConflict);
 
+  function _minutesFromTimeStr(s) {
+    if (!s) return null;
+    var p = String(s).split(":");
+    var h = parseInt(p[0], 10);
+    var m = parseInt(p[1] || "0", 10);
+    if (isNaN(h) || isNaN(m)) return null;
+    return h * 60 + m;
+  }
+
+  function validateSchedulerTimes() {
+    var subj = checkedSubjectIds();
+    for (var i = 0; i < subj.length; i++) {
+      var sid = subj[i];
+      var r = rowInputsForSid(sid);
+      var hs = r.start && r.start.value;
+      var he = r.end && r.end.value;
+      if ((hs && !he) || (!hs && he)) {
+        return "For each subject, set both start and end time, or leave both empty.";
+      }
+      if (hs && he) {
+        var a = _minutesFromTimeStr(hs);
+        var b = _minutesFromTimeStr(he);
+        if (a !== null && b !== null && b <= a) {
+          return "End time must be after start time for each subject with times set.";
+        }
+      }
+    }
+    return null;
+  }
+
   document.getElementById("form-scheduler").addEventListener("submit", function(ev) {
     if (!classTs || !sectionTs) return;
     var cids = classTs.getValue();
@@ -520,14 +659,20 @@
     var subj = checkedSubjectIds();
     if (!cids.length) { alert("Select at least one class."); ev.preventDefault(); return false; }
     if (!sids.length) { alert("Select at least one section."); ev.preventDefault(); return false; }
-    if (!subj.length) { alert("Tick at least one subject and set its date."); ev.preventDefault(); return false; }
+    if (!subj.length) { alert("Include at least one subject and set its date."); ev.preventDefault(); return false; }
     var missing = [];
     subj.forEach(function(sid) {
       var inp = document.querySelector("#exam_date_" + sid);
       if (!inp || !inp.value) missing.push(sid);
     });
     if (missing.length) {
-      alert("Set an exam date for every checked subject.");
+      alert("Set an exam date for every included subject.");
+      ev.preventDefault();
+      return false;
+    }
+    var timeErr = validateSchedulerTimes();
+    if (timeErr) {
+      alert(timeErr);
       ev.preventDefault();
       return false;
     }

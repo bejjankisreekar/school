@@ -37,6 +37,7 @@ class Migration(migrations.Migration):
             name='subject',
             options={'ordering': ['name']},
         ),
+        # BUG: drops DB column start_date; Exam.date still maps to start_date (see 0038_exam_restore_start_date_column).
         migrations.RemoveField(
             model_name='exam',
             name='start_date',

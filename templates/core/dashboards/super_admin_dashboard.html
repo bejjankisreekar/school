@@ -79,7 +79,7 @@
 
   {% if plans %}
   <div class="mt-6">
-    <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-3">Product: Starter &amp; Enterprise</h2>
+    <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-3">Product: Starter, Standard &amp; Enterprise</h2>
     <p class="small text-slate-600 dark:text-slate-400 mb-3">Assign under <a href="{% url 'admin_manage:school_plans_list' %}">School Plans</a>. Details: <a href="{% url 'core:pricing' %}">Pricing page</a>.</p>
     <div class="row g-3">
       {% for plan in plans %}

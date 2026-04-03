@@ -10,6 +10,7 @@ from django.urls import reverse
 
 from apps.customers.models import School
 from apps.school_data.models import ClassRoom, Subject, Teacher
+from apps.core.tenant_scope import ensure_tenant_for_request
 from apps.core.utils import add_warning_once, has_feature_access
 from apps.accounts.decorators import admin_required, teacher_required, student_required
 from .models import ScheduleProfile, TimeSlot, Timetable
@@ -58,6 +59,7 @@ def school_timetable_index(request):
         return redirect("core:admin_dashboard")
     if not has_feature_access(school, "timetable", user=request.user):
         return HttpResponseForbidden("This feature is not enabled for this school.")
+    ensure_tenant_for_request(request)
     import re
 
     def _grade_sort_key(c: ClassRoom):
@@ -93,6 +95,7 @@ def school_timeslots(request):
         return redirect("core:admin_dashboard")
     if not has_feature_access(school, "timetable", user=request.user):
         return HttpResponseForbidden("This feature is not enabled for this school.")
+    ensure_tenant_for_request(request)
 
     default_profile, _ = ScheduleProfile.objects.get_or_create(name="Default")
     profile_id = request.GET.get("profile") or request.POST.get("profile")
@@ -135,6 +138,7 @@ def school_timeslot_update(request, slot_id):
         return redirect("core:admin_dashboard")
     if not has_feature_access(request.user.school, "timetable", user=request.user):
         return HttpResponseForbidden("This feature is not enabled for this school.")
+    ensure_tenant_for_request(request)
     slot = get_object_or_404(TimeSlot, id=slot_id)
     default_profile, _ = ScheduleProfile.objects.get_or_create(name="Default")
     if request.method != "POST":
@@ -159,6 +163,7 @@ def school_timeslot_delete(request, slot_id):
         return redirect("core:admin_dashboard")
     if not has_feature_access(request.user.school, "timetable", user=request.user):
         return HttpResponseForbidden("This feature is not enabled for this school.")
+    ensure_tenant_for_request(request)
     slot = get_object_or_404(TimeSlot, id=slot_id)
     if request.method == "POST":
         slot.delete()
@@ -176,6 +181,7 @@ def school_timetable(request, classroom_id):
         return redirect("core:admin_dashboard")
     if not has_feature_access(school, "timetable", user=request.user):
         return HttpResponseForbidden("This feature is not enabled for this school.")
+    ensure_tenant_for_request(request)
 
     default_profile, _ = ScheduleProfile.objects.get_or_create(name="Default")
     classroom = get_object_or_404(ClassRoom, id=classroom_id)
@@ -272,7 +278,6 @@ def school_timetable(request, classroom_id):
         "days": DAYS,
         "subjects": subjects,
         "teachers": teachers,
-        "classrooms": list(ClassRoom.objects.exclude(id=classroom.id).order_by("academic_year", "name")),
         "profiles": profiles,
         "active_profile": active_profile,
     })
@@ -302,6 +307,7 @@ def school_timetable_print(request, classroom_id):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     default_profile, _ = ScheduleProfile.objects.get_or_create(name="Default")
     classroom = get_object_or_404(ClassRoom, id=classroom_id)
     active_profile = classroom.active_schedule_profile or default_profile
@@ -380,6 +386,7 @@ def school_timetable_pdf(request, classroom_id):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     default_profile, _ = ScheduleProfile.objects.get_or_create(name="Default")
     classroom = get_object_or_404(ClassRoom, id=classroom_id)
     active_profile = classroom.active_schedule_profile or default_profile
@@ -409,6 +416,7 @@ def school_timetable_copy_monday(request, classroom_id):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     classroom = get_object_or_404(ClassRoom, id=classroom_id)
     monday = Timetable.DayOfWeek.MONDAY
     monday_entries = list(
@@ -441,6 +449,7 @@ def school_timetable_duplicate(request, classroom_id):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
+    ensure_tenant_for_request(request)
     classroom = get_object_or_404(ClassRoom, id=classroom_id)
     target_id = request.POST.get("target_classroom")
     if not target_id:
@@ -478,6 +487,7 @@ def student_timetable(request):
     school = request.user.school
     if not has_feature_access(school, "timetable", user=request.user):
         return HttpResponseForbidden("This feature is not enabled for this school.")
+    ensure_tenant_for_request(request)
     slots = list(TimeSlot.objects.order_by("order", "start_time"))
     existing = {
         (t.day_of_week, t.time_slot_id): t
@@ -533,6 +543,7 @@ def teacher_timetable(request):
     school = request.user.school
     if not has_feature_access(school, "timetable", user=request.user):
         return HttpResponseForbidden("This feature is not enabled for this school.")
+    ensure_tenant_for_request(request)
 
     slots = list(TimeSlot.objects.order_by("order", "start_time"))
     entries_qs = (

@@ -82,9 +82,9 @@
   }
   .att-filter-cell .form-select,
   .att-filter-cell .form-control {
-    min-height: 40px;
+    min-height: 42px;
     font-size: 0.875rem;
-    border-radius: 10px;
+    border-radius: 8px;
     border-color: var(--att-border);
     background: var(--att-surface-2);
   }
@@ -98,19 +98,6 @@
   .att-filter-date { flex: 0 0 15rem; min-width: 13rem; }
   .att-filter-search { flex: 1 1 12rem; min-width: 11rem; max-width: 24rem; }
   .att-filter-action { flex: 0 0 auto; }
-  .att-filter-action .btn {
-    min-height: 40px;
-    padding-left: 1.25rem;
-    padding-right: 1.25rem;
-    font-weight: 600;
-    border-radius: 10px;
-    background: var(--att-brand);
-    border-color: var(--att-brand);
-  }
-  .att-filter-action .btn:hover {
-    background: #4338ca;
-    border-color: #4338ca;
-  }
   .att-erp-table {
     border-collapse: separate;
     border-spacing: 0;
@@ -302,7 +289,149 @@
   html.dark .att-filters-card .attendance-date-field input.attendance-fp-alt {
     color: #f1f5f9 !important;
   }
+
+  /* Top-right toast (save success / error) */
+  .att-toast-host {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1080;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.5rem;
+    pointer-events: none;
+    max-width: min(22rem, calc(100vw - 2rem));
+  }
+  .att-toast {
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.85rem 1.15rem;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(15, 23, 42, 0.2);
+    font-weight: 600;
+    font-size: 0.9375rem;
+    line-height: 1.3;
+    opacity: 0;
+    transform: translateX(12px);
+    transition: opacity 0.35s ease, transform 0.35s ease;
+  }
+  .att-toast.att-toast--visible {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  .att-toast--success {
+    background: linear-gradient(135deg, #059669, #10b981);
+    color: #fff;
+  }
+  .att-toast--error {
+    background: linear-gradient(135deg, #b91c1c, #ef4444);
+    color: #fff;
+  }
+  .att-toast-icon {
+    font-weight: 800;
+    font-size: 1.1rem;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .att-summary-strip {
+    margin: 0 0 0.75rem;
+    padding: 0.65rem 1rem;
+    border-radius: 12px;
+    border: 1px solid var(--att-border);
+    background: var(--att-surface-2);
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #0f172a;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1.25rem;
+  }
+  html.dark .att-summary-strip { color: #f1f5f9; }
+  .att-summary-strip .att-summary-label { color: var(--att-muted); font-weight: 600; }
+  .att-summary-strip--marked { border-color: rgba(5, 150, 105, 0.35); background: rgba(5, 150, 105, 0.08); }
+  .att-summary-strip--pending { border-color: rgba(234, 88, 12, 0.35); background: rgba(234, 88, 12, 0.08); }
+  .att-mark-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.28rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .att-mark-badge--yes {
+    background: rgba(5, 150, 105, 0.18);
+    color: #047857;
+    border: 1px solid rgba(5, 150, 105, 0.35);
+  }
+  .att-mark-badge--no {
+    background: rgba(234, 88, 12, 0.14);
+    color: #c2410c;
+    border: 1px solid rgba(234, 88, 12, 0.35);
+  }
+  html.dark .att-mark-badge--yes { color: #34d399; }
+  html.dark .att-mark-badge--no { color: #fb923c; }
+
+  /* Cumulative attendance % (roll call) */
+  .att-pct-cell {
+    min-width: 8.5rem;
+    max-width: 11rem;
+    vertical-align: middle !important;
+  }
+  .att-pct-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    line-height: 1.2;
+  }
+  .att-pct-badge--high {
+    background: rgba(5, 150, 105, 0.14);
+    color: #047857;
+    border: 1px solid rgba(5, 150, 105, 0.35);
+  }
+  .att-pct-badge--mid {
+    background: rgba(217, 119, 6, 0.14);
+    color: #b45309;
+    border: 1px solid rgba(217, 119, 6, 0.35);
+  }
+  .att-pct-badge--low {
+    background: rgba(220, 38, 38, 0.12);
+    color: #b91c1c;
+    border: 1px solid rgba(220, 38, 38, 0.3);
+  }
+  html.dark .att-pct-badge--high { color: #6ee7b7; }
+  html.dark .att-pct-badge--mid { color: #fcd34d; }
+  html.dark .att-pct-badge--low { color: #fca5a5; }
+  .att-pct-bar {
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.25);
+    overflow: hidden;
+    margin-top: 0.35rem;
+  }
+  .att-pct-bar__fill {
+    height: 100%;
+    border-radius: inherit;
+    transition: width 0.25s ease;
+  }
+  .att-pct-bar__fill--high { background: linear-gradient(90deg, #059669, #10b981); }
+  .att-pct-bar__fill--mid { background: linear-gradient(90deg, #d97706, #f59e0b); }
+  .att-pct-bar__fill--low { background: linear-gradient(90deg, #dc2626, #f87171); }
 </style>
+
+<div id="attToastHost" class="att-toast-host" aria-live="polite" aria-atomic="true"></div>
 
 <div class="container-fluid px-0 att-page">
   <nav aria-label="breadcrumb" class="mb-3">
@@ -346,12 +475,13 @@
         </span>
         <h2 class="h6 fw-bold mb-0 att-page-title">Session filters</h2>
       </div>
-      <form method="get" action="{% url 'core:attendance_list' %}" id="loadForm">
+      <form method="get" action="{% url 'core:attendance_list' %}" id="loadForm" class="erp-filter-toolbar">
         {% if focus_student %}
         <input type="hidden" name="student_id" value="{{ focus_student.id }}">
         <input type="hidden" name="classroom_id" value="{{ classroom_id }}">
         <input type="hidden" name="section_id" value="{{ section_id }}">
         <input type="hidden" name="q" value="{{ search_q }}">
+        <input type="hidden" name="per_page" value="{{ per_page_param }}">
         <div class="att-filter-scroll pt-1">
           <div class="att-filter-row">
             <div class="att-filter-cell att-filter-class">
@@ -371,6 +501,7 @@
           </div>
         </div>
         {% else %}
+        <input type="hidden" name="per_page" value="{{ per_page_param }}">
         <div class="att-filter-scroll pt-1">
           <div class="att-filter-row">
             <div class="att-filter-cell att-filter-class">
@@ -416,37 +547,69 @@
 
   {% if classroom_id and section_id and not section_valid_for_class %}
   <div class="alert alert-warning rounded-4 border-0">The selected section does not belong to this class. Choose a valid combination.</div>
-  {% elif classroom_id and section_id and section_valid_for_class and not students_with_status %}
+  {% elif classroom_id and section_id and section_valid_for_class and not roll_call_total %}
   <div class="alert alert-info rounded-4 border-0">No students match these filters. Adjust search or enroll students.</div>
-  {% elif students_with_status %}
+  {% elif roll_call_total %}
   {% if future_date %}
   <div class="alert alert-warning rounded-4 border-0">Pick today or an earlier date to mark attendance.</div>
   {% endif %}
 
   <div class="card border-0 shadow-sm att-table-card">
-    <div class="card-body border-bottom py-3 px-3 px-lg-4 d-flex flex-column flex-lg-row flex-wrap align-items-lg-center justify-content-between gap-3 att-roll-toolbar">
-      <div>
+    {% if attendance_state == "marked" %}
+    <div class="px-3 px-lg-4 pt-3 pb-0">
+      <div class="att-summary-strip att-summary-strip--marked" id="attSummaryStrip" role="status">
+        <span><span class="att-summary-label">Attendance summary</span></span>
+        <span class="text-success-emphasis">Marked: <strong id="attSummaryMarked">{{ attendance_summary.marked }}</strong></span>
+        <span class="text-warning-emphasis">Pending: <strong id="attSummaryPending">{{ attendance_summary.pending }}</strong></span>
+        <span class="small fw-semibold text-success ms-lg-auto att-summary-msg">Attendance already marked for this date (some or all students).</span>
+      </div>
+    </div>
+    {% elif attendance_state == "pending" %}
+    <div class="px-3 px-lg-4 pt-3 pb-0">
+      <div class="att-summary-strip att-summary-strip--pending" id="attSummaryStrip" role="status">
+        <span><span class="att-summary-label">Attendance summary</span></span>
+        <span class="text-success-emphasis">Marked: <strong id="attSummaryMarked">{{ attendance_summary.marked }}</strong></span>
+        <span class="text-warning-emphasis">Pending: <strong id="attSummaryPending">{{ attendance_summary.pending }}</strong></span>
+        <span class="small fw-semibold text-body-secondary ms-lg-auto att-summary-msg">Attendance pending for this date.</span>
+      </div>
+    </div>
+    {% endif %}
+    <div class="card-body border-bottom py-3 px-3 px-lg-4 att-roll-toolbar w-100">
+      {# Row 1: title + subtitle, left-aligned #}
+      <div class="text-start mb-3">
         <h2 class="h6 fw-bold mb-1">Roll call</h2>
-        <p class="text-muted small mb-0">{{ students_with_status|length }} student{{ students_with_status|length|pluralize }} · Tap a status for each row, then save.</p>
+        <p class="text-muted small mb-0">
+          {{ roll_call_total }} student{{ roll_call_total|pluralize }} total
+          {% if roll_call_paginator and roll_call_paginator.num_pages > 1 %}
+          · Page {{ roll_call_page_obj.number }} of {{ roll_call_paginator.num_pages }}
+          {% endif %}
+          · Mark each row on this page, then save (other pages keep their own entries).
+        </p>
+        <p class="text-muted small mb-0 mt-1">
+          <span class="fw-semibold text-body-secondary">Attendance %</span> — cumulative ({{ attendance_pct_scope_label }}). Present ÷ total days marked in the system.
+        </p>
       </div>
-      <div class="d-flex flex-wrap align-items-center gap-2" id="attStatBar" aria-live="polite">
-        <span class="att-stat-pill present"><i class="bi bi-check-circle-fill"></i> Present <strong id="attCountP">0</strong></span>
-        <span class="att-stat-pill absent"><i class="bi bi-x-circle-fill"></i> Absent <strong id="attCountA">0</strong></span>
-        <span class="att-stat-pill leave"><i class="bi bi-suitcase-lg"></i> Leave <strong id="attCountL">0</strong></span>
-      </div>
-      <div class="d-flex flex-wrap gap-2 att-bulk-actions">
-        <button type="button" class="btn btn-sm att-bulk-btn" id="markAllPresent" {% if future_date %}disabled{% endif %} title="Set every row to Present">
-          <i class="bi bi-check-all me-1"></i>All present
-        </button>
-        <button type="button" class="btn btn-sm att-bulk-btn" id="markAllAbsent" {% if future_date %}disabled{% endif %} title="Set every row to Absent">
-          <i class="bi bi-x-lg me-1"></i>All absent
-        </button>
-        <button type="button" class="btn btn-sm att-bulk-btn" id="markAllLeave" {% if future_date %}disabled{% endif %} title="Set every row to Leave">
-          <i class="bi bi-suitcase-lg me-1"></i>All leave
-        </button>
-        <button type="button" class="btn btn-sm text-white border-0 att-save-btn" id="saveAttendanceBtn" {% if future_date %}disabled{% endif %}>
-          <i class="bi bi-cloud-upload me-1"></i>Save attendance
-        </button>
+      {# Row 2: stats left, actions right (md+); mobile: column — stats then buttons #}
+      <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-md-between gap-3">
+        <div class="d-flex flex-nowrap align-items-center gap-2" id="attStatBar" aria-live="polite">
+          <span class="att-stat-pill present"><i class="bi bi-check-circle-fill"></i> Present <strong id="attCountP">0</strong></span>
+          <span class="att-stat-pill absent"><i class="bi bi-x-circle-fill"></i> Absent <strong id="attCountA">0</strong></span>
+          <span class="att-stat-pill leave"><i class="bi bi-suitcase-lg"></i> Leave <strong id="attCountL">0</strong></span>
+        </div>
+        <div class="d-flex flex-nowrap gap-2 att-bulk-actions order-2 justify-content-start justify-content-md-end w-100 w-md-auto">
+          <button type="button" class="btn btn-sm att-bulk-btn" id="markAllPresent" {% if future_date %}disabled{% endif %} title="Set every row to Present">
+            <i class="bi bi-check-all me-1"></i>All present
+          </button>
+          <button type="button" class="btn btn-sm att-bulk-btn" id="markAllAbsent" {% if future_date %}disabled{% endif %} title="Set every row to Absent">
+            <i class="bi bi-x-lg me-1"></i>All absent
+          </button>
+          <button type="button" class="btn btn-sm att-bulk-btn" id="markAllLeave" {% if future_date %}disabled{% endif %} title="Set every row to Leave">
+            <i class="bi bi-suitcase-lg me-1"></i>All leave
+          </button>
+          <button type="button" class="btn btn-sm text-white border-0 att-save-btn" id="saveAttendanceBtn" {% if future_date %}disabled{% endif %}>
+            <i class="bi bi-cloud-upload me-1"></i>Save attendance
+          </button>
+        </div>
       </div>
     </div>
 
@@ -455,6 +618,8 @@
       <input type="hidden" name="classroom_id" value="{{ classroom_id }}">
       <input type="hidden" name="section_id" value="{{ section_id }}">
       <input type="hidden" name="attendance_date" value="{{ attendance_date }}">
+      {% if roll_call_page_obj %}<input type="hidden" name="page" value="{{ roll_call_page_obj.number }}">{% endif %}
+      <input type="hidden" name="per_page" value="{{ per_page_param }}">
       {% if search_q %}<input type="hidden" name="q" value="{{ search_q }}">{% endif %}
       {% if focus_student %}<input type="hidden" name="student_id" value="{{ focus_student.id }}">{% endif %}
       <div class="table-responsive">
@@ -466,14 +631,16 @@
               <th>Roll</th>
               <th>Admission</th>
               <th>Student</th>
+              <th class="text-nowrap">Status</th>
               <th style="min-width:280px;">Attendance</th>
+              <th class="text-nowrap" style="min-width:9rem;">Attendance %</th>
             </tr>
           </thead>
           <tbody>
-            {% for item in students_with_status %}
+            {% for item in roll_call_items %}
             {% with s=item.student %}
-            <tr class="attendance-row att-row-{{ item.status|lower }}" data-student-id="{{ s.id }}">
-              <td class="text-center text-muted small fw-semibold">{{ forloop.counter }}</td>
+            <tr class="attendance-row att-row-{{ item.status|lower }}" data-student-id="{{ s.id }}" data-marked="{% if item.is_marked %}1{% else %}0{% endif %}">
+              <td class="text-center text-muted small fw-semibold">{{ item.row_number }}</td>
               <td class="text-center">
                 {% if s.profile_image %}
                 <img src="{{ s.profile_image.url }}" class="att-avatar" alt="">
@@ -489,6 +656,13 @@
                 <div class="fw-semibold text-body">{{ s.user.get_full_name|default:s.user.username }}</div>
                 {% if s.user.email %}<div class="small text-muted d-none d-md-block text-truncate" style="max-width:14rem;">{{ s.user.email }}</div>{% endif %}
               </td>
+              <td class="align-middle">
+                {% if item.is_marked %}
+                <span class="badge rounded-pill badge-erp badge-erp-active att-status-badge">Marked</span>
+                {% else %}
+                <span class="badge rounded-pill badge-erp badge-erp-pending att-status-badge">Not marked</span>
+                {% endif %}
+              </td>
               <td>
                 <div class="att-status-toggle d-flex flex-wrap gap-1" role="group" aria-label="Status for {{ s.user.get_full_name|default:s.user.username }}">
                   <input type="radio" class="btn-check" name="status_{{ s.id }}" id="att_{{ s.id }}_P" value="PRESENT" {% if item.status == 'PRESENT' %}checked{% endif %} {% if future_date %}disabled{% endif %}>
@@ -499,6 +673,25 @@
                   <label class="att-pill att-pill-leave" for="att_{{ s.id }}_L">Leave</label>
                 </div>
               </td>
+              <td class="att-pct-cell">
+                {% if item.att_pct is not None %}
+                <div
+                  class="att-pct-tooltip-wrap"
+                  data-bs-toggle="tooltip"
+                  data-bs-placement="left"
+                  title="{{ item.att_tooltip|escape }}"
+                >
+                  <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <span class="att-pct-badge att-pct-badge--{{ item.att_pct_band }}">{{ item.att_pct }}%</span>
+                  </div>
+                  <div class="att-pct-bar" role="progressbar" aria-valuenow="{{ item.att_pct }}" aria-valuemin="0" aria-valuemax="100" aria-label="Attendance {{ item.att_pct }} percent">
+                    <div class="att-pct-bar__fill att-pct-bar__fill--{{ item.att_pct_band }}" style="width: {{ item.att_pct }}%;"></div>
+                  </div>
+                </div>
+                {% else %}
+                <span class="text-muted small">—</span>
+                {% endif %}
+              </td>
             </tr>
             {% endwith %}
             {% endfor %}
@@ -506,6 +699,51 @@
         </table>
       </div>
     </form>
+    {% if roll_call_paginator %}
+    <div class="card-body border-top py-3 px-3 px-lg-4 d-flex flex-column flex-md-row flex-wrap align-items-md-center gap-3 att-roll-footer w-100 {% if roll_call_paginator.num_pages > 1 %}justify-content-between{% else %}justify-content-end{% endif %}">
+      {% if roll_call_paginator.num_pages > 1 %}
+      <nav aria-label="Roll call pages">
+        <ul class="pagination pagination-sm mb-0 flex-wrap justify-content-center justify-content-md-start">
+          {% if roll_call_page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="{% url 'core:attendance_list' %}?{{ roll_call_qs_base }}&page={{ roll_call_page_obj.previous_page_number }}">Previous</a>
+          </li>
+          {% else %}
+          <li class="page-item disabled"><span class="page-link">Previous</span></li>
+          {% endif %}
+          <li class="page-item disabled px-1">
+            <span class="page-link border-0 bg-transparent text-body fw-semibold small">{{ roll_call_page_obj.number }} / {{ roll_call_paginator.num_pages }}</span>
+          </li>
+          {% if roll_call_page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="{% url 'core:attendance_list' %}?{{ roll_call_qs_base }}&page={{ roll_call_page_obj.next_page_number }}">Next</a>
+          </li>
+          {% else %}
+          <li class="page-item disabled"><span class="page-link">Next</span></li>
+          {% endif %}
+        </ul>
+      </nav>
+      {% endif %}
+      <div class="d-flex flex-wrap align-items-center gap-2 align-self-end align-self-md-auto" id="attRollPerPage">
+        <label for="attPerPageSelect" class="small fw-semibold text-muted mb-0">Rows per page:</label>
+        <form method="get" action="{% url 'core:attendance_list' %}" class="d-inline-flex align-items-center gap-2 mb-0 erp-filter-toolbar" id="attPerPageForm">
+          <input type="hidden" name="classroom_id" value="{{ classroom_id }}">
+          <input type="hidden" name="section_id" value="{{ section_id }}">
+          <input type="hidden" name="attendance_date" value="{{ attendance_date }}">
+          <input type="hidden" name="page" value="1">
+          {% if search_q %}<input type="hidden" name="q" value="{{ search_q }}">{% endif %}
+          {% if focus_student %}<input type="hidden" name="student_id" value="{{ focus_student.id }}">{% endif %}
+          <select name="per_page" id="attPerPageSelect" class="form-select" style="width: auto; min-width: 5rem;" aria-label="Rows per page" onchange="this.form.submit()">
+            <option value="10" {% if per_page_param == "10" %}selected{% endif %}>10</option>
+            <option value="25" {% if per_page_param == "25" %}selected{% endif %}>25</option>
+            <option value="50" {% if per_page_param == "50" %}selected{% endif %}>50</option>
+            <option value="100" {% if per_page_param == "100" %}selected{% endif %}>100</option>
+            <option value="all" {% if per_page_param == "all" %}selected{% endif %}>All</option>
+          </select>
+        </form>
+      </div>
+    </div>
+    {% endif %}
   </div>
   {% else %}
   <div class="alert alert-secondary border-0 shadow-sm rounded-4">Choose <strong>class</strong>, <strong>section</strong>, and <strong>date</strong>, then <strong>Load students</strong>.</div>
@@ -547,43 +785,64 @@
 })();
 </script>
 
-{% if students_with_status and not future_date %}
+{% if roll_call_items and not future_date %}
 <script>
 (function() {
+  function showAttendanceToast(type, message) {
+    var host = document.getElementById("attToastHost");
+    if (!host) return;
+    var el = document.createElement("div");
+    el.className = "att-toast att-toast--" + type;
+    el.setAttribute("role", "status");
+    var icon = type === "success" ? "\u2713" : "\u2715";
+    el.innerHTML = "<span class=\"att-toast-icon\" aria-hidden=\"true\">" + icon + "</span><span>" + message + "</span>";
+    host.appendChild(el);
+    requestAnimationFrame(function() {
+      el.classList.add("att-toast--visible");
+    });
+    var hideMs = 3500;
+    setTimeout(function() {
+      el.classList.remove("att-toast--visible");
+      setTimeout(function() {
+        if (el.parentNode) el.parentNode.removeChild(el);
+      }, 380);
+    }, hideMs);
+  }
+
   function bindAttendanceActions() {
-    const form = document.getElementById("attendanceForm");
-    const saveBtn = document.getElementById("saveAttendanceBtn");
-    const markAllPresent = document.getElementById("markAllPresent");
-    const markAllAbsent = document.getElementById("markAllAbsent");
-    const markAllLeave = document.getElementById("markAllLeave");
-    const rows = document.querySelectorAll(".attendance-row");
+    var form = document.getElementById("attendanceForm");
+    var saveBtn = document.getElementById("saveAttendanceBtn");
+    var markAllPresent = document.getElementById("markAllPresent");
+    var markAllAbsent = document.getElementById("markAllAbsent");
+    var markAllLeave = document.getElementById("markAllLeave");
+    var rows = document.querySelectorAll(".attendance-row");
     if (!form || !saveBtn) return;
 
     function currentValue(row) {
-      const c = row.querySelector("input[type=radio][name^=status_]:checked");
+      var c = row.querySelector("input[type=radio][name^=status_]:checked");
       return c ? c.value : "PRESENT";
     }
     function rowClass(row) {
       row.classList.remove("att-row-present", "att-row-absent", "att-row-leave");
-      const v = currentValue(row);
+      var v = currentValue(row);
       if (v === "PRESENT") row.classList.add("att-row-present");
       else if (v === "ABSENT") row.classList.add("att-row-absent");
       else if (v === "LEAVE") row.classList.add("att-row-leave");
     }
     function updateCounts() {
-      let p = 0, a = 0, l = 0;
+      var p = 0, a = 0, l = 0;
       rows.forEach(function(row) {
-        const v = currentValue(row);
+        var v = currentValue(row);
         if (v === "PRESENT") p++;
         else if (v === "ABSENT") a++;
         else if (v === "LEAVE") l++;
       });
-      const ep = document.getElementById("attCountP");
-      const ea = document.getElementById("attCountA");
-      const el = document.getElementById("attCountL");
+      var ep = document.getElementById("attCountP");
+      var ea = document.getElementById("attCountA");
+      var elc = document.getElementById("attCountL");
       if (ep) ep.textContent = String(p);
       if (ea) ea.textContent = String(a);
-      if (el) el.textContent = String(l);
+      if (elc) elc.textContent = String(l);
     }
     rows.forEach(function(row) {
       row.querySelectorAll("input[type=radio][name^=status_]").forEach(function(r) {
@@ -595,7 +854,7 @@
 
     function setAll(val) {
       rows.forEach(function(row) {
-        const inp = row.querySelector("input[type=radio][name^=status_][value=\"" + val + "\"]");
+        var inp = row.querySelector("input[type=radio][name^=status_][value=\"" + val + "\"]");
         if (inp && !inp.disabled) {
           inp.checked = true;
           rowClass(row);
@@ -607,13 +866,91 @@
     if (markAllAbsent) markAllAbsent.addEventListener("click", function() { setAll("ABSENT"); });
     if (markAllLeave) markAllLeave.addEventListener("click", function() { setAll("LEAVE"); });
 
+    function markAllRowsSavedUi(summary) {
+      rows.forEach(function(row) {
+        row.setAttribute("data-marked", "1");
+        var badge = row.querySelector(".att-status-badge");
+        if (badge) {
+          badge.className = "badge rounded-pill badge-erp badge-erp-active att-status-badge";
+          badge.textContent = "Marked";
+        }
+      });
+      var sm = document.getElementById("attSummaryMarked");
+      var sp = document.getElementById("attSummaryPending");
+      var strip = document.getElementById("attSummaryStrip");
+      if (summary && typeof summary.marked === "number" && typeof summary.pending === "number") {
+        if (sm) sm.textContent = String(summary.marked);
+        if (sp) sp.textContent = String(summary.pending);
+      }
+      if (strip) {
+        strip.classList.remove("att-summary-strip--pending");
+        strip.classList.add("att-summary-strip--marked");
+        var msg = strip.querySelector(".att-summary-msg");
+        if (msg) {
+          msg.className = "small fw-semibold text-success ms-lg-auto att-summary-msg";
+          msg.textContent = "Attendance saved for students on this page. Summary reflects the full class list.";
+        }
+      }
+    }
+
     saveBtn.addEventListener("click", function() {
-      if (confirm("Save attendance for all students shown? Existing records for this date will be updated.")) form.submit();
+      if (saveBtn.disabled) return;
+      var fd = new FormData(form);
+      saveBtn.disabled = true;
+      var prevHtml = saveBtn.innerHTML;
+      saveBtn.innerHTML = "<span class=\"spinner-border spinner-border-sm me-1\" role=\"status\" aria-hidden=\"true\"></span>Saving…";
+
+      fetch(form.action, {
+        method: "POST",
+        body: fd,
+        credentials: "same-origin",
+        headers: {
+          "X-Requested-With": "XMLHttpRequest",
+          "Accept": "application/json"
+        }
+      })
+        .then(function(res) {
+          var ct = res.headers.get("content-type") || "";
+          if (!ct.includes("application/json")) {
+            return res.text().then(function() {
+              throw new Error("not_json");
+            });
+          }
+          return res.json().then(function(data) {
+            return { ok: res.ok, data: data };
+          });
+        })
+        .then(function(result) {
+          saveBtn.disabled = false;
+          saveBtn.innerHTML = prevHtml;
+          if (result.ok && result.data && result.data.ok) {
+            showAttendanceToast("success", result.data.message || "Attendance saved successfully");
+            markAllRowsSavedUi(result.data.summary);
+          } else {
+            var errMsg = (result.data && result.data.message) || "Failed to save attendance";
+            showAttendanceToast("error", errMsg);
+          }
+        })
+        .catch(function() {
+          saveBtn.disabled = false;
+          saveBtn.innerHTML = prevHtml;
+          showAttendanceToast("error", "Failed to save attendance");
+        });
     });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bindAttendanceActions);
   else bindAttendanceActions();
 })();
+</script>
+{% endif %}
+{% if roll_call_total %}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  if (!window.bootstrap || !bootstrap.Tooltip) return;
+  document.querySelectorAll(".att-pct-tooltip-wrap[data-bs-toggle=\"tooltip\"]").forEach(function(el) {
+    bootstrap.Tooltip.getOrCreateInstance(el, { container: "body" });
+  });
+});
 </script>
 {% endif %}
 {% endblock %}

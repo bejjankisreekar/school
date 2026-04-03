@@ -20,8 +20,8 @@ class Feature(models.Model):
         return f"{self.name} ({self.code})"
 
 
-# Sellable SaaS tiers only (superadmin pickers ignore legacy rows like Growth in DB).
-SALE_SAAS_PLAN_NAMES = ("Starter", "Enterprise")
+# Sellable SaaS tiers (superadmin pickers ignore legacy rows like Growth in DB).
+SALE_SAAS_PLAN_NAMES = ("Starter", "Standard", "Enterprise")
 
 
 class Plan(models.Model):
@@ -106,6 +106,23 @@ class SubscriptionPlan(models.Model):
         return f"{self.name.title()} (Rs.{self.price_per_student}/student/month)"
 
 
+# ORM feature codes used by @feature_required / request.school_features.
+# Merged with plan features when enabled_features_override is not set, so new schools
+# always get core modules even if saas_plan is missing. Override alone is authoritative.
+DEFAULT_CORE_SCHOOL_FEATURES = frozenset(
+    {
+        "students",
+        "teachers",
+        "attendance",
+        "exams",
+        "timetable",
+        "homework",
+        "reports",
+        "fees",
+    }
+)
+
+
 class School(TenantMixin):
     """
     Tenant model: each school has its own schema (e.g. school_001).
@@ -152,7 +169,7 @@ class School(TenantMixin):
         null=True,
         blank=True,
         related_name="schools",
-        help_text="Starter or Enterprise — controls which modules are available",
+        help_text="Starter, Standard, or Enterprise — controls which modules are available",
     )
     enabled_features_override = models.JSONField(
         default=None,
@@ -182,6 +199,22 @@ class School(TenantMixin):
     address = models.TextField(blank=True)
     contact_email = models.EmailField(blank=True)
     phone = models.CharField(max_length=20, blank=True)
+    date_of_establishment = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Official date the institution was established or recognized.",
+    )
+    website = models.URLField(max_length=500, blank=True, help_text="Official website URL.")
+    registration_number = models.CharField(
+        max_length=120,
+        blank=True,
+        help_text="Government / board registration or UDISE / affiliation number.",
+    )
+    board_affiliation = models.CharField(
+        max_length=120,
+        blank=True,
+        help_text="e.g. CBSE, ICSE, State Board, IB.",
+    )
     # Custom branding (Pro Plan)
     logo = models.ImageField(upload_to="school_logos/", blank=True, null=True)
     theme_color = models.CharField(max_length=20, blank=True, default="#4F46E5")
@@ -203,20 +236,21 @@ class School(TenantMixin):
             self.is_active = True
         super().save(*args, **kwargs)
 
-    def get_enabled_feature_codes(self) -> set | None:
+    def get_enabled_feature_codes(self) -> set:
         """
         Return set of feature codes enabled for this school.
-        If enabled_features_override is set, use it. Otherwise use saas_plan features.
-        Always returns a set.
-        - Override takes precedence when `enabled_features_override` is set.
-        - Otherwise use `saas_plan` feature codes.
-        - If neither exists, return empty set.
+        - If `enabled_features_override` is set, use it only (no plan merge).
+          Legacy `staff` is treated as `teachers` for module gates.
+        - Otherwise merge `saas_plan` features with DEFAULT_CORE_SCHOOL_FEATURES so new
+          schools without a plan still get Teachers, Students, etc.
         """
         if self.enabled_features_override is not None:
-            return set(self.enabled_features_override)
-        if self.saas_plan:
-            return self.saas_plan.get_feature_codes()
-        return set()
+            codes = set(self.enabled_features_override)
+            if "staff" in codes and "teachers" not in codes:
+                codes.add("teachers")
+            return codes
+        plan_codes = set(self.saas_plan.get_feature_codes()) if self.saas_plan else set()
+        return plan_codes | set(DEFAULT_CORE_SCHOOL_FEATURES)
 
     def has_feature(self, feature: str) -> bool:
         """Check if school has access to feature via plan or override."""
@@ -231,7 +265,7 @@ class School(TenantMixin):
         """True if school is on Enterprise tier (or legacy Advance / Pro)."""
         if self.saas_plan:
             t = (self.saas_plan.name or "").strip().lower()
-            return t in ("enterprise", "advance")
+            return t in ("enterprise", "standard", "advance")
         if self.plan:
             return (self.plan.name or "").lower() == "pro"
         if self.subscription_plan:

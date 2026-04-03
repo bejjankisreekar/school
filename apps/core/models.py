@@ -171,9 +171,28 @@ class SchoolEnrollmentRequest(models.Model):
         DECLINED = "DECLINED", "Declined"
 
     institution_name = models.CharField(max_length=255)
+    institution_code = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Short code or abbreviation for the school (optional).",
+    )
     contact_name = models.CharField(max_length=255)
     email = models.EmailField()
     phone = models.CharField(max_length=30, blank=True)
+    address = models.TextField(blank=True)
+    city = models.CharField(max_length=120, blank=True)
+    state = models.CharField(max_length=120, blank=True)
+    pincode = models.CharField(max_length=20, blank=True)
+    student_count = models.PositiveIntegerField(null=True, blank=True)
+    teacher_count = models.PositiveIntegerField(null=True, blank=True)
+    branch_count = models.PositiveIntegerField(null=True, blank=True)
+    preferred_username = models.CharField(max_length=150, blank=True)
+    pending_password_hash = models.CharField(max_length=128, blank=True)
+    intended_plan = models.CharField(
+        max_length=32,
+        blank=True,
+        help_text="trial, basic, standard, enterprise, yearly — post-trial billing preference (audit).",
+    )
     notes = models.TextField(blank=True)
 
     status = models.CharField(

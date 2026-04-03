@@ -72,6 +72,9 @@ SHOW_PUBLIC_IF_NO_TENANT_FOUND = True
 DATABASE_ROUTERS = [
     "django_tenants.routers.TenantSyncRouter",
 ]
+# Academic data (school_data, timetable, payroll) must live only in each tenant schema.
+# If sections/classes/subjects look shared across schools, public may contain stray
+# tenant tables — run: python manage.py purge_public_tenant_tables --execute
 NPM_BIN_PATH = r"C:\Program Files\nodejs\npm.cmd"
 
 MIDDLEWARE = [
@@ -86,6 +89,7 @@ MIDDLEWARE = [
     "apps.core.middleware.TrialExpiryMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "apps.core.middleware.TenantSchemaFinalEnsureMiddleware",
 ]
 
 ROOT_URLCONF = "school_erp_demo.urls"

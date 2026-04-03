@@ -1,31 +1,544 @@
 {% extends "base.html" %}
-{% block title %}Account | School ERP{% endblock %}
+{% load static humanize %}
+{% block title %}My profile | Campus ERP{% endblock %}
 {% block content %}
-<div class="mx-auto" style="max-width: 520px;">
-  <h1 class="h5 fw-bold mb-3">Account</h1>
-  <p class="text-muted small mb-4">Your sign-in identity for this workspace.</p>
-  <div class="card border-0 shadow-sm rounded-4">
-    <div class="card-body p-4">
-      <dl class="row mb-0 small">
-        <dt class="col-sm-4 text-muted">Name</dt>
-        <dd class="col-sm-8 fw-medium">{{ account_user.get_full_name|default:"—" }}</dd>
-        <dt class="col-sm-4 text-muted pt-2">Username</dt>
-        <dd class="col-sm-8 pt-2">{{ account_user.username }}</dd>
-        <dt class="col-sm-4 text-muted pt-2">Email</dt>
-        <dd class="col-sm-8 pt-2">{{ account_user.email|default:"—" }}</dd>
-        <dt class="col-sm-4 text-muted pt-2">Role</dt>
-        <dd class="col-sm-8 pt-2">{{ account_user.get_role_display }}</dd>
-        {% if account_user.school %}
-        <dt class="col-sm-4 text-muted pt-2">School</dt>
-        <dd class="col-sm-8 pt-2">{{ account_user.school.name }}</dd>
-        {% endif %}
-      </dl>
+<div class="container-fluid px-0 erp-module account-profile-page" id="accountProfilePage"
+     data-profile-start-edit="{% if profile_save_failed %}1{% else %}0{% endif %}"
+     data-prefs-failed="{% if prefs_save_failed %}1{% else %}0{% endif %}"
+     data-security-failed="{% if security_save_failed %}1{% else %}0{% endif %}"
+     data-school-failed="{% if school_save_failed %}1{% else %}0{% endif %}">
+  <style>
+    .account-profile-page .profile-header-card {
+      background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(14, 165, 233, 0.06) 100%);
+      border: 1px solid rgba(15, 23, 42, 0.08);
+    }
+    .dark .account-profile-page .profile-header-card {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(14, 165, 233, 0.1) 100%);
+      border-color: rgba(148, 163, 184, 0.15);
+    }
+    .account-profile-page .profile-avatar {
+      width: 112px;
+      height: 112px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid rgba(255, 255, 255, 0.95);
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+    }
+    .account-profile-page .profile-avatar-placeholder {
+      width: 112px;
+      height: 112px;
+      border-radius: 50%;
+      background: rgba(79, 70, 229, 0.15);
+      color: #4f46e5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.5rem;
+      font-weight: 700;
+      border: 3px solid rgba(255, 255, 255, 0.95);
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+    }
+    .account-profile-page .profile-field-locked.form-control,
+    .account-profile-page .profile-field-locked.form-select {
+      background-color: rgba(15, 23, 42, 0.03);
+      border-color: transparent;
+      cursor: default;
+    }
+    .dark .account-profile-page .profile-field-locked.form-control,
+    .dark .account-profile-page .profile-field-locked.form-select {
+      background-color: rgba(148, 163, 184, 0.08);
+    }
+    .account-profile-page .section-card-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+  </style>
+
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{{ profile_dashboard_url }}">{{ profile_dashboard_label }}</a></li>
+      <li class="breadcrumb-item active" aria-current="page">My profile</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div>
+      <h1 class="h4 fw-bold mb-0">Account profile</h1>
+      <p class="text-muted small mb-0 mt-1">Manage your identity, contact details, preferences, and security.</p>
     </div>
   </div>
-  <p class="small text-muted mt-3 mb-0">
-    {% if account_user.role == "STUDENT" %}
-    For grades, badges, and photo, open <a href="{% url 'core:student_profile' %}">Student profile</a>.
-    {% endif %}
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% else %}info{% endif %} alert-dismissible fade show rounded-3" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="card border-0 shadow-sm rounded-4 profile-header-card mb-4">
+    <div class="card-body p-4">
+      <div class="row align-items-center g-4">
+        <div class="col-auto">
+          {% if profile.avatar %}
+            <img src="{{ profile.avatar.url }}" alt="" class="profile-avatar" width="112" height="112">
+          {% else %}
+            <div class="profile-avatar-placeholder" aria-hidden="true">
+              {{ profile.resolved_display_name|default:account_user.username|slice:":1"|upper }}
+            </div>
+          {% endif %}
+        </div>
+        <div class="col min-w-0">
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+            <h2 class="h5 fw-bold mb-0 text-truncate">{{ profile.resolved_display_name }}</h2>
+            {% if account_user.is_active %}
+              <span class="badge rounded-pill bg-success-subtle text-success border border-success-subtle">Active</span>
+            {% else %}
+              <span class="badge rounded-pill bg-secondary-subtle text-secondary border">Inactive</span>
+            {% endif %}
+          </div>
+          <div class="text-muted small mb-2">{{ account_user.get_role_display }}</div>
+          <div class="row g-2 small">
+            <div class="col-sm-6 col-lg-4">
+              <span class="text-muted">User ID</span>
+              <div class="fw-medium">{{ profile.employee_code|default:account_user.username }}</div>
+            </div>
+            <div class="col-sm-6 col-lg-4">
+              <span class="text-muted">Primary email</span>
+              <div class="fw-medium text-truncate">{{ account_user.email|default:"—" }}</div>
+            </div>
+            <div class="col-sm-6 col-lg-4">
+              <span class="text-muted">Mobile</span>
+              <div class="fw-medium">{{ account_user.phone_number|default:"—" }}</div>
+            </div>
+            <div class="col-sm-6 col-lg-4">
+              <span class="text-muted">Last login</span>
+              <div class="fw-medium">{% if account_user.last_login %}{{ account_user.last_login|date:"M d, Y g:i A" }}{% else %}—{% endif %}</div>
+            </div>
+            <div class="col-sm-6 col-lg-4">
+              <span class="text-muted">Member since</span>
+              <div class="fw-medium">{{ account_user.date_joined|date:"M d, Y" }}</div>
+            </div>
+            {% if profile_school %}
+            <div class="col-sm-6 col-lg-4">
+              <span class="text-muted">School</span>
+              <div class="fw-medium text-truncate">{{ profile_school.name }}</div>
+            </div>
+            <div class="col-sm-6 col-lg-4">
+              <span class="text-muted">School code</span>
+              <div class="fw-medium font-monospace small">{{ profile_school.code }}</div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="col-12 col-lg-auto d-flex flex-column flex-sm-row flex-lg-column gap-2">
+          <button type="button" class="btn btn-primary btn-sm rounded-pill px-3" id="btnProfileEdit">
+            <i class="bi bi-pencil-square me-1"></i>Edit profile
+          </button>
+          <a href="{% url 'accounts:change_password' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+            <i class="bi bi-key me-1"></i>Change password
+          </a>
+          <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3" data-bs-toggle="collapse" data-bs-target="#avatarUploadCollapse" aria-expanded="false">
+            <i class="bi bi-camera me-1"></i>Upload photo
+          </button>
+        </div>
+      </div>
+      <div class="collapse mt-3 pt-3 border-top border-slate-200 dark:border-slate-700" id="avatarUploadCollapse">
+        <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="upload_avatar">
+          <div class="col-md-8">
+            <label class="form-label small text-muted mb-1" for="id_avatar">Photo (JPG, PNG, or WebP)</label>
+            {{ avatar_form.avatar }}
+            {% if avatar_form.avatar.errors %}<div class="text-danger small mt-1">{{ avatar_form.avatar.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <button type="submit" class="btn btn-primary btn-sm rounded-pill w-100">Save photo</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {% if account_user.role == "STUDENT" %}
+  <p class="small text-muted mb-4">
+    For grades, badges, and academic photo, open <a href="{% url 'core:student_profile' %}">Student profile</a>.
   </p>
+  {% endif %}
+
+  <div class="row g-4">
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-body">
+          <div class="section-card-title text-uppercase text-muted small mb-3">Summary</div>
+          <ul class="list-unstyled small mb-0 vstack gap-2">
+            <li class="d-flex justify-content-between gap-2"><span class="text-muted">Username</span><span class="fw-medium text-end text-break">{{ account_user.username }}</span></li>
+            <li class="d-flex justify-content-between gap-2"><span class="text-muted">Role</span><span class="fw-medium text-end">{{ account_user.get_role_display }}</span></li>
+            <li class="d-flex justify-content-between gap-2"><span class="text-muted">Theme (saved)</span><span class="fw-medium text-end">{{ profile.get_theme_display }}</span></li>
+            <li class="d-flex justify-content-between gap-2"><span class="text-muted">2FA</span><span class="fw-medium text-end">{% if profile.two_factor_enabled %}On{% else %}Off{% endif %}</span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body">
+          <div class="section-card-title text-uppercase text-muted small mb-2">Activity &amp; audit</div>
+          <ul class="list-unstyled small mb-0 vstack gap-2">
+            <li><span class="text-muted d-block">Created</span><span class="fw-medium">{{ profile.created_at|date:"M d, Y g:i A" }}</span></li>
+            <li><span class="text-muted d-block">Profile last modified</span><span class="fw-medium">{{ profile.profile_updated_at|date:"M d, Y g:i A" }}</span></li>
+            <li><span class="text-muted d-block">Last password change</span><span class="fw-medium">{% if profile.password_changed_at %}{{ profile.password_changed_at|date:"M d, Y g:i A" }}{% else %}Not recorded yet{% endif %}</span></li>
+            <li><span class="text-muted d-block">Profile updated by</span><span class="fw-medium">{% if profile.profile_updated_by %}{{ profile.profile_updated_by.get_full_name|default:profile.profile_updated_by.username }}{% else %}—{% endif %}</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      <form method="post" class="card border-0 shadow-sm rounded-4 mb-4" id="profileMainForm" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_profile">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+            <div>
+              <div class="section-card-title">Personal information</div>
+              <div class="text-muted small">Legal name, demographics, and emergency contacts.</div>
+            </div>
+            <div class="d-flex gap-2 d-none" id="profileEditActions">
+              <button type="submit" class="btn btn-primary btn-sm rounded-pill px-3">Save changes</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" id="btnProfileCancel">Cancel</button>
+            </div>
+          </div>
+          <div class="row g-3">
+            {% for field in core_form %}
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<div class="text-danger small mt-1">{{ field.errors.0 }}</div>{% endif %}
+            </div>
+            {% endfor %}
+            {% for field in personal_form %}
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<div class="text-danger small mt-1">{{ field.errors.0 }}</div>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="card-body p-4 border-top border-slate-100 dark:border-slate-800">
+          <div class="section-card-title mb-3">Contact information</div>
+          <div class="row g-3">
+            {% for field in contact_form %}
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<div class="text-danger small mt-1">{{ field.errors.0 }}</div>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="card-body p-4 border-top border-slate-100 dark:border-slate-800">
+          <div class="section-card-title mb-3">Role &amp; organization</div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1">Role</label>
+              <input type="text" class="form-control rounded-3 profile-org-readonly" value="{{ account_user.get_role_display }}" readonly>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1">Assigned school</label>
+              <input type="text" class="form-control rounded-3 profile-org-readonly" value="{% if account_user.school %}{{ account_user.school.name }}{% else %}—{% endif %}" readonly>
+            </div>
+            {% for field in org_form %}
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<div class="text-danger small mt-1">{{ field.errors.0 }}</div>{% endif %}
+            </div>
+            {% endfor %}
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1">Username</label>
+              <input type="text" class="form-control rounded-3 profile-org-readonly" value="{{ account_user.username }}" readonly>
+            </div>
+          </div>
+        </div>
+      </form>
+
+      {% if profile_school %}
+      <div class="card border-0 shadow-sm rounded-4 mb-4" id="schoolProfileCard">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+            <div>
+              <div class="section-card-title">Institution &amp; school profile</div>
+              <p class="text-muted small mb-0">
+                Campus details linked to your account.
+                {% if can_edit_school %}You can edit these as school admin.{% else %}Only the school admin can change this record; contact them for corrections.{% endif %}
+              </p>
+            </div>
+            {% if profile_school.logo %}
+            <img src="{{ profile_school.logo.url }}" alt="" class="rounded-3 border" style="width:56px;height:56px;object-fit:contain;background:#fff;" width="56" height="56">
+            {% endif %}
+          </div>
+
+          <div class="row g-3 small mb-3 pb-3 border-bottom border-slate-100 dark:border-slate-800">
+            <div class="col-6 col-md-4">
+              <span class="text-muted d-block">School code</span>
+              <span class="fw-medium font-monospace">{{ profile_school.code }}</span>
+            </div>
+            <div class="col-6 col-md-4">
+              <span class="text-muted d-block">Institution status</span>
+              <span class="fw-medium">{{ profile_school.get_school_status_display }}</span>
+            </div>
+            <div class="col-6 col-md-4">
+              <span class="text-muted d-block">On platform since</span>
+              <span class="fw-medium">{{ profile_school.created_on|date:"M d, Y" }}</span>
+            </div>
+            {% if profile_school.trial_end_date %}
+            <div class="col-6 col-md-4">
+              <span class="text-muted d-block">Trial ends</span>
+              <span class="fw-medium">{{ profile_school.trial_end_date|date:"M d, Y" }}</span>
+            </div>
+            {% endif %}
+            {% if profile_school.saas_plan %}
+            <div class="col-6 col-md-4">
+              <span class="text-muted d-block">Plan</span>
+              <span class="fw-medium">{{ profile_school.saas_plan.name }}</span>
+            </div>
+            {% endif %}
+          </div>
+
+          {% if can_edit_school and school_form %}
+          <form method="post" id="schoolProfileForm" novalidate>
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_school">
+            <div class="row g-3">
+              {% for field in school_form %}
+              <div class="col-md-6 {% if field.name == 'address' %}col-12{% endif %}">
+                <label class="form-label small text-muted mb-1" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}<div class="form-text small">{{ field.help_text }}</div>{% endif %}
+                {% if field.errors %}<div class="text-danger small mt-1">{{ field.errors.0 }}</div>{% endif %}
+              </div>
+              {% endfor %}
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm rounded-pill px-4 mt-3">Save institution</button>
+          </form>
+          {% else %}
+          <div class="row g-3 small">
+            <div class="col-md-6">
+              <span class="text-muted d-block">Institution name</span>
+              <span class="fw-medium">{{ profile_school.name }}</span>
+            </div>
+            <div class="col-md-6">
+              <span class="text-muted d-block">Institution type</span>
+              <span class="fw-medium">{{ profile_school.get_institution_type_display }}</span>
+            </div>
+            <div class="col-md-6">
+              <span class="text-muted d-block">Date of establishment</span>
+              <span class="fw-medium">{% if profile_school.date_of_establishment %}{{ profile_school.date_of_establishment|date:"M d, Y" }}{% else %}—{% endif %}</span>
+            </div>
+            <div class="col-md-6">
+              <span class="text-muted d-block">Board / affiliation</span>
+              <span class="fw-medium">{{ profile_school.board_affiliation|default:"—" }}</span>
+            </div>
+            <div class="col-md-6">
+              <span class="text-muted d-block">Registration / UDISE</span>
+              <span class="fw-medium">{{ profile_school.registration_number|default:"—" }}</span>
+            </div>
+            <div class="col-md-6">
+              <span class="text-muted d-block">Website</span>
+              {% if profile_school.website %}
+              <a href="{{ profile_school.website }}" class="fw-medium text-break" target="_blank" rel="noopener noreferrer">{{ profile_school.website }}</a>
+              {% else %}<span class="fw-medium">—</span>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <span class="text-muted d-block">Institution contact person</span>
+              <span class="fw-medium">{{ profile_school.contact_person|default:"—" }}</span>
+            </div>
+            <div class="col-md-6">
+              <span class="text-muted d-block">Institution email</span>
+              <span class="fw-medium text-break">{{ profile_school.contact_email|default:"—" }}</span>
+            </div>
+            <div class="col-md-6">
+              <span class="text-muted d-block">Institution phone</span>
+              <span class="fw-medium">{{ profile_school.phone|default:"—" }}</span>
+            </div>
+            <div class="col-12">
+              <span class="text-muted d-block">Address</span>
+              <span class="fw-medium">{{ profile_school.address|default:"—"|linebreaksbr }}</span>
+            </div>
+            <div class="col-md-6">
+              <span class="text-muted d-block">Header subtitle</span>
+              <span class="fw-medium">{{ profile_school.header_text|default:"—" }}</span>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-body p-4">
+          <div class="section-card-title mb-1">Account security</div>
+          <p class="text-muted small mb-3">Password, two-factor readiness, and active sessions.</p>
+          <div class="row g-4">
+            <div class="col-md-6">
+              <div class="p-3 rounded-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+                <div class="small text-muted mb-1">Password</div>
+                <div class="fw-medium mb-2">Last change: {% if profile.password_changed_at %}{{ profile.password_changed_at|naturaltime }}{% else %}Not recorded{% endif %}</div>
+                <a href="{% url 'accounts:change_password' %}" class="btn btn-sm btn-outline-primary rounded-pill">Change password</a>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <form method="post" id="securityPrefsForm">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="save_security">
+                <div class="p-3 rounded-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 h-100">
+                  <div class="small text-muted mb-2">Two-factor authentication</div>
+                  <div class="form-check form-switch mb-2">
+                    {{ security_form.two_factor_enabled }}
+                    <label class="form-check-label small" for="{{ security_form.two_factor_enabled.id_for_label }}">Enable 2FA (enrollment flow coming soon)</label>
+                  </div>
+                  {% if security_form.two_factor_enabled.errors %}
+                    <div class="text-danger small">{{ security_form.two_factor_enabled.errors.0 }}</div>
+                  {% endif %}
+                  <button type="submit" class="btn btn-sm btn-primary rounded-pill mt-1">Save security</button>
+                </div>
+              </form>
+            </div>
+          </div>
+          <div class="mt-4">
+            <div class="small text-muted mb-2">Login activity</div>
+            <p class="small mb-2">Most recent sign-in: {% if account_user.last_login %}<span class="fw-medium">{{ account_user.last_login|date:"M d, Y g:i A" }}</span> ({{ account_user.last_login|naturaltime }}){% else %}<span class="fw-medium">—</span>{% endif %}</p>
+            <div class="small text-muted mb-2">Recent sessions</div>
+            <div class="table-responsive rounded-3 border border-slate-200 dark:border-slate-700">
+              <table class="table table-sm mb-0 align-middle">
+                <thead class="table-light"><tr><th class="small">Session</th><th class="small">Expires</th><th class="small">Status</th></tr></thead>
+                <tbody class="small">
+                  {% for s in sessions %}
+                  <tr>
+                    <td class="font-monospace">{{ s.session_key_short }}</td>
+                    <td>{{ s.expires|date:"M d, Y" }}</td>
+                    <td>{% if s.is_current %}<span class="badge text-bg-primary-subtle text-primary border border-primary-subtle">This device</span>{% else %}<span class="text-muted">Other</span>{% endif %}</td>
+                  </tr>
+                  {% empty %}
+                  <tr><td colspan="3" class="text-muted">No active session rows found.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <form method="post" class="mt-3 d-inline" onsubmit="return confirm('Sign out all other browsers and devices? You will stay signed in here.');">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="logout_all_sessions">
+              <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill">
+                <i class="bi bi-box-arrow-right me-1"></i>Logout all other devices
+              </button>
+            </form>
+            {% if other_session_count %}
+              <span class="small text-muted ms-2">{{ other_session_count }} other active session(s)</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <form method="post" class="card border-0 shadow-sm rounded-4" id="prefsForm">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_preferences">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+            <div>
+              <div class="section-card-title">Preferences</div>
+              <p class="text-muted small mb-0">Language, time zone, theme default, and notification channels.</p>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm rounded-pill px-3">Save preferences</button>
+          </div>
+          <div class="row g-3">
+            {% for field in prefs_form %}
+            <div class="col-md-6 {% if 'notify_' in field.name %}col-12{% endif %}">
+              {% if field.field.widget.input_type == 'checkbox' %}
+                <div class="form-check mt-4">
+                  {{ field }}
+                  <label class="form-check-label small" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                </div>
+                {% if field.errors %}<div class="text-danger small mt-1">{{ field.errors.0 }}</div>{% endif %}
+              {% else %}
+                <label class="form-label small text-muted mb-1" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="text-danger small mt-1">{{ field.errors.0 }}</div>{% endif %}
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          <p class="small text-muted mt-3 mb-0">Theme here is stored on your profile. The header toggle still updates this browser immediately; saving preferences keeps your default for new sessions.</p>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
+
+<script>
+(function () {
+  var page = document.getElementById("accountProfilePage");
+  var form = document.getElementById("profileMainForm");
+  if (!page || !form) return;
+
+  var editable = form.querySelectorAll("input:not([type=hidden]):not([readonly]), select, textarea");
+  var orgReadonly = form.querySelectorAll(".profile-org-readonly");
+  var btnEdit = document.getElementById("btnProfileEdit");
+  var btnCancel = document.getElementById("btnProfileCancel");
+  var actions = document.getElementById("profileEditActions");
+  var editing = page.getAttribute("data-profile-start-edit") === "1";
+
+  function applyLocked(locked) {
+    editable.forEach(function (el) {
+      if (el.closest(".profile-org-readonly")) return;
+      el.classList.toggle("profile-field-locked", locked);
+      if (el.tagName === "SELECT") {
+        el.disabled = locked;
+      } else {
+        el.readOnly = locked;
+      }
+    });
+    orgReadonly.forEach(function (el) {
+      el.classList.toggle("profile-field-locked", locked);
+    });
+    if (actions) actions.classList.toggle("d-none", !editing);
+    if (btnEdit) btnEdit.classList.toggle("d-none", editing);
+  }
+
+  form.addEventListener("submit", function () {
+    editable.forEach(function (el) {
+      if (el.tagName === "SELECT") el.disabled = false;
+      el.readOnly = false;
+    });
+  });
+
+  function setEditing(v) {
+    editing = v;
+    applyLocked(!v);
+  }
+
+  if (btnEdit) {
+    btnEdit.addEventListener("click", function () { setEditing(true); });
+  }
+  if (btnCancel) {
+    btnCancel.addEventListener("click", function () { window.location.href = "{% url 'accounts:account_profile' %}"; });
+  }
+
+  setEditing(editing);
+
+  if (page.getAttribute("data-prefs-failed") === "1") {
+    var el = document.getElementById("prefsForm");
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  if (page.getAttribute("data-security-failed") === "1") {
+    var sec = document.getElementById("securityPrefsForm");
+    if (sec) sec.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  if (page.getAttribute("data-school-failed") === "1") {
+    var sc = document.getElementById("schoolProfileCard");
+    if (sc) sc.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+})();
+</script>
 {% endblock %}

@@ -78,11 +78,6 @@
     letter-spacing: .05em; color: var(--fh-muted) !important;
   }
   html.dark .fee-structure-detail .table thead th { background: rgba(15,23,42,.95) !important; }
-  .fee-badge-ok { background: rgba(34,197,94,.15); color: #15803d; }
-  .fee-badge-warn { background: rgba(234,179,8,.18); color: #a16207; }
-  .fee-badge-muted { background: rgba(100,116,139,.12); color: var(--fh-muted); }
-  html.dark .fee-badge-ok { color: #4ade80; }
-  html.dark .fee-badge-warn { color: #fbbf24; }
   .fee-class-accordion .accordion-button {
     background: var(--fh-card) !important;
     color: inherit !important;
@@ -127,10 +122,10 @@
           {% endfor %}
         </select>
       </form>
-      <a href="{% url 'core:school_fee_types' %}" class="btn btn-outline-secondary btn-sm rounded-pill">Fee types</a>
-      <a href="{% url 'core:school_fee_structure' %}" class="btn btn-outline-secondary btn-sm rounded-pill">Edit structures</a>
-      <a href="{% url 'core:school_fee_payments' %}" class="btn btn-outline-primary btn-sm rounded-pill">All payments</a>
-      <a href="{% url 'core:school_fee_add' %}" class="btn btn-primary btn-sm rounded-pill">Record payment</a>
+      <a href="{% url 'core:school_fee_types' %}" class="btn btn-erp-secondary btn-sm">Fee types</a>
+      <a href="{% url 'core:school_fee_structure' %}" class="btn btn-erp-secondary btn-sm">Edit structures</a>
+      <a href="{% url 'core:school_fee_payments' %}" class="btn btn-sm btn-outline-primary">All payments</a>
+      <a href="{% url 'core:school_fee_add' %}" class="btn btn-primary btn-sm">Record payment</a>
     </div>
   </div>
 
@@ -281,7 +276,7 @@
                     <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
                       <span class="fw-bold fs-6">{{ c.class_name }}</span>
                       {% if c.sections_label and c.sections_label != "—" %}
-                      <span class="badge rounded-pill fee-badge-muted fw-normal">{{ c.sections_label }}</span>
+                      <span class="badge rounded-pill badge-erp badge-erp-inactive fw-normal">{{ c.sections_label }}</span>
                       {% endif %}
                     </div>
                     <div class="small text-muted">Students <strong class="text-body">{{ c.student_count|inri }}</strong>
@@ -290,8 +285,8 @@
                     <div class="small text-primary fw-semibold mt-1 d-none d-sm-block"><i class="bi bi-chevron-expand me-1"></i>View details</div>
                   </div>
                   <div class="text-end">
-                    <div class="small text-muted text-uppercase fw-semibold mb-0" style="letter-spacing:.06em;">Total / student</div>
-                    <div class="fee-class-hero">₹{{ c.total_per_student|inr }}</div>
+                    <div class="small text-muted text-uppercase fw-semibold" style="letter-spacing:.04em;">Total / student</div>
+                    <div class="fw-bold">₹{{ c.total_per_student|inr }}</div>
                   </div>
                   <div class="d-flex flex-wrap gap-3 align-items-end">
                     <div>
@@ -308,11 +303,11 @@
                     </div>
                     <div>
                       {% if c.status_key == 'clear' %}
-                      <span class="badge rounded-pill fee-badge-ok px-3 py-2">{{ c.status_label }}</span>
+                      <span class="badge rounded-pill badge-erp badge-erp-active px-3 py-2">{{ c.status_label }}</span>
                       {% elif c.status_key == 'outstanding' %}
-                      <span class="badge rounded-pill fee-badge-warn px-3 py-2">{{ c.status_label }}</span>
+                      <span class="badge rounded-pill badge-erp badge-erp-pending px-3 py-2">{{ c.status_label }}</span>
                       {% else %}
-                      <span class="badge rounded-pill fee-badge-muted px-3 py-2">{{ c.status_label }}</span>
+                      <span class="badge rounded-pill badge-erp badge-erp-inactive px-3 py-2">{{ c.status_label }}</span>
                       {% endif %}
                     </div>
                   </div>
@@ -540,8 +535,8 @@
           <span class="small text-muted d-block">Filter by class, status, fee type, dates, and payment mode. Totals reflect the current filter.</span>
         </div>
         <div class="d-flex flex-wrap gap-2">
-          <a class="btn btn-sm btn-outline-secondary rounded-pill" href="{% url 'core:school_fee_ledger_export_csv' %}?{{ ledger_filter_qs }}"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Export CSV</a>
-          <button type="button" class="btn btn-sm btn-outline-dark rounded-pill" onclick="window.print();"><i class="bi bi-printer me-1"></i>Print / PDF</button>
+          <a class="btn btn-sm btn-erp-secondary" href="{% url 'core:school_fee_ledger_export_csv' %}?{{ ledger_filter_qs }}"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Export CSV</a>
+          <button type="button" class="btn btn-sm btn-erp-secondary" onclick="window.print();"><i class="bi bi-printer me-1"></i>Print / PDF</button>
         </div>
       </div>
       <div class="fee-ledger-totals mb-3">
@@ -570,19 +565,19 @@
       </div>
     </div>
 
-    <form method="get" class="fee-ledger-filter-bar" id="ledger-filter-form">
+    <form method="get" class="fee-ledger-filter-bar erp-filter-toolbar" id="ledger-filter-form">
       {% if academic_year %}<input type="hidden" name="ay" value="{{ academic_year.id }}">{% endif %}
-      <div class="row g-2 align-items-end">
+      <div class="row g-3 g-lg-2 align-items-end">
         <div class="col-12 col-lg-auto">
           <label class="form-label small text-muted mb-0">Scope</label>
-          <div class="form-control form-control-sm rounded-3 bg-body-secondary border-0 py-1 small">
+          <div class="form-control bg-body-secondary border-0 py-2 small d-flex align-items-center">
             {% if academic_year %}{{ academic_year.name }}{% else %}All academic years{% endif %}
             <span class="text-muted">· change via header</span>
           </div>
         </div>
         <div class="col-6 col-lg-4 col-xl-2">
           <label class="form-label small text-muted mb-0" for="lclass">Class</label>
-          <select name="lclass" id="lclass" class="form-select form-select-sm rounded-3">
+          <select name="lclass" id="lclass" class="form-select">
             <option value="">All classes</option>
             {% for c in classrooms %}
             <option value="{{ c.id }}" {% if ledger_filters.classroom_id == c.id %}selected{% endif %}>{{ c.name }}</option>
@@ -591,7 +586,7 @@
         </div>
         <div class="col-6 col-lg-4 col-xl-2">
           <label class="form-label small text-muted mb-0" for="lsec">Section</label>
-          <select name="lsec" id="lsec" class="form-select form-select-sm rounded-3">
+          <select name="lsec" id="lsec" class="form-select">
             <option value="">All sections</option>
             {% for sec in ledger_sections %}
             <option value="{{ sec.id }}" data-classrooms="{{ sec.classroom_ids_csv }}" {% if ledger_filters.section_id == sec.id %}selected{% endif %}>{{ sec.name }}</option>
@@ -600,11 +595,11 @@
         </div>
         <div class="col-12 col-lg-6 col-xl-2">
           <label class="form-label small text-muted mb-0" for="ledger_q">Student</label>
-          <input type="search" name="ledger_q" id="ledger_q" class="form-control form-control-sm rounded-3" placeholder="Name or admission no…" value="{{ ledger_filters.search_q }}">
+          <input type="search" name="ledger_q" id="ledger_q" class="form-control" placeholder="Name or admission no…" value="{{ ledger_filters.search_q }}">
         </div>
         <div class="col-6 col-lg-3 col-xl-1">
           <label class="form-label small text-muted mb-0" for="lst">Status</label>
-          <select name="lst" id="lst" class="form-select form-select-sm rounded-3">
+          <select name="lst" id="lst" class="form-select">
             <option value="">All</option>
             <option value="PAID" {% if ledger_filters.status_filter == 'PAID' %}selected{% endif %}>Paid</option>
             <option value="PARTIAL" {% if ledger_filters.status_filter == 'PARTIAL' %}selected{% endif %}>Partial</option>
@@ -614,7 +609,7 @@
         </div>
         <div class="col-6 col-lg-3 col-xl-2">
           <label class="form-label small text-muted mb-0" for="lft">Fee type</label>
-          <select name="lft" id="lft" class="form-select form-select-sm rounded-3">
+          <select name="lft" id="lft" class="form-select">
             <option value="">All types</option>
             {% for ft in fee_types_dd %}
             <option value="{{ ft.id }}" {% if ledger_filters.fee_type_id == ft.id %}selected{% endif %}>{{ ft.name }}</option>
@@ -623,15 +618,15 @@
         </div>
         <div class="col-6 col-lg-3 col-xl-2">
           <label class="form-label small text-muted mb-0" for="ldf">Due from</label>
-          <input type="date" name="ldf" id="ldf" class="form-control form-control-sm rounded-3" value="{% if ledger_filters.date_from %}{{ ledger_filters.date_from|date:'Y-m-d' }}{% endif %}">
+          <input type="date" name="ldf" id="ldf" class="form-control" value="{% if ledger_filters.date_from %}{{ ledger_filters.date_from|date:'Y-m-d' }}{% endif %}">
         </div>
         <div class="col-6 col-lg-3 col-xl-2">
           <label class="form-label small text-muted mb-0" for="ldt">Due to</label>
-          <input type="date" name="ldt" id="ldt" class="form-control form-control-sm rounded-3" value="{% if ledger_filters.date_to %}{{ ledger_filters.date_to|date:'Y-m-d' }}{% endif %}">
+          <input type="date" name="ldt" id="ldt" class="form-control" value="{% if ledger_filters.date_to %}{{ ledger_filters.date_to|date:'Y-m-d' }}{% endif %}">
         </div>
         <div class="col-6 col-lg-4 col-xl-2">
           <label class="form-label small text-muted mb-0" for="lpm">Payment mode</label>
-          <select name="lpm" id="lpm" class="form-select form-select-sm rounded-3">
+          <select name="lpm" id="lpm" class="form-select">
             <option value="" {% if not ledger_filters.payment_mode %}selected{% endif %}>Any mode</option>
             {% for pm in payment_mode_choices %}
             <option value="{{ pm }}" {% if ledger_filters.payment_mode == pm %}selected{% endif %}>{{ pm }}</option>
@@ -639,8 +634,8 @@
           </select>
         </div>
         <div class="col-12 col-lg-auto d-flex flex-wrap gap-2 pt-1">
-          <button type="submit" class="btn btn-sm btn-primary rounded-pill px-4"><i class="bi bi-funnel me-1"></i>Apply</button>
-          <a href="{% url 'core:school_fees_index' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}#fee-student-ledger" class="btn btn-sm btn-outline-secondary rounded-pill">Reset</a>
+          <button type="submit" class="btn btn-sm btn-primary px-4"><i class="bi bi-funnel me-1"></i>Apply</button>
+          <a href="{% url 'core:school_fees_index' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}#fee-student-ledger" class="btn btn-sm btn-erp-secondary">Reset</a>
         </div>
       </div>
     </form>
@@ -678,10 +673,10 @@
               <td class="text-end font-monospace text-warning">₹{{ item.pending|inr }}</td>
               <td class="small">{% if item.last_payment %}{{ item.last_payment|date:"M j, Y" }}{% else %}—{% endif %}</td>
               <td>
-                {% if item.overall_status == 'PAID' %}<span class="badge rounded-pill text-bg-success">Paid</span>
-                {% elif item.overall_status == 'OVERDUE' %}<span class="badge rounded-pill" style="background:#7f1d1d;">Overdue</span>
-                {% elif item.overall_status == 'PARTIAL' %}<span class="badge rounded-pill text-bg-warning text-dark">Partial</span>
-                {% else %}<span class="badge rounded-pill text-bg-danger">Due</span>{% endif %}
+                {% if item.overall_status == 'PAID' %}<span class="badge rounded-pill badge-erp badge-erp-active">Paid</span>
+                {% elif item.overall_status == 'OVERDUE' %}<span class="badge rounded-pill badge-erp badge-erp-left">Overdue</span>
+                {% elif item.overall_status == 'PARTIAL' %}<span class="badge rounded-pill badge-erp badge-erp-pending">Partial</span>
+                {% else %}<span class="badge rounded-pill badge-erp badge-erp-pending">Due</span>{% endif %}
               </td>
               <td class="text-end text-nowrap" onclick="event.stopPropagation();">
                 {% if item.collect_fee_id %}
@@ -719,9 +714,9 @@
                         <td class="text-end font-monospace">₹{{ line.balance|inr }}</td>
                         <td class="small">{{ line.due_date|date:"M j, Y" }}</td>
                         <td>
-                          {% if line.line_status == 'PAID' %}<span class="badge bg-success bg-opacity-25 text-success">Paid</span>
-                          {% elif line.line_status == 'PARTIAL' %}<span class="badge bg-warning bg-opacity-25 text-dark">Partial</span>
-                          {% else %}<span class="badge bg-danger bg-opacity-25 text-danger">Due</span>{% endif %}
+                          {% if line.line_status == 'PAID' %}<span class="badge rounded-pill badge-erp badge-erp-active">Paid</span>
+                          {% elif line.line_status == 'PARTIAL' %}<span class="badge rounded-pill badge-erp badge-erp-pending">Partial</span>
+                          {% else %}<span class="badge rounded-pill badge-erp badge-erp-left">Due</span>{% endif %}
                         </td>
                       </tr>
                       {% empty %}

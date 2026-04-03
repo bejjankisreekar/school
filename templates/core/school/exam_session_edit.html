@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ session.name }} | Exams{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0" style="max-width: 1100px;">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_exams_list' %}">Exams</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_exam_session_detail' session.id %}">{{ session.name }}</a></li>
+      <li class="breadcrumb-item active">Edit</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h1 class="h4 fw-bold mb-1">Edit exam session</h1>
+      <p class="text-muted small mb-0">
+        Update the session details and every subject paper: dates, times, teacher, max marks, and mark-edit lock.
+      </p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="{% url 'core:school_exam_session_detail' session.id %}" class="btn btn-outline-secondary btn-sm rounded-pill">Cancel</a>
+    </div>
+  </div>
+
+  <form method="post" novalidate class="exam-session-edit-form">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+    <div class="alert alert-danger small mb-3">{{ form.non_field_errors }}</div>
+    {% endif %}
+    {% if formset.non_form_errors %}
+    <div class="alert alert-danger small mb-3">{{ formset.non_form_errors }}</div>
+    {% endif %}
+
+    <div class="card border-0 shadow-sm rounded-4 mb-4">
+      <div class="card-header bg-white border-bottom py-3 rounded-top-4">
+        <h2 class="h6 fw-semibold mb-0">Session details</h2>
+        <p class="text-muted small mb-0 mt-1">Class and section apply to all papers in this session.</p>
+      </div>
+      <div class="card-body p-4">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label small fw-semibold" for="{{ form.name.id_for_label }}">Session name</label>
+            {{ form.name }}
+            {% if form.name.errors %}<div class="invalid-feedback d-block small">{{ form.name.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold" for="{{ form.classroom.id_for_label }}">Classroom <span class="text-muted fw-normal">(optional)</span></label>
+            {{ form.classroom }}
+            <p class="form-text small mb-0">Links to a class record; you can still set the display name below.</p>
+            {% if form.classroom.errors %}<div class="invalid-feedback d-block small">{{ form.classroom.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold" for="{{ form.class_name.id_for_label }}">Class name</label>
+            {{ form.class_name }}
+            {% if form.class_name.errors %}<div class="invalid-feedback d-block small">{{ form.class_name.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold" for="{{ form.section.id_for_label }}">Section</label>
+            {{ form.section }}
+            {% if form.section.errors %}<div class="invalid-feedback d-block small">{{ form.section.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4 mb-4">
+      <div class="card-header bg-white border-bottom py-3 rounded-top-4 d-flex flex-wrap justify-content-between align-items-start gap-2">
+        <div>
+          <h2 class="h6 fw-semibold mb-0">Subject papers</h2>
+          <p class="text-muted small mb-0 mt-1">Edit existing rows or use blank rows to add papers. Check “Remove” to delete a paper.</p>
+        </div>
+      </div>
+      <div class="card-body p-4">
+        {{ formset.management_form }}
+
+        {% for paper_form in formset %}
+        <div class="border rounded-4 p-3 p-md-4 mb-3 bg-body-tertiary bg-opacity-50 exam-paper-row">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 pb-2 border-bottom border-light">
+            <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary fw-semibold">
+              {% if paper_form.instance.pk %}Paper {{ forloop.counter }}{% else %}New paper{% endif %}
+            </span>
+            {% if 'DELETE' in paper_form.fields %}
+            <div class="form-check form-switch m-0">
+              {{ paper_form.DELETE }}
+              <label class="form-check-label small text-danger" for="{{ paper_form.DELETE.id_for_label }}">Remove this row</label>
+            </div>
+            {% endif %}
+          </div>
+
+          {% for hidden in paper_form.hidden_fields %}{{ hidden }}{% endfor %}
+
+          {% if paper_form.non_field_errors %}
+          <div class="alert alert-danger small py-2 mb-3">{{ paper_form.non_field_errors }}</div>
+          {% endif %}
+
+          <div class="row g-3">
+            <div class="col-lg-4 col-md-6">
+              <label class="form-label small fw-semibold" for="{{ paper_form.subject.id_for_label }}">Subject</label>
+              {{ paper_form.subject }}
+              {% if paper_form.subject.errors %}<div class="invalid-feedback d-block small">{{ paper_form.subject.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-lg-4 col-md-6">
+              <label class="form-label small fw-semibold" for="{{ paper_form.name.id_for_label }}">Paper title <span class="text-muted fw-normal">(optional)</span></label>
+              {{ paper_form.name }}
+              {% if paper_form.name.errors %}<div class="invalid-feedback d-block small">{{ paper_form.name.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-lg-4 col-md-6">
+              <label class="form-label small fw-semibold" for="{{ paper_form.date.id_for_label }}">Date</label>
+              {{ paper_form.date }}
+              {% if paper_form.date.errors %}<div class="invalid-feedback d-block small">{{ paper_form.date.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6 col-lg-3">
+              <label class="form-label small fw-semibold" for="{{ paper_form.start_time.id_for_label }}">Start time</label>
+              {{ paper_form.start_time }}
+              {% if paper_form.start_time.errors %}<div class="invalid-feedback d-block small">{{ paper_form.start_time.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6 col-lg-3">
+              <label class="form-label small fw-semibold" for="{{ paper_form.end_time.id_for_label }}">End time</label>
+              {{ paper_form.end_time }}
+              {% if paper_form.end_time.errors %}<div class="invalid-feedback d-block small">{{ paper_form.end_time.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-lg-6">
+              <label class="form-label small fw-semibold" for="{{ paper_form.teacher.id_for_label }}">Teacher <span class="text-muted fw-normal">(optional)</span></label>
+              {{ paper_form.teacher }}
+              {% if paper_form.teacher.errors %}<div class="invalid-feedback d-block small">{{ paper_form.teacher.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6 col-lg-3">
+              <label class="form-label small fw-semibold" for="{{ paper_form.total_marks.id_for_label }}">Max marks</label>
+              {{ paper_form.total_marks }}
+              {% if paper_form.total_marks.errors %}<div class="invalid-feedback d-block small">{{ paper_form.total_marks.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6 col-lg-3 d-flex align-items-end">
+              <div class="form-check form-switch w-100 border rounded-3 px-3 py-2 bg-white">
+                {{ paper_form.marks_teacher_edit_locked }}
+                <label class="form-check-label small" for="{{ paper_form.marks_teacher_edit_locked.id_for_label }}">Lock teacher mark edits</label>
+              </div>
+              {% if paper_form.marks_teacher_edit_locked.errors %}<div class="invalid-feedback d-block small">{{ paper_form.marks_teacher_edit_locked.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2 pb-5">
+      <button type="submit" class="btn btn-primary rounded-pill px-4">Save session &amp; papers</button>
+      <a href="{% url 'core:school_exam_session_detail' session.id %}" class="btn btn-outline-secondary rounded-pill">Discard</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

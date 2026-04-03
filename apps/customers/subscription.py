@@ -1,6 +1,6 @@
 """
 Subscription billing record feature configuration (trial / basic / pro rows).
-Schools expose product tiers via `saas_plan`: Starter (₹39) or Enterprise (₹59).
+Schools expose product tiers via `saas_plan`: Starter (₹39), Standard (₹59), Enterprise (₹79).
 This map supports older rows that only had `school.plan` set.
 """
 from datetime import date

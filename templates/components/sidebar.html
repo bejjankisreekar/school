@@ -82,7 +82,7 @@
     {% endif %}
 
     {% if request|feature_access:"exams" %}
-    <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_exams_list' %}{% elif request.user.role == 'TEACHER' %}{% url 'core:teacher_exams' %}{% else %}{% url 'core:school_exams_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'student_exams_list' 'teacher_exams' 'teacher_exam_create' 'teacher_exam_summary' 'teacher_exam_enter_marks' 'school_exams_list' 'school_exam_create' 'student_exam_detail' 'student_exam_detail_by_id' %}">
+    <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_exams_list' %}{% elif request.user.role == 'TEACHER' %}{% url 'core:teacher_exams' %}{% else %}{% url 'core:school_exams_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'student_exams_list' 'teacher_exams' 'teacher_exam_create' 'teacher_exam_summary' 'teacher_exam_enter_marks' 'teacher_exam_session_detail' 'school_exams_list' 'school_exam_create' 'school_exam_session_detail' 'school_exam_session_edit' 'school_exam_session_delete' 'school_exam_session_set_all_marks_lock' 'school_exam_paper_enter_marks' 'school_exam_paper_set_marks_lock' 'student_exam_detail' 'student_exam_detail_by_id' 'student_exam_session_detail' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-clipboard-check"></i></span>
       <span class="sidebar-nav-text">Exams</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>

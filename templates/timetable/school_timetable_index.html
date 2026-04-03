@@ -1,27 +1,275 @@
 {% extends "base.html" %}
 {% block title %}Schedules | School ERP{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Timetable index — premium class cards (scoped) */
+  .tt-index-header .tt-index-kicker {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6b7280;
+    margin-bottom: 0.35rem;
+  }
+  html.dark .tt-index-header .tt-index-kicker {
+    color: var(--bs-secondary-color);
+  }
+  .tt-index-header .tt-index-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #111827;
+    margin-bottom: 0.35rem;
+  }
+  html.dark .tt-index-header .tt-index-title {
+    color: var(--bs-body-color);
+  }
+  .tt-index-header .tt-index-lead {
+    font-size: 0.9375rem;
+    color: #6b7280;
+    max-width: 36rem;
+  }
+  html.dark .tt-index-header .tt-index-lead {
+    color: var(--bs-secondary-color);
+  }
+
+  .tt-index-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.25rem;
+  }
+
+  .tt-class-card {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 18px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+    transition:
+      transform 0.3s ease,
+      box-shadow 0.3s ease,
+      border-color 0.25s ease;
+    color: inherit;
+  }
+  html.dark .tt-class-card {
+    background: var(--bs-body-bg);
+    border-color: rgba(148, 163, 184, 0.22);
+    box-shadow:
+      0 4px 16px rgba(0, 0, 0, 0.25),
+      0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  }
+
+  .tt-class-card::after {
+    content: "";
+    position: absolute;
+    top: -30px;
+    right: -30px;
+    width: 100px;
+    height: 100px;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.18), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+    z-index: 0;
+  }
+  html.dark .tt-class-card::after {
+    background: radial-gradient(circle, rgba(96, 165, 250, 0.22), transparent 70%);
+  }
+
+  .tt-class-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+    border-color: rgba(59, 130, 246, 0.25);
+  }
+  html.dark .tt-class-card:hover {
+    box-shadow:
+      0 16px 40px rgba(0, 0, 0, 0.45),
+      0 0 0 1px rgba(96, 165, 250, 0.15);
+    border-color: rgba(96, 165, 250, 0.3);
+  }
+
+  .tt-class-card:hover::after {
+    opacity: 1;
+  }
+
+  .tt-class-card:focus-visible {
+    outline: 2px solid rgba(59, 130, 246, 0.6);
+    outline-offset: 3px;
+  }
+
+  .tt-class-card-inner {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: 1;
+  }
+
+  .tt-class-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .tt-class-card-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #1f2937;
+    line-height: 1.35;
+    margin: 0;
+  }
+  html.dark .tt-class-card-title {
+    color: var(--bs-body-color);
+  }
+
+  .tt-class-badge {
+    flex-shrink: 0;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    background: #eff6ff;
+    color: #2563eb;
+  }
+  html.dark .tt-class-badge {
+    background: rgba(37, 99, 235, 0.2);
+    color: #93c5fd;
+  }
+
+  .tt-class-card-meta {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin: 0;
+    line-height: 1.5;
+  }
+  html.dark .tt-class-card-meta {
+    color: var(--bs-secondary-color);
+  }
+
+  .tt-class-card-year {
+    font-size: 0.8125rem;
+    color: #9ca3af;
+    margin: 0;
+  }
+  html.dark .tt-class-card-year {
+    color: var(--bs-secondary-color);
+    opacity: 0.9;
+  }
+
+  .tt-class-card-footer {
+    margin-top: auto;
+    padding-top: 4px;
+  }
+
+  .tt-class-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #2563eb;
+  }
+  html.dark .tt-class-action {
+    color: #93c5fd;
+  }
+
+  .tt-class-card:hover .tt-class-action {
+    color: #1d4ed8;
+  }
+  html.dark .tt-class-card:hover .tt-class-action {
+    color: #bfdbfe;
+  }
+
+  .tt-index-empty {
+    border: 1px dashed rgba(107, 114, 128, 0.35);
+    border-radius: 18px;
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    background: rgba(249, 250, 251, 0.6);
+    color: #6b7280;
+  }
+  html.dark .tt-index-empty {
+    border-color: rgba(148, 163, 184, 0.25);
+    background: rgba(15, 23, 42, 0.35);
+    color: var(--bs-secondary-color);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tt-class-card,
+    .tt-class-card::after {
+      transition: none;
+    }
+    .tt-class-card:hover {
+      transform: none;
+    }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid px-0">
-  <h1 class="h4 fw-bold mb-2">Schedule Management</h1>
-  <p class="text-muted mb-4">Select a class to edit the master schedule.</p>
-  <div class="d-flex gap-2 mb-4">
-    <a href="{% url 'timetable:school_timeslots' %}" class="btn btn-outline-primary">Time Slots</a>
-  </div>
-  <div class="row g-3">
-    {% for c in classrooms %}
-    <div class="col-md-4">
-      <a href="{% url 'timetable:school_timetable' c.id %}" 
-        class="card shadow-sm rounded-4 text-decoration-none text-dark h-100"
-        style="background-color:#f3f4f6; border:2px solid #4b5563;">
-        <div class="card-body">
-          <h5 class="card-title">{{ c }}</h5>
-          <p class="text-muted small mb-0">Edit schedule</p>
-        </div>
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Schedules</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex flex-column flex-lg-row align-items-start justify-content-between gap-3 mb-4">
+    <div class="tt-index-header">
+      <p class="tt-index-kicker mb-0">Timetable</p>
+      <h1 class="tt-index-title">Schedule management</h1>
+      <p class="tt-index-lead mb-0">Select a class to edit the master weekly schedule, periods, and teacher assignments.</p>
+    </div>
+    <div class="flex-shrink-0">
+      <a href="{% url 'timetable:school_timeslots' %}" class="btn btn-primary rounded-pill px-4 shadow-sm">
+        <i class="bi bi-clock-history me-2"></i>Time slots
       </a>
     </div>
-    {% empty %}
-    <p class="text-muted">No classrooms. Add classrooms first.</p>
+  </div>
+
+  {% if classrooms %}
+  <div class="tt-index-grid">
+    {% for c in classrooms %}
+    <a
+      href="{% url 'timetable:school_timetable' c.id %}"
+      class="tt-class-card text-decoration-none"
+    >
+      <div class="tt-class-card-inner">
+        <div class="tt-class-card-top">
+          <h2 class="tt-class-card-title">{{ c }}</h2>
+          <span class="tt-class-badge">Class schedule</span>
+        </div>
+        {% if c.academic_year %}
+        <p class="tt-class-card-year">
+          <i class="bi bi-calendar3 me-1"></i>{{ c.academic_year }}
+        </p>
+        {% endif %}
+        <p class="tt-class-card-meta">Open the grid editor to set subjects and teachers for each period.</p>
+        <div class="tt-class-card-footer">
+          <span class="tt-class-action">
+            Edit schedule
+            <i class="bi bi-arrow-right-short fs-5 lh-1"></i>
+          </span>
+        </div>
+      </div>
+    </a>
     {% endfor %}
   </div>
+  {% else %}
+  <div class="tt-index-empty">
+    <i class="bi bi-inbox d-block fs-1 mb-2 opacity-50"></i>
+    <p class="mb-2 fw-semibold text-body">No classrooms yet</p>
+    <p class="small mb-0">Add classes under School setup, then return here to build timetables.</p>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

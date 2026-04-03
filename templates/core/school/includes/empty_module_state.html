@@ -1,0 +1,44 @@
+{# Reusable empty state: pass em_title, em_body, em_icon (bi-* class), em_cta_label, em_url #}
+<div class="erp-empty-module erp-card border-0 overflow-hidden mb-4">
+  <div class="card-body p-4 p-md-5 text-center erp-empty-module-inner">
+    <div class="erp-empty-module-icon rounded-4 d-inline-flex align-items-center justify-content-center mb-3 shadow">
+      <i class="bi {{ em_icon|default:'bi-inbox' }}"></i>
+    </div>
+    <h2 class="h5 fw-bold mb-2">{{ em_title }}</h2>
+    <p class="text-muted mb-4 mx-auto erp-empty-module-text">{{ em_body }}</p>
+    {% if em_url and em_cta_label %}
+      <a href="{{ em_url }}" class="btn btn-primary btn-lg rounded-pill px-4 shadow-sm">{{ em_cta_label }}</a>
+    {% endif %}
+  </div>
+</div>
+<style>
+  .erp-empty-module-inner {
+    background: linear-gradient(
+      165deg,
+      rgba(37, 99, 235, 0.06) 0%,
+      var(--erp-bg-surface) 45%,
+      rgba(14, 165, 233, 0.05) 100%
+    );
+  }
+  .erp-empty-module-icon {
+    width: 4.5rem;
+    height: 4.5rem;
+    background: linear-gradient(145deg, #1e3a8a, #2563eb);
+    color: #fff;
+    font-size: 1.85rem;
+    box-shadow: var(--erp-shadow-md);
+  }
+  .erp-empty-module-text {
+    max-width: 28rem;
+    color: var(--erp-text-muted);
+  }
+  html.dark .erp-empty-module-inner,
+  body.dark-mode .erp-empty-module-inner {
+    background: linear-gradient(
+      165deg,
+      rgba(37, 99, 235, 0.12) 0%,
+      var(--erp-bg-surface) 50%,
+      rgba(15, 23, 42, 0.4) 100%
+    );
+  }
+</style>

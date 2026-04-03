@@ -1,0 +1,1104 @@
+/**
+ * Campus ERP — Enterprise design system
+ * Palette: deep blue primary (#1E3A8A / #2563EB), slate neutrals, semantic greens/ambers/reds.
+ * Load after bootstrap.min.css. Sets --bs-* variables for consistent components app-wide.
+ *
+ * Building blocks (reuse on Attendance, Fees, Exams, Staff, Reports, Timetable, etc.):
+ *   .erp-page-title, .erp-page-subtitle, .erp-breadcrumb
+ *   .erp-card, .erp-card--hover, .erp-filter-card
+ *   .erp-stat-card__label, .erp-stat-card__value, .erp-stat-card__icon (+ --success / --warning / --danger)
+ *   .erp-filter-icon-btn, .btn-erp-outline, .erp-row-action-btn, .erp-dropdown-menu
+ *   .erp-data-table (+ module table class for column tweaks), .erp-table-link
+ *   .badge-erp + .badge-erp-active | inactive | pending | left — pill status
+ *   .badge-erp-primary, .badge-erp-success, .badge-erp-neutral (aliases)
+ *   .btn-erp-primary, .btn-erp-secondary — explicit button recipes
+ *   .erp-filter-toolbar — unified filter row (height, radius, spacing)
+ *   .erp-pagination, .erp-module (optional wrapper)
+ */
+
+:root {
+  /* Semantic aliases (use in custom CSS; mirrors light/dark below) */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --border-color-theme: #e2e8f0;
+
+  /* Brand */
+  --erp-primary-deep: #1e3a8a;
+  --erp-primary: #2563eb;
+  --erp-secondary: #64748b;
+
+  /* Surfaces */
+  --erp-bg-page: #f8fafc;
+  --erp-bg-surface: #ffffff;
+  --erp-bg-muted: #f1f5f9;
+  --erp-border: #e2e8f0;
+
+  /* Text */
+  --erp-text: #0f172a;
+  --erp-text-muted: #475569;
+
+  /* Semantic */
+  --erp-success: #16a34a;
+  --erp-warning: #f59e0b;
+  --erp-danger: #dc2626;
+  --erp-info: #0ea5e9;
+
+  /* Elevation */
+  --erp-radius-sm: 8px;
+  --erp-radius-md: 10px;
+  --erp-radius-lg: 12px;
+  --erp-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --erp-shadow-md: 0 4px 20px rgba(15, 23, 42, 0.07);
+  --erp-shadow-lg: 0 12px 40px rgba(15, 23, 42, 0.08);
+
+  /* Bootstrap alignment (enterprise tones) */
+  --bs-primary: #2563eb;
+  --bs-primary-rgb: 37, 99, 235;
+  --bs-secondary: #64748b;
+  --bs-secondary-rgb: 100, 116, 139;
+  --bs-success: #16a34a;
+  --bs-success-rgb: 22, 163, 74;
+  --bs-warning: #f59e0b;
+  --bs-warning-rgb: 245, 158, 11;
+  --bs-danger: #dc2626;
+  --bs-danger-rgb: 220, 38, 38;
+  --bs-info: #0ea5e9;
+  --bs-info-rgb: 14, 165, 233;
+  --bs-body-color: #0f172a;
+  --bs-body-bg: #f8fafc;
+  --bs-border-color: #e2e8f0;
+  --bs-link-color: #2563eb;
+  --bs-link-hover-color: #1e3a8a;
+
+  /* Bootstrap 5.3 — RGB + emphasis so .text-muted / .text-body resolve correctly */
+  --bs-body-color-rgb: 15, 23, 42;
+  --bs-emphasis-color: #0f172a;
+  --bs-emphasis-color-rgb: 15, 23, 42;
+  --bs-secondary-color: rgba(15, 23, 42, 0.65);
+  --bs-secondary-color-rgb: 71, 85, 105;
+  --bs-tertiary-color: rgba(15, 23, 42, 0.5);
+  --bs-tertiary-color-rgb: 100, 116, 139;
+  --bs-heading-color: #0f172a;
+  --bs-border-color-translucent: rgba(15, 23, 42, 0.125);
+}
+
+html.dark,
+body.dark-mode,
+html[data-bs-theme="dark"] {
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --border-color-theme: rgba(148, 163, 184, 0.22);
+
+  --erp-bg-page: #0f172a;
+  --erp-bg-surface: rgba(30, 41, 59, 0.96);
+  --erp-bg-muted: rgba(15, 23, 42, 0.65);
+  --erp-border: rgba(148, 163, 184, 0.22);
+  --erp-text: #f8fafc;
+  --erp-text-muted: #cbd5e1;
+  --erp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --erp-shadow-md: 0 8px 28px rgba(0, 0, 0, 0.35);
+  --erp-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.4);
+
+  --bs-body-color: #f8fafc;
+  --bs-body-bg: #0f172a;
+  --bs-border-color: rgba(148, 163, 184, 0.22);
+  --bs-link-color: #60a5fa;
+  --bs-link-hover-color: #93c5fd;
+
+  --bs-body-color-rgb: 248, 250, 252;
+  --bs-emphasis-color: #f8fafc;
+  --bs-emphasis-color-rgb: 248, 250, 252;
+  --bs-secondary-color: rgba(248, 250, 252, 0.72);
+  --bs-secondary-color-rgb: 203, 213, 225;
+  --bs-tertiary-color: rgba(248, 250, 252, 0.48);
+  --bs-tertiary-color-rgb: 148, 163, 184;
+  --bs-heading-color: #f8fafc;
+  --bs-border-color-translucent: rgba(255, 255, 255, 0.12);
+
+  /* Forms */
+  --bs-form-control-bg: rgba(30, 41, 59, 0.9);
+  --bs-form-control-color: #f8fafc;
+  --bs-form-control-disabled-bg: rgba(15, 23, 42, 0.5);
+  --bs-form-control-border-color: rgba(148, 163, 184, 0.28);
+  --bs-form-placeholder-color: rgba(248, 250, 252, 0.42);
+  --bs-form-valid-color: #4ade80;
+  --bs-form-invalid-color: #f87171;
+
+  /* Surfaces */
+  --bs-card-bg: rgba(30, 41, 59, 0.94);
+  --bs-card-color: #f8fafc;
+  --bs-card-border-color: rgba(148, 163, 184, 0.2);
+  --bs-card-cap-bg: rgba(15, 23, 42, 0.55);
+  --bs-card-title-color: #f8fafc;
+
+  --bs-table-color: #f8fafc;
+  --bs-table-bg: transparent;
+  --bs-table-border-color: rgba(148, 163, 184, 0.16);
+  --bs-table-striped-bg: rgba(255, 255, 255, 0.04);
+  --bs-table-hover-bg: rgba(59, 130, 246, 0.12);
+  --bs-table-active-bg: rgba(59, 130, 246, 0.18);
+
+  --bs-modal-bg: #1e293b;
+  --bs-modal-color: #f8fafc;
+  --bs-modal-border-color: rgba(148, 163, 184, 0.22);
+
+  --bs-dropdown-bg: rgba(30, 41, 59, 0.98);
+  --bs-dropdown-color: #f8fafc;
+  --bs-dropdown-border-color: rgba(148, 163, 184, 0.22);
+  --bs-dropdown-link-color: #f8fafc;
+  --bs-dropdown-link-hover-color: #ffffff;
+  --bs-dropdown-link-hover-bg: rgba(255, 255, 255, 0.08);
+  --bs-dropdown-header-color: #94a3b8;
+
+  --bs-pagination-color: #93c5fd;
+  --bs-pagination-bg: rgba(30, 41, 59, 0.75);
+  --bs-pagination-border-color: rgba(148, 163, 184, 0.25);
+  --bs-pagination-hover-color: #bfdbfe;
+  --bs-pagination-hover-bg: rgba(255, 255, 255, 0.08);
+  --bs-pagination-hover-border-color: rgba(148, 163, 184, 0.35);
+  --bs-pagination-focus-color: #bfdbfe;
+  --bs-pagination-focus-bg: rgba(30, 41, 59, 0.9);
+  --bs-pagination-disabled-color: #64748b;
+  --bs-pagination-disabled-bg: rgba(15, 23, 42, 0.5);
+
+  --bs-list-group-color: #f8fafc;
+  --bs-list-group-bg: rgba(30, 41, 59, 0.6);
+  --bs-list-group-border-color: rgba(148, 163, 184, 0.18);
+  --bs-list-group-hover-bg: rgba(255, 255, 255, 0.06);
+  --bs-list-group-action-color: #e2e8f0;
+  --bs-list-group-action-hover-color: #f8fafc;
+
+  --bs-breadcrumb-divider-color: #64748b;
+  --bs-breadcrumb-item-active-color: #94a3b8;
+
+  --bs-btn-close-filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+/* App shell */
+body {
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--erp-bg-page) !important;
+  color: var(--erp-text);
+}
+
+/* Main content panel (works with existing Tailwind wrapper) */
+.erp-dashboard-panel {
+  border-color: var(--erp-border) !important;
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  box-shadow: var(--erp-shadow-md) !important;
+}
+
+html.dark .erp-dashboard-panel,
+.dark .erp-dashboard-panel {
+  background-color: rgba(30, 41, 59, 0.85) !important;
+}
+
+/* Typography */
+.erp-page-title {
+  font-family: "Poppins", "Inter", system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--erp-text);
+}
+
+.erp-page-subtitle {
+  color: var(--erp-text-muted);
+  font-size: 0.875rem;
+}
+
+/* Cards */
+.erp-card {
+  background: var(--erp-bg-surface);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-lg);
+  box-shadow: var(--erp-shadow-sm);
+}
+
+.erp-card--hover {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.erp-card--hover:hover {
+  border-color: rgba(37, 99, 235, 0.28);
+  box-shadow: var(--erp-shadow-md);
+  transform: translateY(-2px);
+}
+
+/* Stat / KPI tiles */
+.erp-stat-card__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--erp-radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--erp-primary-deep);
+}
+
+html.dark .erp-stat-card__icon,
+.dark .erp-stat-card__icon {
+  background: rgba(37, 99, 235, 0.18);
+  color: #93c5fd;
+}
+
+.erp-stat-card__icon--success {
+  background: rgba(22, 163, 74, 0.12);
+  color: var(--erp-success);
+}
+
+.erp-stat-card__icon--warning {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+}
+
+html.dark .erp-stat-card__icon--warning,
+.dark .erp-stat-card__icon--warning {
+  color: #fbbf24;
+}
+
+.erp-stat-card__icon--danger {
+  background: rgba(220, 38, 38, 0.1);
+  color: var(--erp-danger);
+}
+
+.erp-stat-card__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--erp-text-muted);
+}
+
+.erp-stat-card__value {
+  font-weight: 700;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  color: var(--erp-text);
+}
+
+/* Filters — card + shared toolbar pattern */
+.erp-filter-card .form-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--erp-text-muted);
+}
+
+.erp-filter-card .form-control,
+.erp-filter-card .form-select {
+  border-color: var(--erp-border);
+  border-radius: var(--erp-radius-sm);
+  background: var(--erp-bg-surface);
+  color: var(--erp-text);
+}
+
+html.dark .erp-filter-card .form-control,
+html.dark .erp-filter-card .form-select,
+.dark .erp-filter-card .form-control,
+.dark .erp-filter-card .form-select {
+  background: var(--erp-bg-muted);
+  color: var(--erp-text);
+}
+
+/**
+ * Toolbar: use class="erp-filter-toolbar" on <form> (or a wrapper row).
+ * Same control height, radius, and gaps — pair with .erp-filter-card when needed.
+ */
+.erp-filter-toolbar {
+  --erp-toolbar-h: 42px;
+  --erp-toolbar-gap: 0.75rem;
+}
+
+.erp-filter-toolbar .form-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--erp-text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.erp-filter-toolbar .form-control,
+.erp-filter-toolbar .form-select {
+  min-height: var(--erp-toolbar-h);
+  border-radius: var(--erp-radius-sm);
+  border-color: var(--erp-border);
+  background: var(--erp-bg-surface);
+  color: var(--erp-text);
+  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.erp-filter-toolbar .form-control:focus,
+.erp-filter-toolbar .form-select:focus {
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.12);
+}
+
+html.dark .erp-filter-toolbar .form-control,
+html.dark .erp-filter-toolbar .form-select,
+.dark .erp-filter-toolbar .form-control,
+.dark .erp-filter-toolbar .form-select {
+  background: var(--erp-bg-muted);
+  color: var(--erp-text);
+}
+
+/* Textual buttons in toolbar (Export, Print, Filter) align to control height */
+.erp-filter-toolbar .btn:not(.erp-filter-icon-btn):not(.btn-link) {
+  min-height: var(--erp-toolbar-h);
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-radius: var(--erp-radius-md);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.erp-filter-icon-btn {
+  width: var(--erp-toolbar-h, 42px);
+  height: var(--erp-toolbar-h, 42px);
+  min-width: var(--erp-toolbar-h, 42px);
+  min-height: var(--erp-toolbar-h, 42px);
+  border-radius: var(--erp-radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--erp-border);
+  background: var(--erp-bg-surface);
+  color: var(--erp-text);
+  box-shadow: var(--erp-shadow-sm);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.erp-filter-icon-btn:hover {
+  border-color: rgba(37, 99, 235, 0.35);
+  background: rgba(37, 99, 235, 0.06);
+  color: var(--erp-primary-deep);
+  box-shadow: var(--erp-shadow-md);
+}
+
+html.dark .erp-filter-icon-btn:hover,
+.dark .erp-filter-icon-btn:hover {
+  color: #93c5fd;
+}
+
+.erp-filter-icon-btn:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.25);
+}
+
+/* Buttons — global primary polish + explicit ERP recipes */
+.btn-primary {
+  font-weight: 600;
+  border-radius: var(--erp-radius-md) !important;
+  border: none;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 2px 8px rgba(37, 99, 235, 0.22);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+}
+
+.btn-primary:hover,
+.btn-primary:focus-visible {
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08), 0 4px 14px rgba(37, 99, 235, 0.32);
+}
+
+.btn-primary:active {
+  transform: translateY(0.5px);
+}
+
+.btn-erp-primary.btn {
+  background-color: var(--erp-primary);
+  color: #fff;
+  font-weight: 600;
+  border-radius: var(--erp-radius-md);
+  border: 1px solid var(--erp-primary);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 2px 8px rgba(37, 99, 235, 0.22);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease, border-color 0.15s ease;
+}
+
+.btn-erp-primary:hover,
+.btn-erp-primary:focus-visible {
+  background-color: var(--erp-primary-deep);
+  border-color: var(--erp-primary-deep);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08), 0 4px 14px rgba(37, 99, 235, 0.32);
+}
+
+.btn-erp-primary:active {
+  transform: translateY(0.5px);
+}
+
+/* Secondary: white surface, gray border — Export / Print / Filter */
+.btn-erp-secondary {
+  background: var(--erp-bg-surface) !important;
+  color: var(--erp-text) !important;
+  border: 1px solid var(--erp-border) !important;
+  font-weight: 600;
+  border-radius: var(--erp-radius-md);
+  box-shadow: var(--erp-shadow-sm);
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-erp-secondary:hover,
+.btn-erp-secondary:focus-visible {
+  background: var(--erp-bg-muted) !important;
+  border-color: var(--erp-secondary) !important;
+  color: var(--erp-text) !important;
+  box-shadow: var(--erp-shadow-md);
+}
+
+html.dark .btn-erp-secondary:hover,
+.dark .btn-erp-secondary:hover {
+  background: rgba(30, 41, 59, 0.9) !important;
+}
+
+.btn-outline-secondary {
+  font-weight: 600;
+  border-radius: var(--erp-radius-md) !important;
+  background: var(--erp-bg-surface);
+  border-color: var(--erp-border) !important;
+  color: var(--erp-text);
+}
+
+.btn-outline-secondary:hover {
+  background: var(--erp-bg-muted);
+  border-color: var(--erp-secondary) !important;
+  color: var(--erp-text);
+}
+
+.btn-erp-outline {
+  border-color: var(--erp-border);
+  color: var(--erp-text);
+  background: var(--erp-bg-surface);
+  font-weight: 600;
+  border-radius: var(--erp-radius-md);
+  box-shadow: var(--erp-shadow-sm);
+}
+
+.btn-erp-outline:hover {
+  border-color: rgba(37, 99, 235, 0.35);
+  background: rgba(37, 99, 235, 0.06);
+  color: var(--erp-primary-deep);
+}
+
+html.dark .btn-erp-outline:hover,
+.dark .btn-erp-outline:hover {
+  color: #93c5fd;
+}
+
+/* Tables */
+.erp-data-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  --erp-table-row-border: #f1f5f9;
+  --erp-table-head-bg: #f8fafc;
+}
+
+html.dark .erp-data-table,
+.dark .erp-data-table {
+  --erp-table-row-border: rgba(148, 163, 184, 0.16);
+  --erp-table-head-bg: rgba(15, 23, 42, 0.55);
+}
+
+.erp-data-table.table > :not(caption) > * > * {
+  box-shadow: none;
+}
+
+.erp-data-table thead th {
+  font-weight: 600;
+  color: var(--erp-text-muted);
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  padding: 12px 16px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--erp-border);
+  background: var(--erp-table-head-bg);
+  white-space: nowrap;
+}
+
+.erp-data-table thead.sticky-top {
+  z-index: 2;
+}
+
+.erp-data-table thead.sticky-top th {
+  box-shadow: 0 1px 0 var(--erp-border);
+}
+
+.erp-data-table tbody td {
+  padding: 12px 16px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--erp-table-row-border);
+  color: var(--erp-text);
+}
+
+.erp-data-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.erp-data-table tbody tr:nth-child(even) {
+  background-color: var(--erp-bg-muted);
+}
+
+html.dark .erp-data-table tbody tr:nth-child(even),
+.dark .erp-data-table tbody tr:nth-child(even) {
+  background-color: rgba(30, 41, 59, 0.45);
+}
+
+.erp-data-table tbody tr:hover {
+  background-color: rgba(37, 99, 235, 0.06) !important;
+}
+
+/* Badges — professional pills, soft fills (use with .badge.rounded-pill) */
+.badge.badge-erp {
+  font-weight: 600;
+  font-size: 0.75rem;
+  padding: 0.35em 0.65em;
+  letter-spacing: 0.02em;
+}
+
+.badge-erp-active,
+.badge-erp-success {
+  background: rgba(22, 163, 74, 0.14);
+  color: #15803d;
+  border: 1px solid rgba(22, 163, 74, 0.28);
+  font-weight: 600;
+}
+
+html.dark .badge-erp-active,
+html.dark .badge-erp-success,
+.dark .badge-erp-active,
+.dark .badge-erp-success {
+  color: #4ade80;
+  background: rgba(22, 163, 74, 0.18);
+}
+
+.badge-erp-inactive,
+.badge-erp-neutral {
+  background: rgba(100, 116, 139, 0.14);
+  color: #475569;
+  border: 1px solid rgba(100, 116, 139, 0.25);
+  font-weight: 600;
+}
+
+html.dark .badge-erp-inactive,
+html.dark .badge-erp-neutral,
+.dark .badge-erp-inactive,
+.dark .badge-erp-neutral {
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.badge-erp-pending {
+  background: rgba(245, 158, 11, 0.16);
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  font-weight: 600;
+}
+
+html.dark .badge-erp-pending,
+.dark .badge-erp-pending {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.2);
+}
+
+.badge-erp-left {
+  background: rgba(220, 38, 38, 0.12);
+  color: #b91c1c;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  font-weight: 600;
+}
+
+html.dark .badge-erp-left,
+.dark .badge-erp-left {
+  color: #f87171;
+  background: rgba(220, 38, 38, 0.18);
+}
+
+.badge-erp-primary {
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--erp-primary-deep);
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  font-weight: 600;
+}
+
+html.dark .badge-erp-primary,
+.dark .badge-erp-primary {
+  color: #93c5fd;
+  background: rgba(37, 99, 235, 0.2);
+}
+
+/* Attendance filter card: match ERP toolbar control height when form uses .erp-filter-toolbar */
+.att-filters-card form#loadForm.erp-filter-toolbar .att-filter-cell .form-select,
+.att-filters-card form#loadForm.erp-filter-toolbar .att-filter-cell .form-control {
+  min-height: var(--erp-toolbar-h, 42px);
+  border-radius: var(--erp-radius-sm);
+}
+
+.att-filters-card form#loadForm.erp-filter-toolbar .att-filter-action .btn {
+  min-height: var(--erp-toolbar-h, 42px);
+  border-radius: var(--erp-radius-md);
+}
+
+/* Fee ledger sticky bar: unify with ERP filter controls */
+.fee-ledger-filter-bar.erp-filter-toolbar .form-control,
+.fee-ledger-filter-bar.erp-filter-toolbar .form-select {
+  min-height: var(--erp-toolbar-h);
+}
+
+/* Row actions (gear menu trigger) */
+.erp-row-action-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--erp-radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--erp-border);
+  background: var(--erp-bg-surface);
+  color: var(--erp-text-muted);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+}
+
+.erp-row-action-btn:hover {
+  border-color: rgba(37, 99, 235, 0.3);
+  color: var(--erp-primary);
+  box-shadow: var(--erp-shadow-sm);
+}
+
+.erp-dropdown-menu {
+  border-radius: var(--erp-radius-lg);
+  border: 1px solid var(--erp-border);
+  box-shadow: var(--erp-shadow-lg);
+  padding: 0.35rem;
+}
+
+.erp-dropdown-menu .dropdown-item {
+  border-radius: var(--erp-radius-sm);
+  padding: 0.45rem 0.75rem;
+}
+
+/* Breadcrumb */
+.erp-breadcrumb .breadcrumb-item a {
+  color: var(--erp-primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.erp-breadcrumb .breadcrumb-item a:hover {
+  color: var(--erp-primary-deep);
+  text-decoration: underline;
+}
+
+/* Pagination */
+.pagination.erp-pagination .page-link {
+  color: var(--erp-primary);
+  border-color: var(--erp-border);
+}
+
+.pagination.erp-pagination .page-item.active .page-link {
+  background-color: var(--erp-primary);
+  border-color: var(--erp-primary);
+}
+
+/* Links inside tables */
+.erp-table-link {
+  color: var(--erp-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.erp-table-link:hover {
+  color: var(--erp-primary);
+}
+
+/* ----- Students module (premium list — 8 columns) ----- */
+.students-table.erp-data-table--premium thead th,
+.students-table.erp-data-table--premium tbody td {
+  padding: 14px 16px;
+}
+
+.students-table.erp-data-table--premium tbody tr {
+  transition: background-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.students-table.erp-data-table--premium tbody tr:hover {
+  background-color: rgba(37, 99, 235, 0.07) !important;
+  box-shadow: inset 3px 0 0 var(--erp-primary);
+}
+
+/* Columns: Admission, Name, Class, Section, Parent, Status, Actions (no photo) */
+.students-table.erp-data-table--premium th:nth-child(2),
+.students-table.erp-data-table--premium td:nth-child(2) {
+  min-width: 12rem;
+}
+
+.students-table.erp-data-table--premium th:nth-child(3),
+.students-table.erp-data-table--premium td:nth-child(3),
+.students-table.erp-data-table--premium th:nth-child(4),
+.students-table.erp-data-table--premium td:nth-child(4) {
+  white-space: nowrap;
+}
+
+.students-table.erp-data-table--premium th:nth-child(5),
+.students-table.erp-data-table--premium td:nth-child(5) {
+  min-width: 10rem;
+}
+
+@media (max-width: 991.98px) {
+  .erp-filter-icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* =============================================================================
+   Global dark mode — Bootstrap + labels + tables + cards + modals
+   (Works with html.dark, body.dark-mode, and data-bs-theme="dark".)
+   ============================================================================= */
+html.dark .form-label,
+html.dark .col-form-label,
+html[data-bs-theme="dark"] .form-label,
+html[data-bs-theme="dark"] .col-form-label {
+  color: var(--text-secondary, var(--erp-text-muted));
+}
+
+html.dark .form-control,
+html.dark .form-select,
+html.dark textarea.form-control,
+html[data-bs-theme="dark"] .form-control,
+html[data-bs-theme="dark"] .form-select,
+html[data-bs-theme="dark"] textarea.form-control {
+  background-color: var(--bs-form-control-bg);
+  color: var(--bs-form-control-color);
+  border-color: var(--bs-form-control-border-color);
+}
+
+html.dark .form-control::placeholder,
+html[data-bs-theme="dark"] .form-control::placeholder {
+  color: var(--bs-form-placeholder-color);
+  opacity: 1;
+}
+
+html.dark .form-control:disabled,
+html.dark .form-select:disabled,
+html[data-bs-theme="dark"] .form-control:disabled,
+html[data-bs-theme="dark"] .form-select:disabled {
+  background-color: var(--bs-form-control-disabled-bg);
+  color: var(--bs-tertiary-color);
+}
+
+html.dark .form-text,
+html[data-bs-theme="dark"] .form-text {
+  color: var(--erp-text-muted) !important;
+}
+
+html.dark h1,
+html.dark h2,
+html.dark h3,
+html.dark h4,
+html.dark h5,
+html.dark h6,
+html.dark .h1,
+html.dark .h2,
+html.dark .h3,
+html.dark .h4,
+html.dark .h5,
+html.dark .h6,
+html[data-bs-theme="dark"] h1,
+html[data-bs-theme="dark"] h2,
+html[data-bs-theme="dark"] h3,
+html[data-bs-theme="dark"] h4,
+html[data-bs-theme="dark"] h5,
+html[data-bs-theme="dark"] h6,
+html[data-bs-theme="dark"] .h1,
+html[data-bs-theme="dark"] .h2,
+html[data-bs-theme="dark"] .h3,
+html[data-bs-theme="dark"] .h4,
+html[data-bs-theme="dark"] .h5,
+html[data-bs-theme="dark"] .h6 {
+  color: var(--bs-heading-color);
+}
+
+html.dark .card:not([class*="bg-"]):not([class*="text-white"]),
+html[data-bs-theme="dark"] .card:not([class*="bg-"]):not([class*="text-white"]) {
+  background-color: var(--bs-card-bg);
+  color: var(--bs-card-color);
+  border-color: var(--bs-card-border-color);
+}
+
+html.dark .card-header,
+html[data-bs-theme="dark"] .card-header {
+  background-color: var(--bs-card-cap-bg);
+  color: var(--bs-card-color);
+  border-color: var(--bs-card-border-color);
+}
+
+html.dark .card-title,
+html.dark .card-subtitle,
+html[data-bs-theme="dark"] .card-title,
+html[data-bs-theme="dark"] .card-subtitle {
+  color: var(--bs-card-title-color, var(--bs-card-color));
+}
+
+html.dark .table,
+html[data-bs-theme="dark"] .table {
+  --bs-table-color: var(--erp-text);
+  --bs-table-bg: transparent;
+  color: var(--bs-table-color);
+  border-color: var(--bs-table-border-color);
+}
+
+html.dark .table > :not(caption) > * > *,
+html[data-bs-theme="dark"] .table > :not(caption) > * > * {
+  color: inherit;
+  border-bottom-color: var(--bs-table-border-color);
+}
+
+html.dark .table-striped > tbody > tr:nth-of-type(odd) > *,
+html[data-bs-theme="dark"] .table-striped > tbody > tr:nth-of-type(odd) > * {
+  --bs-table-accent-bg: var(--bs-table-striped-bg);
+  color: var(--bs-table-color);
+}
+
+html.dark .modal-content,
+html[data-bs-theme="dark"] .modal-content {
+  background-color: var(--bs-modal-bg);
+  color: var(--bs-modal-color);
+  border-color: var(--bs-modal-border-color);
+}
+
+html.dark .modal-header,
+html.dark .modal-footer,
+html[data-bs-theme="dark"] .modal-header,
+html[data-bs-theme="dark"] .modal-footer {
+  border-color: var(--bs-modal-border-color);
+}
+
+html.dark .dropdown-menu,
+html[data-bs-theme="dark"] .dropdown-menu {
+  background-color: var(--bs-dropdown-bg);
+  border-color: var(--bs-dropdown-border-color);
+  color: var(--bs-dropdown-color);
+}
+
+html.dark .dropdown-item,
+html[data-bs-theme="dark"] .dropdown-item {
+  color: var(--bs-dropdown-link-color);
+}
+
+html.dark .dropdown-item:hover,
+html.dark .dropdown-item:focus,
+html[data-bs-theme="dark"] .dropdown-item:hover,
+html[data-bs-theme="dark"] .dropdown-item:focus {
+  color: var(--bs-dropdown-link-hover-color);
+  background-color: var(--bs-dropdown-link-hover-bg);
+}
+
+html.dark .dropdown-header,
+html[data-bs-theme="dark"] .dropdown-header {
+  color: var(--bs-dropdown-header-color);
+}
+
+html.dark .dropdown-divider,
+html[data-bs-theme="dark"] .dropdown-divider {
+  border-top-color: var(--bs-dropdown-border-color);
+}
+
+html.dark .list-group-item,
+html[data-bs-theme="dark"] .list-group-item {
+  background-color: var(--bs-list-group-bg);
+  color: var(--bs-list-group-color);
+  border-color: var(--bs-list-group-border-color);
+}
+
+html.dark .breadcrumb-item.active,
+html[data-bs-theme="dark"] .breadcrumb-item.active {
+  color: var(--bs-breadcrumb-item-active-color);
+}
+
+html.dark .text-muted,
+html[data-bs-theme="dark"] .text-muted {
+  color: var(--bs-secondary-color) !important;
+}
+
+/* Bootstrap .text-dark is hardcoded #212529 — fix for dark UI (skip .badge: warning pills need dark ink) */
+html.dark .text-dark:not(.badge),
+html[data-bs-theme="dark"] .text-dark:not(.badge) {
+  color: var(--text-primary) !important;
+}
+
+html.dark .text-body,
+html.dark .text-body-secondary,
+html[data-bs-theme="dark"] .text-body,
+html[data-bs-theme="dark"] .text-body-secondary {
+  color: var(--bs-body-color) !important;
+}
+
+html.dark .text-body-tertiary,
+html[data-bs-theme="dark"] .text-body-tertiary {
+  color: var(--bs-tertiary-color) !important;
+}
+
+/* Outline buttons — label visibility on dark backgrounds */
+html.dark .btn-outline-primary,
+html[data-bs-theme="dark"] .btn-outline-primary {
+  color: #93c5fd;
+  border-color: rgba(96, 165, 250, 0.55);
+}
+
+html.dark .btn-outline-primary:hover,
+html[data-bs-theme="dark"] .btn-outline-primary:hover {
+  color: #0f172a;
+  background-color: #93c5fd;
+  border-color: #93c5fd;
+}
+
+html.dark .btn-outline-secondary,
+html[data-bs-theme="dark"] .btn-outline-secondary {
+  color: var(--erp-text);
+  border-color: var(--erp-border);
+}
+
+html.dark .btn-outline-danger,
+html[data-bs-theme="dark"] .btn-outline-danger {
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.45);
+}
+
+html.dark .btn-outline-danger:hover,
+html[data-bs-theme="dark"] .btn-outline-danger:hover {
+  color: #fff;
+}
+
+html.dark .btn-close,
+html[data-bs-theme="dark"] .btn-close {
+  filter: var(--bs-btn-close-filter);
+}
+
+/* Neutral Tailwind grays (when used without dark: variant) */
+html.dark .text-black,
+html[data-bs-theme="dark"] .text-black {
+  color: var(--text-primary) !important;
+}
+
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-slate-700,
+html.dark .text-gray-900,
+html.dark .text-gray-800,
+html.dark .text-gray-700,
+html.dark .text-zinc-900,
+html.dark .text-zinc-800,
+html[data-bs-theme="dark"] .text-slate-900,
+html[data-bs-theme="dark"] .text-slate-800,
+html[data-bs-theme="dark"] .text-slate-700,
+html[data-bs-theme="dark"] .text-gray-900,
+html[data-bs-theme="dark"] .text-gray-800,
+html[data-bs-theme="dark"] .text-gray-700,
+html[data-bs-theme="dark"] .text-zinc-900,
+html[data-bs-theme="dark"] .text-zinc-800 {
+  color: var(--text-primary) !important;
+}
+
+html.dark .text-slate-600,
+html.dark .text-slate-500,
+html.dark .text-gray-600,
+html.dark .text-gray-500,
+html.dark .text-zinc-600,
+html[data-bs-theme="dark"] .text-slate-600,
+html[data-bs-theme="dark"] .text-slate-500,
+html[data-bs-theme="dark"] .text-gray-600,
+html[data-bs-theme="dark"] .text-gray-500,
+html[data-bs-theme="dark"] .text-zinc-600 {
+  color: var(--text-secondary) !important;
+}
+
+/* Input group text */
+html.dark .input-group-text,
+html[data-bs-theme="dark"] .input-group-text {
+  background-color: var(--erp-bg-muted);
+  color: var(--erp-text);
+  border-color: var(--bs-form-control-border-color);
+}
+
+html.dark .page-link,
+html[data-bs-theme="dark"] .page-link {
+  background-color: var(--bs-pagination-bg);
+  color: var(--bs-pagination-color);
+  border-color: var(--bs-pagination-border-color);
+}
+
+html.dark .page-link:hover,
+html[data-bs-theme="dark"] .page-link:hover {
+  color: var(--bs-pagination-hover-color);
+  background-color: var(--bs-pagination-hover-bg);
+  border-color: var(--bs-pagination-hover-border-color);
+}
+
+html.dark .page-item.active .page-link,
+html[data-bs-theme="dark"] .page-item.active .page-link {
+  color: #fff;
+}
+
+html.dark .nav-link,
+html[data-bs-theme="dark"] .nav-link {
+  color: var(--erp-text-muted);
+}
+
+html.dark .nav-link:hover,
+html.dark .nav-link:focus,
+html[data-bs-theme="dark"] .nav-link:hover,
+html[data-bs-theme="dark"] .nav-link:focus {
+  color: var(--erp-text);
+}
+
+html.dark .nav-link.active,
+html[data-bs-theme="dark"] .nav-link.active {
+  color: var(--erp-text);
+}
+
+/* Alerts — keep semantic hues; ensure body text is readable on tinted backgrounds */
+html.dark .alert-primary,
+html[data-bs-theme="dark"] .alert-primary {
+  color: #dbeafe;
+  background-color: rgba(37, 99, 235, 0.2);
+  border-color: rgba(96, 165, 250, 0.35);
+}
+
+html.dark .alert-secondary,
+html[data-bs-theme="dark"] .alert-secondary {
+  color: var(--erp-text);
+  background-color: var(--erp-bg-muted);
+  border-color: var(--erp-border);
+}
+
+html.dark .alert-success,
+html[data-bs-theme="dark"] .alert-success {
+  color: #bbf7d0;
+  background-color: rgba(22, 163, 74, 0.18);
+  border-color: rgba(74, 222, 128, 0.35);
+}
+
+html.dark .alert-danger,
+html[data-bs-theme="dark"] .alert-danger {
+  color: #fecaca;
+  background-color: rgba(220, 38, 38, 0.2);
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+html.dark .alert-warning,
+html[data-bs-theme="dark"] .alert-warning {
+  color: #422006;
+  background-color: rgba(245, 158, 11, 0.35);
+  border-color: rgba(251, 191, 36, 0.45);
+}
+
+html.dark .alert-info,
+html[data-bs-theme="dark"] .alert-info {
+  color: #bae6fd;
+  background-color: rgba(14, 165, 233, 0.18);
+  border-color: rgba(56, 189, 248, 0.35);
+}

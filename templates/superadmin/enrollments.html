@@ -23,6 +23,7 @@
         <thead class="table-light">
           <tr>
             <th>Institution</th>
+            <th>Plan</th>
             <th>Contact</th>
             <th>Email</th>
             <th>Submitted</th>
@@ -34,6 +35,7 @@
           {% for e in enrollments %}
           <tr>
             <td class="fw-semibold">{{ e.institution_name }}</td>
+            <td class="small text-capitalize">{{ e.intended_plan|default:"trial" }}</td>
             <td>{{ e.contact_name }}</td>
             <td>{{ e.email }}</td>
             <td class="small text-muted">{{ e.created_at }}</td>
@@ -51,7 +53,7 @@
             </td>
           </tr>
           {% empty %}
-          <tr><td colspan="6" class="text-center text-muted py-4">No enrollments in this view.</td></tr>
+          <tr><td colspan="7" class="text-center text-muted py-4">No enrollments in this view.</td></tr>
           {% endfor %}
         </tbody>
       </table>
