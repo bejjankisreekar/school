@@ -1,11 +1,12 @@
 import base64
 from io import BytesIO
 from datetime import datetime, time, date
+from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, HttpResponseForbidden
 from django.template.loader import render_to_string
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Case, IntegerField, Max, Q, Value, When
 from django.urls import reverse
 
 from apps.customers.models import School
@@ -13,29 +14,111 @@ from apps.school_data.models import ClassRoom, Subject, Teacher
 from apps.core.tenant_scope import ensure_tenant_for_request
 from apps.core.utils import add_warning_once, has_feature_access
 from apps.accounts.decorators import admin_required, teacher_required, student_required
+from .forms import ScheduleProfileForm, TimeSlotAddForm, TimeSlotForm
 from .models import ScheduleProfile, TimeSlot, Timetable
 
 DAYS = Timetable.DayOfWeek.choices
 
 
-def _build_timetable_grid(classroom, school, profile=None):
-    """Build grid of (slot, days) for schedule display."""
-    default_profile, _ = ScheduleProfile.objects.get_or_create(name="Default")
-    profile = profile or getattr(classroom, "active_schedule_profile", None) or default_profile
+def _default_schedule_profile():
+    """Single canonical default profile per tenant (schema)."""
+    return ScheduleProfile.objects.get_or_create(name="Default")[0]
 
-    slots = list(TimeSlot.objects.filter(profile=profile).order_by("order", "start_time"))
-    existing = {
-        (t.day_of_week, t.time_slot_id): t
-        for t in Timetable.objects.filter(classroom=classroom, profile=profile)
+
+def _timeslot_qs_for_profile(profile, default_profile):
+    """
+    Time slots for this schedule profile.
+
+    Legacy rows (pre–ScheduleProfile) have profile_id NULL; those belong to the
+    Default profile only so existing tenant data in timetable_timeslot keeps working.
+    """
+    qs = TimeSlot.objects.all()
+    if profile.pk == default_profile.pk:
+        qs = qs.filter(Q(profile_id=profile.pk) | Q(profile__isnull=True))
+    else:
+        qs = qs.filter(profile=profile)
+    return qs.order_by("order", "start_time")
+
+
+def _timetable_qs_for_classroom_profile(classroom, profile, default_profile):
+    """Timetable entries for this class + profile, including legacy NULL profile rows for Default."""
+    qs = Timetable.objects.filter(classroom=classroom)
+    if profile.pk == default_profile.pk:
+        qs = qs.filter(Q(profile_id=profile.pk) | Q(profile__isnull=True))
+    else:
+        qs = qs.filter(profile=profile)
+    return qs
+
+
+def _timetable_existing_dict(classroom, profile, default_profile):
+    """
+    Map (day_of_week, time_slot_id) -> Timetable row.
+
+    When duplicate rows exist (e.g. legacy profile NULL + explicit Default), prefer the row
+    whose profile matches the active profile so saved data shows reliably.
+    """
+    qs = (
+        _timetable_qs_for_classroom_profile(classroom, profile, default_profile)
         .select_related("time_slot", "subject")
         .prefetch_related("teachers__user")
-    }
+        .annotate(
+            _tpref=Case(
+                When(profile_id=profile.pk, then=Value(0)),
+                When(profile__isnull=True, then=Value(1)),
+                default=Value(2),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("_tpref", "id")
+    )
+    out = {}
+    for t in qs:
+        key = (t.day_of_week, t.time_slot_id)
+        if key not in out:
+            out[key] = t
+    return out
+
+
+def _slot_allowed_for_profile(slot, profile_id: int, default_profile) -> bool:
+    """Whether a time slot may be edited/deleted from the given profile context."""
+    if slot.profile_id == profile_id:
+        return True
+    return profile_id == default_profile.pk and slot.profile_id is None
+
+
+def _normalize_timeslot_orders(profile, default_profile):
+    """Assign order = 1..n by current sequence (order, start_time, id)."""
+    ordered = list(
+        _timeslot_qs_for_profile(profile, default_profile).order_by("order", "start_time", "id")
+    )
+    for i, slot in enumerate(ordered, start=1):
+        if slot.order != i:
+            TimeSlot.objects.filter(pk=slot.pk).update(order=i)
+
+
+def _build_timetable_grid(classroom, school, profile=None):
+    """Build grid of (slot, days) for schedule display."""
+    default_profile = _default_schedule_profile()
+    profile = profile or getattr(classroom, "active_schedule_profile", None) or default_profile
+
+    slots = list(_timeslot_qs_for_profile(profile, default_profile))
+    existing = _timetable_existing_dict(classroom, profile, default_profile)
     grid = []
     for slot in slots:
         row = {"slot": slot, "days": []}
         for day_val, day_name in DAYS:
             rec = existing.get((day_val, slot.id))
-            row["days"].append({"day": day_val, "day_name": day_name, "entry": rec})
+            subject_bg = None
+            if rec and rec.subject_id:
+                subject_bg = _subject_color(rec.subject.name)
+            row["days"].append(
+                {
+                    "day": day_val,
+                    "day_name": day_name,
+                    "entry": rec,
+                    "subject_bg": subject_bg,
+                }
+            )
         grid.append(row)
     return grid
 
@@ -75,7 +158,7 @@ def school_timetable_index(request):
         ay_key = ay_start or date.min
         return (-ay_key.toordinal(), -grade_num, name.lower(), c.id)
 
-    default_profile, _ = ScheduleProfile.objects.get_or_create(name="Default")
+    default_profile = _default_schedule_profile()
     classrooms = list(
         ClassRoom.objects.select_related("academic_year", "active_schedule_profile").all()
     )
@@ -97,38 +180,67 @@ def school_timeslots(request):
         return HttpResponseForbidden("This feature is not enabled for this school.")
     ensure_tenant_for_request(request)
 
-    default_profile, _ = ScheduleProfile.objects.get_or_create(name="Default")
+    default_profile = _default_schedule_profile()
     profile_id = request.GET.get("profile") or request.POST.get("profile")
     selected_profile = default_profile
     if profile_id:
         try:
-            selected_profile = ScheduleProfile.objects.get(id=int(profile_id))
+            selected_profile = ScheduleProfile.objects.select_related("academic_year").get(
+                id=int(profile_id)
+            )
         except (ValueError, ScheduleProfile.DoesNotExist):
             selected_profile = default_profile
 
-    profiles = ScheduleProfile.objects.order_by("name")
-    slots = TimeSlot.objects.filter(profile=selected_profile).order_by("order", "start_time")
+    profiles = ScheduleProfile.objects.all()
+    slots = _timeslot_qs_for_profile(selected_profile, default_profile)
+
+    show_new_profile_modal = False
+    new_profile_form = ScheduleProfileForm()
 
     if request.method == "POST":
-        from .forms import TimeSlotForm
-        form = TimeSlotForm(request.POST)
-        if form.is_valid():
-            slot = form.save(commit=False)
-            slot.profile = selected_profile
-            if not slot.order and slots.exists():
-                slot.order = slots.order_by("-order").first().order + 1
-            slot.save()
-            return redirect(f"{reverse('timetable:school_timeslots')}?profile={selected_profile.id}")
+        action = request.POST.get("action")
+        if action == "create_schedule_profile":
+            new_profile_form = ScheduleProfileForm(request.POST)
+            show_new_profile_modal = not new_profile_form.is_valid()
+            if new_profile_form.is_valid():
+                created = new_profile_form.save()
+                messages.success(
+                    request,
+                    f'Schedule profile "{created.name}" was created. Add time slots below.',
+                )
+                return redirect(f"{reverse('timetable:school_timeslots')}?profile={created.id}")
+            form = TimeSlotAddForm()
+        else:
+            form = TimeSlotAddForm(request.POST)
+            if form.is_valid():
+                slot = form.save(commit=False)
+                slot.profile = selected_profile
+                max_o = (
+                    _timeslot_qs_for_profile(selected_profile, default_profile).aggregate(
+                        m=Max("order")
+                    )["m"]
+                )
+                max_o = max_o if max_o is not None else 0
+                slot.order = max_o + 1
+                slot.save()
+                _normalize_timeslot_orders(selected_profile, default_profile)
+                messages.success(request, "Time slot added.")
+                return redirect(f"{reverse('timetable:school_timeslots')}?profile={selected_profile.id}")
     else:
-        from .forms import TimeSlotForm
-        form = TimeSlotForm(initial={"order": slots.count()})
+        form = TimeSlotAddForm()
 
-    return render(request, "timetable/school_timeslots.html", {
-        "slots": slots,
-        "form": form,
-        "profiles": profiles,
-        "selected_profile": selected_profile,
-    })
+    return render(
+        request,
+        "timetable/school_timeslots.html",
+        {
+            "slots": slots,
+            "form": form,
+            "profiles": profiles,
+            "selected_profile": selected_profile,
+            "new_profile_form": new_profile_form,
+            "show_new_profile_modal": show_new_profile_modal,
+        },
+    )
 
 
 @admin_required
@@ -139,17 +251,25 @@ def school_timeslot_update(request, slot_id):
     if not has_feature_access(request.user.school, "timetable", user=request.user):
         return HttpResponseForbidden("This feature is not enabled for this school.")
     ensure_tenant_for_request(request)
-    slot = get_object_or_404(TimeSlot, id=slot_id)
-    default_profile, _ = ScheduleProfile.objects.get_or_create(name="Default")
     if request.method != "POST":
         return redirect("timetable:school_timeslots")
-    from .forms import TimeSlotForm
+    profile_id = request.POST.get("profile")
+    try:
+        pid = int(profile_id)
+    except (TypeError, ValueError):
+        return redirect("timetable:school_timeslots")
+    default_profile = _default_schedule_profile()
+    slot = get_object_or_404(TimeSlot, id=slot_id)
+    if not _slot_allowed_for_profile(slot, pid, default_profile):
+        return redirect("timetable:school_timeslots")
     form = TimeSlotForm(request.POST, instance=slot)
     if form.is_valid():
         updated = form.save(commit=False)
-        if not updated.profile_id:
-            updated.profile = default_profile
+        updated.profile_id = default_profile.pk if slot.profile_id is None else slot.profile_id
         updated.save()
+        prof = ScheduleProfile.objects.filter(pk=updated.profile_id).first() or default_profile
+        _normalize_timeslot_orders(prof, default_profile)
+        messages.success(request, "Time slot updated.")
     profile_id = request.POST.get("profile") or request.GET.get("profile")
     if profile_id:
         return redirect(f"{reverse('timetable:school_timeslots')}?profile={profile_id}")
@@ -164,9 +284,25 @@ def school_timeslot_delete(request, slot_id):
     if not has_feature_access(request.user.school, "timetable", user=request.user):
         return HttpResponseForbidden("This feature is not enabled for this school.")
     ensure_tenant_for_request(request)
+    if request.method != "POST":
+        return redirect("timetable:school_timeslots")
+    profile_id = request.POST.get("profile")
+    try:
+        pid = int(profile_id)
+    except (TypeError, ValueError):
+        return redirect("timetable:school_timeslots")
+    default_profile = _default_schedule_profile()
     slot = get_object_or_404(TimeSlot, id=slot_id)
-    if request.method == "POST":
-        slot.delete()
+    if not _slot_allowed_for_profile(slot, pid, default_profile):
+        return redirect("timetable:school_timeslots")
+    prof = (
+        default_profile
+        if slot.profile_id is None
+        else (ScheduleProfile.objects.filter(pk=slot.profile_id).first() or default_profile)
+    )
+    slot.delete()
+    _normalize_timeslot_orders(prof, default_profile)
+    messages.success(request, "Time slot removed.")
     profile_id = request.POST.get("profile") or request.GET.get("profile")
     if profile_id:
         return redirect(f"{reverse('timetable:school_timeslots')}?profile={profile_id}")
@@ -183,7 +319,7 @@ def school_timetable(request, classroom_id):
         return HttpResponseForbidden("This feature is not enabled for this school.")
     ensure_tenant_for_request(request)
 
-    default_profile, _ = ScheduleProfile.objects.get_or_create(name="Default")
+    default_profile = _default_schedule_profile()
     classroom = get_object_or_404(ClassRoom, id=classroom_id)
     profiles = ScheduleProfile.objects.order_by("name")
     active_profile = classroom.active_schedule_profile or default_profile
@@ -197,18 +333,13 @@ def school_timetable(request, classroom_id):
             pass
         return redirect("timetable:school_timetable", classroom_id=classroom.id)
 
-    slots = list(TimeSlot.objects.filter(profile=active_profile).order_by("order", "start_time"))
-    subjects = Subject.objects.all().order_by("name")
-    teachers = Teacher.objects.select_related("user")
+    slots = list(_timeslot_qs_for_profile(active_profile, default_profile))
+    subjects = list(Subject.objects.all().order_by("name"))
+    teachers = list(Teacher.objects.select_related("user").order_by("user__last_name", "user__first_name"))
 
-    existing = {
-        (t.day_of_week, t.time_slot_id): t
-        for t in Timetable.objects.filter(classroom=classroom, profile=active_profile)
-        .select_related("time_slot", "subject")
-        .prefetch_related("teachers__user")
-    }
+    existing = _timetable_existing_dict(classroom, active_profile, default_profile)
 
-    if request.method == "POST":
+    if request.method == "POST" and request.POST.get("save_timetable"):
         with transaction.atomic():
             to_create = []
             to_update = []
@@ -268,9 +399,11 @@ def school_timetable(request, classroom_id):
                         m2m_rows.append(through(timetable_id=t.id, teacher_id=teacher_id))
                 if m2m_rows:
                     through.objects.bulk_create(m2m_rows)
+        messages.success(request, "Timetable saved.")
         return redirect("timetable:school_timetable", classroom_id=classroom.id)
 
     grid = _build_timetable_grid(classroom, school, profile=active_profile)
+    edit_mode = request.GET.get("edit") == "1"
 
     return render(request, "timetable/school_timetable.html", {
         "classroom": classroom,
@@ -280,6 +413,7 @@ def school_timetable(request, classroom_id):
         "teachers": teachers,
         "profiles": profiles,
         "active_profile": active_profile,
+        "edit_mode": edit_mode,
     })
 
 
@@ -308,7 +442,7 @@ def school_timetable_print(request, classroom_id):
     if not school:
         return redirect("core:admin_dashboard")
     ensure_tenant_for_request(request)
-    default_profile, _ = ScheduleProfile.objects.get_or_create(name="Default")
+    default_profile = _default_schedule_profile()
     classroom = get_object_or_404(ClassRoom, id=classroom_id)
     active_profile = classroom.active_schedule_profile or default_profile
     grid = _build_timetable_grid(classroom, school, profile=active_profile)
@@ -387,7 +521,7 @@ def school_timetable_pdf(request, classroom_id):
     if not school:
         return redirect("core:admin_dashboard")
     ensure_tenant_for_request(request)
-    default_profile, _ = ScheduleProfile.objects.get_or_create(name="Default")
+    default_profile = _default_schedule_profile()
     classroom = get_object_or_404(ClassRoom, id=classroom_id)
     active_profile = classroom.active_schedule_profile or default_profile
     grid = _build_timetable_grid(classroom, school, profile=active_profile)
@@ -418,9 +552,12 @@ def school_timetable_copy_monday(request, classroom_id):
         return redirect("core:admin_dashboard")
     ensure_tenant_for_request(request)
     classroom = get_object_or_404(ClassRoom, id=classroom_id)
+    default_profile = _default_schedule_profile()
+    active_profile = classroom.active_schedule_profile or default_profile
     monday = Timetable.DayOfWeek.MONDAY
     monday_entries = list(
-        Timetable.objects.filter(classroom=classroom, day_of_week=monday)
+        _timetable_qs_for_classroom_profile(classroom, active_profile, default_profile)
+        .filter(day_of_week=monday)
         .select_related("time_slot", "subject")
         .prefetch_related("teachers__user")
     )
@@ -434,10 +571,8 @@ def school_timetable_copy_monday(request, classroom_id):
                     classroom=classroom,
                     day_of_week=day_val,
                     time_slot_id=ts_id,
-                    defaults={
-                        "subject": m_entry.subject,
-                        "school": school,
-                    },
+                    profile=active_profile,
+                    defaults={"subject": m_entry.subject},
                 )
                 rec.teachers.set(list(m_entry.teachers.all()))
     return redirect("timetable:school_timetable", classroom_id=classroom.id)
@@ -457,8 +592,11 @@ def school_timetable_duplicate(request, classroom_id):
     target = ClassRoom.objects.filter(id=target_id).first()
     if not target:
         return redirect("timetable:school_timetable", classroom_id=classroom.id)
+    default_profile = _default_schedule_profile()
+    active_source = classroom.active_schedule_profile or default_profile
+    active_target = target.active_schedule_profile or default_profile
     source = list(
-        Timetable.objects.filter(classroom=classroom)
+        _timetable_qs_for_classroom_profile(classroom, active_source, default_profile)
         .select_related("time_slot", "subject")
         .prefetch_related("teachers__user")
     )
@@ -468,7 +606,8 @@ def school_timetable_duplicate(request, classroom_id):
                 classroom=target,
                 day_of_week=e.day_of_week,
                 time_slot=e.time_slot,
-                defaults={"subject": e.subject, "school": school},
+                profile=active_target,
+                defaults={"subject": e.subject},
             )
             rec.teachers.set(list(e.teachers.all()))
     return redirect("timetable:school_timetable", classroom_id=target.id)
@@ -488,10 +627,12 @@ def student_timetable(request):
     if not has_feature_access(school, "timetable", user=request.user):
         return HttpResponseForbidden("This feature is not enabled for this school.")
     ensure_tenant_for_request(request)
-    slots = list(TimeSlot.objects.order_by("order", "start_time"))
+    default_profile = _default_schedule_profile()
+    active = classroom.active_schedule_profile or default_profile
+    slots = list(_timeslot_qs_for_profile(active, default_profile))
     existing = {
         (t.day_of_week, t.time_slot_id): t
-        for t in Timetable.objects.filter(classroom=classroom)
+        for t in _timetable_qs_for_classroom_profile(classroom, active, default_profile)
         .select_related("time_slot", "subject")
         .prefetch_related("teachers__user")
     }
@@ -598,14 +739,21 @@ def today_classes_student(student):
     if not student or not student.classroom:
         return []
     from datetime import date
+
     today = date.today().isoweekday()
+    default_profile = _default_schedule_profile()
+    profile = student.classroom.active_schedule_profile or default_profile
+    qs = Timetable.objects.filter(
+        classroom=student.classroom,
+        day_of_week=today,
+        time_slot__is_break=False,
+    )
+    if profile.pk == default_profile.pk:
+        qs = qs.filter(Q(profile_id=profile.pk) | Q(profile__isnull=True))
+    else:
+        qs = qs.filter(profile=profile)
     return list(
-        Timetable.objects.filter(
-            classroom=student.classroom,
-            day_of_week=today,
-            time_slot__is_break=False,
-        )
-        .select_related("time_slot", "subject")
+        qs.select_related("time_slot", "subject")
         .prefetch_related("teachers__user")
         .order_by("time_slot__order")
     )

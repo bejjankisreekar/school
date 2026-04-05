@@ -3,6 +3,7 @@
 from django import forms
 from django.contrib.auth import get_user_model
 
+from apps.payroll.models import Payslip
 from apps.school_data.models import ClassRoom, Subject, Teacher
 
 from .forms import BS_INPUT, INPUT_CLASS
@@ -171,6 +172,7 @@ class TeacherMasterForm(forms.Form):
             "bank_account": "Account number",
             "ifsc": "IFSC code",
             "uan_number": "UAN or PF number",
+            "salary_payment_method": "How salary is typically paid",
         }
         for fname, text in ph.items():
             if fname in self.fields:
@@ -327,6 +329,7 @@ class TeacherMasterForm(forms.Form):
                 "bank_account": data.get("bank_account") or "",
                 "ifsc": data.get("ifsc") or "",
                 "uan_number": data.get("uan_number") or "",
+                "salary_payment_method": Payslip.normalize_payment_method(data.get("salary_payment_method")),
             },
             "status": {
                 "record_status": (data.get("record_status") or "ACTIVE").strip().upper(),

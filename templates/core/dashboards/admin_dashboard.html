@@ -396,7 +396,7 @@
             </a>
           </div>
           <div class="col-6 col-md-4 col-lg">
-            <a href="{% url 'core:school_fee_structure' %}" class="text-decoration-none text-reset d-block h-100">
+            <a href="{% url 'core:billing_fee_structure' %}" class="text-decoration-none text-reset d-block h-100">
               <div class="card border-0 shadow-sm h-100 rounded-3 hover-shadow transition-all bg-white bg-opacity-90">
                 <div class="card-body p-3 text-center">
                   <div class="text-danger mb-2"><i class="bi bi-currency-rupee fs-4"></i></div>
@@ -452,7 +452,7 @@
       </a>
       {% endif %}
       {% if fees_enabled %}
-      <a href="{% url 'core:school_fees_index' %}" class="sd-kpi t-orange">
+      <a href="{% url 'core:billing_dashboard' %}" class="sd-kpi t-orange">
         <div class="sd-kpi-icon"><i class="bi bi-currency-rupee"></i></div>
         <div class="sd-kpi-val">₹{{ fee_month_amt|inr:0 }}</div>
         <div class="sd-kpi-label">Fees (month)</div>
@@ -498,7 +498,7 @@
     {% if attendance_enabled and show_attendance_trend %}
     <div class="sd-card mt-3">
       <h3 class="sd-chart-h"><i class="bi bi-activity text-teal" style="color: #0d9488 !important;"></i> Attendance trend</h3>
-      <p class="sd-muted">% of enrolled students marked present (last 7 days)</p>
+      <p class="sd-muted">% of enrolled students marked present (last 15 days)</p>
       <div class="sd-chart-box sm">
         <canvas id="sdAttendanceChart" aria-label="Attendance trend chart"></canvas>
       </div>
@@ -519,7 +519,7 @@
         <a href="{% url 'core:school_class_add' %}" class="sd-qa"><i class="bi bi-building-add"></i><span>Create class</span></a>
         <a href="{% url 'core:school_section_add' %}" class="sd-qa"><i class="bi bi-layout-three-columns"></i><span>Create section</span></a>
         <a href="{% url 'core:school_subject_add' %}" class="sd-qa"><i class="bi bi-journal-plus"></i><span>Add subject</span></a>
-        <a href="{% url 'core:school_fee_structure' %}" class="sd-qa"><i class="bi bi-currency-exchange"></i><span>Fee structure</span></a>
+        <a href="{% url 'core:billing_fee_structure' %}" class="sd-qa"><i class="bi bi-currency-exchange"></i><span>Class fee structure</span></a>
       </div>
     </div>
 

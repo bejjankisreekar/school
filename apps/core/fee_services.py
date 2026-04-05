@@ -400,13 +400,43 @@ def build_fee_structure_class_summaries(academic_year):
     return summaries
 
 
+def default_due_date_for_structure(structure: FeeStructure) -> date:
+    """Explicit first due date on the structure, else due-day-of-month logic, else month-end."""
+    if getattr(structure, "first_due_date", None):
+        return structure.first_due_date
+    today = date.today()
+    dom = structure.due_day_of_month
+    if dom:
+        y, m = today.year, today.month
+        last = monthrange(y, m)[1]
+        day = min(int(dom), last)
+        candidate = date(y, m, day)
+        if candidate < today:
+            if m == 12:
+                y, m = y + 1, 1
+            else:
+                m += 1
+            last = monthrange(y, m)[1]
+            day = min(int(dom), last)
+            candidate = date(y, m, day)
+        return candidate
+    last = monthrange(today.year, today.month)[1]
+    return date(today.year, today.month, last)
+
+
 def apply_structure_to_students(structure: FeeStructure, due_date: date, section_id: int | None = None) -> tuple[int, str | None]:
     """Create Fee rows for all students in structure's class (optional section). Returns (created_count, error)."""
     if not structure.classroom_id:
         return 0, "Assign a class to this fee structure before applying."
-    students = Student.objects.filter(classroom_id=structure.classroom_id)
-    if section_id:
-        students = students.filter(section_id=section_id)
+    students = Student.objects.filter(
+        classroom_id=structure.classroom_id,
+        user__is_active=True,
+    )
+    eff_section = section_id
+    if eff_section is None and getattr(structure, "section_id", None):
+        eff_section = structure.section_id
+    if eff_section:
+        students = students.filter(section_id=eff_section)
     ay = structure.academic_year
     created = 0
     for st in students.iterator():
@@ -425,35 +455,97 @@ def apply_structure_to_students(structure: FeeStructure, due_date: date, section
     return created, None
 
 
-def clone_structure_to_classes(
-    source: FeeStructure,
-    target_classroom_ids: list[int],
-    user,
+def auto_assign_fees_for_structure(structure: FeeStructure) -> tuple[int, str | None]:
+    """Create pending Fee rows for all matching students after a fee structure is saved (class-wide or section)."""
+    if not structure.classroom_id or not structure.is_active:
+        return 0, None
+    due = default_due_date_for_structure(structure)
+    return apply_structure_to_students(structure, due, section_id=None)
+
+
+def fee_structures_applicable_to_student(student: Student):
+    """Active fee heads for the student's class, respecting optional section scope on the structure."""
+    if not student.classroom_id:
+        return FeeStructure.objects.none()
+    qs = FeeStructure.objects.filter(classroom_id=student.classroom_id, is_active=True)
+    if student.section_id:
+        return qs.filter(Q(section__isnull=True) | Q(section_id=student.section_id))
+    return qs.filter(section__isnull=True)
+
+
+def ensure_fee_row_for_student(
+    structure: FeeStructure,
+    student: Student,
+    due_date: date,
+    fee_academic_year=None,
+) -> bool:
+    """If the student matches the structure scope, create a pending Fee when missing."""
+    if not structure.is_active or not structure.classroom_id:
+        return False
+    if student.classroom_id != structure.classroom_id:
+        return False
+    if structure.section_id and student.section_id != structure.section_id:
+        return False
+    eff_ay = structure.academic_year if structure.academic_year_id else fee_academic_year
+    _, was_created = Fee.objects.get_or_create(
+        student=student,
+        fee_structure=structure,
+        due_date=due_date,
+        defaults={
+            "amount": structure.amount,
+            "academic_year": eff_ay,
+            "status": "PENDING",
+        },
+    )
+    return was_created
+
+
+def count_students_impacted_by_class_section(
+    classroom_id: int | None,
+    section_id: int | None = None,
 ) -> int:
-    """Duplicate structure rows to other classes (same fee type, amount, frequency, etc.)."""
+    """Active users only — matches auto-assign scope."""
+    if not classroom_id:
+        return 0
+    qs = Student.objects.filter(classroom_id=classroom_id, user__is_active=True)
+    if section_id:
+        qs = qs.filter(section_id=section_id)
+    return qs.count()
+
+
+def assign_missing_fees_for_student(student: Student, academic_year=None) -> int:
+    """
+    New admissions / class moves / backfill: add pending Fee rows for applicable structures.
+
+    If ``academic_year`` is set, only structures for that year (or with no year on the
+    structure) are considered; fee rows use the structure's year or fall back to it.
+    """
+    if not student.classroom_id:
+        return 0
+    if not student.user_id or not getattr(student.user, "is_active", True):
+        return 0
+    qs = fee_structures_applicable_to_student(student)
+    if academic_year is not None:
+        qs = qs.filter(Q(academic_year_id=academic_year.id) | Q(academic_year__isnull=True))
     n = 0
-    for cid in target_classroom_ids:
-        if source.classroom_id and cid == source.classroom_id:
-            continue
-        exists = FeeStructure.objects.filter(
-            fee_type=source.fee_type,
-            classroom_id=cid,
-            academic_year=source.academic_year,
-        ).exists()
-        if exists:
-            continue
-        obj = FeeStructure(
-            fee_type=source.fee_type,
-            classroom_id=cid,
-            academic_year=source.academic_year,
-            amount=source.amount,
-            frequency=source.frequency,
-            due_day_of_month=source.due_day_of_month,
-            is_active=source.is_active,
-        )
-        obj.save_with_audit(user)
-        n += 1
+    for structure in qs:
+        due = default_due_date_for_structure(structure)
+        if ensure_fee_row_for_student(structure, student, due, fee_academic_year=academic_year):
+            n += 1
     return n
+
+
+def default_pending_fee_for_student(student: Student, academic_year=None) -> Fee | None:
+    """First fee line with a positive balance (for collection desk default)."""
+    qs = Fee.objects.filter(student=student, status__in=["PENDING", "PARTIAL"]).select_related(
+        "fee_structure__fee_type", "academic_year"
+    )
+    if academic_year is not None:
+        qs = qs.filter(academic_year_id=academic_year.id)
+    for f in qs.order_by("due_date", "id"):
+        if fee_balance(f) > 0:
+            return f
+    return None
 
 
 def build_student_ledger_summaries(academic_year, search_q: str = ""):
@@ -843,3 +935,211 @@ def payment_history_rows(
         if len(rows) >= limit:
             break
     return rows
+
+
+def count_students_with_any_pending_fee(academic_year) -> int:
+    """Students who have at least one fee line with a positive balance."""
+    fee_qs = fees_queryset_for_year(academic_year).prefetch_related("payments")
+    pending_ids: set[int] = set()
+    for f in fee_qs:
+        if fee_balance(f) > 0:
+            pending_ids.add(f.student_id)
+    return len(pending_ids)
+
+
+def total_concessions_on_fees(academic_year) -> Decimal:
+    """Sum of per-line concession amounts (discounts / scholarships recorded on Fee)."""
+    fee_qs = fees_queryset_for_year(academic_year)
+    return sum((f.total_concession_amount for f in fee_qs if f.total_concession_amount), Decimal("0"))
+
+
+def chart_collection_by_fee_type(academic_year, limit: int = 10) -> tuple[list[str], list[float]]:
+    """YTD / scoped: total payments grouped by fee type name (for category bar chart)."""
+    qs = Payment.objects.filter(fee__fee_structure__fee_type__isnull=False)
+    if academic_year is not None:
+        qs = qs.filter(fee__academic_year=academic_year)
+    rows = (
+        qs.values("fee__fee_structure__fee_type__name")
+        .annotate(s=Sum("amount"))
+        .order_by("-s")[:limit]
+    )
+    labels = [r["fee__fee_structure__fee_type__name"] or "—" for r in rows]
+    values = [float(r["s"] or 0) for r in rows]
+    return labels, values
+
+
+def build_class_fee_structure_cards(academic_year):
+    """
+    One card per class: sum of active structure line amounts and a breakdown by fee head.
+    Section-specific lines are labeled with the section name.
+    """
+    qs = (
+        FeeStructure.objects.filter(is_active=True, classroom_id__isnull=False)
+        .select_related("classroom", "section", "fee_type", "academic_year")
+        .order_by("classroom__name", "section__name", "fee_type__name", "id")
+    )
+    if academic_year is not None:
+        qs = qs.filter(Q(academic_year=academic_year) | Q(academic_year__isnull=True))
+    by_class: dict[int, list] = defaultdict(list)
+    for s in qs:
+        by_class[s.classroom_id].append(s)
+    cards = []
+    for cid in sorted(by_class.keys(), key=lambda x: by_class[x][0].classroom.name):
+        structs = by_class[cid]
+        classroom = structs[0].classroom
+        lines = []
+        total = Decimal("0")
+        for st in structs:
+            label = (st.line_name or "").strip() or st.fee_type.name
+            if st.section_id:
+                sec_name = st.section.name if st.section_id else ""
+                if sec_name:
+                    label = f"{label} ({sec_name})"
+            lines.append(
+                {
+                    "label": label,
+                    "fee_type_name": st.fee_type.name,
+                    "amount": st.amount,
+                }
+            )
+            total += st.amount or Decimal("0")
+        cards.append(
+            {
+                "classroom": classroom,
+                "classroom_id": cid,
+                "lines": lines,
+                "structure_total": total,
+                "line_count": len(lines),
+            }
+        )
+    return cards
+
+
+def build_classroom_student_fee_rollups(classroom_id: int, academic_year):
+    """
+    Active students in the class with aggregated Fee rows: gross, concession, net, paid, pending.
+    """
+    students = list(
+        Student.objects.filter(classroom_id=classroom_id, user__is_active=True)
+        .select_related("user", "section", "classroom")
+        .order_by("user__last_name", "user__first_name", "admission_number")
+    )
+    for stu in students:
+        assign_missing_fees_for_student(stu, academic_year)
+    fee_qs = (
+        Fee.objects.filter(student__classroom_id=classroom_id)
+        .select_related("fee_structure__fee_type", "student")
+        .prefetch_related("payments")
+    )
+    if academic_year is not None:
+        fee_qs = fee_qs.filter(academic_year=academic_year)
+    by_student: dict[int, list] = defaultdict(list)
+    for f in fee_qs:
+        by_student[f.student_id].append(f)
+    rows = []
+    for stu in students:
+        flist = by_student.get(stu.id, [])
+        gross = sum((f.amount for f in flist), Decimal("0"))
+        concession = sum((f.total_concession_amount for f in flist), Decimal("0"))
+        net_due = sum((f.effective_due_amount for f in flist), Decimal("0"))
+        paid = sum((fee_amount_paid(f) for f in flist), Decimal("0"))
+        pending = sum((fee_balance(f) for f in flist), Decimal("0"))
+        rows.append(
+            {
+                "student": stu,
+                "gross": gross,
+                "concession": concession,
+                "net_due": net_due,
+                "paid": paid,
+                "pending": pending,
+                "fee_lines": len(flist),
+            }
+        )
+    return rows
+
+
+def build_fee_collect_bundle(student: Student, academic_year):
+    """
+    Ledger rows, payment targets (lines with balance), history, and totals
+    for the billing collect / record-payment UI.
+    """
+    assign_missing_fees_for_student(student, academic_year)
+    qs = (
+        Fee.objects.filter(student=student)
+        .select_related("fee_structure__fee_type", "academic_year")
+        .prefetch_related("payments")
+        .order_by("due_date", "fee_structure__fee_type__name", "id")
+    )
+    if academic_year is not None:
+        qs = qs.filter(academic_year=academic_year)
+    fee_list = list(qs)
+    ledger_rows = []
+    payment_targets = []
+    total_original = Decimal("0")
+    total_discount = Decimal("0")
+    total_final = Decimal("0")
+    total_paid_sum = Decimal("0")
+    total_balance_sum = Decimal("0")
+    for f in fee_list:
+        orig = f.amount or Decimal("0")
+        disc = f.total_concession_amount
+        final = f.effective_due_amount
+        paid = fee_amount_paid(f)
+        bal = fee_balance(f)
+        total_original += orig
+        total_discount += disc
+        total_final += final
+        total_paid_sum += paid
+        total_balance_sum += bal
+        ledger_rows.append(
+            {
+                "fee": f,
+                "original": orig,
+                "discount": disc,
+                "final_due": final,
+                "paid": paid,
+                "balance": bal,
+                "status": fee_ui_status(f),
+            }
+        )
+        if bal > 0:
+            payment_targets.append(
+                {
+                    "id": f.id,
+                    "label": f"{f.fee_structure.fee_type.name} · due {f.due_date}",
+                    "balance": bal,
+                }
+            )
+    hist_q = Payment.objects.filter(fee__student=student).select_related(
+        "fee__fee_structure__fee_type", "received_by"
+    )
+    if academic_year is not None:
+        hist_q = hist_q.filter(fee__academic_year=academic_year)
+    payment_history = list(hist_q.order_by("-payment_date", "-id")[:80])
+    return {
+        "ledger_rows": ledger_rows,
+        "payment_targets": payment_targets,
+        "payment_history": payment_history,
+        "total_original": total_original,
+        "total_discount": total_discount,
+        "total_final": total_final,
+        "total_paid_sum": total_paid_sum,
+        "total_balance_sum": total_balance_sum,
+        "scope_fee": fee_list[0] if fee_list else None,
+    }
+
+
+def refresh_fee_status_from_payments(fee: Fee) -> None:
+    """Recompute PENDING / PARTIAL / PAID after concession or payment change."""
+    fee.refresh_from_db()
+    paid = fee_amount_paid(fee)
+    eff = fee.effective_due_amount
+    if eff <= Decimal("0"):
+        fee.status = "PAID"
+    elif paid >= eff:
+        fee.status = "PAID"
+    elif paid > 0:
+        fee.status = "PARTIAL"
+    else:
+        fee.status = "PENDING"
+    fee.save(update_fields=["status"])

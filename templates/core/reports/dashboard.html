@@ -5,15 +5,325 @@
 <link rel="stylesheet" href="{% static 'css/loading-system.css' %}">
 <style>
   .analytics-dashboard-page {
-    --analytics-card-radius: 14px;
-    --analytics-card-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
-    --analytics-card-shadow-hover: 0 12px 40px rgba(15, 23, 42, 0.1);
-    --analytics-section-gap: 2.75rem;
-    --analytics-chart-min-h: 280px;
+    --rpt-r: 0.75rem;
+    --rpt-gap: 0.5rem;
+    --rpt-chart-h: 200px;
+    --rpt-chart-h-lg: 220px;
+    --analytics-card-radius: 0.75rem;
+    --analytics-card-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 4px 14px rgba(15, 23, 42, 0.04);
+    --analytics-card-shadow-hover: 0 4px 20px rgba(15, 23, 42, 0.08);
+    --analytics-section-gap: 0.65rem;
+    --analytics-chart-min-h: 200px;
   }
   html.dark .analytics-dashboard-page {
-    --analytics-card-shadow: 0 4px 28px rgba(0, 0, 0, 0.45);
-    --analytics-card-shadow-hover: 0 14px 48px rgba(0, 0, 0, 0.55);
+    --analytics-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 4px 18px rgba(0, 0, 0, 0.25);
+    --analytics-card-shadow-hover: 0 6px 24px rgba(0, 0, 0, 0.4);
+  }
+
+  .rpt-sticky-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 1020;
+    background: color-mix(in srgb, var(--bs-body-bg) 92%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+    margin: 0 -0.25rem 0.5rem;
+    padding: 0.35rem 0.5rem;
+  }
+  @media (min-width: 768px) {
+    .rpt-sticky-toolbar { margin: 0 -0.75rem 0.5rem; padding: 0.4rem 0.65rem; }
+  }
+  .rpt-toolbar-inner {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.35rem;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  .rpt-toolbar-inner .form-select,
+  .rpt-toolbar-inner .form-control {
+    font-size: 0.72rem;
+    padding: 0.22rem 1.6rem 0.22rem 0.45rem;
+    min-height: 1.85rem;
+    border-radius: var(--rpt-r);
+    min-width: 5.5rem;
+    max-width: 8.5rem;
+  }
+  .rpt-toolbar-inner .form-control[type="date"] {
+    padding-right: 0.35rem;
+    min-width: 6.75rem;
+    max-width: 7.25rem;
+  }
+  .rpt-toolbar-inner .btn {
+    font-size: 0.68rem;
+    padding: 0.22rem 0.45rem;
+    border-radius: var(--rpt-r);
+    white-space: nowrap;
+  }
+  .rpt-toolbar-inner .btn i { font-size: 0.85rem; vertical-align: -0.1em; }
+
+  .rpt-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--rpt-gap);
+    margin-bottom: var(--rpt-gap);
+  }
+  @media (min-width: 576px) { .rpt-kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  @media (min-width: 1200px) { .rpt-kpi-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
+
+  .rpt-kpi-card {
+    border-radius: var(--analytics-card-radius);
+    border: 1px solid var(--bs-border-color-translucent);
+    background: var(--bs-body-bg);
+    box-shadow: var(--analytics-card-shadow);
+    padding: 0.45rem 0.5rem;
+    min-height: 4.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    transition: box-shadow 0.15s ease;
+  }
+  .rpt-kpi-card:hover { box-shadow: var(--analytics-card-shadow-hover); }
+  .rpt-kpi-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+  .rpt-kpi-lab {
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+    margin: 0;
+    line-height: 1.2;
+  }
+  .rpt-kpi-val {
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+    margin: 0;
+    color: var(--bs-body-color);
+  }
+  .rpt-kpi-ico {
+    width: 1.65rem;
+    height: 1.65rem;
+    border-radius: 0.45rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+  .rpt-kpi-trend {
+    font-size: 0.62rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    margin: 0;
+    line-height: 1.25;
+  }
+  .rpt-kpi-trend--up { color: var(--bs-success); }
+  .rpt-kpi-trend--down { color: var(--bs-danger); }
+  .rpt-kpi-trend--neutral { color: var(--bs-secondary-color); }
+  .rpt-spark {
+    display: flex;
+    align-items: flex-end;
+    gap: 1px;
+    height: 1.1rem;
+    margin-top: auto;
+    padding-top: 0.15rem;
+    border-top: 1px solid var(--bs-border-color-translucent);
+  }
+  .rpt-spark span {
+    flex: 1;
+    min-width: 2px;
+    border-radius: 1px;
+    background: color-mix(in srgb, var(--bs-primary) 55%, transparent);
+    align-self: flex-end;
+  }
+  html.dark .rpt-spark span {
+    background: color-mix(in srgb, var(--bs-primary) 65%, transparent);
+  }
+
+  .rpt-section-label {
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+    margin: 0.35rem 0 0.25rem;
+  }
+
+  .rpt-card {
+    border-radius: var(--analytics-card-radius);
+    border: 1px solid var(--bs-border-color-translucent);
+    background: var(--bs-body-bg);
+    box-shadow: var(--analytics-card-shadow);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  .rpt-card-body {
+    padding: 0.45rem 0.55rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+  .rpt-card-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 0.05rem;
+    color: var(--bs-body-color);
+  }
+  .rpt-card-hint {
+    font-size: 0.6rem;
+    color: var(--bs-secondary-color);
+    margin: 0 0 0.35rem;
+    line-height: 1.3;
+  }
+  .rpt-chart-wrap {
+    position: relative;
+    flex: 1;
+    min-height: var(--rpt-chart-h);
+    width: 100%;
+  }
+  @media (min-width: 992px) {
+    .rpt-chart-wrap { min-height: var(--rpt-chart-h-lg); }
+  }
+  .rpt-chart-wrap--sm { min-height: 140px; }
+  @media (min-width: 992px) { .rpt-chart-wrap--sm { min-height: 150px; } }
+  .rpt-chart-wrap--donut .analytics-donut-center { top: 38%; }
+
+  .rpt-main-grid {
+    display: grid;
+    gap: var(--rpt-gap);
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 1200px) {
+    .rpt-main-grid { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+  }
+  .rpt-stack { display: flex; flex-direction: column; gap: var(--rpt-gap); min-height: 0; }
+  .rpt-stack .rpt-card { flex: 1; }
+
+  .rpt-mini-grid {
+    display: grid;
+    gap: var(--rpt-gap);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: stretch;
+    min-height: 0;
+  }
+  .rpt-mini-grid .rpt-card { min-height: 0; }
+
+  .rpt-row3 {
+    display: grid;
+    gap: var(--rpt-gap);
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 768px) { .rpt-row3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+  .rpt-insights {
+    display: grid;
+    gap: var(--rpt-gap);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @media (min-width: 992px) { .rpt-insights { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (min-width: 1400px) { .rpt-insights { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+
+  .rpt-insight {
+    border-radius: var(--analytics-card-radius);
+    border: 1px solid var(--bs-border-color-translucent);
+    background: var(--bs-body-bg);
+    box-shadow: var(--analytics-card-shadow);
+    padding: 0.4rem 0.5rem;
+    min-height: 3.4rem;
+  }
+  .rpt-insight-k {
+    font-size: 0.55rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--bs-secondary-color);
+    margin: 0 0 0.15rem;
+  }
+  .rpt-insight-v {
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin: 0;
+    line-height: 1.25;
+    color: var(--bs-body-color);
+  }
+  .rpt-insight-s {
+    font-size: 0.6rem;
+    color: var(--bs-secondary-color);
+    margin: 0.1rem 0 0;
+    line-height: 1.25;
+  }
+
+  .rpt-bottom-grid {
+    display: grid;
+    gap: var(--rpt-gap);
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 992px) { .rpt-bottom-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 1400px) { .rpt-bottom-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+  .rpt-table-wrap {
+    border-radius: var(--analytics-card-radius);
+    border: 1px solid var(--bs-border-color-translucent);
+    overflow: hidden;
+    background: var(--bs-body-bg);
+    box-shadow: var(--analytics-card-shadow);
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .rpt-table {
+    font-size: 0.68rem;
+    margin: 0;
+  }
+  .rpt-table thead th {
+    font-size: 0.55rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    color: var(--bs-secondary-color);
+    padding: 0.35rem 0.45rem;
+    background: var(--bs-tertiary-bg);
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  .rpt-table tbody td {
+    padding: 0.3rem 0.45rem;
+    vertical-align: middle;
+    border-color: var(--bs-border-color-translucent);
+  }
+  .rpt-heat {
+    --h: 0.5;
+    background: color-mix(in srgb, var(--bs-primary) calc(var(--h) * 35%), var(--bs-tertiary-bg));
+  }
+  html.dark .rpt-heat {
+    background: color-mix(in srgb, var(--bs-primary) calc(var(--h) * 45%), var(--bs-body-bg));
+  }
+
+  .rpt-shortcuts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+  .rpt-shortcuts .btn { font-size: 0.65rem; padding: 0.2rem 0.45rem; border-radius: var(--rpt-r); }
+
+  @media print {
+    .rpt-sticky-toolbar { display: none !important; }
+    .analytics-dashboard-page { padding: 0 !important; }
   }
 
   .analytics-page-header .analytics-title {
@@ -452,403 +762,542 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 {% endblock %}
 {% block content %}
-<div class="container-fluid px-0 analytics-dashboard-page">
-  <header class="analytics-page-header pb-4 mb-1 border-bottom border-light-subtle">
-    <h1 class="analytics-title mb-2">School Analytics Dashboard</h1>
-    <p class="analytics-subtitle text-muted mb-0">
-      Live enrollment, attendance, and academic signals — structured like a modern analytics workspace.
-    </p>
+<div class="container-fluid px-2 px-md-3 analytics-dashboard-page pb-3" id="school-reports-dashboard">
+  <header class="d-flex flex-wrap align-items-center justify-content-between gap-2 py-1 mb-1 border-bottom border-light-subtle">
+    <div>
+      <h1 class="h6 fw-bold mb-0 text-body">Analytics &amp; reports</h1>
+      <p class="text-muted mb-0" style="font-size:0.65rem;">Enrollment, attendance, exams — live school signals</p>
+    </div>
   </header>
 
-  {# —— Section 1 · Summary metrics —— #}
+  <form class="rpt-sticky-toolbar no-print" method="get" action="{% url 'reports:dashboard' %}" id="rpt-filter-form">
+    <div class="rpt-toolbar-inner">
+      <select class="form-select form-select-sm" name="academic_year" id="rpt-filter-year" title="Academic year" aria-label="Academic year">
+        {% for y in analytics_academic_years %}
+        <option value="{{ y.pk }}" {% if analytics_selected_year_id == y.pk %}selected{% endif %}>{{ y.name }}</option>
+        {% empty %}
+        <option value="">No academic year</option>
+        {% endfor %}
+      </select>
+      <input type="date" class="form-control form-control-sm" name="date_from" id="rpt-filter-from" title="From date" aria-label="From date" value="{{ analytics_date_from_iso }}">
+      <input type="date" class="form-control form-control-sm" name="date_to" id="rpt-filter-to" title="To date" aria-label="To date" value="{{ analytics_date_to_iso }}">
+      <select class="form-select form-select-sm" name="classroom" id="rpt-filter-class" title="Class" aria-label="Class">
+        <option value="">All classes</option>
+        {% for c in analytics_classrooms %}
+        <option value="{{ c.pk }}" {% if analytics_classroom_id == c.pk %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+      <select class="form-select form-select-sm" name="section" id="rpt-filter-section" title="Section" aria-label="Section">
+        <option value="">All sections</option>
+        {% for s in analytics_sections %}
+        <option value="{{ s.pk }}" {% if analytics_section_id == s.pk %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+      </select>
+      <select class="form-select form-select-sm" id="rpt-filter-report" title="Report type (view only)" aria-label="Report type">
+        <option selected>Overview</option>
+        <option>Attendance</option>
+        <option>Academic</option>
+        <option>Enrollment</option>
+      </select>
+      <button type="submit" class="btn btn-primary btn-sm" title="Apply filters"><i class="bi bi-funnel"></i><span class="d-none d-lg-inline ms-1">Apply</span></button>
+      <span class="d-none d-md-inline-block flex-grow-1"></span>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="rpt-btn-pdf" title="Save as PDF (print dialog)"><i class="bi bi-file-earmark-pdf"></i><span class="d-none d-lg-inline ms-1">PDF</span></button>
+      <a class="btn btn-outline-secondary btn-sm" href="{% url 'core:school_fee_payments_export_csv' %}" title="Export payments CSV"><i class="bi bi-file-earmark-spreadsheet"></i><span class="d-none d-lg-inline ms-1">Excel</span></a>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="rpt-btn-print" title="Print"><i class="bi bi-printer"></i></button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="rpt-btn-refresh" title="Reload"><i class="bi bi-arrow-clockwise"></i></button>
+    </div>
+    {% if request.GET.top_exam %}<input type="hidden" name="top_exam" value="{{ request.GET.top_exam }}">{% endif %}
+    {% if request.GET.top_classroom %}<input type="hidden" name="top_classroom" value="{{ request.GET.top_classroom }}">{% endif %}
+    {% if request.GET.top_section %}<input type="hidden" name="top_section" value="{{ request.GET.top_section }}">{% endif %}
+    {% if request.GET.top_limit %}<input type="hidden" name="top_limit" value="{{ request.GET.top_limit }}">{% endif %}
+    {% if request.GET.exam %}<input type="hidden" name="exam" value="{{ request.GET.exam }}">{% endif %}
+    {% if request.GET.top %}<input type="hidden" name="top" value="{{ request.GET.top }}">{% endif %}
+  </form>
+
   {% if analytics_metrics %}
-  <section class="analytics-dash-section" id="summary-metrics" aria-labelledby="summary-metrics-heading">
-    <p class="analytics-section-kicker mb-0">Section 1</p>
-    <h2 class="analytics-section-title" id="summary-metrics-heading">Summary metrics</h2>
-    <p class="analytics-section-desc">High-level KPIs refreshed from your school data. Trends compare activity this calendar month.</p>
+  {% with m0=analytics_metrics.0 m1=analytics_metrics.1 m2=analytics_metrics.2 m3=analytics_metrics.3 %}
+  <section class="analytics-dash-section mb-1" id="summary-metrics" aria-label="KPI summary">
     <div class="analytics-metrics-host">
-      <div class="analytics-metric-grid analytics-skel-layer" aria-hidden="true">
-        {% for m in analytics_metrics %}
-        <div class="analytics-metric-card-skeleton">
-          <div class="d-flex justify-content-between gap-2">
-            <div class="flex-grow-1">
-              <div class="erp-skel mb-2" style="height:11px;width:52%;border-radius:6px"></div>
-              <div class="erp-skel mb-0" style="height:28px;width:38%;border-radius:8px"></div>
-            </div>
-            <div class="erp-skel flex-shrink-0" style="width:2.65rem;height:2.65rem;border-radius:10px"></div>
-          </div>
-          <div class="erp-skel mt-auto" style="height:12px;width:78%;border-radius:6px"></div>
+      <div class="rpt-kpi-grid analytics-skel-layer" aria-hidden="true">
+        {% for _ in "12345678" %}
+        <div class="rpt-kpi-card">
+          <div class="d-flex justify-content-between"><div class="erp-skel" style="height:8px;width:45%"></div><div class="erp-skel" style="width:1.5rem;height:1.5rem;border-radius:4px"></div></div>
+          <div class="erp-skel" style="height:18px;width:55%"></div>
+          <div class="erp-skel mt-auto" style="height:6px;width:100%"></div>
         </div>
         {% endfor %}
       </div>
-      <div class="analytics-metric-grid analytics-live-layer">
-        {% for m in analytics_metrics %}
-        <article class="analytics-metric-card">
-          <div class="analytics-metric-card__top">
+      <div class="rpt-kpi-grid analytics-live-layer">
+        <article class="rpt-kpi-card" data-spark-series="attendance">
+          <div class="rpt-kpi-top">
             <div>
-              <p class="analytics-metric-label">{{ m.label }}</p>
-              <p class="analytics-metric-value">{{ m.value }}</p>
+              <p class="rpt-kpi-lab">Total students</p>
+              <p class="rpt-kpi-val">{{ m0.value }}</p>
             </div>
-            <div class="analytics-metric-icon bg-{{ m.theme }} bg-opacity-10 text-{{ m.theme }}" aria-hidden="true">
-              <i class="bi {{ m.icon }}"></i>
-            </div>
+            <div class="rpt-kpi-ico bg-primary bg-opacity-10 text-primary" aria-hidden="true"><i class="bi bi-people-fill"></i></div>
           </div>
-          <p class="analytics-metric-trend {% if m.muted %}analytics-metric-trend--muted{% elif m.trend_positive %}analytics-metric-trend--up{% else %}analytics-metric-trend--neutral{% endif %}">
-            <span class="analytics-metric-trend__icon" aria-hidden="true"><i class="bi {{ m.trend_icon }}"></i></span>
-            <span>{{ m.trend }}</span>
-          </p>
+          <p class="rpt-kpi-trend {% if m0.trend_positive %}rpt-kpi-trend--up{% else %}rpt-kpi-trend--neutral{% endif %}"><i class="bi bi-graph-up-arrow"></i><span class="rpt-trend-pct">—</span><span class="text-truncate">{{ m0.trend }}</span></p>
+          <div class="rpt-spark" data-rpt-spark="attendance" aria-hidden="true"></div>
         </article>
-        {% endfor %}
+        <article class="rpt-kpi-card" data-spark-series="flat">
+          <div class="rpt-kpi-top">
+            <div>
+              <p class="rpt-kpi-lab">Total staff</p>
+              <p class="rpt-kpi-val">{{ m1.value }}</p>
+            </div>
+            <div class="rpt-kpi-ico bg-info bg-opacity-10 text-info" aria-hidden="true"><i class="bi bi-person-badge-fill"></i></div>
+          </div>
+          <p class="rpt-kpi-trend {% if m1.trend_positive %}rpt-kpi-trend--up{% else %}rpt-kpi-trend--neutral{% endif %}"><i class="bi bi-graph-up-arrow"></i><span class="rpt-trend-pct">—</span><span class="text-truncate">{{ m1.trend }}</span></p>
+          <div class="rpt-spark" data-rpt-spark="flat" aria-hidden="true"></div>
+        </article>
+        <article class="rpt-kpi-card" data-spark-series="attendance">
+          <div class="rpt-kpi-top">
+            <div>
+              <p class="rpt-kpi-lab">Attendance %</p>
+              <p class="rpt-kpi-val" id="rpt-kpi-attn-val">{% if dash_week_avg_attendance_pct is not None %}{{ dash_week_avg_attendance_pct }}%{% else %}{{ m3.value }}{% endif %}</p>
+            </div>
+            <div class="rpt-kpi-ico bg-success bg-opacity-10 text-success" aria-hidden="true"><i class="bi bi-percent"></i></div>
+          </div>
+          <p class="rpt-kpi-trend {% if m3.muted %}rpt-kpi-trend--neutral{% elif m3.trend_positive %}rpt-kpi-trend--up{% else %}rpt-kpi-trend--neutral{% endif %}"><i class="bi {{ m3.trend_icon }}"></i><span class="rpt-trend-pct" data-rpt-attn-trend>—</span><span class="text-truncate">{{ m3.trend }}</span></p>
+          <div class="rpt-spark" data-rpt-spark="attendance" aria-hidden="true"></div>
+        </article>
+        <article class="rpt-kpi-card" data-spark-series="flat">
+          <div class="rpt-kpi-top">
+            <div>
+              <p class="rpt-kpi-lab">Revenue</p>
+              <p class="rpt-kpi-val" style="font-size:0.85rem;">Billing</p>
+            </div>
+            <div class="rpt-kpi-ico bg-warning bg-opacity-10 text-warning" aria-hidden="true"><i class="bi bi-currency-dollar"></i></div>
+          </div>
+          <p class="rpt-kpi-trend rpt-kpi-trend--neutral mb-0"><a href="{% url 'core:billing_gateway' %}" class="text-decoration-none text-truncate">Open billing dashboard</a></p>
+          <div class="rpt-spark" data-rpt-spark="flat" aria-hidden="true"></div>
+        </article>
+        <article class="rpt-kpi-card" data-spark-series="flat">
+          <div class="rpt-kpi-top">
+            <div>
+              <p class="rpt-kpi-lab">Pending fees</p>
+              <p class="rpt-kpi-val">{{ dash_low_attendance_rows|length }}</p>
+            </div>
+            <div class="rpt-kpi-ico bg-danger bg-opacity-10 text-danger" aria-hidden="true"><i class="bi bi-exclamation-triangle-fill"></i></div>
+          </div>
+          <p class="rpt-kpi-trend rpt-kpi-trend--neutral mb-0 text-truncate" style="font-size:0.58rem;">Students under 75% attendance (75d) — fee risk proxy</p>
+          <div class="rpt-spark" data-rpt-spark="flat" aria-hidden="true"></div>
+        </article>
+        <article class="rpt-kpi-card" data-spark-series="flat">
+          <div class="rpt-kpi-top">
+            <div>
+              <p class="rpt-kpi-lab">Attendance marks</p>
+              <p class="rpt-kpi-val" id="rpt-kpi-marks-val">{{ dash_attendance_mark_count|default:0 }}</p>
+            </div>
+            <div class="rpt-kpi-ico bg-primary bg-opacity-10 text-primary" aria-hidden="true"><i class="bi bi-clipboard-check"></i></div>
+          </div>
+          <p class="rpt-kpi-trend rpt-kpi-trend--neutral mb-0 text-truncate" style="font-size:0.58rem;">Total marks in selected date range (after filters)</p>
+          <div class="rpt-spark" data-rpt-spark="flat" aria-hidden="true"></div>
+        </article>
+        <article class="rpt-kpi-card" data-spark-series="subjects">
+          <div class="rpt-kpi-top">
+            <div>
+              <p class="rpt-kpi-lab">Exam pass %</p>
+              <p class="rpt-kpi-val" id="rpt-kpi-exam-val">{% if dash_subject_avg_pct %}…{% else %}—{% endif %}</p>
+            </div>
+            <div class="rpt-kpi-ico bg-success bg-opacity-10 text-success" aria-hidden="true"><i class="bi bi-mortarboard-fill"></i></div>
+          </div>
+          <p class="rpt-kpi-trend rpt-kpi-trend--neutral mb-0 text-truncate" style="font-size:0.58rem;">Avg across subjects ≥50% (weighted)</p>
+          <div class="rpt-spark" data-rpt-spark="subjects" aria-hidden="true"></div>
+        </article>
+        <article class="rpt-kpi-card" data-spark-series="flat">
+          <div class="rpt-kpi-top">
+            <div>
+              <p class="rpt-kpi-lab">Payroll cost</p>
+              <p class="rpt-kpi-val" style="font-size:0.85rem;">Payroll</p>
+            </div>
+            <div class="rpt-kpi-ico bg-secondary bg-opacity-10 text-secondary" aria-hidden="true"><i class="bi bi-wallet2"></i></div>
+          </div>
+          <p class="rpt-kpi-trend rpt-kpi-trend--neutral mb-0"><a href="{% url 'payroll:payroll_dashboard' %}" class="text-decoration-none text-truncate">Open payroll module</a></p>
+          <div class="rpt-spark" data-rpt-spark="flat" aria-hidden="true"></div>
+        </article>
       </div>
     </div>
   </section>
+  {% endwith %}
   {% endif %}
 
   {% if hub_charts_enabled %}
   {{ dash_charts_bundle|json_script:"reports-dash-bundle" }}
 
-  {# —— Section 2 · Student analytics —— #}
-  <section class="analytics-dash-section" id="student-analytics" aria-labelledby="student-analytics-heading">
-    <p class="analytics-section-kicker mb-0">Section 2</p>
-    <h2 class="analytics-section-title" id="student-analytics-heading">Student analytics</h2>
-    <p class="analytics-section-desc">Class headcount, gender mix with share in the donut center, eight-month admission momentum, and age spread from dates of birth.</p>
-
-    <div class="analytics-student-grid mb-4">
-      <div class="card border-0 analytics-chart-card shadow-sm">
-        <div class="card-body">
-          <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 analytics-chart-card__head">
-            <div>
-              <h3 class="analytics-chart-card__title">Students by class</h3>
-              <p class="analytics-chart-card__hint">Headcount per class (all academic years). Hover a bar for exact enrollment.</p>
-            </div>
-            <a href="{% url 'reports:students_by_class' %}" class="btn btn-outline-primary btn-sm rounded-pill">Open report</a>
-          </div>
-          {% if hub_class_labels %}
-          <div class="reports-hub-chart-wrap flex-grow-1">
-            <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
-            <canvas id="hubChartStudentsByClass" class="reports-hub-chart-canvas" aria-label="Students by class"></canvas>
-          </div>
-          {% else %}
-          <div class="d-flex align-items-center justify-content-center text-muted small py-5 px-3 text-center rounded-3 bg-body-secondary" style="min-height:220px">
-            No classes or enrolled students yet. Add classes and students to populate this chart.
-          </div>
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="card border-0 analytics-chart-card shadow-sm">
-        <div class="card-body">
-          <div class="analytics-chart-card__head">
-            <h3 class="analytics-chart-card__title">Student gender distribution</h3>
-            <p class="analytics-chart-card__hint">Balance from recorded gender; largest share shown in the center.</p>
-          </div>
-          <div class="reports-hub-chart-wrap reports-hub-chart-wrap--donut reports-hub-chart-wrap--compact flex-grow-1 position-relative">
-            <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
-            <div class="analytics-donut-center" id="genderDonutCenter" hidden>
-              <span class="analytics-donut-center__pct" id="genderDonutPct"></span>
-              <span class="analytics-donut-center__lab" id="genderDonutLab"></span>
-              <span class="analytics-donut-center__extra" id="genderDonutExtra"></span>
-            </div>
-            <canvas id="hubChartGender" class="reports-hub-chart-canvas" aria-label="Gender distribution"></canvas>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card border-0 analytics-chart-card shadow-sm">
-      <div class="card-body">
-        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 analytics-chart-card__head">
-          <div>
-            <h3 class="analytics-chart-card__title">Monthly admission trend</h3>
-            <p class="analytics-chart-card__hint">New student profiles created in each of the last eight calendar months.</p>
-          </div>
-          <a href="{% url 'reports:student_analytics' %}" class="btn btn-outline-info btn-sm rounded-pill">Student analytics</a>
-        </div>
-        <div class="reports-hub-chart-wrap flex-grow-1">
-          <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
-          <canvas id="hubChartAdmissions" class="reports-hub-chart-canvas" aria-label="Admissions trend"></canvas>
-        </div>
-      </div>
-    </div>
-
-    <div class="card border-0 analytics-chart-card shadow-sm mt-4">
-      <div class="card-body">
-        <div class="analytics-chart-card__head">
-          <h3 class="analytics-chart-card__title">Student age distribution</h3>
-          <p class="analytics-chart-card__hint">Headcount by age (from date of birth), ages 3–22.</p>
-        </div>
-        {% if dash_has_age_chart %}
-        <div class="reports-hub-chart-wrap flex-grow-1">
-          <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
-          <canvas id="hubChartAgeDistribution" class="reports-hub-chart-canvas" aria-label="Age distribution"></canvas>
-        </div>
-        {% else %}
-        <div class="d-flex align-items-center justify-content-center text-muted small py-5 px-3 text-center rounded-3 bg-body-secondary" style="min-height:220px">
-          Add student dates of birth to see how ages spread across the school.
-        </div>
-        {% endif %}
-      </div>
-    </div>
-  </section>
-
-  {# —— Section 3 · Attendance analytics —— #}
-  <section class="analytics-dash-section" id="attendance-analytics" aria-labelledby="attendance-analytics-heading">
-    <p class="analytics-section-kicker mb-0">Section 3</p>
-    <h2 class="analytics-section-title" id="attendance-analytics-heading">Attendance analytics</h2>
-    <p class="analytics-section-desc">Seven-day presence curve (weekends without school are shown as gaps), marking mix, and class-level attendance comparison.</p>
-
-    <div class="analytics-attendance-grid mb-2">
-      <div class="card border-0 analytics-chart-card shadow-sm">
-        <div class="card-body">
-          <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 analytics-chart-card__head">
-            <div>
-              <h3 class="analytics-chart-card__title">Weekly attendance trend</h3>
-              <p class="analytics-chart-card__hint">Smooth curve of daily presence rate; Sundays show as “no school”.</p>
+  <section class="analytics-dash-section mb-1" id="rpt-main-charts">
+    <p class="rpt-section-label mb-1">Overview charts</p>
+    <div class="rpt-main-grid">
+      <div class="rpt-stack">
+        <div class="rpt-card">
+          <div class="rpt-card-body">
+            <div class="d-flex align-items-start justify-content-between gap-1">
+              <div>
+                <h2 class="rpt-card-title">Attendance trend</h2>
+                <p class="rpt-card-hint">% present of marks — {{ analytics_date_from_iso }} to {{ analytics_date_to_iso }}; Sunday gaps; longer ranges use weekly buckets.</p>
+              </div>
+              {% if hub_show_attendance_chart %}<a href="{% url 'reports:attendance_trend' %}" class="btn btn-outline-success btn-sm py-0 px-1" style="font-size:0.6rem;">7-day</a>{% endif %}
             </div>
             {% if hub_show_attendance_chart %}
-            <a href="{% url 'reports:attendance_trend' %}" class="btn btn-outline-success btn-sm rounded-pill">Full trend</a>
+            <div class="rpt-chart-wrap reports-hub-chart-wrap flex-grow-1">
+              <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
+              <canvas id="hubChartAttendanceTrend" class="reports-hub-chart-canvas" aria-label="Attendance trend"></canvas>
+            </div>
+            {% else %}
+            <div class="rpt-chart-wrap d-flex align-items-center justify-content-center text-muted text-center px-2" style="font-size:0.65rem;">{{ hub_attendance_unavailable_message|default:"Attendance unavailable." }}</div>
             {% endif %}
           </div>
-          {% if hub_show_attendance_chart %}
-          <div class="reports-hub-chart-wrap flex-grow-1">
-            <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
-            <canvas id="hubChartAttendanceTrend" class="reports-hub-chart-canvas" aria-label="Attendance trend"></canvas>
+        </div>
+        <div class="rpt-card">
+          <div class="rpt-card-body">
+            <div class="d-flex align-items-start justify-content-between gap-1">
+              <div>
+                <h2 class="rpt-card-title">Students by class</h2>
+                <p class="rpt-card-hint">Enrollment for the selected academic year.</p>
+              </div>
+              <a href="{% url 'reports:students_by_class' %}" class="btn btn-outline-primary btn-sm py-0 px-1" style="font-size:0.6rem;">Report</a>
+            </div>
+            {% if hub_class_labels %}
+            <div class="rpt-chart-wrap reports-hub-chart-wrap flex-grow-1">
+              <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
+              <canvas id="hubChartStudentsByClass" class="reports-hub-chart-canvas" aria-label="Students by class"></canvas>
+            </div>
+            {% else %}
+            <div class="rpt-chart-wrap d-flex align-items-center justify-content-center text-muted text-center px-2" style="font-size:0.65rem;">No classes for this year</div>
+            {% endif %}
           </div>
-          {% else %}
-          <div class="d-flex align-items-center justify-content-center text-muted small py-5 px-3 text-center rounded-3 bg-body-secondary" style="min-height:220px">
-            {{ hub_attendance_unavailable_message|default:"Attendance analytics are not available for this workspace." }}
-          </div>
-          {% endif %}
         </div>
       </div>
-
-      <div class="card border-0 analytics-chart-card shadow-sm">
-        <div class="card-body">
-          <div class="analytics-chart-card__head">
-            <h3 class="analytics-chart-card__title">Marking mix (7 days)</h3>
-            <p class="analytics-chart-card__hint">Total present, absent, and on-leave records recorded in the rolling week.</p>
+      <div class="rpt-mini-grid">
+        <div class="rpt-card">
+          <div class="rpt-card-body">
+            <h2 class="rpt-card-title">Attendance split</h2>
+            <p class="rpt-card-hint">Marking mix in selected range</p>
+            {% if dash_has_attendance_status_chart %}
+            <div class="rpt-chart-wrap rpt-chart-wrap--sm rpt-chart-wrap--donut position-relative reports-hub-chart-wrap">
+              <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
+              <canvas id="hubChartAttendanceStatus" class="reports-hub-chart-canvas" aria-label="Attendance mix"></canvas>
+            </div>
+            {% else %}
+            <div class="rpt-chart-wrap rpt-chart-wrap--sm d-flex align-items-center justify-content-center text-muted text-center px-1" style="font-size:0.6rem;">No marks in range</div>
+            {% endif %}
           </div>
-          {% if dash_has_attendance_status_chart %}
-          <div class="reports-hub-chart-wrap reports-hub-chart-wrap--compact flex-grow-1">
-            <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
-            <canvas id="hubChartAttendanceStatus" class="reports-hub-chart-canvas" aria-label="Attendance status mix"></canvas>
+        </div>
+        <div class="rpt-card">
+          <div class="rpt-card-body">
+            <h2 class="rpt-card-title">Gender split</h2>
+            <p class="rpt-card-hint">Recorded gender</p>
+            <div class="rpt-chart-wrap rpt-chart-wrap--sm rpt-chart-wrap--donut position-relative reports-hub-chart-wrap">
+              <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
+              <div class="analytics-donut-center" id="genderDonutCenter" hidden>
+                <span class="analytics-donut-center__pct" id="genderDonutPct"></span>
+                <span class="analytics-donut-center__lab" id="genderDonutLab"></span>
+                <span class="analytics-donut-center__extra" id="genderDonutExtra"></span>
+              </div>
+              <canvas id="hubChartGender" class="reports-hub-chart-canvas" aria-label="Gender"></canvas>
+            </div>
           </div>
-          {% else %}
-          <div class="d-flex align-items-center justify-content-center text-muted small py-5 px-3 text-center rounded-3 bg-body-secondary" style="min-height:220px">
-            No attendance rows in the last 7 days. Once teachers mark attendance, this breakdown appears here.
+        </div>
+        <div class="rpt-card">
+          <div class="rpt-card-body">
+            <h2 class="rpt-card-title">Present vs absent</h2>
+            <p class="rpt-card-hint">Present vs absent+leave in range</p>
+            {% if dash_has_attendance_status_chart %}
+            <div class="rpt-chart-wrap rpt-chart-wrap--sm rpt-chart-wrap--donut reports-hub-chart-wrap">
+              <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
+              <canvas id="hubChartFeePaidPending" class="reports-hub-chart-canvas" aria-label="Presence vs absence"></canvas>
+            </div>
+            {% else %}
+            <div class="rpt-chart-wrap rpt-chart-wrap--sm d-flex align-items-center justify-content-center text-muted text-center px-1" style="font-size:0.6rem;">No attendance rows</div>
+            {% endif %}
           </div>
-          {% endif %}
         </div>
-      </div>
-    </div>
-
-    <div class="card border-0 analytics-chart-card shadow-sm mt-4">
-      <div class="card-body">
-        <div class="analytics-chart-card__head">
-          <h3 class="analytics-chart-card__title">Class attendance comparison</h3>
-          <p class="analytics-chart-card__hint">Share of attendance marks recorded as present in the last 30 days, by class. Lower bars use a deeper tone.</p>
+        <div class="rpt-card">
+          <div class="rpt-card-body">
+            <h2 class="rpt-card-title">Exam pass ratio</h2>
+            <p class="rpt-card-hint">Subjects ≥50% vs below</p>
+            <div class="rpt-chart-wrap rpt-chart-wrap--sm rpt-chart-wrap--donut reports-hub-chart-wrap">
+              <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
+              <canvas id="hubChartExamSplit" class="reports-hub-chart-canvas" aria-label="Exam split"></canvas>
+            </div>
+          </div>
         </div>
-        {% if dash_has_class_attendance_chart %}
-        <div class="reports-hub-chart-wrap flex-grow-1">
-          <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
-          <canvas id="hubChartClassAttendance" class="reports-hub-chart-canvas" aria-label="Class attendance comparison"></canvas>
-        </div>
-        {% else %}
-        <div class="d-flex align-items-center justify-content-center text-muted small py-5 px-3 text-center rounded-3 bg-body-secondary" style="min-height:220px">
-          No class-level attendance in the last 30 days yet. Once teachers mark attendance, this comparison appears.
-        </div>
-        {% endif %}
-      </div>
-    </div>
-  </section>
-
-  {# —— Section 4 · Academic insights —— #}
-  <section class="analytics-dash-section" id="academic-insights" aria-labelledby="academic-insights-heading">
-    <p class="analytics-section-kicker mb-0">Section 4</p>
-    <h2 class="analytics-section-title" id="academic-insights-heading">Academic insights</h2>
-    <p class="analytics-section-desc">Weighted average score by subject across all entered marks — useful for spotting strengths and gaps.</p>
-
-    <div class="card border-0 analytics-chart-card shadow-sm">
-      <div class="card-body">
-        <div class="analytics-academic-meta">
-          <span class="analytics-pill">Exams (90 days): {{ dash_exams_last_90_days }}</span>
-          {% if dash_has_academic_chart %}
-          <span class="analytics-pill">Top {{ dash_subject_labels|length }} subjects by avg %</span>
-          {% endif %}
-        </div>
-        {% if dash_has_academic_chart %}
-        <div class="reports-hub-chart-wrap flex-grow-1" style="max-height:420px;height:360px">
-          <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
-          <canvas id="hubChartSubjectAvg" class="reports-hub-chart-canvas" aria-label="Average score by subject"></canvas>
-        </div>
-        {% else %}
-        <div class="d-flex align-items-center justify-content-center text-muted small py-5 px-3 text-center rounded-3 bg-body-secondary" style="min-height:240px">
-          No marks in the system yet, or the exams feature is off. Publish exam results to unlock subject-level averages.
-        </div>
-        {% endif %}
       </div>
     </div>
   </section>
 
-  {# —— Section 5 · Alerts & tables —— #}
-  <section class="analytics-dash-section mb-4" id="alerts-tables" aria-labelledby="alerts-tables-heading">
-    <p class="analytics-section-kicker mb-0">Section 5</p>
-    <h2 class="analytics-section-title" id="alerts-tables-heading">Alerts &amp; tables</h2>
-    <p class="analytics-section-desc">Operational signals, enrollment ranking, and students whose rolling attendance needs follow-up.</p>
+  <section class="analytics-dash-section mb-1" id="rpt-row-secondary">
+    <p class="rpt-section-label">Secondary analytics</p>
+    <div class="rpt-row3">
+      <div class="rpt-card">
+        <div class="rpt-card-body">
+          <div class="d-flex justify-content-between gap-1">
+            <h2 class="rpt-card-title">Class-wise attendance</h2>
+            <a href="{% url 'reports:attendance_trend' %}" class="btn btn-outline-primary btn-sm py-0 px-1" style="font-size:0.6rem;">Trend</a>
+          </div>
+          <p class="rpt-card-hint">% present of marks in selected range</p>
+          {% if dash_has_class_attendance_chart %}
+          <div class="rpt-chart-wrap reports-hub-chart-wrap flex-grow-1">
+            <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
+            <canvas id="hubChartClassAttendance" class="reports-hub-chart-canvas" aria-label="Class attendance"></canvas>
+          </div>
+          {% else %}
+          <div class="rpt-chart-wrap d-flex align-items-center justify-content-center text-muted text-center px-2" style="font-size:0.65rem;">No class attendance yet</div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="rpt-card">
+        <div class="rpt-card-body d-flex flex-column" style="min-height:220px;">
+          <div class="d-flex justify-content-between gap-1 align-items-start">
+            <div>
+              <h2 class="rpt-card-title">Class student attendance</h2>
+              <p class="rpt-card-hint">% present for each student (select a class above)</p>
+            </div>
+            <a href="{% url 'reports:student_analytics' %}" class="btn btn-outline-info btn-sm py-0 px-1 flex-shrink-0" style="font-size:0.6rem;">Students</a>
+          </div>
+          {% if analytics_classroom_id %}
+          <div class="rpt-table-wrap flex-grow-1 mt-1" style="max-height:240px;">
+            {% if dash_class_student_attendance_rows %}
+            <table class="table table-sm rpt-table mb-0">
+              <thead><tr><th>Student</th><th>Roll</th><th>Sec</th><th class="text-end">%</th><th class="text-end">P/T</th></tr></thead>
+              <tbody>
+                {% for sr in dash_class_student_attendance_rows %}
+                <tr>
+                  <td class="fw-medium text-truncate" style="max-width:7rem;">{{ sr.student_name }}</td>
+                  <td>{{ sr.roll_number }}</td>
+                  <td class="text-muted">{{ sr.section_name }}</td>
+                  <td class="text-end">{% if sr.pct is not None %}{{ sr.pct }}%{% else %}—{% endif %}</td>
+                  <td class="text-end text-muted">{{ sr.present }}/{{ sr.total }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            {% else %}
+            <div class="text-muted text-center py-3 small">No attendance marks for this class in the range.</div>
+            {% endif %}
+          </div>
+          {% else %}
+          <div class="flex-grow-1 d-flex align-items-center justify-content-center text-muted text-center px-2 small">Choose a class to list per-student attendance for the selected dates.</div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="rpt-card">
+        <div class="rpt-card-body">
+          <h2 class="rpt-card-title">Scope &amp; payroll</h2>
+          <p class="rpt-card-hint mb-2">Filters apply to attendance charts and tables. Admissions trends are on Student analytics.</p>
+          <ul class="small text-muted ps-3 mb-2 mb-0" style="font-size:0.65rem;">
+            <li>Year: {% if analytics_selected_year_id %}{% for y in analytics_academic_years %}{% if y.pk == analytics_selected_year_id %}{{ y.name }}{% endif %}{% endfor %}{% else %}—{% endif %}</li>
+            <li>Range: {{ analytics_date_from_iso }} → {{ analytics_date_to_iso }}</li>
+          </ul>
+          <a href="{% url 'payroll:payroll_dashboard' %}" class="btn btn-outline-secondary btn-sm mt-1" style="font-size:0.65rem;">Payroll module</a>
+        </div>
+      </div>
+    </div>
+  </section>
 
+  <section class="analytics-dash-section mb-1" id="rpt-insights-row">
+    <p class="rpt-section-label">Insights</p>
+    <div class="rpt-insights" id="rpt-insights-root">
+      <div class="rpt-insight">
+        <p class="rpt-insight-k">Top class (attendance)</p>
+        <p class="rpt-insight-v" id="rpt-in-top-class">—</p>
+        <p class="rpt-insight-s">Highest % present in range</p>
+      </div>
+      <div class="rpt-insight">
+        <p class="rpt-insight-k">Lowest attendance</p>
+        <p class="rpt-insight-v" id="rpt-in-low-class">—</p>
+        <p class="rpt-insight-s">Lowest % present in range</p>
+      </div>
+      <div class="rpt-insight">
+        <p class="rpt-insight-k">Largest class</p>
+        <p class="rpt-insight-v" id="rpt-in-large-class">—</p>
+        <p class="rpt-insight-s">By headcount</p>
+      </div>
+      <div class="rpt-insight">
+        <p class="rpt-insight-k">Teacher attendance</p>
+        <p class="rpt-insight-v">—</p>
+        <p class="rpt-insight-s">Not tracked on this dashboard</p>
+      </div>
+      <div class="rpt-insight">
+        <p class="rpt-insight-k">Revenue summary</p>
+        <p class="rpt-insight-v"><a href="{% url 'core:billing_gateway' %}" class="text-decoration-none">Billing</a></p>
+        <p class="rpt-insight-s">Collections &amp; dues</p>
+      </div>
+      <div class="rpt-insight">
+        <p class="rpt-insight-k">Upcoming / operational</p>
+        <p class="rpt-insight-v" id="rpt-in-alerts-n">{% if dash_alerts %}{{ dash_alerts|length }}{% else %}0{% endif %} alerts</p>
+        <p class="rpt-insight-s">Attendance marking &amp; signals</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="analytics-dash-section mb-1" id="rpt-detail-analytics">
+    <p class="rpt-section-label">Detailed analytics</p>
+    <div class="rpt-bottom-grid">
+      <div class="rpt-card">
+        <div class="rpt-card-body p-0">
+          <div class="px-2 py-1 border-bottom border-light-subtle d-flex justify-content-between align-items-center">
+            <span class="fw-semibold" style="font-size:0.7rem;">Class performance</span>
+            <span class="text-muted" style="font-size:0.58rem;">Enrollment + share</span>
+          </div>
+          <div class="rpt-table-wrap">
+            {% if dash_enrollment_rows %}
+            <table class="table table-sm rpt-table mb-0">
+              <thead><tr><th>Class</th><th class="text-end">Students</th><th class="text-end">Share</th><th class="text-end">Attn %</th></tr></thead>
+              <tbody id="rpt-tbody-performance">
+                {% for row in dash_enrollment_rows %}
+                <tr data-class-name="{{ row.class_name }}">
+                  <td class="fw-medium">{{ row.class_name }}</td>
+                  <td class="text-end">{{ row.students }}</td>
+                  <td class="text-end">{{ row.share }}%</td>
+                  <td class="text-end text-muted rpt-cell-attn" data-class="{{ row.class_name }}">—</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            {% else %}
+            <div class="text-muted text-center py-3 small">No enrollment rows</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="rpt-card">
+        <div class="rpt-card-body p-0">
+          <div class="px-2 py-1 border-bottom border-light-subtle d-flex justify-content-between align-items-center">
+            <span class="fw-semibold" style="font-size:0.7rem;">Attendance heatmap</span>
+            <span class="text-muted" style="font-size:0.58rem;">7d rate × class</span>
+          </div>
+          <div class="rpt-table-wrap">
+            <table class="table table-sm rpt-table mb-0 text-center" style="font-size:0.58rem;">
+              <thead><tr><th>Class</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th></tr></thead>
+              <tbody id="rpt-tbody-heatmap"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="rpt-card">
+        <div class="rpt-card-body p-0">
+          <div class="px-2 py-1 border-bottom border-light-subtle d-flex justify-content-between align-items-center">
+            <span class="fw-semibold" style="font-size:0.7rem;">Fee collection matrix</span>
+            <a href="{% url 'core:school_fee_ledger_export_csv' %}" class="text-decoration-none" style="font-size:0.58rem;">CSV</a>
+          </div>
+          <div class="rpt-table-wrap">
+            <table class="table table-sm rpt-table mb-0">
+              <thead><tr><th>Class</th><th class="text-end">Students</th><th class="text-end">Est. focus</th></tr></thead>
+              <tbody>
+                {% for row in dash_enrollment_rows %}
+                <tr>
+                  <td>{{ row.class_name }}</td>
+                  <td class="text-end">{{ row.students }}</td>
+                  <td class="text-end text-muted">{{ row.share }}% share</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="3" class="text-center text-muted py-2 small">No data — use Billing for live balances</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="rpt-card">
+        <div class="rpt-card-body p-0">
+          <div class="px-2 py-1 border-bottom border-light-subtle d-flex justify-content-between align-items-center">
+            <span class="fw-semibold" style="font-size:0.7rem;">Exam comparison</span>
+            <span class="text-muted" style="font-size:0.58rem;">90d: {{ dash_exams_last_90_days }} exams</span>
+          </div>
+          <div class="rpt-table-wrap">
+            {% if dash_subject_labels %}
+            <table class="table table-sm rpt-table mb-0">
+              <thead><tr><th>Subject</th><th class="text-end">Avg %</th></tr></thead>
+              <tbody>
+                {% for sub in dash_subject_labels %}
+                <tr>
+                  <td>{{ sub }}</td>
+                  <td class="text-end fw-medium">{% for a in dash_subject_avg_pct %}{% if forloop.parentloop.counter0 == forloop.counter0 %}{{ a }}{% endif %}{% endfor %}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            {% else %}
+            <div class="text-muted text-center py-3 small">No marks yet</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="analytics-dash-section mb-2" id="alerts-tables">
     {% if dash_low_attendance_rows %}
-    <div class="mb-4">
-      <h3 class="h6 fw-bold text-body-secondary mb-3">Low attendance alerts</h3>
-      <p class="small text-muted mb-2">Students below 75% presence over the last ~75 days (minimum 8 marks). Rows under 60% are highlighted.</p>
-      <div class="table-responsive analytics-enrollment-table-wrap">
-        <table class="table analytics-enrollment-table analytics-low-attn-table mb-0">
-          <thead>
-            <tr>
-              <th scope="col">Student</th>
-              <th scope="col">Class</th>
-              <th scope="col" class="text-end">Attendance %</th>
-              <th scope="col">Parent contact</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in dash_low_attendance_rows %}
-            <tr class="{% if row.attendance_pct < 60 %}analytics-low-attn-row--critical{% endif %}">
-              <td class="fw-medium">{{ row.student_name }}</td>
-              <td>{{ row.class_name }}</td>
-              <td class="text-end">{{ row.attendance_pct }}%</td>
-              <td class="small text-break">{{ row.parent_contact }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+    <p class="rpt-section-label">Watchlist</p>
+    <div class="rpt-table-wrap mb-1">
+      <table class="table table-sm rpt-table analytics-low-attn-table mb-0">
+        <thead><tr><th>Student</th><th>Class</th><th class="text-end">%</th><th>Contact</th></tr></thead>
+        <tbody>
+          {% for row in dash_low_attendance_rows %}
+          <tr class="{% if row.attendance_pct < 60 %}analytics-low-attn-row--critical{% endif %}">
+            <td class="fw-medium">{{ row.student_name }}</td>
+            <td>{{ row.class_name }}</td>
+            <td class="text-end">{{ row.attendance_pct }}%</td>
+            <td class="small text-break">{{ row.parent_contact }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
     {% endif %}
-
-    <div class="row g-4">
-      <div class="col-lg-5">
-        <h3 class="h6 fw-bold text-body-secondary mb-3">Alerts</h3>
+    <div class="row g-1 g-md-2">
+      <div class="col-md-5">
+        <p class="rpt-section-label">Alerts</p>
         {% if dash_alerts %}
-        <div class="analytics-alert-list">
+        <div class="d-flex flex-column gap-1">
           {% for a in dash_alerts %}
-          <div class="analytics-alert-item {% if a.severity == 'warning' %}analytics-alert-item--warning{% else %}analytics-alert-item--info{% endif %}">
-            <span class="analytics-alert-icon" aria-hidden="true"><i class="bi {{ a.icon }}"></i></span>
-            <div>
-              <div class="fw-semibold small mb-1">{{ a.title }}</div>
-              <div class="text-muted small mb-0">{{ a.detail }}</div>
+          <div class="rpt-insight py-2 {% if a.severity == 'warning' %}border-warning{% endif %}" style="border-left:3px solid {% if a.severity == 'warning' %}#f59e0b{% else %}#3b82f6{% endif %};">
+            <div class="d-flex gap-2">
+              <i class="bi {{ a.icon }} text-primary"></i>
+              <div>
+                <div class="fw-semibold" style="font-size:0.68rem;">{{ a.title }}</div>
+                <div class="text-muted" style="font-size:0.6rem;">{{ a.detail }}</div>
+              </div>
             </div>
           </div>
           {% endfor %}
         </div>
         {% else %}
-        <div class="text-muted small py-4 px-3 rounded-3 bg-body-secondary">
-          No alerts right now. When attendance is incomplete or weekly presence drops, guidance will show here.
-        </div>
+        <div class="rpt-insight text-muted" style="font-size:0.65rem;">No active alerts</div>
         {% endif %}
       </div>
-      <div class="col-lg-7">
-        <h3 class="h6 fw-bold text-body-secondary mb-3">Class enrollment</h3>
-        {% if dash_enrollment_rows %}
-        <div class="analytics-enrollment-table-wrap">
-          <table class="table analytics-enrollment-table mb-0">
-            <thead>
-              <tr>
-                <th scope="col">#</th>
-                <th scope="col">Class</th>
-                <th scope="col" class="text-end">Students</th>
-                <th scope="col" class="text-end">Share</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in dash_enrollment_rows %}
-              <tr>
-                <td class="text-muted">{{ row.rank }}</td>
-                <td class="fw-medium">{{ row.class_name }}</td>
-                <td class="text-end">{{ row.students }}</td>
-                <td class="text-end text-muted">{{ row.share }}%</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% else %}
-        <div class="text-muted small py-4 px-3 rounded-3 bg-body-secondary">No enrollment rows to display.</div>
-        {% endif %}
-      </div>
-    </div>
-
-    <h3 class="h6 fw-bold text-body-secondary mt-5 mb-3">Report shortcuts</h3>
-    {% if report_cards_primary or report_cards_more %}
-    <div class="reports-cards-host">
-      <div class="reports-cards-skel-layer" aria-hidden="true">
-        {% if report_cards_primary %}
-        <div class="reports-hub-grid mb-4">
-          {% for card in report_cards_primary %}
-          <div class="reports-hub-card-skeleton">
-            <div class="erp-skel" style="width:2.65rem;height:2.65rem;border-radius:10px"></div>
-            <div class="erp-skel" style="height:16px;width:55%;border-radius:6px"></div>
-            <div class="erp-skel flex-grow-1" style="min-height:2.5rem;border-radius:6px"></div>
-            <div class="erp-skel" style="height:32px;width:42%;border-radius:999px"></div>
-          </div>
-          {% endfor %}
-        </div>
-        {% endif %}
-        {% if report_cards_more %}
-        <h4 class="h6 text-muted fw-semibold mb-3 opacity-50">More tools</h4>
-        <div class="reports-hub-grid">
-          {% for card in report_cards_more %}
-          <div class="reports-hub-card-skeleton">
-            <div class="erp-skel" style="width:2.65rem;height:2.65rem;border-radius:10px"></div>
-            <div class="erp-skel" style="height:16px;width:50%;border-radius:6px"></div>
-            <div class="erp-skel flex-grow-1" style="min-height:2.5rem;border-radius:6px"></div>
-            <div class="erp-skel" style="height:32px;width:36%;border-radius:999px"></div>
-          </div>
-          {% endfor %}
-        </div>
-        {% endif %}
-      </div>
-      <div class="reports-cards-live-layer">
-        {% if report_cards_primary %}
-        <div class="reports-hub-grid mb-4">
-          {% for card in report_cards_primary %}
-          <div class="card border-0 shadow-sm h-100 reports-hub-card">
-            <div class="card-body d-flex flex-column p-4">
-              <div class="reports-hub-icon bg-{{ card.theme }} bg-opacity-10 text-{{ card.theme }} mb-3"><i class="bi {{ card.icon }}"></i></div>
-              <h4 class="h6 fw-bold mb-2">{{ card.title }}</h4>
-              <p class="text-muted small flex-grow-1 mb-3">{{ card.description }}</p>
-              <a href="{{ card.url }}" class="btn btn-{{ card.theme }} btn-sm rounded-pill align-self-start">{{ card.button_label }}</a>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-        {% endif %}
-        {% if report_cards_more %}
-        <h4 class="h6 text-muted fw-semibold mb-3">More tools</h4>
-        <div class="reports-hub-grid">
-          {% for card in report_cards_more %}
-          <div class="card border-0 shadow-sm h-100 reports-hub-card">
-            <div class="card-body d-flex flex-column p-4">
-              <div class="reports-hub-icon bg-{{ card.theme }} bg-opacity-10 text-{{ card.theme }} mb-3"><i class="bi {{ card.icon }}"></i></div>
-              <h4 class="h6 fw-bold mb-2">{{ card.title }}</h4>
-              <p class="text-muted small flex-grow-1 mb-3">{{ card.description }}</p>
-              {% if card.ready %}
-              <a href="{{ card.url }}" class="btn btn-{{ card.theme }} btn-sm rounded-pill align-self-start">Open</a>
-              {% else %}
-              <button class="btn btn-sm btn-outline-secondary rounded-pill align-self-start" type="button" disabled title="{{ card.unavailable_label|default:'Coming soon' }}">{{ card.unavailable_label|default:"Coming soon" }}</button>
+      <div class="col-md-7">
+        <p class="rpt-section-label">Deep dives &amp; shortcuts</p>
+        <div class="rpt-card mb-1">
+          <div class="rpt-card-body py-2">
+            <div class="d-flex flex-wrap align-items-center gap-1 mb-1">
+              {% if dash_has_age_chart %}
+              <div class="rpt-chart-wrap flex-grow-1" style="min-height:120px;max-height:140px;">
+                <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
+                <canvas id="hubChartAgeDistribution" class="reports-hub-chart-canvas" aria-label="Age"></canvas>
+              </div>
               {% endif %}
             </div>
+            {% if dash_has_academic_chart %}
+            <div class="rpt-chart-wrap" style="min-height:160px;max-height:200px;">
+              <div class="reports-hub-chart-skeleton erp-skel" aria-hidden="true"></div>
+              <canvas id="hubChartSubjectAvg" class="reports-hub-chart-canvas" aria-label="Subject avg"></canvas>
+            </div>
+            {% endif %}
+            <div class="rpt-shortcuts mt-1">
+              {% for card in report_cards_primary %}
+              <a href="{{ card.url }}" class="btn btn-outline-{{ card.theme }} btn-sm">{{ card.title }}</a>
+              {% endfor %}
+              {% for card in report_cards_more %}
+              {% if card.ready %}<a href="{{ card.url }}" class="btn btn-outline-secondary btn-sm">{{ card.title }}</a>
+              {% else %}<button type="button" class="btn btn-outline-secondary btn-sm" disabled>{{ card.title }}</button>{% endif %}
+              {% endfor %}
+            </div>
           </div>
-          {% endfor %}
         </div>
-        {% endif %}
       </div>
     </div>
-    {% else %}
-    <div class="reports-empty text-center py-5 px-4">
-      <div class="reports-hub-icon bg-primary bg-opacity-10 text-primary mx-auto mb-3"><i class="bi bi-graph-up-arrow"></i></div>
-      <p class="text-muted mb-0">Detailed reports will appear here when the reports module is enabled for this school.</p>
-    </div>
-    {% endif %}
   </section>
   {% else %}
   <section class="analytics-dash-section mb-4" id="reports-exploration" aria-labelledby="reports-exploration-heading">
@@ -928,6 +1377,9 @@
     {% endif %}
   </section>
   {% endif %}
+
+  {% if dash_show_toppers_panel %}{% include "core/reports/includes/toppers_panel.html" %}{% endif %}
+  {% if dash_show_ai_panel %}{% include "core/reports/includes/ai_reports_panel.html" %}{% endif %}
 </div>
 
 {% if hub_charts_enabled %}
@@ -1089,65 +1541,6 @@
       }
     }
 
-    var admEl = document.getElementById("hubChartAdmissions");
-    var admL = bundle.admissionLabels || [];
-    var admC = bundle.admissionCounts || [];
-    if (admEl && admL.length) {
-      var ctx2d = admEl.getContext("2d");
-      var grad = ctx2d.createLinearGradient(0, 0, 0, admEl.height || 280);
-      grad.addColorStop(0, isDark ? "rgba(56, 189, 248, 0.35)" : "rgba(14, 165, 233, 0.25)");
-      grad.addColorStop(1, isDark ? "rgba(56, 189, 248, 0.02)" : "rgba(14, 165, 233, 0.02)");
-      new Chart(ctx2d, {
-        type: "line",
-        data: {
-          labels: admL,
-          datasets: [{
-            label: "Admissions",
-            data: admC,
-            tension: 0.4,
-            cubicInterpolationMode: "monotone",
-            fill: true,
-            backgroundColor: grad,
-            borderColor: isDark ? "#38bdf8" : "#0284c7",
-            borderWidth: 2.75,
-            pointRadius: 4,
-            pointHoverRadius: 8,
-            pointBackgroundColor: isDark ? "#38bdf8" : "#0284c7",
-            pointBorderColor: isDark ? "#0f172a" : "#fff",
-            pointBorderWidth: 2
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: anim,
-          interaction: { mode: "index", intersect: false },
-          plugins: {
-            legend: { display: false },
-            tooltip: Object.assign(commonTooltip(), {
-              displayColors: false,
-              callbacks: {
-                label: function (ctx) { return "Admissions: " + ctx.parsed.y; }
-              }
-            })
-          },
-          scales: {
-            x: {
-              title: { display: true, text: "Month", color: tick, font: { size: 11, weight: "600" } },
-              ticks: { color: tick, font: { size: 11 } },
-              grid: { color: gridMin }
-            },
-            y: {
-              title: { display: true, text: "Admissions", color: tick, font: { size: 11, weight: "600" } },
-              beginAtZero: true,
-              ticks: { color: tick, precision: 0, font: { size: 11 } },
-              grid: { color: gridMaj }
-            }
-          }
-        }
-      });
-    }
-
     var lineEl = document.getElementById("hubChartAttendanceTrend");
     var shortL = bundle.hubAttendanceShort || [];
     var fullL = bundle.hubAttendanceFull || [];
@@ -1207,7 +1600,7 @@
                   var pr = presents[i] != null && presents[i] !== undefined ? presents[i] : "—";
                   return [
                     "Rate: " + raw + "%",
-                    "Present: " + pr + " students"
+                    "Present marks: " + pr
                   ];
                 }
               }
@@ -1215,7 +1608,7 @@
           },
           scales: {
             x: {
-              title: { display: true, text: "Last 7 days", color: tick, font: { size: 11, weight: "600" } },
+              title: { display: true, text: "Period", color: tick, font: { size: 11, weight: "600" } },
               ticks: { color: tick, font: { size: 11 } },
               grid: { color: gridMin }
             },
@@ -1458,6 +1851,171 @@
         }
       });
     }
+
+    var fpEl = document.getElementById("hubChartFeePaidPending");
+    var stDataF = bundle.attendanceStatusCounts || [];
+    if (fpEl && stDataF.length === 3 && stDataF.some(function (n) { return n > 0; })) {
+      var paidM = stDataF[0];
+      var pendM = (stDataF[1] || 0) + (stDataF[2] || 0);
+      new Chart(fpEl.getContext("2d"), {
+        type: "doughnut",
+        data: {
+          labels: ["Present marks", "Absent + leave"],
+          datasets: [{
+            data: [paidM, pendM],
+            backgroundColor: ["rgba(16, 185, 129, 0.88)", "rgba(148, 163, 184, 0.78)"],
+            borderColor: isDark ? "rgba(15,23,42,0.95)" : "#fff",
+            borderWidth: 2,
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: "58%",
+          animation: { duration: 800, easing: "easeOutCubic" },
+          plugins: {
+            legend: { position: "bottom", labels: { usePointStyle: true, font: { size: 9 }, padding: 8 } },
+            tooltip: Object.assign(commonTooltip(), {
+              callbacks: {
+                label: function (ctx) {
+                  var t = paidM + pendM || 1;
+                  var v = ctx.parsed;
+                  return ctx.label + ": " + v + " (" + ((v / t) * 100).toFixed(1) + "%)";
+                }
+              }
+            })
+          }
+        }
+      });
+    }
+
+    var exEl = document.getElementById("hubChartExamSplit");
+    var subVV = bundle.subjectAvgPct || [];
+    if (exEl) {
+      var ge = 0, lt = 0;
+      subVV.forEach(function (p) { if (p >= 50) ge++; else lt++; });
+      if (ge + lt === 0) { ge = 1; lt = 0; }
+      new Chart(exEl.getContext("2d"), {
+        type: "doughnut",
+        data: {
+          labels: ["Subjects ≥50%", "Subjects <50%"],
+          datasets: [{
+            data: [ge, lt],
+            backgroundColor: ["rgba(34, 197, 94, 0.85)", "rgba(239, 68, 68, 0.78)"],
+            borderColor: isDark ? "rgba(15,23,42,0.95)" : "#fff",
+            borderWidth: 2,
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: "55%",
+          animation: { duration: 800, easing: "easeOutCubic" },
+          plugins: {
+            legend: { position: "bottom", labels: { usePointStyle: true, font: { size: 9 }, padding: 8 } },
+            tooltip: commonTooltip()
+          }
+        }
+      });
+    }
+
+    function rptPctChange(cur, prev) {
+      if (prev == null || prev === undefined || isNaN(prev)) return "—";
+      if (prev === 0) return cur > 0 ? "+100%" : "0%";
+      var x = ((cur - prev) / prev) * 100;
+      return (x >= 0 ? "+" : "") + Math.round(x) + "%";
+    }
+    if (subVV.length) {
+      var sumS = subVV.reduce(function (a, b) { return a + b; }, 0);
+      var examVal = document.getElementById("rpt-kpi-exam-val");
+      if (examVal) examVal.textContent = Math.round(sumS / subVV.length) + "%";
+    }
+    var pctsArr = bundle.hubAttendancePcts || [];
+    var validP = pctsArr.filter(function (x) { return x != null && !isNaN(x); });
+    if (validP.length >= 2) {
+      var atEl = document.querySelector("[data-rpt-attn-trend]");
+      if (atEl) atEl.textContent = rptPctChange(validP[validP.length - 1], validP[validP.length - 2]);
+    }
+
+    var caLab = bundle.classAttendanceLabels || [];
+    var caPct = bundle.classAttendancePcts || [];
+    if (caLab.length && caPct.length) {
+      var maxI = 0, minI = 0;
+      for (var ii = 1; ii < caPct.length; ii++) {
+        if (caPct[ii] > caPct[maxI]) maxI = ii;
+        if (caPct[ii] < caPct[minI]) minI = ii;
+      }
+      var elTopC = document.getElementById("rpt-in-top-class");
+      var elLowC = document.getElementById("rpt-in-low-class");
+      if (elTopC) elTopC.textContent = caLab[maxI] + " (" + caPct[maxI] + "%)";
+      if (elLowC) elLowC.textContent = caLab[minI] + " (" + caPct[minI] + "%)";
+    }
+
+    var hubCls = bundle.hubClassLabels || [];
+    var hubCnt = bundle.hubClassCounts || [];
+    if (hubCls.length && hubCnt.length) {
+      var maxCi = 0;
+      for (var jj = 1; jj < hubCnt.length; jj++) { if (hubCnt[jj] > hubCnt[maxCi]) maxCi = jj; }
+      var elLgC = document.getElementById("rpt-in-large-class");
+      if (elLgC) elLgC.textContent = hubCls[maxCi] + " (" + hubCnt[maxCi] + " students)";
+    }
+
+    var mapNameToPct = {};
+    caLab.forEach(function (name, idx) { mapNameToPct[name] = caPct[idx]; });
+    document.querySelectorAll(".rpt-cell-attn").forEach(function (cell) {
+      var nn = cell.getAttribute("data-class");
+      if (nn && mapNameToPct[nn] != null) cell.textContent = mapNameToPct[nn] + "%";
+    });
+
+    var heatBody = document.getElementById("rpt-tbody-heatmap");
+    if (heatBody && caLab.length && caPct.length) {
+      var weekPct = bundle.hubAttendancePcts || [];
+      caLab.forEach(function (cn, ri) {
+        var tr = document.createElement("tr");
+        var th = document.createElement("th");
+        th.className = "text-start ps-1 fw-medium";
+        th.scope = "row";
+        th.textContent = cn;
+        tr.appendChild(th);
+        var base = caPct[ri] != null ? caPct[ri] / 100 : 0;
+        for (var d = 0; d < 7; d++) {
+          var td = document.createElement("td");
+          var raw = weekPct[d];
+          var cellPct = raw != null && raw !== "" ? raw : (base * 100);
+          var v = typeof cellPct === "number" ? cellPct : parseFloat(cellPct);
+          if (isNaN(v)) v = base * 100;
+          var h = Math.min(1, Math.max(0, v / 100));
+          td.style.setProperty("--h", String(h));
+          td.className = "rpt-heat";
+          td.textContent = Math.round(v) + "%";
+          tr.appendChild(td);
+        }
+        heatBody.appendChild(tr);
+      });
+    }
+
+    function rptFillSpark(el, series) {
+      if (!el) return;
+      var vals = [];
+      if (series === "attendance") {
+        vals = (bundle.hubAttendancePcts || []).map(function (x) { return x == null || isNaN(x) ? 0 : x; });
+      } else if (series === "subjects") vals = subVV.slice();
+      else if (series === "flat") vals = [2, 2, 3, 2, 3, 2, 3];
+      if (!vals.length) vals = [0, 1, 0, 1];
+      var mx = Math.max.apply(null, vals);
+      if (!mx) mx = 1;
+      el.innerHTML = "";
+      vals.slice(-14).forEach(function (v) {
+        var sp = document.createElement("span");
+        sp.style.height = Math.max(10, Math.round((v / mx) * 100)) + "%";
+        el.appendChild(sp);
+      });
+    }
+    document.querySelectorAll("[data-rpt-spark]").forEach(function (box) {
+      rptFillSpark(box, box.getAttribute("data-rpt-spark"));
+    });
   });
 })();
 </script>
@@ -1465,6 +2023,13 @@
 <script>
 (function () {
   document.addEventListener("DOMContentLoaded", function () {
+    var pdfBtn = document.getElementById("rpt-btn-pdf");
+    var printBtn = document.getElementById("rpt-btn-print");
+    var refBtn = document.getElementById("rpt-btn-refresh");
+    if (pdfBtn) pdfBtn.addEventListener("click", function () { window.print(); });
+    if (printBtn) printBtn.addEventListener("click", function () { window.print(); });
+    if (refBtn) refBtn.addEventListener("click", function () { window.location.reload(); });
+
     var root = document.querySelector(".analytics-dashboard-page");
     if (!root) return;
     var t0 = performance.now();

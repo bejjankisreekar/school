@@ -219,6 +219,19 @@ class School(TenantMixin):
     logo = models.ImageField(upload_to="school_logos/", blank=True, null=True)
     theme_color = models.CharField(max_length=20, blank=True, default="#4F46E5")
     header_text = models.CharField(max_length=200, blank=True)
+
+    class PayslipFormat(models.TextChoices):
+        CORPORATE = "corporate", "Corporate — modern cards (recommended)"
+        CLASSIC = "classic", "Classic — single-sheet tables"
+        MINIMAL = "minimal", "Minimal — compact one-page"
+
+    payslip_format = models.CharField(
+        max_length=20,
+        choices=PayslipFormat.choices,
+        default=PayslipFormat.CORPORATE,
+        help_text="Layout for employee payslips (on-screen view and PDF).",
+    )
+
     custom_domain = models.CharField(max_length=255, blank=True)
     # Dedicated hosting
     is_single_tenant = models.BooleanField(default=False)

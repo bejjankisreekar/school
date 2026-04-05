@@ -232,6 +232,7 @@
               <div class="col-12 col-md-6"><label class="form-label" for="{{ form.bank_account.id_for_label }}">Account number</label>{{ form.bank_account }}</div>
               <div class="col-12 col-md-6"><label class="form-label" for="{{ form.ifsc.id_for_label }}">IFSC</label>{{ form.ifsc }}</div>
               <div class="col-12 col-md-6"><label class="form-label" for="{{ form.uan_number.id_for_label }}">UAN / PF</label>{{ form.uan_number }}</div>
+              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.salary_payment_method.id_for_label }}">Salary payment mode</label>{{ form.salary_payment_method }}{% if form.salary_payment_method.help_text %}<div class="form-text">{{ form.salary_payment_method.help_text }}</div>{% endif %}</div>
               <div class="col-12 col-md-6"><label class="form-label" for="{{ form.record_status.id_for_label }}">Record status</label>{{ form.record_status }}</div>
               {% if teacher %}
               <div class="col-12 col-md-6"><label class="form-label" for="{{ form.password.id_for_label }}">New password</label>{{ form.password }}<div class="form-text">Optional — leave blank to keep current.</div></div>

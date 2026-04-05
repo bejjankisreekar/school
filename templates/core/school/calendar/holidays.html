@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+{% block title %}School calendar | School ERP{% endblock %}
+{% block content %}
+<style>
+  .hol-cal-wrap { max-width: 1400px; margin: 0 auto; }
+  .hol-cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 2px;
+    font-size: 0.75rem;
+  }
+  .hol-cal-dow {
+    text-align: center;
+    font-weight: 600;
+    color: var(--bs-secondary-color);
+    padding: 0.25rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.65rem;
+  }
+  .hol-cal-cell {
+    min-height: 2.75rem;
+    border-radius: 6px;
+    padding: 0.2rem 0.25rem;
+    background: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+    position: relative;
+  }
+  .hol-cal-cell.hol-blank { background: transparent; border: none; min-height: 0; }
+  .hol-cal-cell .hol-dom { font-weight: 700; font-size: 0.8rem; }
+  .hol-cal-cell .hol-hint {
+    display: block;
+    font-size: 0.6rem;
+    line-height: 1.15;
+    color: var(--bs-secondary-color);
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cal-national { background: rgba(220, 53, 69, 0.18) !important; border-color: rgba(220, 53, 69, 0.35) !important; }
+  .cal-festival { background: rgba(253, 126, 20, 0.2) !important; border-color: rgba(253, 126, 20, 0.4) !important; }
+  .cal-school { background: rgba(13, 110, 253, 0.15) !important; border-color: rgba(13, 110, 253, 0.3) !important; }
+  .cal-emergency { background: rgba(108, 117, 125, 0.25) !important; }
+  .cal-special { background: rgba(111, 66, 193, 0.15) !important; border-color: rgba(111, 66, 193, 0.3) !important; }
+  .cal-sunday { background: rgba(108, 117, 125, 0.12) !important; }
+  .cal-working-sunday { background: rgba(25, 135, 84, 0.22) !important; border-color: rgba(25, 135, 84, 0.45) !important; }
+  .cal-working { background: var(--bs-body-bg); }
+  .hol-legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; font-size: 0.75rem; margin-top: 0.75rem; }
+  .hol-legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+  .hol-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+</style>
+
+<div class="container-fluid px-0 hol-cal-wrap">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url calendar_dashboard_url %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">School calendar</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+    <div>
+      <h1 class="h4 fw-bold mb-1">School calendar</h1>
+      <p class="text-muted small mb-0">
+        {% if holiday_cal_can_manage %}
+        Sundays are holidays by default. Add events, override working Sundays, then publish for students, teachers, and attendance.
+        {% else %}
+        Official holidays, working Sundays, and off days for your school (read-only).
+        {% endif %}
+      </p>
+    </div>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <span class="badge {% if cal.is_published %}text-bg-success{% else %}text-bg-secondary{% endif %}">
+        {% if cal.is_published %}Published{% else %}{% if holiday_cal_can_manage %}Draft{% else %}Not published{% endif %}{% endif %}
+      </span>
+      {% if holiday_cal_can_manage %}
+      <form method="post" class="d-inline">{% csrf_token %}
+        {% include "core/school/calendar/_planner_hidden.html" %}
+        <input type="hidden" name="form_type" value="{% if cal.is_published %}unpublish{% else %}publish{% endif %}">
+        <input type="hidden" name="ay" value="{{ ay.id }}">
+        {% if cal.is_published %}
+        <button type="submit" class="btn btn-outline-warning btn-sm">Unpublish</button>
+        {% else %}
+        <button type="submit" class="btn btn-success btn-sm">Publish calendar</button>
+        {% endif %}
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-3 mb-3">
+    <div class="card-body py-3">
+      <form method="get" class="row g-2 align-items-end">
+        <input type="hidden" name="year" value="{{ planner_year }}">
+        <input type="hidden" name="month" value="{{ planner_month }}">
+        <div class="col-md-4 col-lg-3">
+          <label class="form-label small mb-0">Academic year</label>
+          <select name="ay" class="form-select form-select-sm" onchange="this.form.submit()">
+            {% for y in academic_years %}
+            <option value="{{ y.id }}" {% if y.id == ay.id %}selected{% endif %}>{{ y.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% if holiday_cal_can_manage %}
+        <div class="col-md-4 col-lg-3">
+          <label class="form-label small mb-0">Planner audience</label>
+          <select name="audience" class="form-select form-select-sm" onchange="this.form.submit()">
+            <option value="student" {% if audience == "student" %}selected{% endif %}>Student calendar</option>
+            <option value="teacher" {% if audience == "teacher" %}selected{% endif %}>Teacher / staff calendar</option>
+          </select>
+        </div>
+        {% endif %}
+        <div class="col-12 col-lg-auto ms-lg-auto d-flex gap-2 flex-wrap">
+          <a class="btn btn-sm btn-outline-secondary" href="?ay={{ ay.id }}&amp;year={{ prev_year }}&amp;month={{ prev_month }}&amp;audience={{ audience }}">← Prev</a>
+          <a class="btn btn-sm btn-outline-secondary" href="?ay={{ ay.id }}&amp;year={{ next_year }}&amp;month={{ next_month }}&amp;audience={{ audience }}">Next →</a>
+        </div>
+      </form>
+      {% if holiday_cal_can_manage %}
+      <form method="post" class="mt-3 pt-3 border-top">{% csrf_token %}
+        {% include "core/school/calendar/_planner_hidden.html" %}
+        <input type="hidden" name="form_type" value="split_toggle">
+        <input type="hidden" name="ay" value="{{ ay.id }}">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" name="use_split_calendars" value="1" id="splitCal" {% if cal.use_split_calendars %}checked{% endif %} onchange="this.form.submit()">
+          <label class="form-check-label small" for="splitCal">Separate student vs teacher portal emphasis (events still use “Applies to” per row).</label>
+        </div>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-{% if holiday_cal_can_manage %}7{% else %}12{% endif %}">
+      <div class="card border-0 shadow-sm rounded-3 h-100">
+        <div class="card-header bg-transparent py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <strong class="small text-uppercase text-muted">{{ planner_month_label }}</strong>
+          {% if cal.use_split_calendars %}
+          <span class="small text-muted">Showing: {% if audience == "teacher" %}Teachers{% else %}Students{% endif %}</span>
+          {% endif %}
+        </div>
+        <div class="card-body pt-2">
+          <div class="hol-cal-grid mb-1">
+            <div class="hol-cal-dow">Sun</div>
+            <div class="hol-cal-dow">Mon</div>
+            <div class="hol-cal-dow">Tue</div>
+            <div class="hol-cal-dow">Wed</div>
+            <div class="hol-cal-dow">Thu</div>
+            <div class="hol-cal-dow">Fri</div>
+            <div class="hol-cal-dow">Sat</div>
+          </div>
+          <div class="hol-cal-grid">
+            {% for c in month_cells %}
+              {% if c.is_blank %}
+              <div class="hol-cal-cell hol-blank"></div>
+              {% else %}
+              <div class="{{ c.css }} hol-cal-cell" title="{{ c.title|escape }}">
+                <span class="hol-dom">{{ c.dom }}</span>
+                {% if c.resolution.label %}
+                <span class="hol-hint">{{ c.resolution.label }}</span>
+                {% endif %}
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+          <div class="hol-legend text-muted">
+            <span><span class="hol-dot cal-national"></span> National</span>
+            <span><span class="hol-dot cal-festival"></span> Festival</span>
+            <span><span class="hol-dot cal-school"></span> School / vacation / exam</span>
+            <span><span class="hol-dot cal-sunday"></span> Sunday holiday</span>
+            <span><span class="hol-dot cal-working-sunday"></span> Working Sunday</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% if holiday_cal_can_manage %}
+    <div class="col-lg-5">
+      <div class="card border-0 shadow-sm rounded-3 mb-3">
+        <div class="card-header bg-transparent py-2"><strong>{% if edit_event %}Edit{% else %}Add{% endif %} holiday</strong></div>
+        <div class="card-body">
+          <form method="post" novalidate>{% csrf_token %}
+            {% include "core/school/calendar/_planner_hidden.html" %}
+            <input type="hidden" name="form_type" value="holiday_event">
+            <input type="hidden" name="ay" value="{{ ay.id }}">
+            {% if edit_event %}<input type="hidden" name="event_id" value="{{ edit_event.id }}">{% endif %}
+            {{ event_form.calendar }}
+            {% for field in event_form.visible_fields %}
+            <div class="mb-2">
+              <label class="form-label small mb-0" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+            </div>
+            {% endfor %}
+            <button type="submit" class="btn btn-primary btn-sm">Save holiday</button>
+            {% if edit_event %}
+            <a href="?ay={{ ay.id }}&amp;year={{ planner_year }}&amp;month={{ planner_month }}&amp;audience={{ audience }}" class="btn btn-sm btn-outline-secondary ms-1">Cancel edit</a>
+            {% endif %}
+          </form>
+        </div>
+      </div>
+      <div class="card border-0 shadow-sm rounded-3 mb-3">
+        <div class="card-header bg-transparent py-2"><strong>Working Sunday override</strong></div>
+        <div class="card-body">
+          <p class="small text-muted mb-2">Pick a Sunday so attendance can be marked for that date only.</p>
+          <form method="post" novalidate>{% csrf_token %}
+            {% include "core/school/calendar/_planner_hidden.html" %}
+            <input type="hidden" name="form_type" value="working_sunday">
+            <input type="hidden" name="ay" value="{{ ay.id }}">
+            {{ sunday_form.calendar }}
+            {% for field in sunday_form.visible_fields %}
+            <div class="mb-2">
+              <label class="form-label small mb-0" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+            </div>
+            {% endfor %}
+            <button type="submit" class="btn btn-success btn-sm">Save override</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="row g-3 mt-1">
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-header bg-transparent py-2"><strong>Holidays ({{ events|length }})</strong></div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light"><tr><th>Name</th><th>Type</th><th>Date</th><th>Applies</th>{% if holiday_cal_can_manage %}<th></th>{% endif %}</tr></thead>
+            <tbody>
+              {% for e in events %}
+              <tr>
+                <td>{{ e.name }}</td>
+                <td class="small">{{ e.get_holiday_type_display }}</td>
+                <td class="small text-nowrap">{% if e.start_date == e.end_date %}{{ e.start_date }}{% else %}{{ e.start_date }} — {{ e.end_date }}{% endif %}{% if e.recurring_yearly %} <span class="badge text-bg-light border">Yearly</span>{% endif %}</td>
+                <td class="small">{{ e.get_applies_to_display }}</td>
+                {% if holiday_cal_can_manage %}
+                <td class="text-end text-nowrap">
+                  <a href="?ay={{ ay.id }}&amp;year={{ planner_year }}&amp;month={{ planner_month }}&amp;audience={{ audience }}&amp;edit_event={{ e.id }}" class="btn btn-sm btn-outline-primary py-0">Edit</a>
+                  <form method="post" class="d-inline" onsubmit="return confirm('Delete this holiday?');">{% csrf_token %}
+                    {% include "core/school/calendar/_planner_hidden.html" %}
+                    <input type="hidden" name="form_type" value="delete_event">
+                    <input type="hidden" name="ay" value="{{ ay.id }}">
+                    <input type="hidden" name="event_id" value="{{ e.id }}">
+                    <button type="submit" class="btn btn-sm btn-outline-danger py-0">Delete</button>
+                  </form>
+                </td>
+                {% endif %}
+              </tr>
+              {% empty %}
+              <tr><td colspan="{% if holiday_cal_can_manage %}5{% else %}4{% endif %}" class="text-muted small p-3">{% if holiday_cal_can_manage %}No custom holidays yet. Published calendar will still treat Sundays as holidays.{% else %}No holidays listed in the calendar for this year yet. Sundays are still treated as weekly holidays.{% endif %}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-header bg-transparent py-2"><strong>Working Sundays ({{ overrides|length }})</strong></div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light"><tr><th>Date</th><th>Applies</th><th>Note</th>{% if holiday_cal_can_manage %}<th></th>{% endif %}</tr></thead>
+            <tbody>
+              {% for o in overrides %}
+              <tr>
+                <td class="text-nowrap">{{ o.work_date }}</td>
+                <td class="small">{{ o.get_applies_to_display }}</td>
+                <td class="small">{{ o.note|default:"—" }}</td>
+                {% if holiday_cal_can_manage %}
+                <td class="text-end">
+                  <form method="post" class="d-inline" onsubmit="return confirm('Remove this override?');">{% csrf_token %}
+                    {% include "core/school/calendar/_planner_hidden.html" %}
+                    <input type="hidden" name="form_type" value="delete_working_sunday">
+                    <input type="hidden" name="ay" value="{{ ay.id }}">
+                    <input type="hidden" name="override_id" value="{{ o.id }}">
+                    <button type="submit" class="btn btn-sm btn-outline-danger py-0">Delete</button>
+                  </form>
+                </td>
+                {% endif %}
+              </tr>
+              {% empty %}
+              <tr><td colspan="{% if holiday_cal_can_manage %}4{% else %}3{% endif %}" class="text-muted small p-3">{% if holiday_cal_can_manage %}No overrides. All Sundays remain holidays unless you add one.{% else %}No working-Sunday overrides are listed.{% endif %}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

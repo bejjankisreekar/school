@@ -1,0 +1,111 @@
+{% extends "core/billing/base_billing.html" %}
+{% load humanize nav_tags %}
+{% block billing_title %}{{ classroom.name }} — students &amp; fees | School ERP{% endblock %}
+{% block billing_extra_head %}
+<style>
+  .cfs-stu-hub { --c: #4f46e5; --bd: #e2e8f0; --card: #fff; }
+  html.dark .cfs-stu-hub { --bd: rgba(148,163,184,.2); --card: rgba(30,41,59,.94); }
+  .cfs-stu-hub { background: #f1f5f9; margin: -0.5rem -1rem 0; padding: 1rem 1rem 2rem; min-height: calc(100vh - 100px); }
+  @media (min-width: 992px) { .cfs-stu-hub { margin: -0.5rem -1.5rem 0; padding: 1.25rem 1.5rem 2.5rem; } }
+  .cfs-stu-card { background: var(--card); border: 1px solid var(--bd); border-radius: 1.15rem; box-shadow: 0 1px 3px rgba(15,23,42,.06); }
+</style>
+{% endblock %}
+{% block billing_main %}
+<div class="cfs-stu-hub">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:billing_dashboard' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}">Fees &amp; billing</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:billing_fee_structure' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}">Class fee structure</a></li>
+      <li class="breadcrumb-item active">{{ classroom.name }}</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h1 class="h4 fw-bold mb-1">{{ classroom.name }} — students</h1>
+      <p class="small text-muted mb-0">Totals from assigned fee lines for the selected academic year.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      {% if academic_years %}
+      <form method="get" class="d-flex align-items-center gap-2">
+        <label class="small text-muted mb-0">Year</label>
+        <select name="ay" class="form-select form-select-sm" style="width:auto;min-width:9rem;" onchange="this.form.submit()">
+          {% for y in academic_years %}
+          <option value="{{ y.id }}" {% if academic_year and academic_year.id == y.id %}selected{% endif %}>{{ y.name }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      {% endif %}
+      <a href="{% url 'core:billing_fee_structure' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}" class="btn btn-outline-secondary btn-sm rounded-pill">← Back to structure</a>
+    </div>
+  </div>
+
+  {% if structure_lines %}
+  <div class="cfs-stu-card p-3 p-lg-4 mb-4">
+    <div class="fw-bold mb-2">Structure snapshot (this class)</div>
+    <div class="row g-3 align-items-end">
+      <div class="col-md-4">
+        <div class="small text-muted text-uppercase fw-semibold" style="letter-spacing:.05em;">Catalog total</div>
+        <div class="h4 fw-bold text-primary mb-0">₹{{ structure_total|inr }}</div>
+      </div>
+      <div class="col-md-8">
+        <ul class="list-unstyled small mb-0 row g-2">
+          {% for line in structure_lines %}
+          <li class="col-6 col-lg-4 d-flex justify-content-between gap-2 border rounded-3 px-2 py-1" style="border-color: var(--bd) !important;">
+            <span class="text-muted text-truncate">{{ line.label }}</span>
+            <span class="font-monospace fw-semibold">₹{{ line.amount|inr }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="cfs-stu-card overflow-hidden">
+    <div class="px-3 py-3 border-bottom small text-muted" style="border-color: var(--bd) !important;">
+      <span class="fw-semibold text-body">Student roster</span> · {{ rows|length }} active student{{ rows|length|pluralize }}
+    </div>
+    <div class="table-responsive" style="max-height: min(75vh, 720px);">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light sticky-top">
+          <tr>
+            <th class="ps-3">Student</th>
+            <th>Admission</th>
+            <th>Section</th>
+            <th class="text-center">Fee lines</th>
+            <th class="text-end">Gross</th>
+            <th class="text-end">Concession</th>
+            <th class="text-end">Net due</th>
+            <th class="text-end">Paid</th>
+            <th class="text-end pe-3">Pending</th>
+            <th class="text-end pe-3" style="white-space:nowrap;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr>
+            <td class="ps-3 fw-semibold">{{ r.student.user.get_full_name|default:r.student.user.username }}</td>
+            <td class="small font-monospace">{{ r.student.admission_number|default:"—" }}</td>
+            <td class="small">{{ r.student.section.name|default:"—" }}</td>
+            <td class="text-center">{{ r.fee_lines|inri }}</td>
+            <td class="text-end font-monospace small">₹{{ r.gross|inr }}</td>
+            <td class="text-end font-monospace small text-secondary">₹{{ r.concession|inr }}</td>
+            <td class="text-end font-monospace small">₹{{ r.net_due|inr }}</td>
+            <td class="text-end font-monospace small text-success">₹{{ r.paid|inr }}</td>
+            <td class="text-end font-monospace small {% if r.pending > 0 %}text-warning fw-semibold{% else %}text-success{% endif %} pe-3">₹{{ r.pending|inr }}</td>
+            <td class="text-end pe-3 text-nowrap">
+              <a href="{% url 'core:billing_student_fee_lines' classroom.id r.student.id %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}" class="btn btn-sm btn-outline-secondary rounded-pill me-1" title="Edit fee lines"><i class="bi bi-pencil"></i></a>
+              <a href="{% url 'core:billing_student_collect' r.student.id %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}" class="btn btn-sm btn-primary rounded-pill">Collect fee</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="10" class="text-center text-muted py-5">No active students in this class, or no fee records for this year.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

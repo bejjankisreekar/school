@@ -1,0 +1,378 @@
+{% extends "base.html" %}
+{% load humanize nav_tags %}
+{% block title %}Generate payroll | School ERP{% endblock %}
+{% block extra_head %}
+<style>
+  .pg-hero {
+    background: linear-gradient(135deg, #0f766e 0%, #0d9488 40%, #0369a1 100%);
+    color: #fff;
+    border-radius: 1rem;
+    padding: 1.25rem 1.5rem;
+    box-shadow: 0 12px 40px rgba(13, 148, 136, 0.28);
+  }
+  .pg-kpi {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.85rem;
+    padding: 1rem 1.15rem;
+    height: 100%;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  }
+  html.dark .pg-kpi {
+    background: rgba(30, 41, 59, 0.92);
+    border-color: rgba(148, 163, 184, 0.2);
+  }
+  .pg-table-wrap {
+    max-height: min(58vh, 560px);
+    overflow: auto;
+  }
+  .pg-table-wrap thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: rgba(248, 250, 252, 0.98) !important;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    box-shadow: 0 1px 0 #e2e8f0;
+  }
+  html.dark .pg-table-wrap thead th {
+    background: rgba(15, 23, 42, 0.96) !important;
+    box-shadow: 0 1px 0 rgba(71, 85, 105, 0.5);
+  }
+  .pg-comp-scroll {
+    max-height: min(42vh, 320px);
+    overflow-y: auto;
+    padding-right: 0.25rem;
+  }
+  .pg-comp-modal .modal-header {
+    background: linear-gradient(135deg, rgba(13, 148, 136, 0.12) 0%, rgba(59, 130, 246, 0.1) 100%);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'payroll:payroll_dashboard' %}">Payroll</a></li>
+      <li class="breadcrumb-item active">Generate payroll</li>
+    </ol>
+  </nav>
+
+  <div class="pg-hero mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+      <div>
+        <h1 class="h4 fw-bold text-white mb-1">Run monthly payroll</h1>
+        <p class="small text-white mb-0 opacity-90" style="max-width: 40rem;">
+          Preview gross pay, allowances, deductions (including salary advances), and net pay per staff member.
+          Running payroll creates or updates <strong>payslips</strong> for the selected period and applies advance recoveries.
+        </p>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <a href="{% url 'payroll:payroll_dashboard' %}" class="btn btn-sm btn-light rounded-pill px-3">← Payroll home</a>
+        <a href="{% url 'payroll:payslips_list' %}?month={{ month }}&year={{ year }}" class="btn btn-sm btn-outline-light rounded-pill px-3">View payslips</a>
+      </div>
+    </div>
+  </div>
+
+  {% if messages %}
+  <div class="mb-3">
+    {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} rounded-3 border-0 shadow-sm mb-2">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body p-3 p-lg-4">
+      <form method="get" class="row g-3 align-items-end">
+        <div class="col-6 col-md-3">
+          <label class="form-label small text-muted mb-0">Payroll month</label>
+          <select name="month" class="form-select form-select-sm rounded-3" onchange="this.form.submit()">
+            {% for num, label in month_choices %}
+            <option value="{{ num }}" {% if month == num %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label small text-muted mb-0">Year</label>
+          <select name="year" class="form-select form-select-sm rounded-3" onchange="this.form.submit()">
+            {% for y in year_choices %}
+            <option value="{{ y }}" {% if year == y %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-6">
+          <p class="small text-muted mb-0">
+            <strong class="text-body">{{ month_name }} {{ year }}</strong>
+            {% if school %}· {{ school.name }}{% endif %}
+            {% if existing_payslips %}
+            <span class="badge rounded-pill text-bg-warning text-dark ms-1">{{ existing_payslips }} payslip{{ existing_payslips|pluralize }} already exist — run again to update</span>
+            {% endif %}
+          </p>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="pg-kpi">
+        <p class="text-muted small text-uppercase mb-1 fw-semibold" style="letter-spacing:0.04em;">Staff in run</p>
+        <p class="h4 fw-bold mb-0 text-primary">{{ rows|length }}</p>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="pg-kpi">
+        <p class="text-muted small text-uppercase mb-1 fw-semibold" style="letter-spacing:0.04em;">Total basic</p>
+        <p class="h5 fw-bold mb-0">₹{{ grand_basic|inr:0 }}</p>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="pg-kpi">
+        <p class="text-muted small text-uppercase mb-1 fw-semibold" style="letter-spacing:0.04em;">Total net pay</p>
+        <p class="h5 fw-bold mb-0 text-success">₹{{ grand_net|inr:0 }}</p>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="pg-kpi">
+        <p class="text-muted small text-uppercase mb-1 fw-semibold" style="letter-spacing:0.04em;">Total deductions</p>
+        <p class="h5 fw-bold mb-0 text-danger">₹{{ grand_deductions|inr:0 }}</p>
+      </div>
+    </div>
+  </div>
+
+  {% if rows %}
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-transparent border-bottom py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span class="fw-semibold">Payroll preview</span>
+      <span class="small text-muted">Per employee, use <i class="bi bi-sliders"></i> to choose which <a href="{% url 'payroll:salary_components_list' %}">allowances &amp; deductions</a> apply. Default = all active.</span>
+    </div>
+    <div class="pg-table-wrap">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">Employee</th>
+            <th class="text-center" style="width:1%;white-space:nowrap;">Apply</th>
+            <th class="text-end">Basic</th>
+            <th class="text-end">Allowances</th>
+            <th class="text-end">Deductions</th>
+            <th class="text-end">Advance rec.</th>
+            <th class="text-end pe-3">Net pay</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          {% with s=r.structure %}
+          <tr>
+            <td class="ps-3">
+              <div class="d-flex align-items-center flex-wrap gap-1">
+                <span class="fw-semibold small">{{ s.teacher.user.get_full_name|default:s.teacher.user.username }}</span>
+                {% if s.uses_custom_components %}
+                <span class="badge rounded-pill text-bg-info bg-opacity-25 text-info border border-info border-opacity-25" style="font-size:0.6rem;">Custom</span>
+                {% endif %}
+              </div>
+              <div class="text-muted small">{{ s.designation|default:"—" }}{% if s.department %} · {{ s.department }}{% endif %}</div>
+            </td>
+            <td class="text-center">
+              <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-2" data-bs-toggle="modal" data-bs-target="#pgCompModal{{ s.pk }}" title="Choose allowances &amp; deductions for this employee">
+                <i class="bi bi-sliders"></i>
+              </button>
+            </td>
+            <td class="text-end font-monospace small">₹{{ s.basic_salary|inr }}</td>
+            <td class="text-end font-monospace small text-success">₹{{ r.allowances|inr }}</td>
+            <td class="text-end font-monospace small text-danger">₹{{ r.deductions|inr }}</td>
+            <td class="text-end font-monospace small">{% if r.advance_deduction %}₹{{ r.advance_deduction|inr }}{% else %}—{% endif %}</td>
+            <td class="text-end font-monospace small fw-semibold pe-3">₹{{ r.net_salary|inr }}</td>
+          </tr>
+          {% endwith %}
+          {% endfor %}
+        </tbody>
+        <tfoot class="table-light fw-semibold">
+          <tr>
+            <td class="ps-3">Totals</td>
+            <td></td>
+            <td class="text-end font-monospace small">₹{{ grand_basic|inr }}</td>
+            <td class="text-end font-monospace small">₹{{ grand_allowances|inr }}</td>
+            <td class="text-end font-monospace small">₹{{ grand_deductions|inr }}</td>
+            <td class="text-end font-monospace small">{% if grand_advance %}₹{{ grand_advance|inr }}{% else %}—{% endif %}</td>
+            <td class="text-end font-monospace small pe-3 text-success">₹{{ grand_net|inr }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="card-footer bg-transparent border-top py-3">
+      <form method="post" class="d-flex flex-wrap align-items-end justify-content-between gap-3" id="pg-run-form"
+            onsubmit="return confirm('Run payroll for {{ month_name }} {{ year }}? This will save or update payslips for all listed staff and apply advance deductions.');">
+        {% csrf_token %}
+        <input type="hidden" name="month" value="{{ month }}">
+        <input type="hidden" name="year" value="{{ year }}">
+        <div class="flex-grow-1" style="min-width: 14rem; max-width: 22rem;">
+          <label class="form-label small text-muted mb-1" for="pg_payment_method">Payment mode (on payslips)</label>
+          <select name="payment_method" id="pg_payment_method" class="form-select form-select-sm rounded-3">
+            {% for val, label in payslip_payment_choices %}
+            <option value="{{ val }}" {% if val == payslip_payment_selected %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <p class="small text-muted mb-0 mt-1">Applies to every payslip in this run. Staff can set a usual mode under <strong>Payroll</strong> on their profile.</p>
+        </div>
+        <div class="d-flex flex-column align-items-stretch align-items-md-end gap-2">
+          <button type="submit" class="btn btn-success rounded-pill px-4">
+            <i class="bi bi-check2-circle me-2"></i>Run payroll &amp; save payslips
+          </button>
+          <p class="small text-muted mb-0 text-md-end">
+            <i class="bi bi-info-circle me-1"></i>Advance balances updated; status <strong>Processed</strong>.
+          </p>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% else %}
+  <div class="alert alert-light border rounded-3 shadow-sm">
+    <p class="fw-semibold mb-1">No salary structures found</p>
+    <p class="small text-muted mb-2">Assign basic salary and components for each staff member before running payroll.</p>
+    <a href="{% url 'payroll:salary_structure_list' %}" class="btn btn-sm btn-primary rounded-pill">Go to salary structure</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block modals %}
+{{ block.super }}
+{% for r in rows %}
+{% with s=r.structure %}
+<div class="modal fade pg-comp-modal" id="pgCompModal{{ s.pk }}" tabindex="-1" aria-labelledby="pgCompModalLabel{{ s.pk }}" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <form method="post" action="{% url 'payroll:salary_structure_components_save' s.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title h6 fw-bold mb-0" id="pgCompModalLabel{{ s.pk }}">Allowances &amp; deductions</h2>
+            <p class="small text-muted mb-0">{{ s.teacher.user.get_full_name|default:s.teacher.user.username }} · tick <strong>Custom rate</strong> to set a different % or fixed amount for this person.</p>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-3">
+            {% if s.use_default_salary_components %}
+            <strong>All active heads</strong> apply. Use <strong>Custom rate</strong> only where this employee differs from the master component (e.g. 10% vs 20% PF).
+            {% else %}
+            Check which heads apply. For each, optionally set a <strong>custom rate</strong> (% of basic or fixed ₹).
+            {% endif %}
+          </p>
+          <div class="row g-3">
+            <div class="col-lg-6">
+              <div class="fw-semibold small text-success mb-2"><i class="bi bi-plus-circle me-1"></i>Allowances</div>
+              <div class="pg-comp-scroll border rounded-3 p-3 bg-body-secondary bg-opacity-25">
+                {% for row in r.allowance_lines %}
+                {% with c=row.c %}
+                <div class="border-bottom border-opacity-25 pb-2 mb-2">
+                  <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                    {% if s.use_default_salary_components %}
+                    <input type="hidden" name="component_id" value="{{ c.pk }}">
+                    <span class="small fw-semibold">{{ c.name }}</span>
+                    {% else %}
+                    <input class="form-check-input flex-shrink-0" type="checkbox" name="component_id" value="{{ c.pk }}" id="inc{{ s.pk }}a{{ c.pk }}" {% if row.included %}checked{% endif %}>
+                    <label class="form-check-label small fw-semibold mb-0" for="inc{{ s.pk }}a{{ c.pk }}">{{ c.name }}</label>
+                    {% endif %}
+                    <span class="badge rounded-pill text-bg-light border small">Master {% if c.calculation_type == 'PERCENTAGE' %}{{ c.value }}%{% else %}₹{{ c.value|inr:0 }}{% endif %}</span>
+                  </div>
+                  <div class="d-flex flex-wrap align-items-center gap-2 ms-1 ps-1">
+                    <div class="form-check mb-0">
+                      <input class="form-check-input pg-custom-toggle" type="checkbox" name="c{{ c.pk }}_custom" value="1" id="cust{{ s.pk }}a{{ c.pk }}" {% if row.custom %}checked{% endif %} data-pg-target="pg-rate-{{ s.pk }}-a-{{ c.pk }}">
+                      <label class="form-check-label small" for="cust{{ s.pk }}a{{ c.pk }}">Custom rate</label>
+                    </div>
+                    <div class="d-flex flex-wrap align-items-center gap-1 pg-rate-group" id="pg-rate-{{ s.pk }}-a-{{ c.pk }}">
+                      <select name="c{{ c.pk }}_calc" class="form-select form-select-sm" style="width: auto; min-width: 7.5rem;">
+                        <option value="PERCENTAGE" {% if row.calc == 'PERCENTAGE' %}selected{% endif %}>% of basic</option>
+                        <option value="FIXED" {% if row.calc == 'FIXED' %}selected{% endif %}>Fixed ₹</option>
+                      </select>
+                      <input type="text" name="c{{ c.pk }}_val" class="form-control form-control-sm font-monospace" style="width: 6.5rem;" value="{{ row.value }}" inputmode="decimal" autocomplete="off" placeholder="0">
+                    </div>
+                  </div>
+                </div>
+                {% endwith %}
+                {% empty %}
+                <p class="small text-muted mb-0">No active allowance components. <a href="{% url 'payroll:salary_component_add' %}">Add one</a>.</p>
+                {% endfor %}
+              </div>
+            </div>
+            <div class="col-lg-6">
+              <div class="fw-semibold small text-danger mb-2"><i class="bi bi-dash-circle me-1"></i>Deductions</div>
+              <div class="pg-comp-scroll border rounded-3 p-3 bg-body-secondary bg-opacity-25">
+                {% for row in r.deduction_lines %}
+                {% with c=row.c %}
+                <div class="border-bottom border-opacity-25 pb-2 mb-2">
+                  <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                    {% if s.use_default_salary_components %}
+                    <input type="hidden" name="component_id" value="{{ c.pk }}">
+                    <span class="small fw-semibold">{{ c.name }}</span>
+                    {% else %}
+                    <input class="form-check-input flex-shrink-0" type="checkbox" name="component_id" value="{{ c.pk }}" id="inc{{ s.pk }}d{{ c.pk }}" {% if row.included %}checked{% endif %}>
+                    <label class="form-check-label small fw-semibold mb-0" for="inc{{ s.pk }}d{{ c.pk }}">{{ c.name }}</label>
+                    {% endif %}
+                    <span class="badge rounded-pill text-bg-light border small">Master {% if c.calculation_type == 'PERCENTAGE' %}{{ c.value }}%{% else %}₹{{ c.value|inr:0 }}{% endif %}</span>
+                  </div>
+                  <div class="d-flex flex-wrap align-items-center gap-2 ms-1 ps-1">
+                    <div class="form-check mb-0">
+                      <input class="form-check-input pg-custom-toggle" type="checkbox" name="c{{ c.pk }}_custom" value="1" id="cust{{ s.pk }}d{{ c.pk }}" {% if row.custom %}checked{% endif %} data-pg-target="pg-rate-{{ s.pk }}-d-{{ c.pk }}">
+                      <label class="form-check-label small" for="cust{{ s.pk }}d{{ c.pk }}">Custom rate</label>
+                    </div>
+                    <div class="d-flex flex-wrap align-items-center gap-1 pg-rate-group" id="pg-rate-{{ s.pk }}-d-{{ c.pk }}">
+                      <select name="c{{ c.pk }}_calc" class="form-select form-select-sm" style="width: auto; min-width: 7.5rem;">
+                        <option value="PERCENTAGE" {% if row.calc == 'PERCENTAGE' %}selected{% endif %}>% of basic</option>
+                        <option value="FIXED" {% if row.calc == 'FIXED' %}selected{% endif %}>Fixed ₹</option>
+                      </select>
+                      <input type="text" name="c{{ c.pk }}_val" class="form-control form-control-sm font-monospace" style="width: 6.5rem;" value="{{ row.value }}" inputmode="decimal" autocomplete="off" placeholder="0">
+                    </div>
+                  </div>
+                </div>
+                {% endwith %}
+                {% empty %}
+                <p class="small text-muted mb-0">No active deduction components.</p>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary rounded-pill px-4"><i class="bi bi-check2 me-1"></i>Save selection</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endwith %}
+{% endfor %}
+{% endblock %}
+
+{% block after_bootstrap %}
+{{ block.super }}
+<script>
+(function () {
+  function syncGroup(cb) {
+    var id = cb.getAttribute("data-pg-target");
+    var wrap = id ? document.getElementById(id) : null;
+    if (!wrap) return;
+    var on = cb.checked;
+    wrap.querySelectorAll("select, input").forEach(function (el) {
+      el.disabled = !on;
+    });
+  }
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll(".pg-custom-toggle").forEach(function (cb) {
+      cb.addEventListener("change", function () { syncGroup(cb); });
+      syncGroup(cb);
+    });
+  });
+  document.addEventListener("shown.bs.modal", function (ev) {
+    ev.target.querySelectorAll(".pg-custom-toggle").forEach(function (cb) { syncGroup(cb); });
+  });
+})();
+</script>
+{% endblock %}

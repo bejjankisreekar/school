@@ -13,6 +13,11 @@ urlpatterns = [
     path("school/payroll/salary-structure/add/", views.salary_structure_add, name="salary_structure_add"),
     path("school/payroll/salary-structure/<int:pk>/edit/", views.salary_structure_edit, name="salary_structure_edit"),
     path("school/payroll/salary-structure/<int:pk>/delete/", views.salary_structure_delete, name="salary_structure_delete"),
+    path(
+        "school/payroll/salary-structure/<int:pk>/components/",
+        views.salary_structure_components_save,
+        name="salary_structure_components_save",
+    ),
     path("school/payroll/advances/", views.salary_advances_list, name="salary_advances_list"),
     path("school/payroll/advances/add/", views.salary_advance_add, name="salary_advance_add"),
     path("school/payroll/advances/<int:pk>/edit/", views.salary_advance_edit, name="salary_advance_edit"),

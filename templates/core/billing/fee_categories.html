@@ -1,0 +1,707 @@
+{% extends "core/billing/base_billing.html" %}
+{% load humanize nav_tags %}
+{% block billing_title %}Fee categories | School ERP{% endblock %}
+{% block billing_extra_head %}
+<style>
+  .ft-master {
+    --ft-bg: #f1f5f9;
+    --ft-card: #fff;
+    --ft-border: #e2e8f0;
+    --ft-muted: #64748b;
+    --ft-brand: #4f46e5;
+    --ft-accent: #0ea5e9;
+  }
+  html.dark .ft-master {
+    --ft-bg: #0f172a;
+    --ft-card: rgba(30, 41, 59, 0.94);
+    --ft-border: rgba(148, 163, 184, 0.2);
+    --ft-muted: #94a3b8;
+  }
+  .ft-master {
+    background: var(--ft-bg);
+    margin: -0.5rem -1rem 0;
+    padding: 1rem 1rem 2.5rem;
+    min-height: calc(100vh - 100px);
+  }
+  @media (min-width: 992px) {
+    .ft-master { margin: -0.5rem -1.5rem 0; padding: 1.25rem 1.5rem 3rem; }
+  }
+  .ft-hero {
+    background: linear-gradient(135deg, #312e81 0%, var(--ft-brand) 42%, var(--ft-accent) 100%);
+    border-radius: 1.25rem;
+    padding: 1.35rem 1.5rem;
+    color: #fff;
+    box-shadow: 0 12px 40px rgba(79, 70, 229, 0.28);
+  }
+  .ft-hero .ft-hub-link {
+    color: #0f172a !important;
+    background: #fff !important;
+    border: 1px solid rgba(255, 255, 255, 0.85) !important;
+  }
+  .ft-hero .ft-hub-link:hover {
+    background: #f8fafc !important;
+    color: #020617 !important;
+  }
+  .ft-kpi {
+    background: var(--ft-card);
+    border: 1px solid var(--ft-border);
+    border-radius: 1.15rem;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 10px 28px rgba(15, 23, 42, 0.06);
+    height: 100%;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  .ft-kpi:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 36px rgba(15, 23, 42, 0.1);
+  }
+  html.dark .ft-kpi { box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35); }
+  .ft-table-card {
+    background: var(--ft-card);
+    border: 1px solid var(--ft-border);
+    border-radius: 1.25rem;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+    overflow: hidden;
+  }
+  .ft-table-wrap {
+    max-height: min(70vh, 720px);
+    overflow: auto;
+  }
+  .ft-table-wrap table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: rgba(248, 250, 252, 0.98) !important;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ft-muted) !important;
+    border-bottom: 1px solid var(--ft-border) !important;
+    white-space: nowrap;
+    box-shadow: 0 1px 0 var(--ft-border);
+  }
+  html.dark .ft-table-wrap table thead th {
+    background: rgba(15, 23, 42, 0.96) !important;
+  }
+  .ft-table-wrap tbody tr {
+    transition: background 0.12s ease;
+  }
+  .ft-table-wrap tbody tr:hover {
+    background: rgba(79, 70, 229, 0.06) !important;
+  }
+  .ft-actions .btn {
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .ft-desc-cell { max-width: 14rem; }
+  @media (min-width: 1200px) { .ft-desc-cell { max-width: 22rem; } }
+  .ftx-layer {
+    display: none !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 2147483640 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 1rem !important;
+    box-sizing: border-box !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    overflow: auto !important;
+    pointer-events: none !important;
+  }
+  .ftx-layer.ftx-open {
+    display: flex !important;
+    pointer-events: auto !important;
+  }
+  .ftx-layer .ftx-scrim {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: 0 !important;
+    background: rgba(15, 23, 42, 0.55) !important;
+    pointer-events: auto !important;
+    cursor: default;
+  }
+  .ftx-layer .ftx-panel {
+    position: relative !important;
+    z-index: 1 !important;
+    width: 100% !important;
+    max-width: 28rem !important;
+    max-height: min(90vh, 720px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    background: #fff !important;
+    color: #0f172a !important;
+    border-radius: 1rem !important;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4) !important;
+    border: 1px solid rgba(15, 23, 42, 0.1) !important;
+    pointer-events: auto !important;
+    margin: auto !important;
+    flex-shrink: 0 !important;
+  }
+  .ftx-layer.ftx-wide .ftx-panel {
+    max-width: 52rem !important;
+  }
+  html.dark .ftx-layer .ftx-panel,
+  body.dark-mode .ftx-layer .ftx-panel {
+    background: #1e293b !important;
+    color: #f1f5f9 !important;
+    border-color: rgba(148, 163, 184, 0.3) !important;
+  }
+  html.dark .ftx-layer .ftx-panel .btn-close,
+  body.dark-mode .ftx-layer .ftx-panel .btn-close {
+    filter: invert(1) grayscale(100%);
+    opacity: 0.85;
+  }
+  .ft-view-readonly {
+    background: rgba(248, 250, 252, 0.95) !important;
+    border-color: var(--ft-border, #e2e8f0) !important;
+  }
+  html.dark .ft-view-readonly,
+  body.dark-mode .ft-view-readonly {
+    background: rgba(15, 23, 42, 0.55) !important;
+    border-color: rgba(148, 163, 184, 0.25) !important;
+  }
+</style>
+{% endblock %}
+{% block billing_main %}
+<div class="ft-master" id="ftc-page">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:billing_dashboard' %}">Fees &amp; billing</a></li>
+      <li class="breadcrumb-item active">Fee categories</li>
+    </ol>
+  </nav>
+
+  <div class="ft-hero mb-4">
+    <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+      <div>
+        <h1 class="h4 fw-bold mb-1 text-white">Fee categories</h1>
+        <p class="small mb-0 opacity-90">Tuition, transport, exam fees, and other heads used in class fee structures.</p>
+      </div>
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <a href="{% url 'core:billing_dashboard' %}" class="btn btn-sm rounded-pill px-3 fw-semibold shadow-sm ft-hub-link">
+          <i class="bi bi-speedometer2 me-1"></i> Billing dashboard
+        </a>
+        <a href="{% url 'core:billing_fee_structure' %}" class="btn btn-sm btn-light rounded-pill px-3 fw-semibold shadow-sm">
+          <i class="bi bi-ui-checks-grid me-1"></i> Class fee structure
+        </a>
+        <a href="{% url 'core:billing_concessions' %}" class="btn btn-sm btn-light rounded-pill px-3 fw-semibold shadow-sm">
+          <i class="bi bi-percent me-1"></i> Concessions
+        </a>
+        <button type="button" class="btn btn-sm btn-light rounded-pill px-4 fw-semibold shadow-sm" data-ftx-open="ftxAdd">
+          <i class="bi bi-plus-lg me-1"></i> Add fee type
+        </button>
+      </div>
+    </div>
+  </div>
+
+  {% if messages %}
+  <div class="mb-3">
+    {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} rounded-3 border-0 shadow-sm mb-2" role="alert">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-xl-3">
+      <div class="ft-kpi">
+        <div class="small text-muted text-uppercase fw-semibold mb-1" style="letter-spacing: 0.05em;">Total types</div>
+        <div class="h3 fw-bold mb-0">{{ ft_kpis.total|inri }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-xl-3">
+      <div class="ft-kpi border-success border-opacity-25">
+        <div class="small text-success text-uppercase fw-semibold mb-1" style="letter-spacing: 0.05em;">Active</div>
+        <div class="h3 fw-bold mb-0 text-success">{{ ft_kpis.active|inri }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-xl-3">
+      <div class="ft-kpi border-secondary border-opacity-25">
+        <div class="small text-secondary text-uppercase fw-semibold mb-1" style="letter-spacing: 0.05em;">Inactive</div>
+        <div class="h3 fw-bold mb-0 text-secondary">{{ ft_kpis.inactive|inri }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-xl-3">
+      <div class="ft-kpi border-primary border-opacity-25">
+        <div class="small text-primary text-uppercase fw-semibold mb-1" style="letter-spacing: 0.05em;">Classes mapped</div>
+        <div class="h3 fw-bold mb-0" style="color: var(--ft-brand);">{{ ft_kpis.mapped_classes|inri }}</div>
+        <div class="small text-muted mt-1">Distinct classes with a fee structure</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ft-table-card">
+    <div class="px-3 py-3 px-lg-4 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2" style="border-color: var(--ft-border) !important;">
+      <div>
+        <span class="fw-bold">Fee categories</span>
+        <span class="small text-muted d-block d-md-inline ms-md-2">Tuition, transport, exam fees, and more.</span>
+      </div>
+      <span class="badge rounded-pill bg-body-secondary text-body border">{{ items|length }} rows</span>
+    </div>
+    <div class="ft-table-wrap">
+      {% if items %}
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th class="ps-3 ps-lg-4">Fee type</th>
+            <th>Code</th>
+            <th>Description</th>
+            <th class="text-center">Used in classes</th>
+            <th>Created</th>
+            <th>Status</th>
+            <th class="text-end pe-3 pe-lg-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ft in items %}
+          <tr data-ft-id="{{ ft.id }}">
+            <td class="ps-3 ps-lg-4">
+              <div class="fw-semibold">{{ ft.name }}</div>
+            </td>
+            <td>
+              {% if ft.code %}<span class="badge rounded-pill bg-light text-dark border font-monospace small">{{ ft.code }}</span>
+              {% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="ft-desc-cell small text-muted">{{ ft.description|default:"—"|truncatechars:80 }}</td>
+            <td class="text-center font-monospace">{{ ft.mapped_classes|inri }}</td>
+            <td class="small text-muted">{{ ft.created_on|date:"M j, Y" }}</td>
+            <td>
+              {% if ft.is_active %}
+              <span class="badge rounded-pill text-bg-success">Active</span>
+              {% else %}
+              <span class="badge rounded-pill text-bg-secondary">Inactive</span>
+              {% endif %}
+            </td>
+            <td class="text-end pe-3 pe-lg-4 ft-actions">
+              <button type="button" class="btn btn-sm btn-outline-primary rounded-3 ft-btn-edit" title="Edit"
+                data-ft-id="{{ ft.id }}"
+                data-edit-url="{% url 'core:school_fee_type_update' ft.id %}"
+                data-ft-name="{{ ft.name|escape }}"
+                data-ft-code="{{ ft.code|default:''|escape }}"
+                data-ft-active="{% if ft.is_active %}1{% else %}0{% endif %}"
+                data-ft-structs="{{ ft.structure_rows }}"
+                data-ft-mapped="{{ ft.mapped_classes }}">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-secondary rounded-3 ft-btn-usage" title="View details"
+                data-ft-id="{{ ft.id }}"
+                data-ft-name="{{ ft.name|escape }}"
+                data-ft-code="{{ ft.code|default:''|escape }}"
+                data-ft-active="{% if ft.is_active %}1{% else %}0{% endif %}">
+                <i class="bi bi-eye"></i>
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-danger rounded-3 ft-btn-delete" title="Delete"
+                data-ft-id="{{ ft.id }}"
+                data-delete-url="{% url 'core:school_fee_type_delete' ft.id %}"
+                data-ft-name="{{ ft.name|escape }}"
+                data-ft-structs="{{ ft.structure_rows }}"
+                data-ft-mapped="{{ ft.mapped_classes }}">
+                <i class="bi bi-trash"></i>
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="d-none" aria-hidden="true">
+        {% for ft in items %}
+        <textarea id="ft-desc-{{ ft.id }}" class="d-none">{{ ft.description }}</textarea>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-center text-muted py-5 px-3">
+        <p class="mb-3">No fee types yet. Create your first category to use in fee structures.</p>
+        <button type="button" class="btn btn-primary rounded-pill" data-ftx-open="ftxAdd">
+          <i class="bi bi-plus-lg me-1"></i> Add fee type
+        </button>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div id="ftxAdd" class="ftx-layer" aria-hidden="true">
+  <div class="ftx-scrim" data-ftx-close="ftxAdd" role="presentation"></div>
+  <div class="ftx-panel" role="dialog" aria-modal="true" aria-labelledby="ftxAddTitle">
+    <div class="d-flex justify-content-between align-items-start gap-2 p-3 border-bottom">
+      <div>
+        <h5 class="fw-bold mb-1" id="ftxAddTitle">Add fee type</h5>
+        <p class="small text-muted mb-0">New categories appear in class fee structure and billing screens.</p>
+      </div>
+      <button type="button" class="btn-close" data-ftx-close="ftxAdd" aria-label="Close"></button>
+    </div>
+    <form method="post" action="{% url 'core:billing_fee_categories' %}">
+      {% csrf_token %}
+      <input type="hidden" name="save_fee_type" value="1">
+      <div class="p-3">
+        {% if form_t.non_field_errors %}<div class="alert alert-danger rounded-3 small">{{ form_t.non_field_errors }}</div>{% endif %}
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="{{ form_t.name.id_for_label }}">Name</label>
+          {{ form_t.name }}
+          {% if form_t.name.errors %}<div class="text-danger small mt-1">{{ form_t.name.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="{{ form_t.code.id_for_label }}">Code <span class="text-muted fw-normal">(optional)</span></label>
+          {{ form_t.code }}
+          {% if form_t.code.errors %}<div class="text-danger small mt-1">{{ form_t.code.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="{{ form_t.description.id_for_label }}">Description</label>
+          {{ form_t.description }}
+          {% if form_t.description.errors %}<div class="text-danger small mt-1">{{ form_t.description.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="form-check form-switch">
+          {{ form_t.is_active }}
+          <label class="form-check-label small" for="{{ form_t.is_active.id_for_label }}">Active (available for new fee structures)</label>
+        </div>
+        {% if form_t.is_active.errors %}<div class="text-danger small mt-1">{{ form_t.is_active.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="d-flex justify-content-end gap-2 p-3 border-top bg-light bg-opacity-50 rounded-bottom">
+        <button type="button" class="btn btn-light rounded-pill" data-ftx-close="ftxAdd">Cancel</button>
+        <button type="submit" class="btn btn-primary rounded-pill px-4">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="ftxEdit" class="ftx-layer" aria-hidden="true">
+  <div class="ftx-scrim" data-ftx-close="ftxEdit" role="presentation"></div>
+  <div class="ftx-panel" role="dialog" aria-modal="true" aria-labelledby="ftxEditTitle">
+    <form method="post" id="ftEditForm" action="">
+      {% csrf_token %}
+      <div class="d-flex justify-content-between align-items-start gap-2 p-3 border-bottom">
+        <div>
+          <h5 class="fw-bold mb-1" id="ftxEditTitle">Edit fee type</h5>
+          <p class="small text-muted mb-0">Update name, description, and availability.</p>
+        </div>
+        <button type="button" class="btn-close" data-ftx-close="ftxEdit" aria-label="Close"></button>
+      </div>
+      <div class="p-3">
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="ft_edit_name">Name</label>
+          <input type="text" name="name" id="ft_edit_name" class="form-control rounded-3" required maxlength="100" autocomplete="off">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="ft_edit_code">Code <span class="text-muted fw-normal">(optional)</span></label>
+          <input type="text" name="code" id="ft_edit_code" class="form-control rounded-3" maxlength="50" autocomplete="off">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="ft_edit_description">Description</label>
+          <textarea name="description" id="ft_edit_description" class="form-control rounded-3" rows="3"></textarea>
+        </div>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" name="is_active" id="ft_edit_active" value="on">
+          <label class="form-check-label small" for="ft_edit_active">Active</label>
+        </div>
+      </div>
+      <div class="d-flex justify-content-end gap-2 p-3 border-top bg-light bg-opacity-50 rounded-bottom">
+        <button type="button" class="btn btn-light rounded-pill" data-ftx-close="ftxEdit">Cancel</button>
+        <button type="submit" class="btn btn-primary rounded-pill px-4">Save changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="ftxDelete" class="ftx-layer" aria-hidden="true">
+  <div class="ftx-scrim" data-ftx-close="ftxDelete" role="presentation"></div>
+  <div class="ftx-panel" role="dialog" aria-modal="true" aria-labelledby="ftxDeleteTitle">
+    <form method="post" id="ftDeleteForm" action="">
+      {% csrf_token %}
+      <div class="d-flex justify-content-between align-items-start gap-2 p-3 border-bottom">
+        <h5 class="fw-bold text-danger mb-0" id="ftxDeleteTitle">Delete fee type?</h5>
+        <button type="button" class="btn-close" data-ftx-close="ftxDelete" aria-label="Close"></button>
+      </div>
+      <div class="p-3">
+        <p class="mb-2">You are about to delete <strong id="ft_delete_name"></strong>.</p>
+        <div class="alert alert-warning border-0 rounded-3 small mb-0 d-none" id="ft_delete_warn">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          This fee type is used in <strong id="ft_delete_struct_count"></strong> fee structure row(s) across <strong id="ft_delete_class_count"></strong> class(es). Deletion is blocked until those mappings are removed.
+        </div>
+        <p class="small text-muted mb-0 mt-2 d-none" id="ft_delete_ok_hint">This type is not linked to any fee structure. This action cannot be undone.</p>
+      </div>
+      <div class="d-flex justify-content-end gap-2 p-3 border-top bg-light bg-opacity-50 rounded-bottom">
+        <button type="button" class="btn btn-light rounded-pill" data-ftx-close="ftxDelete">Cancel</button>
+        <button type="submit" class="btn btn-danger rounded-pill" id="ft_delete_submit">Delete</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="ftxView" class="ftx-layer ftx-wide" aria-hidden="true">
+  <div class="ftx-scrim" data-ftx-close="ftxView" role="presentation"></div>
+  <div class="ftx-panel" role="dialog" aria-modal="true" aria-labelledby="ftxViewTitle">
+    <div class="d-flex justify-content-between align-items-start gap-2 p-3 border-bottom">
+      <div>
+        <h5 class="fw-bold mb-1" id="ftxViewTitle">Fee type details</h5>
+        <p class="small text-muted mb-0" id="ft_usage_subtitle">Read-only summary and structure usage</p>
+      </div>
+      <button type="button" class="btn-close" data-ftx-close="ftxView" aria-label="Close"></button>
+    </div>
+    <div class="p-3">
+      <div class="rounded-3 border p-3 mb-3 ft-view-readonly">
+        <div class="row g-3 small">
+          <div class="col-md-6">
+            <div class="text-muted text-uppercase fw-semibold mb-1" style="letter-spacing:.05em;">Name</div>
+            <div class="fw-semibold" id="ft_view_name">—</div>
+          </div>
+          <div class="col-md-6">
+            <div class="text-muted text-uppercase fw-semibold mb-1" style="letter-spacing:.05em;">Code</div>
+            <div class="font-monospace" id="ft_view_code">—</div>
+          </div>
+          <div class="col-12">
+            <div class="text-muted text-uppercase fw-semibold mb-1" style="letter-spacing:.05em;">Description</div>
+            <div class="text-body" id="ft_view_description" style="white-space: pre-wrap;">—</div>
+          </div>
+          <div class="col-12">
+            <div class="text-muted text-uppercase fw-semibold mb-1" style="letter-spacing:.05em;">Status</div>
+            <div id="ft_view_status">—</div>
+          </div>
+        </div>
+      </div>
+      <h6 class="fw-bold small text-muted text-uppercase mb-2" style="letter-spacing:.06em;">Fee structure usage</h6>
+      <div class="table-responsive rounded-3 border" style="max-height: 360px;">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Class</th>
+              <th>Academic year</th>
+              <th>Frequency</th>
+              <th class="text-end">Amount</th>
+              <th>Mapping</th>
+            </tr>
+          </thead>
+          <tbody id="ft_usage_tbody"></tbody>
+        </table>
+      </div>
+      <p class="small text-muted mt-2 mb-0 d-none" id="ft_usage_empty">No fee structures use this type yet.</p>
+    </div>
+    <div class="d-flex justify-content-end gap-2 p-3 border-top bg-light bg-opacity-50 rounded-bottom">
+      <button type="button" class="btn btn-primary rounded-pill" data-ftx-close="ftxView">Close</button>
+    </div>
+  </div>
+</div>
+
+{{ usage_payload|json_script:"ft-usage-payload" }}
+{% endblock %}
+
+{% block after_bootstrap %}
+<script>
+(function () {
+  var OPEN = "ftx-open";
+
+  function parseJsonScript(id) {
+    var el = document.getElementById(id);
+    if (!el) return {};
+    var raw = (el.textContent || "").trim();
+    if (!raw) return {};
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function ftxAnyOpen() {
+    return document.querySelector(".ftx-layer." + OPEN);
+  }
+
+  function ftxOpen(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.classList.add(OPEN);
+    el.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+  }
+
+  function ftxClose(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove(OPEN);
+    el.setAttribute("aria-hidden", "true");
+    if (!ftxAnyOpen()) {
+      document.body.style.overflow = "";
+    }
+  }
+
+  function ftxCloseAll() {
+    document.querySelectorAll(".ftx-layer." + OPEN).forEach(function (el) {
+      el.classList.remove(OPEN);
+      el.setAttribute("aria-hidden", "true");
+    });
+    document.body.style.overflow = "";
+  }
+
+  function formatInr(numStr) {
+    var n = parseFloat(numStr);
+    if (isNaN(n)) return numStr;
+    try {
+      return new Intl.NumberFormat("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n);
+    } catch (err) {
+      return numStr;
+    }
+  }
+
+  function escapeHtml(s) {
+    if (s == null) return "";
+    var d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function initFeeTypesOverlays() {
+    var usage = parseJsonScript("ft-usage-payload");
+
+    document.addEventListener("click", function (e) {
+      var openBtn = e.target.closest("[data-ftx-open]");
+      if (openBtn) {
+        e.preventDefault();
+        var oid = openBtn.getAttribute("data-ftx-open");
+        if (oid) ftxOpen(oid);
+        return;
+      }
+      var closeEl = e.target.closest("[data-ftx-close]");
+      if (closeEl) {
+        e.preventDefault();
+        var cid = closeEl.getAttribute("data-ftx-close");
+        if (cid) ftxClose(cid);
+      }
+    });
+
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && ftxAnyOpen()) {
+        e.preventDefault();
+        ftxCloseAll();
+      }
+    });
+
+    var root = document.getElementById("ftc-page");
+    if (!root) return;
+
+    root.addEventListener("click", function (e) {
+      var editBtn = e.target.closest(".ft-btn-edit");
+      if (editBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var editUrl = editBtn.getAttribute("data-edit-url");
+        var fid = editBtn.getAttribute("data-ft-id");
+        var form = document.getElementById("ftEditForm");
+        if (form && editUrl) form.action = editUrl;
+        var n = document.getElementById("ft_edit_name");
+        var c = document.getElementById("ft_edit_code");
+        var d = document.getElementById("ft_edit_description");
+        var a = document.getElementById("ft_edit_active");
+        if (n) n.value = editBtn.getAttribute("data-ft-name") || "";
+        if (c) c.value = editBtn.getAttribute("data-ft-code") || "";
+        var ta = fid ? document.getElementById("ft-desc-" + fid) : null;
+        if (d) d.value = ta ? ta.value : "";
+        if (a) a.checked = editBtn.getAttribute("data-ft-active") === "1";
+        ftxOpen("ftxEdit");
+        return;
+      }
+
+      var delBtn = e.target.closest(".ft-btn-delete");
+      if (delBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var delUrl = delBtn.getAttribute("data-delete-url");
+        var dform = document.getElementById("ftDeleteForm");
+        if (dform && delUrl) dform.action = delUrl;
+        var nm = document.getElementById("ft_delete_name");
+        if (nm) nm.textContent = delBtn.getAttribute("data-ft-name") || "";
+        var structs = parseInt(delBtn.getAttribute("data-ft-structs") || "0", 10) || 0;
+        var mapped = parseInt(delBtn.getAttribute("data-ft-mapped") || "0", 10) || 0;
+        var warn = document.getElementById("ft_delete_warn");
+        var hint = document.getElementById("ft_delete_ok_hint");
+        var submit = document.getElementById("ft_delete_submit");
+        if (structs > 0) {
+          if (warn) {
+            warn.classList.remove("d-none");
+            var sc = document.getElementById("ft_delete_struct_count");
+            var cc = document.getElementById("ft_delete_class_count");
+            if (sc) sc.textContent = String(structs);
+            if (cc) cc.textContent = String(mapped);
+          }
+          if (hint) hint.classList.add("d-none");
+          if (submit) submit.disabled = true;
+        } else {
+          if (warn) warn.classList.add("d-none");
+          if (hint) hint.classList.remove("d-none");
+          if (submit) submit.disabled = false;
+        }
+        ftxOpen("ftxDelete");
+        return;
+      }
+
+      var useBtn = e.target.closest(".ft-btn-usage");
+      if (useBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var uid = String(useBtn.getAttribute("data-ft-id") || "");
+        var rows = usage[uid] || [];
+        var ta = uid ? document.getElementById("ft-desc-" + uid) : null;
+        var vname = document.getElementById("ft_view_name");
+        var vcode = document.getElementById("ft_view_code");
+        var vdesc = document.getElementById("ft_view_description");
+        var vstat = document.getElementById("ft_view_status");
+        if (vname) vname.textContent = useBtn.getAttribute("data-ft-name") || "—";
+        if (vcode) vcode.textContent = useBtn.getAttribute("data-ft-code") || "—";
+        if (vdesc) vdesc.textContent = ta && ta.value ? ta.value : "—";
+        if (vstat) {
+          var va = useBtn.getAttribute("data-ft-active") === "1";
+          vstat.innerHTML = va
+            ? "<span class=\"badge rounded-pill text-bg-success\">Active</span>"
+            : "<span class=\"badge rounded-pill text-bg-secondary\">Inactive</span>";
+        }
+        var sub = document.getElementById("ft_usage_subtitle");
+        if (sub) sub.textContent = "Read-only summary and where this fee is mapped";
+        var tb = document.getElementById("ft_usage_tbody");
+        var empty = document.getElementById("ft_usage_empty");
+        if (!tb) return;
+        tb.innerHTML = "";
+        if (!rows.length) {
+          if (empty) empty.classList.remove("d-none");
+        } else {
+          if (empty) empty.classList.add("d-none");
+          for (var i = 0; i < rows.length; i++) {
+            var r = rows[i];
+            var tr = document.createElement("tr");
+            tr.innerHTML =
+              "<td class=\"fw-semibold\">" + escapeHtml(r.classroom) +
+              "</td><td>" + escapeHtml(r.year) +
+              "</td><td><span class=\"badge bg-light text-dark border\">" + escapeHtml(r.frequency) +
+              "</span></td><td class=\"text-end font-monospace\">₹" + formatInr(r.amount) +
+              "</td><td>" + (r.mapping_active
+                ? "<span class=\"badge text-bg-success\">Active</span>"
+                : "<span class=\"badge text-bg-secondary\">Inactive</span>") +
+              "</td>";
+            tb.appendChild(tr);
+          }
+        }
+        ftxOpen("ftxView");
+      }
+    });
+  }
+
+  function boot() {
+    initFeeTypesOverlays();
+    {% if show_add_modal %}
+    ftxOpen("ftxAdd");
+    {% endif %}
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+})();
+</script>
+{% endblock %}

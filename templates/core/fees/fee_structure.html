@@ -43,7 +43,6 @@
         <div class="card-body p-0">
           <div class="p-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h2 class="h6 fw-bold mb-0">All structures</h2>
-            <span class="small text-muted">Clone copies amount, frequency &amp; due day to other classes.</span>
           </div>
           <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
@@ -56,7 +55,6 @@
                   <th>Due day</th>
                   <th>Year</th>
                   <th>Active</th>
-                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -69,12 +67,9 @@
                   <td>{{ item.due_day_of_month|default:"—" }}</td>
                   <td class="small text-muted">{{ item.academic_year.name|default:"—" }}</td>
                   <td>{% if item.is_active %}<i class="bi bi-check-circle text-success"></i>{% else %}<i class="bi bi-pause-circle text-secondary"></i>{% endif %}</td>
-                  <td>
-                    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill" data-bs-toggle="modal" data-bs-target="#cloneModal{{ item.id }}">Clone</button>
-                  </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="8" class="text-center text-muted py-4">No structures yet.</td></tr>
+                <tr><td colspan="7" class="text-center text-muted py-4">No structures yet.</td></tr>
                 {% endfor %}
               </tbody>
             </table>
@@ -84,37 +79,4 @@
     </div>
   </div>
 </div>
-
-{% for item in items %}
-<div class="modal fade" id="cloneModal{{ item.id }}" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content rounded-4">
-      <form method="post" action="{% url 'core:school_fee_structure_clone' item.id %}">
-        {% csrf_token %}
-        <div class="modal-header border-0">
-          <h5 class="modal-title">Clone to classes</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <p class="small text-muted">Copy <strong>{{ item.fee_type.name }}</strong> (₹{{ item.amount|inr }}) to selected classes. Same academic year.</p>
-          <div class="vstack gap-2" style="max-height: 240px; overflow-y: auto;">
-            {% for c in all_classrooms %}
-            {% if not item.classroom_id or c.id != item.classroom_id %}
-            <label class="d-flex align-items-center gap-2 small">
-              <input type="checkbox" name="target_classrooms" value="{{ c.id }}" class="form-check-input">
-              {{ c.name }}
-            </label>
-            {% endif %}
-            {% endfor %}
-          </div>
-        </div>
-        <div class="modal-footer border-0">
-          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary">Clone selected</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-{% endfor %}
 {% endblock %}

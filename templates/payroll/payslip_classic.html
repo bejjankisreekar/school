@@ -1,0 +1,179 @@
+{% load nav_tags %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Payslip — {{ employee_name }} — {{ period_label }}</title>
+  <style>
+    body { font-family: Georgia, "Times New Roman", serif; font-size: 12px; color: #111; margin: 0; padding: 12px; background: #e5e5e5; }
+    .wrap { max-width: 210mm; margin: 0 auto; background: #fff; border: 1px solid #999; padding: 14mm 16mm; }
+    .no-print { margin-bottom: 10px; }
+    .no-print a { display: inline-block; padding: 6px 14px; margin-right: 6px; text-decoration: none; border: 1px solid #333; color: #111; font-family: system-ui, sans-serif; font-size: 13px; }
+    .no-print a:first-child { background: #111; color: #fff; border-color: #111; }
+    table.data { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+    table.data th, table.data td { border: 1px solid #333; padding: 5px 8px; text-align: left; vertical-align: top; }
+    table.data th { background: #f0f0f0; font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .hdr { width: 100%; border-collapse: collapse; margin-bottom: 12px; border-bottom: 2px solid #111; padding-bottom: 10px; }
+    .hdr td { vertical-align: top; border: none; padding: 0 8px 0 0; }
+    .school { font-size: 18px; font-weight: 700; margin: 0 0 4px; }
+    .addr { color: #444; margin: 0; font-size: 11px; white-space: pre-line; }
+    .title { text-align: center; font-weight: 700; font-size: 13px; margin: 12px 0 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .ref { text-align: right; font-size: 11px; color: #333; }
+    .ref strong { display: block; margin-top: 2px; }
+    .logo { width: 56px; height: 56px; border: 1px solid #ccc; object-fit: contain; }
+    .ini { display: inline-block; width: 56px; height: 56px; line-height: 56px; text-align: center; border: 1px solid #ccc; font-weight: 700; font-family: system-ui, sans-serif; }
+    .split { width: 100%; border-collapse: collapse; }
+    .split td { width: 50%; vertical-align: top; padding: 0 6px 0 0; border: none; }
+    .split td + td { padding: 0 0 0 6px; }
+    .net { border: 2px solid #166534; background: #f0fdf4; margin: 12px 0; padding: 10px 12px; }
+    .net table { width: 100%; border-collapse: collapse; }
+    .net td { padding: 3px 0; border: none; font-family: system-ui, sans-serif; }
+    .net td:last-child { text-align: right; font-weight: 700; }
+    .net-big { font-size: 15px; color: #166534; }
+    .net-words { font-size: 10px; font-style: italic; color: #14532d; padding-top: 6px !important; }
+    .foot { font-size: 10px; color: #555; margin-top: 14px; border-top: 1px solid #999; padding-top: 8px; }
+    .sig { width: 100%; margin-top: 20px; border-collapse: collapse; }
+    .sig td { width: 50%; border: none; vertical-align: bottom; font-size: 11px; }
+    .sig-line { border-top: 1px solid #333; margin-top: 36px; padding-top: 4px; max-width: 200px; }
+    @media print {
+      @page { size: A4; margin: 12mm; }
+      body { background: #fff; padding: 0; }
+      .no-print { display: none !important; }
+      .wrap { border: none; padding: 0; max-width: none; }
+    }
+    @media (max-width: 640px) {
+      .split, .split tbody, .split tr, .split td { display: block; width: 100% !important; }
+      .split td { padding: 0 0 10px !important; }
+    }
+  </style>
+</head>
+<body>
+<div class="no-print">
+  <a href="javascript:window.print()">Print</a>
+  <a href="{% url 'payroll:payslip_pdf' payslip.pk %}">Download PDF</a>
+  <a href="{% url 'payroll:payslips_list' %}?month={{ payslip.month }}&year={{ payslip.year }}">Back to list</a>
+</div>
+
+<div class="wrap">
+  <table class="hdr">
+    <tr>
+      <td style="width:64px;">
+        {% if school_logo_url %}<img class="logo" src="{{ school_logo_url }}" alt="">{% else %}<span class="ini">{{ school.name|branding_initials }}</span>{% endif %}
+      </td>
+      <td>
+        <p class="school">{{ school.name }}</p>
+        {% if school.address %}<p class="addr">{{ school.address }}</p>{% endif %}
+        {% if school.header_text %}<p class="addr">{{ school.header_text }}</p>{% endif %}
+      </td>
+      <td class="ref" style="width:120px;">
+        Ref. No.<br><strong>{{ payroll_ref }}</strong>
+      </td>
+    </tr>
+  </table>
+
+  <p class="title">Payslip for the month of {{ period_label }}</p>
+
+  <table class="data">
+    <tr><th colspan="4">Employee particulars</th></tr>
+    <tr>
+      <th style="width:18%">Employee ID</th><td>{{ employee_id_display }}</td>
+      <th style="width:18%">Name</th><td>{{ employee_name }}</td>
+    </tr>
+    <tr>
+      <th>Designation</th><td>{{ teacher_meta.designation }}</td>
+      <th>Department</th><td>{{ teacher_meta.department }}</td>
+    </tr>
+    <tr>
+      <th>Branch / campus</th><td>{{ teacher_meta.branch }}</td>
+      <th>Pay period</th><td>{{ period_label }}</td>
+    </tr>
+    <tr>
+      <th>Date of joining</th><td>{{ teacher_meta.date_of_joining }}</td>
+      <th>PAN / Tax ID</th><td>{{ teacher_meta.tax_id }}</td>
+    </tr>
+    <tr>
+      <th>Bank name</th><td>{{ teacher_meta.bank_name }}</td>
+      <th>IFSC</th><td>{{ teacher_meta.ifsc }}</td>
+    </tr>
+    <tr>
+      <th>Bank a/c (last 4)</th><td>{{ teacher_meta.bank_last4 }}</td>
+      <th>UAN</th><td>{{ teacher_meta.uan }}</td>
+    </tr>
+    <tr>
+      <th>PF account</th><td>{{ teacher_meta.pf_account }}</td>
+      <th>ESI number</th><td>{{ teacher_meta.esi_number }}</td>
+    </tr>
+  </table>
+
+  {% if earnings_rows or deductions_rows %}
+  <table class="split"><tr>
+    {% if earnings_rows %}
+    <td {% if not deductions_rows %}style="width:100%"{% endif %}>
+      <table class="data">
+        <tr><th colspan="2">Earnings</th></tr>
+        {% for label, amount in earnings_rows %}
+        <tr><td>{{ label }}</td><td style="text-align:right;font-variant-numeric:tabular-nums;">&#8377;{{ amount|inr:0 }}</td></tr>
+        {% endfor %}
+      </table>
+    </td>
+    {% endif %}
+    {% if deductions_rows %}
+    <td {% if not earnings_rows %}style="width:100%"{% endif %}>
+      <table class="data">
+        <tr><th colspan="2">Deductions</th></tr>
+        {% for label, amount in deductions_rows %}
+        <tr><td>{{ label }}</td><td style="text-align:right;font-variant-numeric:tabular-nums;">&#8377;{{ amount|inr:0 }}</td></tr>
+        {% endfor %}
+      </table>
+    </td>
+    {% endif %}
+  </tr></table>
+  {% endif %}
+
+  <div class="net">
+    <table>
+      <tr><td>Gross earnings</td><td>&#8377;{{ gross_earnings|inr:0 }}</td></tr>
+      <tr><td>Total deductions</td><td>&#8377;{{ payslip.total_deductions|inr:0 }}</td></tr>
+      <tr class="net-big"><td>Net salary payable</td><td>NET PAY &#8377;{{ payslip.net_salary|inr:0 }}</td></tr>
+      <tr><td colspan="2" class="net-words">In words: {{ net_salary_words }}</td></tr>
+    </table>
+  </div>
+
+  <table class="data">
+    <tr><th colspan="5">Attendance / leave</th></tr>
+    <tr>
+      <th>Working days</th><th>Present</th><th>Paid leave</th><th>LOP</th><th>OT (hrs)</th>
+    </tr>
+    <tr>
+      <td>{{ teacher_meta.working_days }}</td>
+      <td>{{ teacher_meta.present_days }}</td>
+      <td>{{ teacher_meta.paid_leave_days }}</td>
+      <td>{{ teacher_meta.lop_days }}</td>
+      <td>{{ teacher_meta.overtime_hours }}</td>
+    </tr>
+  </table>
+
+  {% if payslip.payment_date or payslip.payment_method %}
+  <p class="foot" style="border:none;padding:0;margin:8px 0;">
+    {% if payslip.payment_date %}Paid on {{ payslip.payment_date|date:"j M Y" }}{% endif %}
+    {% if payslip.payment_method %}{% if payslip.payment_date %} · {% endif %}{{ payslip.payment_method }}{% endif %}
+  </p>
+  {% endif %}
+
+  {% if qr_data_uri %}
+  <p style="text-align:center;margin:10px 0;"><img src="{{ qr_data_uri }}" alt="" style="max-width:90px;"></p>
+  {% endif %}
+
+  <div class="foot">
+    <p style="margin:0 0 6px;">Generated on {{ generated_on|date:"j F Y, g:i A" }} · This is a system-generated payslip.</p>
+    <table class="sig">
+      <tr>
+        <td><div class="sig-line">Authorized signatory</div></td>
+        <td style="text-align:right;"><div class="sig-line" style="margin-left:auto;">Employee acknowledgement</div></td>
+      </tr>
+    </table>
+  </div>
+</div>
+</body>
+</html>

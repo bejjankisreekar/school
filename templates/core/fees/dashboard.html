@@ -125,7 +125,7 @@
       <a href="{% url 'core:school_fee_types' %}" class="btn btn-erp-secondary btn-sm">Fee types</a>
       <a href="{% url 'core:school_fee_structure' %}" class="btn btn-erp-secondary btn-sm">Edit structures</a>
       <a href="{% url 'core:school_fee_payments' %}" class="btn btn-sm btn-outline-primary">All payments</a>
-      <a href="{% url 'core:school_fee_add' %}" class="btn btn-primary btn-sm">Record payment</a>
+      <a href="{% url 'core:school_fee_collection' %}" class="btn btn-primary btn-sm">Record payment</a>
     </div>
   </div>
 
@@ -261,7 +261,6 @@
       <a href="{% url 'core:school_fee_structure' %}" class="btn btn-sm btn-outline-primary rounded-pill">Add / edit structures</a>
     </div>
     <div class="p-3 p-lg-4">
-      <span id="fee-hub-clone-url-template" class="d-none">{% url 'core:school_fee_structure_clone' 888888888 %}</span>
       {% if not fee_class_summaries %}
       <p class="text-center text-muted py-5 mb-0">No classes for this academic year. <a href="{% url 'core:school_fee_structure' %}">Configure fee structures</a> after adding classes.</p>
       {% else %}
@@ -322,7 +321,7 @@
                 <a href="{% url 'core:school_fees_index' %}{% if academic_year %}?ay={{ academic_year.id }}&{% else %}?{% endif %}lclass={{ c.classroom_id }}#fee-student-ledger" class="btn btn-sm btn-outline-primary rounded-pill"><i class="bi bi-journal-text me-1"></i>View student ledger</a>
                 <a href="{% url 'core:school_fees_index' %}{% if academic_year %}?ay={{ academic_year.id }}&{% else %}?{% endif %}lclass={{ c.classroom_id }}&lst=OVERDUE#fee-student-ledger" class="btn btn-sm btn-outline-danger rounded-pill"><i class="bi bi-bell me-1"></i>Send due reminder</a>
               </div>
-              <p class="small text-muted mb-3">Use <strong>Apply</strong> to post dues for all students in this class (optional section). <strong>Clone</strong> copies one fee line to other classes.</p>
+              <p class="small text-muted mb-3">Use <strong>Apply</strong> to post dues for all students in this class (optional section).</p>
 
               <div class="row g-4">
                 <div class="col-lg-5">
@@ -330,7 +329,7 @@
                   {% if c.breakdown %}
                   <div class="table-responsive rounded-3 border" style="border-color: var(--fh-border) !important;">
                     <table class="table table-sm align-middle mb-0">
-                      <thead><tr><th>Fee type</th><th class="text-end">Amount</th><th class="text-end">Clone</th></tr></thead>
+                      <thead><tr><th>Fee type</th><th class="text-end">Amount</th></tr></thead>
                       <tbody>
                         {% for line in c.breakdown %}
                         <tr>
@@ -339,15 +338,11 @@
                             <div class="small text-muted">{{ line.frequency }}{% if line.due_day %} · Due day {{ line.due_day }}{% endif %}</div>
                           </td>
                           <td class="text-end font-monospace fw-bold">₹{{ line.amount|inr }}</td>
-                          <td class="text-end">
-                            <button type="button" class="btn btn-sm btn-light border rounded-pill" data-bs-toggle="modal" data-bs-target="#feeHubCloneModal" data-structure-id="{{ line.id }}" data-fee-label="{{ line.fee_type_name }}" data-source-classroom="{{ c.classroom_id }}">Clone</button>
-                          </td>
                         </tr>
                         {% endfor %}
                         <tr class="table-light fw-bold">
                           <td>Total</td>
                           <td class="text-end font-monospace">₹{{ c.total_per_student|inr }}</td>
-                          <td></td>
                         </tr>
                       </tbody>
                     </table>
@@ -463,68 +458,6 @@
       {% endif %}
     </div>
   </div>
-
-  <div class="modal fade" id="feeHubCloneModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-      <div class="modal-content rounded-4 border-0 shadow">
-        <form method="post" id="feeHubCloneForm" action="">
-          {% csrf_token %}
-          <div class="modal-header border-0 pb-0">
-            <div>
-              <h5 class="modal-title fw-bold">Clone fee line</h5>
-              <p class="small text-muted mb-0" id="feeHubCloneLabel">Select target classes below.</p>
-            </div>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body pt-2">
-            <div class="small fw-semibold text-muted mb-2">Target classes</div>
-            <div class="vstack gap-2" style="max-height: 280px; overflow-y: auto;">
-              {% for room in classrooms %}
-              <label class="d-flex align-items-center gap-2 small mb-0 clone-class-option" data-classroom-id="{{ room.id }}">
-                <input type="checkbox" name="target_classrooms" value="{{ room.id }}" class="form-check-input">
-                {{ room.name }}
-              </label>
-              {% endfor %}
-            </div>
-          </div>
-          <div class="modal-footer border-0">
-            <button type="button" class="btn btn-light rounded-pill" data-bs-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-primary rounded-pill">Clone selected</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-  <script>
-  (function () {
-    var modal = document.getElementById("feeHubCloneModal");
-    var tplEl = document.getElementById("fee-hub-clone-url-template");
-    var form = document.getElementById("feeHubCloneForm");
-    var labelEl = document.getElementById("feeHubCloneLabel");
-    if (!modal || !tplEl || !form) return;
-    modal.addEventListener("show.bs.modal", function (e) {
-      var btn = e.relatedTarget;
-      if (!btn) return;
-      var sid = btn.getAttribute("data-structure-id");
-      var feeLabel = btn.getAttribute("data-fee-label") || "Fee line";
-      var srcClass = btn.getAttribute("data-source-classroom");
-      var tpl = tplEl.textContent.trim();
-      if (sid) form.action = tpl.replace("888888888", sid);
-      if (labelEl) labelEl.textContent = "Cloning: " + feeLabel + " — choose target classes.";
-      modal.querySelectorAll(".clone-class-option").forEach(function (lbl) {
-        var cid = lbl.getAttribute("data-classroom-id");
-        var inp = lbl.querySelector("input[type=checkbox]");
-        if (srcClass && cid === srcClass) {
-          lbl.classList.add("d-none");
-          if (inp) { inp.checked = false; inp.disabled = true; }
-        } else {
-          lbl.classList.remove("d-none");
-          if (inp) inp.disabled = false;
-        }
-      });
-    });
-  })();
-  </script>
 
   {# —— Student fee ledger (filterable) —— #}
   <div class="fee-section-card mb-4 fee-ledger-wrap" id="fee-student-ledger">
@@ -682,7 +615,7 @@
                 {% if item.collect_fee_id %}
                 <a href="{% url 'core:school_fee_collect' item.collect_fee_id %}" class="btn btn-sm btn-primary rounded-pill py-0 px-2">Collect</a>
                 {% else %}
-                <a href="{% url 'core:school_fee_add' %}?student={{ item.student.id }}" class="btn btn-sm btn-outline-primary rounded-pill py-0 px-2">Add</a>
+                <a href="{% url 'core:school_fee_collection' %}?student={{ item.student.id }}" class="btn btn-sm btn-outline-primary rounded-pill py-0 px-2">Add</a>
                 {% endif %}
               </td>
             </tr>
@@ -724,7 +657,7 @@
                       {% endfor %}
                     </tbody>
                   </table>
-                  <a href="{% url 'core:school_fee_add' %}?student={{ item.student.id }}" class="btn btn-sm btn-outline-secondary mt-2 rounded-pill">Quick record payment</a>
+                  <a href="{% url 'core:school_fee_collection' %}?student={{ item.student.id }}" class="btn btn-sm btn-outline-secondary mt-2 rounded-pill">Quick record payment</a>
                 </div>
               </td>
             </tr>

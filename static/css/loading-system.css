@@ -71,7 +71,7 @@ html.erp-loading-locked body {
   -webkit-backdrop-filter: blur(6px);
 }
 
-html.dark .erp-loading-overlay__backdrop {
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .erp-loading-overlay__backdrop {
   background: rgba(15, 23, 42, 0.78);
 }
 
@@ -94,7 +94,7 @@ html.dark .erp-loading-overlay__backdrop {
   letter-spacing: 0.01em;
 }
 
-html.dark .erp-loading-overlay__text {
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .erp-loading-overlay__text {
   color: #e2e8f0;
 }
 
@@ -108,7 +108,7 @@ html.dark .erp-loading-overlay__text {
   animation: erp-spin 1s linear infinite;
 }
 
-html.dark .erp-spinner {
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .erp-spinner {
   border-color: rgba(129, 140, 248, 0.25);
   border-top-color: #818cf8;
 }
@@ -165,7 +165,7 @@ html.dark .erp-spinner {
   animation: erp-shimmer 1.5s ease-in-out infinite;
 }
 
-html.dark .erp-skel {
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .erp-skel {
   background: linear-gradient(
     110deg,
     #1e293b 0%,
@@ -223,7 +223,7 @@ html.dark .erp-skel {
   transition: opacity 220ms ease;
 }
 
-html.dark .erp-table-skeleton-overlay {
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .erp-table-skeleton-overlay {
   background: var(--bs-body-bg, #0f172a);
 }
 
@@ -298,7 +298,7 @@ html.dark .erp-table-skeleton-overlay {
   overflow: hidden;
 }
 
-html.dark .erp-upload-progress__track {
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .erp-upload-progress__track {
   background: #334155;
 }
 

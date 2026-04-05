@@ -2293,6 +2293,70 @@
   .left-3\.5 {
     left: calc(var(--spacing) * 3.5);
   }
+  .join {
+    display: inline-flex;
+    align-items: stretch;
+    --join-ss: 0;
+    --join-se: 0;
+    --join-es: 0;
+    --join-ee: 0;
+  }
+  .join :where(.join-item) {
+    border-start-start-radius: var(--join-ss, 0);
+    border-start-end-radius: var(--join-se, 0);
+    border-end-start-radius: var(--join-es, 0);
+    border-end-end-radius: var(--join-ee, 0);
+  }
+  .join :where(.join-item) * {
+    --join-ss: var(--radius-field);
+    --join-se: var(--radius-field);
+    --join-es: var(--radius-field);
+    --join-ee: var(--radius-field);
+  }
+  .join > .join-item:where(:first-child) {
+    --join-ss: var(--radius-field);
+    --join-se: 0;
+    --join-es: var(--radius-field);
+    --join-ee: 0;
+  }
+  .join :first-child:not(:last-child) :where(.join-item) {
+    --join-ss: var(--radius-field);
+    --join-se: 0;
+    --join-es: var(--radius-field);
+    --join-ee: 0;
+  }
+  .join > .join-item:where(:last-child) {
+    --join-ss: 0;
+    --join-se: var(--radius-field);
+    --join-es: 0;
+    --join-ee: var(--radius-field);
+  }
+  .join :last-child:not(:first-child) :where(.join-item) {
+    --join-ss: 0;
+    --join-se: var(--radius-field);
+    --join-es: 0;
+    --join-ee: var(--radius-field);
+  }
+  .join > .join-item:where(:only-child) {
+    --join-ss: var(--radius-field);
+    --join-se: var(--radius-field);
+    --join-es: var(--radius-field);
+    --join-ee: var(--radius-field);
+  }
+  .join :only-child :where(.join-item) {
+    --join-ss: var(--radius-field);
+    --join-se: var(--radius-field);
+    --join-es: var(--radius-field);
+    --join-ee: var(--radius-field);
+  }
+  .join > :where(:focus, :has(:focus)) {
+    z-index: 1;
+  }
+  @media (hover: hover) {
+    .join > :where(.btn:hover, :has(.btn:hover)) {
+      isolation: isolate;
+    }
+  }
   @layer daisyui.l1.l2.l3 {
     .textarea {
       border: var(--border) solid #0000;
@@ -2457,6 +2521,20 @@
       grid-row: 1 / 6;
     }
   }
+  @layer daisyui.l1.l2.l3 {
+    .modal-backdrop {
+      grid-column-start: 1;
+      grid-row-start: 1;
+      display: grid;
+      align-self: stretch;
+      justify-self: stretch;
+      color: transparent;
+      z-index: -1;
+    }
+    .modal-backdrop button {
+      cursor: pointer;
+    }
+  }
   .z-10 {
     z-index: 10;
   }
@@ -2582,14 +2660,14 @@
       opacity: 0%;
     }
   }
+  .mx-1 {
+    margin-inline: calc(var(--spacing) * 1);
+  }
   .mx-2 {
     margin-inline: calc(var(--spacing) * 2);
   }
   .mx-auto {
     margin-inline: auto;
-  }
-  .my-1 {
-    margin-block: calc(var(--spacing) * 1);
   }
   .my-2 {
     margin-block: calc(var(--spacing) * 2);
@@ -2645,6 +2723,9 @@
       }
     }
   }
+  .ms-0 {
+    margin-inline-start: calc(var(--spacing) * 0);
+  }
   .ms-1 {
     margin-inline-start: calc(var(--spacing) * 1);
   }
@@ -2662,6 +2743,9 @@
   }
   .me-auto {
     margin-inline-end: auto;
+  }
+  .mt-0 {
+    margin-top: calc(var(--spacing) * 0);
   }
   .mt-0\.5 {
     margin-top: calc(var(--spacing) * 0.5);
@@ -3303,9 +3387,6 @@
       border-color: color-mix(in oklab, var(--color-indigo-500) 80%, transparent);
     }
   }
-  .border-info {
-    border-color: var(--color-info);
-  }
   .border-primary {
     border-color: var(--color-primary);
   }
@@ -3717,9 +3798,6 @@
   .pb-0 {
     padding-bottom: calc(var(--spacing) * 0);
   }
-  .pb-1 {
-    padding-bottom: calc(var(--spacing) * 1);
-  }
   .pb-2 {
     padding-bottom: calc(var(--spacing) * 2);
   }
@@ -3862,6 +3940,36 @@
       @supports (color: color-mix(in lab, red, red)) {
         .link-primary:hover {
           color: color-mix(in oklab, var(--color-primary) 80%, #000);
+        }
+      }
+    }
+  }
+  @layer daisyui.l1.l2 {
+    .link-secondary {
+      color: var(--color-secondary);
+    }
+    @media (hover: hover) {
+      .link-secondary:hover {
+        color: var(--color-secondary);
+      }
+      @supports (color: color-mix(in lab, red, red)) {
+        .link-secondary:hover {
+          color: color-mix(in oklab, var(--color-secondary) 80%, #000);
+        }
+      }
+    }
+  }
+  @layer daisyui.l1.l2 {
+    .link-success {
+      color: var(--color-success);
+    }
+    @media (hover: hover) {
+      .link-success:hover {
+        color: var(--color-success);
+      }
+      @supports (color: color-mix(in lab, red, red)) {
+        .link-success:hover {
+          color: color-mix(in oklab, var(--color-success) 80%, #000);
         }
       }
     }
@@ -4138,6 +4246,10 @@
     outline-style: var(--tw-outline-style);
     outline-width: 1px;
   }
+  .blur {
+    --tw-blur: blur(8px);
+    filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);
+  }
   .blur-\[80px\] {
     --tw-blur: blur(80px);
     filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);
@@ -4198,12 +4310,6 @@
       --fontsize: 0.75rem;
       --btn-p: 0.75rem;
       --size: calc(var(--size-field, 0.25rem) * 8);
-    }
-  }
-  @layer daisyui.l1.l2.l3 {
-    .btn-info {
-      --btn-color: var(--color-info);
-      --btn-fg: var(--color-info-content);
     }
   }
   @layer daisyui.l1.l2.l3 {

@@ -1,59 +1,254 @@
 {% extends "base.html" %}
+{% load nav_tags %}
 {% block title %}{{ title }} | School ERP{% endblock %}
+{% block extra_head %}
+<style>
+  .sc-hero {
+    background: linear-gradient(135deg, #312e81 0%, #4f46e5 42%, #0d9488 100%);
+    color: #fff;
+    border-radius: 1rem;
+    padding: 1.35rem 1.5rem;
+    box-shadow: 0 14px 44px rgba(79, 70, 229, 0.28);
+  }
+  .sc-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  }
+  html.dark .sc-card {
+    background: rgba(30, 41, 59, 0.94);
+    border-color: rgba(148, 163, 184, 0.2);
+  }
+  .sc-section-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: 0.85rem;
+  }
+  html.dark .sc-section-title { color: #94a3b8; }
+  .sc-preview {
+    background: linear-gradient(180deg, rgba(79, 70, 229, 0.06) 0%, rgba(13, 148, 136, 0.06) 100%);
+    border: 1px dashed rgba(79, 70, 229, 0.35);
+    border-radius: 0.85rem;
+    padding: 1.1rem 1.2rem;
+  }
+  html.dark .sc-preview {
+    background: linear-gradient(180deg, rgba(99, 102, 241, 0.12) 0%, rgba(13, 148, 136, 0.1) 100%);
+    border-color: rgba(148, 163, 184, 0.25);
+  }
+  .sc-preview-amount {
+    font-size: 1.35rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .sc-hint {
+    font-size: 0.8rem;
+    color: #64748b;
+  }
+  html.dark .sc-hint { color: #94a3b8; }
+</style>
+{% endblock %}
 {% block content %}
-<div class="container-fluid px-0">
+<div class="container-fluid px-0" style="max-width: 1100px;">
   <nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb">
+    <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
       <li class="breadcrumb-item"><a href="{% url 'payroll:payroll_dashboard' %}">Payroll</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'payroll:salary_components_list' %}">Components</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'payroll:salary_components_list' %}">Salary components</a></li>
       <li class="breadcrumb-item active">{{ title }}</li>
     </ol>
   </nav>
 
-  <h1 class="h4 fw-bold mb-4">{{ title }}</h1>
-
-  <div class="card border-0 shadow-sm rounded-3" style="max-width: 500px;">
-    <div class="card-body">
-      <form method="post">
-        {% csrf_token %}
-        <div class="mb-3">
-          <label class="form-label">Component Name</label>
-          {{ form.name }}
-          {% if form.name.errors %}<div class="text-danger small">{{ form.name.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Type</label>
-          {{ form.component_type }}
-          {% if form.component_type.errors %}<div class="text-danger small">{{ form.component_type.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Calculation Type</label>
-          {{ form.calculation_type }}
-          {% if form.calculation_type.errors %}<div class="text-danger small">{{ form.calculation_type.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Value {% if form.calculation_type.value == 'PERCENTAGE' %}(%){% else %}(₹){% endif %}</label>
-          {{ form.value }}
-          {% if form.value.errors %}<div class="text-danger small">{{ form.value.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="mb-3">
-          <div class="form-check">
-            {{ form.is_active }}
-            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">Active</label>
-          </div>
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Order</label>
-          {{ form.order }}
-          {% if form.order.errors %}<div class="text-danger small">{{ form.order.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="d-flex gap-2">
-          <button type="submit" class="btn btn-primary">Save</button>
-          <a href="{% url 'payroll:salary_components_list' %}" class="btn btn-outline-secondary">Cancel</a>
-        </div>
-      </form>
+  <div class="sc-hero mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+      <div>
+        <h1 class="h4 fw-bold text-white mb-1">{{ title }}</h1>
+        <p class="small text-white mb-0 opacity-90" style="max-width: 36rem;">
+          Define how this head behaves in payroll: allowance or deduction, fixed rupees or % of basic, and display order.
+          Codes and descriptions help audits and exports.
+        </p>
+      </div>
+      <a href="{% url 'payroll:salary_components_list' %}" class="btn btn-sm btn-light rounded-pill px-3 shadow-sm">← Back to list</a>
     </div>
   </div>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+    <div class="row g-4">
+      <div class="col-lg-8">
+        <div class="sc-card p-4 p-lg-4 mb-4">
+          <div class="sc-section-title">Identity</div>
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label class="form-label fw-semibold" for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+              {{ form.name }}
+              {% if form.name.help_text %}<div class="form-text">{{ form.name.help_text }}</div>{% endif %}
+              {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold" for="{{ form.code.id_for_label }}">{{ form.code.label }}</label>
+              {{ form.code }}
+              {% if form.code.help_text %}<div class="form-text">{{ form.code.help_text }}</div>{% endif %}
+              {% if form.code.errors %}<div class="text-danger small mt-1">{{ form.code.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold" for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>
+              {{ form.description }}
+              {% if form.description.help_text %}<div class="form-text">{{ form.description.help_text }}</div>{% endif %}
+              {% if form.description.errors %}<div class="text-danger small mt-1">{{ form.description.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="sc-card p-4 mb-4">
+          <div class="sc-section-title">Calculation</div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold" for="{{ form.component_type.id_for_label }}">{{ form.component_type.label }}</label>
+              {{ form.component_type }}
+              {% if form.component_type.help_text %}<div class="form-text">{{ form.component_type.help_text }}</div>{% endif %}
+              {% if form.component_type.errors %}<div class="text-danger small mt-1">{{ form.component_type.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold" for="{{ form.calculation_type.id_for_label }}">{{ form.calculation_type.label }}</label>
+              {{ form.calculation_type }}
+              {% if form.calculation_type.help_text %}<div class="form-text">{{ form.calculation_type.help_text }}</div>{% endif %}
+              {% if form.calculation_type.errors %}<div class="text-danger small mt-1">{{ form.calculation_type.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold" for="{{ form.value.id_for_label }}" id="sc-value-label">{{ form.value.label }} <span class="text-muted fw-normal" id="sc-value-suffix">(₹)</span></label>
+              {{ form.value }}
+              {% if form.value.help_text %}<div class="form-text">{{ form.value.help_text }}</div>{% endif %}
+              {% if form.value.errors %}<div class="text-danger small mt-1">{{ form.value.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold" for="{{ form.order.id_for_label }}">{{ form.order.label }}</label>
+              {{ form.order }}
+              {% if form.order.help_text %}<div class="form-text">{{ form.order.help_text }}</div>{% endif %}
+              {% if form.order.errors %}<div class="text-danger small mt-1">{{ form.order.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="sc-card p-4 mb-4">
+          <div class="sc-section-title">Status</div>
+          <div class="form-check form-switch">
+            {{ form.is_active }}
+            <label class="form-check-label fw-medium" for="{{ form.is_active.id_for_label }}">{{ form.is_active.label }}</label>
+          </div>
+          {% if form.is_active.help_text %}<div class="form-text ms-4 ps-1">{{ form.is_active.help_text }}</div>{% endif %}
+          {% if form.is_active.errors %}<div class="text-danger small mt-1">{{ form.is_active.errors.0 }}</div>{% endif %}
+        </div>
+
+        {% if form.non_field_errors %}
+        <div class="alert alert-danger rounded-3 border-0 shadow-sm">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="d-flex flex-wrap gap-2">
+          <button type="submit" class="btn btn-primary btn-lg rounded-pill px-4 shadow-sm">
+            <i class="bi bi-check2-circle me-2"></i>Save component
+          </button>
+          <a href="{% url 'payroll:salary_components_list' %}" class="btn btn-outline-secondary btn-lg rounded-pill px-4">Cancel</a>
+        </div>
+      </div>
+
+      <div class="col-lg-4">
+        <div class="sc-card p-4 sticky-lg-top" style="top: 1rem;">
+          <div class="sc-section-title">Live preview</div>
+          <p class="small text-muted mb-3">See how this component computes for a sample basic salary. This is not stored.</p>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold" for="{{ form.example_basic.id_for_label }}">{{ form.example_basic.label }}</label>
+            {{ form.example_basic }}
+            {% if form.example_basic.help_text %}<div class="form-text">{{ form.example_basic.help_text }}</div>{% endif %}
+            {% if form.example_basic.errors %}<div class="text-danger small mt-1">{{ form.example_basic.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="sc-preview">
+            <div class="sc-hint mb-1" id="sc-preview-role">—</div>
+            <div class="sc-preview-amount text-body" id="sc-preview-amount">₹0.00</div>
+            <div class="sc-hint mt-2 mb-0 small" id="sc-preview-formula"></div>
+          </div>
+          <hr class="my-4 opacity-25">
+          <div class="small text-muted">
+            <strong class="text-body">Tip:</strong> Use <strong>display order</strong> starting at <strong>1</strong> so related heads (e.g. statutory deductions) group together on payslips.
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
 </div>
+
+<script>
+(function () {
+  function parseNum(el) {
+    if (!el) return NaN;
+    var v = parseFloat(String(el.value || "").replace(/,/g, ""));
+    return isNaN(v) ? NaN : v;
+  }
+  function fmt(m) {
+    try {
+      return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(m);
+    } catch (e) {
+      return "₹" + m.toFixed(2);
+    }
+  }
+  function update() {
+    var calcEl = document.getElementById("id_calculation_type");
+    var typeEl = document.getElementById("id_component_type");
+    var valEl = document.getElementById("id_value");
+    var basicEl = document.getElementById("id_example_basic");
+    var suffix = document.getElementById("sc-value-suffix");
+    var roleEl = document.getElementById("sc-preview-role");
+    var amtEl = document.getElementById("sc-preview-amount");
+    var formulaEl = document.getElementById("sc-preview-formula");
+
+    var calc = calcEl ? calcEl.value : "FIXED";
+    if (suffix) suffix.textContent = calc === "PERCENTAGE" ? "(% of basic)" : "(₹ fixed)";
+
+    var basic = parseNum(basicEl);
+    var raw = parseNum(valEl);
+    var compType = typeEl ? typeEl.value : "ALLOWANCE";
+
+    var amount = NaN;
+    var formula = "";
+    if (calc === "PERCENTAGE") {
+      if (!isNaN(basic) && !isNaN(raw)) {
+        amount = basic * (raw / 100);
+        formula = raw + "% × " + fmt(basic) + " basic";
+      } else {
+        formula = "Enter basic and percentage to preview.";
+      }
+    } else {
+      if (!isNaN(raw)) {
+        amount = raw;
+        formula = "Fixed amount per employee";
+      } else {
+        formula = "Enter a fixed amount to preview.";
+      }
+    }
+
+    if (roleEl) {
+      roleEl.textContent = compType === "DEDUCTION"
+        ? "Reduces net pay (deduction)"
+        : "Adds to gross pay (allowance)";
+    }
+    if (amtEl) {
+      amtEl.textContent = !isNaN(amount) ? fmt(amount) : "—";
+    }
+    if (formulaEl) formulaEl.textContent = formula;
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    ["id_calculation_type", "id_component_type", "id_value", "id_example_basic"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener("input", update);
+      if (el) el.addEventListener("change", update);
+    });
+    update();
+  });
+})();
+</script>
 {% endblock %}

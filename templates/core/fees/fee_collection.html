@@ -30,7 +30,7 @@
         <i class="bi bi-arrow-left me-1"></i> Back
       </a>
       {% if not filtered_student %}
-      <a href="{% url 'core:school_fee_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Generate &amp; collect</a>
+      <a href="{% url 'core:billing_fee_structure' %}" class="btn btn-primary btn-sm"><i class="bi bi-ui-checks-grid me-1"></i> Class fee structure</a>
       {% endif %}
     </div>
   </div>
@@ -54,7 +54,7 @@
     <a href="{% url 'core:school_fee_collection' %}" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-funnel me-1"></i> View all students’ dues
     </a>
-    <a href="{% url 'core:school_fee_add' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Generate &amp; collect</a>
+    <a href="{% url 'core:billing_fee_structure' %}" class="btn btn-sm btn-primary"><i class="bi bi-ui-checks-grid me-1"></i> Class fee structure</a>
   </div>
   {% endif %}
 

@@ -16,7 +16,7 @@
         </div>
         <div class="school-info app-header-brand-text min-w-0">
           <h2 class="topbar-school-title app-header-school-name text-truncate">
-            {% if request.user.school %}{{ request.user.school.name }}{% else %}Campus ERP{% endif %}
+            {% if request.user.school %}{{ request.user.school.name }}{% else %}Platform{% endif %}
           </h2>
           <span class="app-header-brand-subtitle topbar-school-sub text-truncate d-block">
             {% if request.user.role == "SUPERADMIN" %}Platform administration
@@ -29,7 +29,7 @@
         </div>
       </div>
 
-      <!-- CENTER: optional page title (set context variable page_title) -->
+      <!-- CENTER: optional page title only (product name lives in sidebar) -->
       <div class="topbar-center">
         {% if page_title %}
         <span class="topbar-page-title">{{ page_title }}</span>
@@ -102,6 +102,9 @@
             <li><a class="dropdown-item app-header-dropdown-item" href="{% url 'core:student_profile' %}"><i class="bi bi-person me-2 text-primary"></i>View Profile</a></li>
             {% else %}
             <li><a class="dropdown-item app-header-dropdown-item" href="{% url 'accounts:account_profile' %}"><i class="bi bi-person me-2 text-primary"></i>View Profile</a></li>
+            {% endif %}
+            {% if request.user.school and request.user.role != "SUPERADMIN" and request|feature_access:"attendance" %}
+            <li><a class="dropdown-item app-header-dropdown-item" href="{% url 'core:school_calendar_holidays' %}"><i class="bi bi-calendar2-week me-2 text-body-secondary"></i>School calendar</a></li>
             {% endif %}
             <li><a class="dropdown-item app-header-dropdown-item" href="{% url 'accounts:change_password' %}"><i class="bi bi-gear me-2 text-body-secondary"></i>Settings</a></li>
             <li><hr class="dropdown-divider my-2 opacity-25" /></li>

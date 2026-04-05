@@ -1,0 +1,77 @@
+{# AI-style performance summary (Analytics dashboard) #}
+<section class="analytics-dash-section mb-3 no-print" id="panel-ai-reports" aria-labelledby="panel-ai-heading">
+  <p class="rpt-section-label mb-1">Insights</p>
+  <h2 class="h6 fw-bold mb-1" id="panel-ai-heading">AI analytics</h2>
+  <p class="text-muted small mb-3">Student performance, class averages, and recent attendance trends</p>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0 py-2"><strong class="small">Student performance (top 20)</strong></div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr><th>Student</th><th class="text-end">%</th></tr>
+            </thead>
+            <tbody>
+              {% for item in ai_student_performance %}
+              <tr>
+                <td>{{ item.student.user.get_full_name|default:item.student.user.username }}</td>
+                <td class="text-end"><span class="badge {% if item.pct >= 60 %}bg-success{% elif item.pct >= 40 %}bg-warning text-dark{% else %}bg-danger{% endif %}">{{ item.pct }}%</span></td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="2" class="text-muted text-center py-4 small">No performance data.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0 py-2"><strong class="small">Class performance</strong></div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr><th>Class</th><th class="text-end">Avg %</th><th class="text-end">Students</th></tr>
+            </thead>
+            <tbody>
+              {% for item in ai_class_performance %}
+              <tr>
+                <td>{{ item.name }}</td>
+                <td class="text-end"><span class="badge {% if item.pct >= 60 %}bg-success{% elif item.pct >= 40 %}bg-warning text-dark{% else %}bg-danger{% endif %}">{{ item.pct }}%</span></td>
+                <td class="text-end">{{ item.count }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="3" class="text-muted text-center py-4 small">No class data.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-0 py-2"><strong class="small">Attendance trends (last 30 days)</strong></div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr><th>Date</th><th class="text-end">Present</th><th class="text-end">Total</th><th class="text-end">%</th></tr>
+        </thead>
+        <tbody>
+          {% for t in ai_attendance_trends %}
+          <tr>
+            <td>{{ t.date }}</td>
+            <td class="text-end">{{ t.present }}</td>
+            <td class="text-end">{{ t.total }}</td>
+            <td class="text-end">{{ t.pct }}%</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="text-muted text-center py-4 small">No attendance trend data.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

@@ -34,7 +34,7 @@ body {
     box-shadow: var(--erp-shadow-hover), 0 0 0 1px rgba(15, 23, 42, 0.04);
   }
 
-  html.dark .erp-dashboard-panel:hover,
+  :is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .erp-dashboard-panel:hover,
   body.dark-mode .erp-dashboard-panel:hover {
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
     border-color: rgba(148, 163, 184, 0.22) !important;
@@ -157,23 +157,88 @@ body {
   color: var(--sidebar-text-muted);
 }
 
-/* Logo area */
-.sidebar-logo {
-  padding: 20px 16px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+/* Product name (APP_PRODUCT_NAME) — premium brand strip, top of sidebar */
+.sidebar-product-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  min-width: 0;
+  margin: 0.75rem 0.75rem 0.5rem;
+  padding: 0.875rem 0.875rem 0.875rem 0.75rem;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  background: linear-gradient(165deg, #ffffff 0%, #f8fafc 45%, #f1f5f9 100%);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 4px 16px rgba(15, 23, 42, 0.04);
 }
 
-.sidebar-logo span {
-  display: inline-flex;
+.sidebar-product-mark {
+  position: relative;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  background: var(--sidebar-active);
-  color: white;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #4f46e5 0%, #6366f1 40%, #7c3aed 100%);
+  color: #fff;
+  box-shadow:
+    0 3px 12px rgba(79, 70, 229, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.sidebar-product-mark-inner {
+  font-family: var(--font-display);
+  font-size: 0.8125rem;
   font-weight: 700;
-  font-size: 14px;
-  border-radius: 8px;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.sidebar-product-text-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.125rem;
+  min-height: 2.75rem;
+}
+
+.sidebar-product-name {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.3;
+  color: #0f172a;
+  min-width: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .sidebar-product-brand,
+body.dark-mode .sidebar-product-brand {
+  border-color: rgba(148, 163, 184, 0.14);
+  background: linear-gradient(165deg, rgba(30, 41, 59, 0.65) 0%, rgba(15, 23, 42, 0.55) 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 8px 24px rgba(0, 0, 0, 0.22);
+}
+
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .sidebar-product-mark,
+body.dark-mode .sidebar-product-mark {
+  background: linear-gradient(145deg, #4338ca 0%, #5b21b6 50%, #6d28d9 100%);
+  box-shadow:
+    0 3px 14px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .sidebar-product-name,
+body.dark-mode .sidebar-product-name {
+  color: #f8fafc;
+  font-weight: 600;
 }
 
 /* Bottom logout */
@@ -253,41 +318,36 @@ body {
 }
 
 /* Dark mode: when html has .dark or body has .dark-mode */
-html.dark .sidebar,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .sidebar,
 body.dark-mode .sidebar {
   background: #1e293b;
   border-right: 1px solid rgba(255,255,255,0.06);
 }
 
-html.dark .sidebar-logo,
-body.dark-mode .sidebar-logo {
-  border-color: rgba(255,255,255,0.08);
-}
-
-html.dark .sidebar-nav-item,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .sidebar-nav-item,
 body.dark-mode .sidebar-nav-item {
   color: #e2e8f0;
 }
 
-html.dark .sidebar-nav-item:hover,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .sidebar-nav-item:hover,
 body.dark-mode .sidebar-nav-item:hover {
   background: rgba(255,255,255,0.08);
 }
 
-html.dark .sidebar-nav-item.sidebar-nav-active,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .sidebar-nav-item.sidebar-nav-active,
 body.dark-mode .sidebar-nav-item.sidebar-nav-active {
   background: var(--sidebar-active);
   color: white;
 }
 
-html.dark .sidebar-nav-icon,
-html.dark .sidebar-nav-arrow,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .sidebar-nav-icon,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .sidebar-nav-arrow,
 body.dark-mode .sidebar-nav-icon,
 body.dark-mode .sidebar-nav-arrow {
   color: #94a3b8;
 }
 
-html.dark .sidebar-footer,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .sidebar-footer,
 body.dark-mode .sidebar-footer {
   border-color: rgba(255,255,255,0.08);
 }
@@ -305,7 +365,7 @@ body.dark-mode .sidebar-footer {
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06), 0 4px 24px rgba(15, 23, 42, 0.04);
 }
 
-html.dark .app-top-header.topbar,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .app-top-header.topbar,
 body.dark-mode .app-top-header.topbar {
   background: #0f172a;
   border-bottom-color: rgba(148, 163, 184, 0.12);
@@ -370,7 +430,7 @@ body.dark-mode .app-top-header.topbar {
   max-width: 100%;
 }
 
-html.dark .topbar-page-title,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .topbar-page-title,
 body.dark-mode .topbar-page-title {
   color: #94a3b8;
 }
@@ -422,7 +482,7 @@ body.dark-mode .topbar-page-title {
   padding: 4px;
 }
 
-html.dark .app-header-brand-mark--logo,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .app-header-brand-mark--logo,
 body.dark-mode .app-header-brand-mark--logo {
   background: #1e293b;
   border-color: rgba(148, 163, 184, 0.2);
@@ -456,8 +516,8 @@ body.dark-mode .app-header-brand-mark--logo {
   color: #0f172a;
 }
 
-html.dark .app-header-school-name,
-html.dark .topbar-school-title,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .app-header-school-name,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .topbar-school-title,
 body.dark-mode .app-header-school-name,
 body.dark-mode .topbar-school-title {
   color: #f8fafc;
@@ -474,8 +534,8 @@ body.dark-mode .topbar-school-title {
   margin-top: 2px;
 }
 
-html.dark .app-header-brand-subtitle,
-html.dark .topbar-school-sub,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .app-header-brand-subtitle,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .topbar-school-sub,
 body.dark-mode .app-header-brand-subtitle,
 body.dark-mode .topbar-school-sub {
   color: #94a3b8;
@@ -513,7 +573,7 @@ body.dark-mode .topbar-school-sub {
   transform: translateY(-1px);
 }
 
-html.dark .app-header-icon-btn:hover,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .app-header-icon-btn:hover,
 body.dark-mode .app-header-icon-btn:hover {
   background: rgba(255, 255, 255, 0.08) !important;
 }
@@ -522,7 +582,7 @@ body.dark-mode .app-header-icon-btn:hover {
   box-shadow: 0 0 0 2px #fff;
 }
 
-html.dark .app-header-notif-badge,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .app-header-notif-badge,
 body.dark-mode .app-header-notif-badge {
   box-shadow: 0 0 0 2px #0f172a;
 }
@@ -548,7 +608,7 @@ body.dark-mode .app-header-notif-badge {
   font-size: 0.75rem;
 }
 
-html.dark .app-top-header .profile-avatar,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .app-top-header .profile-avatar,
 body.dark-mode .app-top-header .profile-avatar {
   border-color: #0f172a;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.08);
@@ -561,7 +621,7 @@ body.dark-mode .app-top-header .profile-avatar {
   letter-spacing: -0.02em;
 }
 
-html.dark .app-top-header .profile-first-name,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .app-top-header .profile-first-name,
 body.dark-mode .app-top-header .profile-first-name {
   color: #f1f5f9;
 }
@@ -594,16 +654,16 @@ body.dark-mode .app-top-header .profile-first-name {
   transform: rotate(180deg);
 }
 
-html.dark .app-top-header .profile-trigger:hover,
-html.dark .app-top-header .profile-trigger:focus-visible,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .app-top-header .profile-trigger:hover,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .app-top-header .profile-trigger:focus-visible,
 body.dark-mode .app-top-header .profile-trigger:hover,
 body.dark-mode .app-top-header .profile-trigger:focus-visible {
   background: rgba(255, 255, 255, 0.06) !important;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
 }
 
-html.dark .app-top-header .profile-trigger:hover .profile-avatar,
-html.dark .app-top-header .profile-trigger:focus-visible .profile-avatar,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .app-top-header .profile-trigger:hover .profile-avatar,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .app-top-header .profile-trigger:focus-visible .profile-avatar,
 body.dark-mode .app-top-header .profile-trigger:hover .profile-avatar,
 body.dark-mode .app-top-header .profile-trigger:focus-visible .profile-avatar {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(129, 140, 248, 0.35);
@@ -620,7 +680,7 @@ body.dark-mode .app-top-header .profile-trigger:focus-visible .profile-avatar {
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.12), 0 2px 8px rgba(15, 23, 42, 0.06);
 }
 
-html.dark .app-header-dropdown-menu,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .app-header-dropdown-menu,
 body.dark-mode .app-header-dropdown-menu {
   background: rgba(30, 41, 59, 0.94);
   border-color: rgba(148, 163, 184, 0.15) !important;
@@ -654,7 +714,7 @@ body.dark-mode .app-header-dropdown-menu {
   background: rgba(79, 70, 229, 0.08) !important;
 }
 
-html.dark .app-header-dropdown-item:hover,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .app-header-dropdown-item:hover,
 body.dark-mode .app-header-dropdown-item:hover {
   background: rgba(255, 255, 255, 0.08) !important;
 }
@@ -667,7 +727,7 @@ body.dark-mode .app-header-dropdown-item:hover {
   color: #0f172a;
 }
 
-html.dark .app-top-header .school-name,
+:is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .app-top-header .school-name,
 body.dark-mode .app-top-header .school-name {
   color: #f8fafc;
 }

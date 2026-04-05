@@ -29,7 +29,40 @@ from .models import (
     Purchase,
     Invoice,
     InvoiceItem,
+    HolidayCalendar,
+    HolidayEvent,
+    WorkingSundayOverride,
 )
+
+
+class HolidayEventInline(admin.TabularInline):
+    model = HolidayEvent
+    extra = 0
+    fields = ("name", "holiday_type", "start_date", "applies_to", "recurring_yearly", "description")
+
+
+class WorkingSundayOverrideInline(admin.TabularInline):
+    model = WorkingSundayOverride
+    extra = 0
+
+
+@admin.register(HolidayCalendar)
+class HolidayCalendarAdmin(admin.ModelAdmin):
+    list_display = ("academic_year", "name", "is_published", "use_split_calendars", "published_at")
+    list_filter = ("is_published", "use_split_calendars")
+    inlines = (HolidayEventInline, WorkingSundayOverrideInline)
+
+
+@admin.register(HolidayEvent)
+class HolidayEventAdmin(admin.ModelAdmin):
+    list_display = ("name", "calendar", "holiday_type", "start_date", "applies_to", "recurring_yearly")
+    list_filter = ("holiday_type", "applies_to", "recurring_yearly")
+    exclude = ("end_date",)
+
+
+@admin.register(WorkingSundayOverride)
+class WorkingSundayOverrideAdmin(admin.ModelAdmin):
+    list_display = ("calendar", "work_date", "applies_to", "note")
 
 
 @admin.register(AcademicYear)
@@ -98,8 +131,19 @@ class MarksAdmin(admin.ModelAdmin):
 
 @admin.register(Homework)
 class HomeworkAdmin(admin.ModelAdmin):
-    list_display = ("title", "subject", "teacher", "due_date")
-    list_filter = ("subject", "due_date")
+    list_display = (
+        "title",
+        "homework_type",
+        "status",
+        "priority",
+        "subject",
+        "assigned_date",
+        "due_date",
+        "max_marks",
+        "assigned_by",
+    )
+    list_filter = ("homework_type", "status", "priority", "subject", "due_date")
+    search_fields = ("title", "description", "instructions")
 
 
 @admin.register(FeeType)

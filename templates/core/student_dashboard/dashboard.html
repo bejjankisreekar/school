@@ -6,132 +6,171 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid px-0">
-
-  <!-- ✅ SUMMARY + ANALYTICS (MERGED CLEANLY) -->
-  <div class="card border-0 rounded-4 mb-4 summary-card">
-    <div class="card-body p-3 p-md-4">
-
-      <!-- Top Row -->
-      <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
-
-        <!-- Attendance -->
-        <div class="flex-fill" style="min-width:260px;">
-          <div>
-            <p class="text-muted small text-uppercase mb-1">Attendance</p>
-            <h3 class="fw-bold mb-1 
-              {% if attendance_percentage > 75 %}text-success
-              {% elif attendance_percentage >= 50 %}text-warning
-              {% else %}text-danger{% endif %}">
-              {{ attendance_percentage }}%
-            </h3>
-            <p class="text-muted small mb-0">
-              Present: {{ present_days }} / {{ total_days }}
-            </p>
+<div class="container-fluid px-0 stu-dash-root">
+  {# Row 1 — Attendance summary & stats (full width) #}
+  <div class="row g-3 mb-1 mb-lg-2">
+    <div class="col-12">
+      <div class="card border-0 rounded-4 summary-card">
+        <div class="card-body p-3 p-md-4">
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3 pb-2 border-bottom border-light-subtle">
+            <h2 class="h5 fw-bold mb-0">Attendance summary</h2>
+            <span class="badge rounded-pill text-bg-light text-body-secondary border fw-normal">Stats</span>
           </div>
-        </div>
 
-        <div class="vr d-none d-lg-block"></div>
-
-        <!-- Academic + Streak -->
-        <div class="text-md-end flex-fill" style="min-width:220px;">
-          <p class="text-muted small text-uppercase mb-1">Academic Year</p>
-          <h6 class="fw-semibold mb-2">{{ academic_year }}</h6>
-
-          <div class="d-flex justify-content-md-end gap-2 flex-wrap">
-            <div class="streak-pill">
-              <small class="text-muted d-block">Current</small>
-              <strong class="text-success">{{ current_streak }} 🔥</strong>
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div class="flex-fill" style="min-width:220px;">
+              <p class="text-muted small text-uppercase mb-1">Attendance</p>
+              <h3 class="fw-bold mb-1
+                {% if attendance_percentage > 75 %}text-success
+                {% elif attendance_percentage >= 50 %}text-warning
+                {% else %}text-danger{% endif %}">
+                {{ attendance_percentage }}%
+              </h3>
+              <p class="text-muted small mb-0">Present: {{ present_days }} / {{ total_days }}</p>
             </div>
-            <div class="streak-pill">
-              <small class="text-muted d-block">Best</small>
-              <strong class="text-primary">{{ best_streak }}</strong>
+            <div class="vr d-none d-lg-block"></div>
+            <div class="text-md-end flex-fill" style="min-width:200px;">
+              <p class="text-muted small text-uppercase mb-1">Academic year</p>
+              <h6 class="fw-semibold mb-2">{{ academic_year }}</h6>
+              <div class="d-flex justify-content-md-end gap-2 flex-wrap">
+                <div class="streak-pill">
+                  <small class="text-muted d-block">Current</small>
+                  <strong class="text-success">{{ current_streak }} 🔥</strong>
+                </div>
+                <div class="streak-pill">
+                  <small class="text-muted d-block">Best</small>
+                  <strong class="text-primary">{{ best_streak }}</strong>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
 
-      </div>
+          <div class="progress mt-3 mb-3" style="height:6px;">
+            <div class="progress-bar
+              {% if attendance_percentage > 75 %}bg-success
+              {% elif attendance_percentage >= 50 %}bg-warning
+              {% else %}bg-danger{% endif %}"
+              style="width: {{ attendance_percentage }}%"></div>
+          </div>
 
-      <!-- Progress -->
-      <div class="progress mt-3 mb-3" style="height:6px;">
-        <div class="progress-bar 
-          {% if attendance_percentage > 75 %}bg-success
-          {% elif attendance_percentage >= 50 %}bg-warning
-          {% else %}bg-danger{% endif %}"
-          style="width: {{ attendance_percentage }}%">
-        </div>
-      </div>
-
-      <!-- Charts -->
-      <div class="row g-3 mb-3">
-        <div class="col-lg-6 col-md-12">
-          <div class="card border-0 shadow-sm rounded-4 h-100">
-            <div class="card-body p-3">
-              <small class="text-muted">Exam Trend</small>
-              <div style="height:160px;">
-                <canvas id="examLineChart"></canvas>
+          <div class="row g-3">
+            <div class="col-lg-6 col-md-12">
+              <div class="card border-0 shadow-sm rounded-4 h-100 bg-body-tertiary bg-opacity-50">
+                <div class="card-body p-3">
+                  <small class="text-muted">Exam trend</small>
+                  <div style="height:160px;">
+                    <canvas id="examLineChart"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-6 col-md-12">
+              <div class="card border-0 shadow-sm rounded-4 h-100 bg-body-tertiary bg-opacity-50">
+                <div class="card-body p-3">
+                  <small class="text-muted">Subject %</small>
+                  <div style="height:160px;">
+                    <canvas id="subjectBarChart"></canvas>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
 
-        <div class="col-lg-6 col-md-12">
-          <div class="card border-0 shadow-sm rounded-4 h-100">
-            <div class="card-body p-3">
-              <small class="text-muted">Subject %</small>
-              <div style="height:160px;">
-                <canvas id="subjectBarChart"></canvas>
-              </div>
+  {# Row 2 — Calendar (left) | heatmap (right) #}
+  <div class="row g-3 align-items-start">
+    <div class="col-lg-5 col-xl-4">
+      <div id="student-attendance-calendar" class="card border-0 shadow-sm rounded-3 stu-dash-cal-card" tabindex="-1">
+        <div class="card-body p-2 p-sm-3">
+          <div class="d-flex align-items-center justify-content-between gap-1 mb-1">
+            <h3 class="h6 fw-bold mb-0 text-body text-truncate">Calendar</h3>
+            <div class="d-flex align-items-center flex-shrink-0 gap-0 stu-dash-cal-nav">
+              {% if calendar_prev_disabled %}
+              <span class="btn btn-sm btn-light border-0 text-muted disabled p-1" aria-disabled="true" title="Start of academic year"><i class="bi bi-chevron-left"></i></span>
+              {% else %}
+              <a class="btn btn-sm btn-light border-0 p-1"
+                 href="{% url 'core:student_dashboard' %}?month={{ calendar_prev_month }}&year={{ calendar_prev_year }}#student-attendance-calendar"
+                 title="Previous month" aria-label="Previous month"><i class="bi bi-chevron-left"></i></a>
+              {% endif %}
+              <span class="stu-dash-cal-month text-truncate">{{ calendar_month_label }}</span>
+              {% if calendar_next_disabled %}
+              <span class="btn btn-sm btn-light border-0 text-muted disabled p-1" aria-disabled="true" title="End of academic year"><i class="bi bi-chevron-right"></i></span>
+              {% else %}
+              <a class="btn btn-sm btn-light border-0 p-1"
+                 href="{% url 'core:student_dashboard' %}?month={{ calendar_next_month }}&year={{ calendar_next_year }}#student-attendance-calendar"
+                 title="Next month" aria-label="Next month"><i class="bi bi-chevron-right"></i></a>
+              {% endif %}
             </div>
           </div>
+          <div class="d-flex align-items-center justify-content-between gap-2 mb-2 flex-wrap">
+            {% if calendar_showing_today_month %}
+            <span class="btn btn-sm btn-outline-secondary disabled py-0 px-2" style="font-size:0.7rem;" aria-current="page">This month</span>
+            {% else %}
+            <a class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:0.7rem;"
+               href="{% url 'core:student_dashboard' %}?month={{ calendar_today_month }}&year={{ calendar_today_year }}#student-attendance-calendar">Today</a>
+            {% endif %}
+            <span class="small text-muted text-truncate" style="font-size:0.68rem;">Tap a day for status</span>
+          </div>
+
+          <div class="stu-dash-cal-wrap">
+            <div class="stu-dash-cal-weekdays" aria-hidden="true">
+              <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+            </div>
+            <div class="stu-dash-cal-grid" role="grid" aria-label="Attendance {{ calendar_month_label }}">
+              {% for cell in calendar_cells %}
+                {% if cell.is_blank %}
+                  <div class="stu-dash-cal-cell stu-dash-cal-cell--blank" aria-hidden="true"></div>
+                {% else %}
+                  <div class="stu-dash-cal-cell stu-dash-cal-cell--{{ cell.css }}{% if cell.is_today %} stu-dash-cal-cell--today{% endif %}"
+                       role="gridcell"
+                       title="{{ cell.title }}"
+                       data-bs-toggle="tooltip"
+                       data-bs-placement="top">{{ cell.day }}</div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+          <div class="stu-dash-cal-legend d-flex flex-wrap gap-2 mt-2 pt-2 border-top border-light-subtle">
+            <span class="text-nowrap" style="font-size:0.65rem;"><i class="bi bi-square-fill stu-leg-present me-1"></i>Present</span>
+            <span class="text-nowrap" style="font-size:0.65rem;"><i class="bi bi-square-fill stu-leg-absent me-1"></i>Absent</span>
+            <span class="text-nowrap" style="font-size:0.65rem;"><i class="bi bi-square-fill stu-leg-leave me-1"></i>Leave</span>
+            <span class="text-nowrap" style="font-size:0.65rem;"><i class="bi bi-square-fill stu-leg-none me-1"></i>None</span>
+          </div>
         </div>
-
       </div>
+      {% include "core/includes/holiday_portal_widget.html" with margin_class="mt-3" %}
+    </div>
 
-      <!-- Heatmap -->
-      <div class="attendance-grid mb-3">
-        {% for day in attendance_heatmap %}
-        <div class="attendance-day {{ day.css }}"
-             data-bs-toggle="tooltip"
-             title="{{ day.title }}">
+    <div class="col-lg-7 col-xl-8">
+      <div class="card border-0 shadow-sm rounded-3 stu-dash-heatmap-card h-100">
+        <div class="card-body p-3 p-md-4">
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+            <h3 class="h6 fw-bold mb-0">heatmap</h3>
+            <span class="text-muted small">Last ~20 weeks</span>
+          </div>
+          <p class="text-muted small mb-3">Each square is one school day in order (recent on the right).</p>
+          <div class="attendance-grid mb-3">
+            {% for day in attendance_heatmap %}
+            <div class="attendance-day {{ day.css }}"
+                 data-bs-toggle="tooltip"
+                 title="{{ day.title }}"></div>
+            {% endfor %}
+          </div>
+          <div class="d-flex flex-wrap gap-3 small text-muted pt-2 border-top border-light-subtle">
+            <div><span class="attendance-day present"></span> Present</div>
+            <div><span class="attendance-day absent"></span> Absent</div>
+            <div><span class="attendance-day leave"></span> Leave</div>
+            <div><span class="attendance-day holiday"></span> No record</div>
+          </div>
         </div>
-        {% endfor %}
       </div>
-
-      <!-- Legend -->
-      <div class="d-flex flex-wrap gap-3 small text-muted">
-        <div><span class="attendance-day present"></span> Present</div>
-        <div><span class="attendance-day absent"></span> Absent</div>
-        <div><span class="attendance-day leave"></span> Leave</div>
-        <div><span class="attendance-day holiday"></span> Holiday</div>
-      </div>
-
     </div>
   </div>
-
-  <!-- Calendar -->
-  <div class="card border-0 shadow-sm rounded-4 mb-4">
-    <div class="card-body">
-      <div class="d-flex justify-content-between mb-3">
-        <h6 class="fw-semibold">Attendance Calendar</h6>
-        <div class="d-flex gap-2">
-          <a class="btn btn-sm btn-light" href="?month={{ calendar_prev_month }}&year={{ calendar_prev_year }}">◀</a>
-          <span class="fw-semibold">{{ calendar_month_label }}</span>
-          <a class="btn btn-sm btn-light" href="?month={{ calendar_next_month }}&year={{ calendar_next_year }}">▶</a>
-        </div>
-      </div>
-
-      <div class="calendar-grid">
-        {% for day in calendar_cells %}
-          <div class="calendar-day {{ day.css }}">{{ day.day }}</div>
-        {% endfor %}
-      </div>
-    </div>
-  </div>
-
 </div>
 
-<!-- JSON DATA -->
 {{ exam_chart_labels|json_script:"exam-chart-labels" }}
 {{ exam_chart_data|json_script:"exam-chart-data" }}
 {{ attendance_pie.labels|json_script:"attendance-labels" }}
@@ -139,21 +178,117 @@
 {{ subject_chart_labels|json_script:"subject-chart-labels" }}
 {{ subject_chart_data|json_script:"subject-chart-data" }}
 
-<!-- Styles -->
 <style>
-.summary-card { box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-.attendance-grid { display:flex; flex-wrap:wrap; gap:5px; }
-.attendance-day { width:12px; height:12px; border-radius:3px; display:inline-block; vertical-align:middle; }
+#student-attendance-calendar { scroll-margin-top: 5.5rem; }
+.summary-card,
+.stu-dash-heatmap-card { box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+.attendance-grid { display:flex; flex-wrap:wrap; gap:4px; align-content:flex-start; }
+.attendance-day { width:11px; height:11px; border-radius:3px; display:inline-block; vertical-align:middle; }
+.stu-dash-heatmap-card .attendance-grid { gap:5px; }
+.stu-dash-heatmap-card .attendance-day { width:12px; height:12px; }
 .present{background:#16a34a;} .absent{background:#dc2626;}
 .leave{background:#facc15;} .holiday{background:#d1d5db;}
 .streak-pill { background:#f8f9fa; padding:6px 10px; border-radius:10px; }
-.calendar-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; }
-.calendar-day { height:40px; display:flex; align-items:center; justify-content:center; border-radius:8px; }
+html.dark .streak-pill { background: rgba(30, 41, 59, 0.6); }
+
+.stu-dash-cal-wrap {
+  max-width: 15rem;
+  width: 100%;
+}
+.stu-dash-cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.15rem;
+  margin-bottom: 0.2rem;
+  text-align: center;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--bs-secondary-color);
+}
+.stu-dash-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1.95rem));
+  gap: 0.15rem;
+}
+.stu-dash-cal-cell {
+  aspect-ratio: 1;
+  max-width: 1.95rem;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.3rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1;
+  border: 1px solid transparent;
+  transition: box-shadow 0.12s ease;
+}
+.stu-dash-cal-cell--blank {
+  visibility: hidden;
+  pointer-events: none;
+  max-width: 1.95rem;
+}
+.stu-dash-cal-cell--present {
+  background: rgba(22, 163, 74, 0.14);
+  color: #15803d;
+  border-color: rgba(22, 163, 74, 0.22);
+}
+.stu-dash-cal-cell--absent {
+  background: rgba(220, 38, 38, 0.12);
+  color: #b91c1c;
+  border-color: rgba(220, 38, 38, 0.2);
+}
+.stu-dash-cal-cell--leave {
+  background: rgba(234, 179, 8, 0.18);
+  color: #a16207;
+  border-color: rgba(234, 179, 8, 0.28);
+}
+.stu-dash-cal-cell--holiday {
+  background: var(--bs-tertiary-bg);
+  color: var(--bs-secondary-color);
+  border-color: var(--bs-border-color);
+  font-weight: 500;
+}
+.stu-dash-cal-cell--today {
+  box-shadow: 0 0 0 2px var(--bs-primary);
+  font-weight: 800;
+}
+html.dark .stu-dash-cal-cell--present { color: #4ade80; background: rgba(34, 197, 94, 0.12); }
+html.dark .stu-dash-cal-cell--absent { color: #f87171; background: rgba(248, 113, 113, 0.1); }
+html.dark .stu-dash-cal-cell--leave { color: #facc15; background: rgba(250, 204, 21, 0.12); }
+.stu-dash-cal-cell:not(.stu-dash-cal-cell--blank):hover {
+  box-shadow: 0 1px 6px rgba(15, 23, 42, 0.12);
+}
+.stu-dash-cal-month {
+  max-width: 6.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--bs-body-color);
+  text-align: center;
+}
+.stu-leg-present { color: #16a34a; font-size: 0.75rem; vertical-align: -0.1em; }
+.stu-leg-absent { color: #dc2626; font-size: 0.75rem; vertical-align: -0.1em; }
+.stu-leg-leave { color: #ca8a04; font-size: 0.75rem; vertical-align: -0.1em; }
+.stu-leg-none { color: #94a3b8; font-size: 0.75rem; vertical-align: -0.1em; }
+html.dark .stu-leg-none { color: #64748b; }
 </style>
 
-<!-- Charts -->
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+  if (window.location.hash === '#student-attendance-calendar') {
+    var cal = document.getElementById('student-attendance-calendar');
+    if (cal) {
+      requestAnimationFrame(function () {
+        cal.scrollIntoView({ block: 'start', behavior: 'auto' });
+        try { cal.focus({ preventScroll: true }); } catch (e) {}
+      });
+    }
+  }
+
   const examLabels = JSON.parse(document.getElementById('exam-chart-labels').textContent);
   const examData = JSON.parse(document.getElementById('exam-chart-data').textContent);
   const attLabels = JSON.parse(document.getElementById('attendance-labels').textContent);
@@ -163,11 +298,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
   new bootstrap.Tooltip(document.body, { selector: '[data-bs-toggle="tooltip"]' });
 
-  if (examLabels.length)
-    new Chart(examLineChart, { type:'line', data:{labels:examLabels, datasets:[{data:examData, borderColor:'#0d6efd'}]} });
+  var examCanvas = document.getElementById('examLineChart');
+  if (examCanvas && examLabels.length && typeof Chart !== 'undefined')
+    new Chart(examCanvas, { type:'line', data:{labels:examLabels, datasets:[{data:examData, borderColor:'#0d6efd'}]} });
 
-  if (subjLabels.length)
-    new Chart(subjectBarChart, { type:'bar', data:{labels:subjLabels, datasets:[{data:subjData}]} });
+  var subjCanvas = document.getElementById('subjectBarChart');
+  if (subjCanvas && subjLabels.length && typeof Chart !== 'undefined')
+    new Chart(subjCanvas, { type:'bar', data:{labels:subjLabels, datasets:[{data:subjData}]} });
 });
 </script>
 

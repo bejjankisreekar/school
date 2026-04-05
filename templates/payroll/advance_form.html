@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'payroll:payroll_dashboard' %}">Payroll</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'payroll:salary_advances_list' %}">Advances</a></li>
+      <li class="breadcrumb-item active">{{ title }}</li>
+    </ol>
+  </nav>
+
+  <h1 class="h4 fw-bold mb-4">{{ title }}</h1>
+
+  <div class="card border-0 shadow-sm rounded-3" style="max-width: 520px;">
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label class="form-label">Employee</label>
+          {{ form.teacher }}
+          {% if form.teacher.errors %}<div class="text-danger small">{{ form.teacher.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Advance amount</label>
+          {{ form.amount }}
+          {% if form.amount.errors %}<div class="text-danger small">{{ form.amount.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Advance date</label>
+          {{ form.advance_date }}
+          {% if form.advance_date.errors %}<div class="text-danger small">{{ form.advance_date.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Monthly deduction</label>
+          {{ form.monthly_deduction }}
+          {% if form.monthly_deduction.errors %}<div class="text-danger small">{{ form.monthly_deduction.errors.0 }}</div>{% endif %}
+          <div class="form-text">Recovered each payroll run until the balance is cleared.</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Reason (optional)</label>
+          {{ form.reason }}
+          {% if form.reason.errors %}<div class="text-danger small">{{ form.reason.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Status</label>
+          {{ form.status }}
+          {% if form.status.errors %}<div class="text-danger small">{{ form.status.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary">Save</button>
+          <a href="{% url 'payroll:salary_advances_list' %}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

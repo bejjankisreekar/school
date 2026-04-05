@@ -2,7 +2,7 @@
 {% block title %}Import Students | School ERP{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-0" style="max-width: 500px;">
+<div class="container-fluid px-0" style="max-width: 42rem;">
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
@@ -11,15 +11,44 @@
     </ol>
   </nav>
 
-  <h1 class="h4 fw-bold mb-4">Bulk Import Students</h1>
+  <h1 class="h4 fw-bold mb-3">Bulk Import Students</h1>
+
+  <div class="card border-0 shadow-sm rounded-3 mb-3">
+    <div class="card-body">
+      <h2 class="h6 fw-semibold mb-2">CSV format</h2>
+      <p class="text-muted small mb-3 mb-md-2">Use a UTF-8 <code>.csv</code> file. The <strong>first row must be the header</strong> and use the column names below <strong>exactly</strong> (lowercase, underscores as shown). Extra columns are ignored.</p>
+
+      <div class="row g-3 small">
+        <div class="col-md-6">
+          <p class="fw-semibold mb-1">Required <span class="text-danger">(every row)</span></p>
+          <ul class="mb-0 ps-3 text-muted">
+            <li><code>name</code> — full name (stored as first + last name)</li>
+            <li><code>username</code> — login id; must be unique in the system</li>
+            <li><code>password</code> — initial password</li>
+            <li><code>class</code> — class name; must match an existing class (grade) name in your school</li>
+            <li><code>roll_number</code> — roll / register number</li>
+          </ul>
+        </div>
+        <div class="col-md-6">
+          <p class="fw-semibold text-secondary mb-1">Optional</p>
+          <ul class="mb-0 ps-3 text-muted">
+            <li><code>section</code> — section letter/name; must match an existing section and be linked to that class, or it will be left blank</li>
+          </ul>
+          <p class="text-muted mt-2 mb-0">You may omit the <code>section</code> column entirely, or leave those cells empty.</p>
+        </div>
+      </div>
+
+      <p class="text-muted small mt-3 mb-0"><strong>Example header rows:</strong><br><code>name,username,password,class,section,roll_number</code><br><code>name,username,password,class,roll_number</code> <span class="text-secondary">(no section column)</span></p>
+    </div>
+  </div>
 
   <div class="card border-0 shadow-sm rounded-3">
     <div class="card-body">
-      <p class="text-muted small mb-3">Upload a CSV with columns: <code>name</code>, <code>username</code>, <code>password</code>, <code>class</code>, <code>section</code>, <code>roll_number</code></p>
       <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
         <div class="mb-3">
           <label for="id_csv_file" class="form-label">CSV File</label>
+          {% if form.csv_file.help_text %}<p class="form-text small text-muted mb-2">{{ form.csv_file.help_text }}</p>{% endif %}
           <input type="file" name="csv_file" id="id_csv_file" class="form-control" accept=".csv" required>
           {% if form.csv_file.errors %}<div class="invalid-feedback d-block">{{ form.csv_file.errors.0 }}</div>{% endif %}
         </div>

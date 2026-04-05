@@ -24,7 +24,7 @@ from django.db.models import Case, Count, F, IntegerField, Max, Min, Prefetch, Q
 from django.db.models.functions import Lower
 from django.db.models.expressions import RawSQL
 from django.core.paginator import Paginator
-from django.db.utils import DatabaseError, InternalError, OperationalError, ProgrammingError
+from django.db.utils import DatabaseError, InternalError, IntegrityError, OperationalError, ProgrammingError
 from apps.core.tenant_scope import ensure_tenant_for_request
 from apps.customers.billing_engine import (
     ensure_invoice_for_period,
@@ -39,6 +39,7 @@ from apps.customers.models import (
     School,
 )
 from apps.school_data.exam_session_compat import examsession_create_compat
+from apps.school_data.homework_schema_repair import ensure_homework_enterprise_columns_if_missing
 from apps.school_data.models import (
     Student,
     Teacher,
@@ -80,6 +81,9 @@ from apps.school_data.models import (
     StudentRouteAssignment,
     StudentPromotion,
     StudentEnrollment,
+    HolidayCalendar,
+    HolidayEvent,
+    WorkingSundayOverride,
 )
 User = get_user_model()
 from .utils import (
@@ -94,6 +98,8 @@ from .utils import (
 from .forms import (
     ContactEnquiryForm,
     ExamSessionPaperFormSet,
+    HolidayEventForm,
+    WorkingSundayOverrideForm,
     SaaSPlatformPaymentForm,
     SchoolEnrollmentSignupForm,
     SchoolExamSessionEditForm,
@@ -1291,7 +1297,7 @@ def admin_dashboard(request):
 
     attendance_trend = []
     if has_attendance and total_students:
-        for i in range(6, -1, -1):
+        for i in range(16, -1, -1):
             d = today - timedelta(days=i)
             pres = Attendance.objects.filter(
                 date=d,
@@ -1545,6 +1551,10 @@ def _homework_queryset_for_teacher(teacher, user):
     if not teacher:
         return Homework.objects.none()
 
+    ensure_homework_enterprise_columns_if_missing(connection)
+
+    from .utils import teacher_class_section_pairs_display
+
     q = Q(teacher_id=teacher.pk) | Q(assigned_by_id=user.pk)
 
     pairs = list(
@@ -1555,19 +1565,29 @@ def _homework_queryset_for_teacher(teacher, user):
     for cid, sid in pairs:
         q |= Q(classes__id=cid, sections__id=sid)
 
+    # Same class–section scope as school admin "Assigned classes" (M2M), not only CSST rows.
+    for cn, sn in teacher_class_section_pairs_display(teacher):
+        if cn and sn:
+            q |= Q(classes__name__iexact=cn, sections__name__iexact=sn)
+
     subj_ids = list(
         ClassSectionSubjectTeacher.objects.filter(teacher=teacher)
         .values_list("subject_id", flat=True)
         .distinct()
     )
+    subj_ids.extend(teacher.subjects.values_list("id", flat=True))
+    if teacher.subject_id:
+        subj_ids.append(teacher.subject_id)
+    subj_ids = list({x for x in subj_ids if x})
     if subj_ids:
         q |= Q(subject_id__in=subj_ids)
 
+    base = Homework.objects.filter(q).defer("attachment")
+    pk_subq = base.values("pk").distinct()
     return (
-        Homework.objects.filter(q)
-        .distinct()
+        Homework.objects.filter(pk__in=pk_subq)
         .defer("attachment")
-        .select_related("subject", "assigned_by", "teacher", "teacher__user")
+        .select_related("subject", "assigned_by", "teacher", "teacher__user", "academic_year")
         .prefetch_related("classes", "sections")
         .order_by("-due_date", "-created_at")
     )
@@ -1682,6 +1702,9 @@ def teacher_dashboard(request):
         homework_recent = list(qs[:8])
 
     assigned_subject_display = _teacher_assigned_subject_display(teacher)
+    from apps.school_data.calendar_policy import portal_holiday_widget_context
+
+    hol_ctx = portal_holiday_widget_context("teacher")
     return render(
         request,
         "core/dashboards/teacher_dashboard.html",
@@ -1697,6 +1720,7 @@ def teacher_dashboard(request):
             "has_exams": has_exams,
             "upcoming_exams": upcoming_exams,
             "upcoming_exams_count": upcoming_exams_count,
+            **hol_ctx,
         },
     )
 
@@ -1710,40 +1734,52 @@ def teacher_dashboard(request):
 def student_dashboard(request):
     student = getattr(request.user, "student_profile", None)
     if not student:
-        return render(request, "core/student_dashboard/dashboard.html", {
-            "attendance_list": [],
-            "total_days": 0,
-            "present_days": 0,
-            "attendance_percentage": 0,
-            "attendance_heatmap": [],
-            "academic_year": get_current_academic_year(),
-            "calendar_month_label": "",
-            "calendar_cells": [],
-            "calendar_prev_month": "",
-            "calendar_prev_year": "",
-            "calendar_next_month": "",
-            "calendar_next_year": "",
-            "current_streak": 0,
-            "best_streak": 0,
-            "insight_level": "info",
-            "insight_message": "No attendance data available.",
-            "attendance_pct": 0,
-            "attendance_pct_this_month": 0,
-            "latest_exam_pct": None,
-            "latest_exam_name": None,
-            "total_subjects": 0,
-            "overall_pct": 0,
-            "attendance_records": [],
-            "marks": [],
-            "marks_with_pct": [],
-            "homework": [],
-            "exam_chart_labels": [],
-            "exam_chart_data": [],
-            "attendance_pie": {"labels": ["Present", "Absent", "Leave"], "values": [0, 0, 0]},
-            "subject_chart_labels": [],
-            "subject_chart_data": [],
-            "today_classes": [],
-        })
+        from apps.school_data.calendar_policy import portal_holiday_widget_context
+
+        return render(
+            request,
+            "core/student_dashboard/dashboard.html",
+            {
+                "attendance_list": [],
+                "total_days": 0,
+                "present_days": 0,
+                "attendance_percentage": 0,
+                "attendance_heatmap": [],
+                "academic_year": get_current_academic_year(),
+                "calendar_month_label": "",
+                "calendar_cells": [],
+                "calendar_prev_month": "",
+                "calendar_prev_year": "",
+                "calendar_next_month": "",
+                "calendar_next_year": "",
+                "calendar_prev_disabled": True,
+                "calendar_next_disabled": True,
+                "calendar_today_month": date.today().month,
+                "calendar_today_year": date.today().year,
+                "calendar_showing_today_month": True,
+                "current_streak": 0,
+                "best_streak": 0,
+                "insight_level": "info",
+                "insight_message": "No attendance data available.",
+                "attendance_pct": 0,
+                "attendance_pct_this_month": 0,
+                "latest_exam_pct": None,
+                "latest_exam_name": None,
+                "total_subjects": 0,
+                "overall_pct": 0,
+                "attendance_records": [],
+                "marks": [],
+                "marks_with_pct": [],
+                "homework": [],
+                "exam_chart_labels": [],
+                "exam_chart_data": [],
+                "attendance_pie": {"labels": ["Present", "Absent", "Leave"], "values": [0, 0, 0]},
+                "subject_chart_labels": [],
+                "subject_chart_data": [],
+                "today_classes": [],
+                **portal_holiday_widget_context("student"),
+            },
+        )
     school = request.user.school
 
     # Academic year filter for attendance (active AcademicYear -> fallback to June-May window)
@@ -1867,11 +1903,22 @@ def student_dashboard(request):
     current_streak, best_streak = _attendance_streaks(attendance_year_records)
     insight_level, insight_message = _attendance_insight(attendance_pct)
 
-    calendar_cells = _build_calendar_data(attendance_year_records, today.year, today.month)
-    prev_month_year = today.year if today.month > 1 else today.year - 1
-    prev_month = today.month - 1 if today.month > 1 else 12
-    next_month_year = today.year if today.month < 12 else today.year + 1
-    next_month = today.month + 1 if today.month < 12 else 1
+    cal_nav = _student_dashboard_calendar_nav(request, today, ay_start, ay_end)
+    calendar_cells = _build_calendar_data(
+        attendance_year_records,
+        cal_nav["view_year"],
+        cal_nav["view_month"],
+        highlight_today=today,
+    )
+    if today < ay_start:
+        cal_today_y, cal_today_m = ay_start.year, ay_start.month
+    elif today > ay_end:
+        cal_today_y, cal_today_m = ay_end.year, ay_end.month
+    else:
+        cal_today_y, cal_today_m = today.year, today.month
+    calendar_showing_today_month = (
+        cal_nav["view_year"] == cal_today_y and cal_nav["view_month"] == cal_today_m
+    )
 
     # Analytics: Subject-wise % for latest exam (bar chart)
     subject_chart_labels = []
@@ -1882,16 +1929,10 @@ def student_dashboard(request):
             subject_chart_labels.append(m.subject.name)
             subject_chart_data.append(pct)
 
-    # Homework from student's school (attachment omitted in SELECT — column may be missing pre-migrate)
-    if school:
-        homework = list(
-            Homework.objects.all()
-            .defer("attachment")
-            .select_related("subject")
-            .order_by("due_date")[:20]
-        )
-    else:
-        homework = []
+    # Homework is loaded on the dedicated homework list page, not here (dashboard template
+    # does not use this context; avoids hitting Homework ORM columns when a tenant schema
+    # is missing migration 0045/0046/0049 columns such as assigned_date).
+    homework = []
 
     today_classes = []
     try:
@@ -1899,6 +1940,8 @@ def student_dashboard(request):
         today_classes = today_classes_student(student)
     except Exception:
         pass
+    from apps.school_data.calendar_policy import portal_holiday_widget_context
+
     return render(request, "core/student_dashboard/dashboard.html", {
         "attendance_list": list(attendance_year_qs.order_by("-date")),
         "total_days": total_att,
@@ -1906,12 +1949,17 @@ def student_dashboard(request):
         "attendance_percentage": attendance_pct,
         "academic_year": academic_year_label,
         "attendance_heatmap": attendance_heatmap,
-        "calendar_month_label": date(today.year, today.month, 1).strftime("%B %Y"),
+        "calendar_month_label": date(cal_nav["view_year"], cal_nav["view_month"], 1).strftime("%B %Y"),
         "calendar_cells": calendar_cells,
-        "calendar_prev_month": prev_month,
-        "calendar_prev_year": prev_month_year,
-        "calendar_next_month": next_month,
-        "calendar_next_year": next_month_year,
+        "calendar_prev_month": cal_nav["prev_month"],
+        "calendar_prev_year": cal_nav["prev_year"],
+        "calendar_next_month": cal_nav["next_month"],
+        "calendar_next_year": cal_nav["next_year"],
+        "calendar_prev_disabled": cal_nav["prev_disabled"],
+        "calendar_next_disabled": cal_nav["next_disabled"],
+        "calendar_today_month": cal_today_m,
+        "calendar_today_year": cal_today_y,
+        "calendar_showing_today_month": calendar_showing_today_month,
         "current_streak": current_streak,
         "best_streak": best_streak,
         "insight_level": insight_level,
@@ -1932,6 +1980,7 @@ def student_dashboard(request):
         "subject_chart_labels": subject_chart_labels,
         "subject_chart_data": subject_chart_data,
         "today_classes": today_classes,
+        **portal_holiday_widget_context("student"),
     })
 
 
@@ -2131,7 +2180,13 @@ def _build_attendance_heatmap(records, start_date, end_date):
     return cells
 
 
-def _build_calendar_data(records, year: int, month: int):
+def _build_calendar_data(
+    records,
+    year: int,
+    month: int,
+    *,
+    highlight_today: date | None = None,
+):
     """
     Build month calendar cells with leading/trailing blanks for a 7-column layout.
     Week starts on Sunday.
@@ -2157,14 +2212,19 @@ def _build_calendar_data(records, year: int, month: int):
             label = "Leave"
         else:
             css = "holiday"
-            label = "Holiday"
+            label = "No record"
+        is_today = highlight_today is not None and cur == highlight_today
+        title = f"{cur.isoformat()} — {label}"
+        if is_today:
+            title += " (today)"
         cells.append(
             {
                 "is_blank": False,
                 "day": day_num,
                 "css": css,
                 "label": label,
-                "title": f"{cur.isoformat()} - {label}",
+                "title": title,
+                "is_today": is_today,
             }
         )
 
@@ -2172,6 +2232,66 @@ def _build_calendar_data(records, year: int, month: int):
     while len(cells) % 7 != 0:
         cells.append({"is_blank": True})
     return cells
+
+
+def _student_dashboard_calendar_nav(request, today: date, ay_start: date, ay_end: date) -> dict:
+    """
+    Month/year for the attendance mini-calendar from GET (?month=&year=), clamped to the
+    academic year. Prev/next targets and disabled flags when hitting AY bounds.
+    """
+    ay_first = date(ay_start.year, ay_start.month, 1)
+    ay_last = date(ay_end.year, ay_end.month, 1)
+
+    def _default_ym():
+        t_first = date(today.year, today.month, 1)
+        if t_first < ay_first:
+            return ay_first.year, ay_first.month
+        if t_first > ay_last:
+            return ay_last.year, ay_last.month
+        return today.year, today.month
+
+    raw_m = (request.GET.get("month") or "").strip()
+    raw_y = (request.GET.get("year") or "").strip()
+    if raw_m == "" or raw_y == "":
+        y, m = _default_ym()
+    else:
+        try:
+            m = int(raw_m)
+            y = int(raw_y)
+        except (TypeError, ValueError):
+            y, m = _default_ym()
+        else:
+            if not (1 <= m <= 12 and 1900 <= y <= 2100):
+                y, m = _default_ym()
+
+    first = date(y, m, 1)
+    if first < ay_first:
+        y, m = ay_first.year, ay_first.month
+    elif first > ay_last:
+        y, m = ay_last.year, ay_last.month
+
+    if m == 1:
+        py, pm = y - 1, 12
+    else:
+        py, pm = y, m - 1
+    prev_disabled = date(py, pm, 1) < ay_first
+
+    if m == 12:
+        ny, nm = y + 1, 1
+    else:
+        ny, nm = y, m + 1
+    next_disabled = date(ny, nm, 1) > ay_last
+
+    return {
+        "view_year": y,
+        "view_month": m,
+        "prev_year": py,
+        "prev_month": pm,
+        "next_year": ny,
+        "next_month": nm,
+        "prev_disabled": prev_disabled,
+        "next_disabled": next_disabled,
+    }
 
 
 def _attendance_streaks(records):
@@ -2353,7 +2473,11 @@ def student_attendance(request):
     attendance_page = paginator.get_page(page_number)
     records = list(attendance_page.object_list)
     heatmap_days = _build_attendance_heatmap(list(reversed(records)), from_dt, to_dt)
-    calendar_cells = _build_calendar_data(records, year_int, month_int) if view_type == "monthly" else []
+    calendar_cells = (
+        _build_calendar_data(records, year_int, month_int, highlight_today=date.today())
+        if view_type == "monthly"
+        else []
+    )
     current_streak, best_streak = _attendance_streaks(sorted(records, key=lambda r: r.date))
     insight_level, insight_message = _attendance_insight(percentage)
     prev_year = year_int if month_int > 1 else year_int - 1
@@ -3926,6 +4050,15 @@ def school_student_view(request, student_id):
         "count": len(mark_pct_vals),
     }
 
+    student_profile_attendance_url = ""
+    if has_feature_access(school, "attendance", user=request.user):
+        student_profile_attendance_url = (
+            reverse("core:attendance_list") + "?" + urlencode({"student_id": student.id})
+        )
+    student_profile_exams_url = ""
+    if has_feature_access(school, "exams", user=request.user):
+        student_profile_exams_url = reverse("core:school_exams_list")
+
     ctx = {
         "student": student,
         "basic": basic,
@@ -3943,6 +4076,8 @@ def school_student_view(request, student_id):
         "documents": StudentDocument.objects.filter(student=student).select_related("uploaded_by"),
         "stats_attendance": stats_attendance,
         "stats_exams": stats_exams,
+        "student_profile_attendance_url": student_profile_attendance_url,
+        "student_profile_exams_url": student_profile_exams_url,
     }
     return render(request, "core/school/student_view.html", ctx)
 
@@ -4226,7 +4361,6 @@ def school_students_import(request):
         try:
             content = f.read().decode("utf-8-sig")
             reader = csv.DictReader(io.StringIO(content))
-            required = ["name", "username", "password", "class", "section", "roll_number"]
             with transaction.atomic():
                 for i, row in enumerate(reader, start=2):
                     try:
@@ -5448,6 +5582,22 @@ def attendance_list(request):
             messages.error(request, "Invalid attendance date.")
             return redirect("core:attendance_list")
 
+        from apps.school_data.calendar_policy import academic_year_for_date, resolve_day
+
+        ay_att = academic_year_for_date(att_date)
+        day_res = resolve_day(att_date, "student", ay=ay_att)
+        if not day_res.is_working_day:
+            msg = (
+                f"{att_date.strftime('%d %b %Y')}: {day_res.label}. "
+                "Attendance is not required on this day."
+            )
+            if wants_json:
+                return JsonResponse({"ok": False, "message": msg}, status=400)
+            messages.error(request, msg)
+            return _redirect_with_params(
+                classroom_id, section_id, date_str, search_q, post_focus_sid, post_page, post_per_page
+            )
+
         if att_date > today:
             if wants_json:
                 return JsonResponse({"ok": False, "message": "Failed to save attendance"}, status=400)
@@ -5661,6 +5811,12 @@ def attendance_list(request):
 
     future_date = att_date > today
 
+    from apps.school_data.calendar_policy import academic_year_for_date, resolve_day
+
+    ay_for_att_day = academic_year_for_date(att_date)
+    day_calendar = resolve_day(att_date, "student", ay=ay_for_att_day)
+    attendance_day_blocked = not day_calendar.is_working_day
+
     students_with_status = []
     attendance_summary = {"marked": 0, "pending": 0}
     attendance_state = None  # "marked" | "pending" | None
@@ -5833,6 +5989,8 @@ def attendance_list(request):
             "status_choices": Attendance.Status.choices,
             "focus_student": focus_student,
             "attendance_pct_scope_label": attendance_pct_scope_label,
+            "day_calendar": day_calendar,
+            "attendance_day_blocked": attendance_day_blocked,
         },
     )
 
@@ -5894,6 +6052,8 @@ def homework_list(request):
     if not has_feature_access(getattr(request.user, "school", None), "homework", user=request.user):
         return HttpResponseForbidden("This feature is not enabled for this school.")
 
+    ensure_homework_enterprise_columns_if_missing(connection)
+
     # Admin: redirect to school homework list
     if getattr(request.user, "role", None) == "ADMIN":
         return redirect("core:school_homework_list")
@@ -5914,15 +6074,18 @@ def homework_list(request):
             )
 
         # New: homework with classes + sections (student's class and section)
+        student_hw_statuses = [Homework.Status.PUBLISHED, Homework.Status.CLOSED]
         hw_class_section = []
         if student.section:
             hw_class_section = list(
                 Homework.objects.filter(
                     classes=student.classroom,
                     sections=student.section,
+                    status__in=student_hw_statuses,
                 )
                 .defer("attachment")
                 .prefetch_related("classes", "sections", "assigned_by")
+                .select_related("academic_year")
             )
         mapped_subject_ids = list(
             ClassSectionSubjectTeacher.objects.filter(
@@ -5933,7 +6096,8 @@ def homework_list(request):
         # Legacy: homework tied to a subject assigned to this class+section
         hw_legacy = Homework.objects.filter(
             subject_id__in=mapped_subject_ids,
-        ).defer("attachment").select_related("subject", "teacher", "teacher__user")
+            status__in=student_hw_statuses,
+        ).defer("attachment").select_related("subject", "teacher", "teacher__user", "academic_year")
         hw_ids_legacy = set(hw_legacy.values_list("id", flat=True))
         hw_new = [h for h in hw_class_section if h.id not in hw_ids_legacy]
         assignments_raw = list(hw_legacy) + hw_new
@@ -5969,7 +6133,8 @@ def homework_list(request):
                     "homework": hw,
                     "status": status,
                     "submission": sub,
-                    "is_overdue": hw.due_date < today and status != HomeworkSubmission.Status.COMPLETED,
+                    "is_overdue": hw.is_past_submission_deadline()
+                    and status != HomeworkSubmission.Status.COMPLETED,
                     "section_name": student.section.name if student.section else "N/A",
                 }
             )
@@ -5996,13 +6161,18 @@ def homework_list(request):
         classroom_filter = request.GET.get("classroom", "").strip()
         if classroom_filter.isdigit():
             qs = qs.filter(classes__id=int(classroom_filter))
-        homework_list = qs.distinct()
-        class_ids = list(
-            ClassSectionSubjectTeacher.objects.filter(teacher=teacher).values_list(
-                "class_obj_id", flat=True
-            ).distinct()
-        ) if teacher else []
-        classrooms = list(ClassRoom.objects.filter(id__in=class_ids).order_by("name"))
+        # qs is already pk-deduped in _homework_queryset_for_teacher; avoid .distinct() here
+        # (same PostgreSQL + order_by pitfall as the admin homework list).
+        homework_list = qs
+        class_ids = set()
+        if teacher:
+            class_ids.update(
+                ClassSectionSubjectTeacher.objects.filter(teacher=teacher).values_list(
+                    "class_obj_id", flat=True
+                ).distinct()
+            )
+            class_ids.update(teacher.classrooms.values_list("id", flat=True))
+        classrooms = list(ClassRoom.objects.filter(id__in=class_ids).order_by("name")) if class_ids else []
         return render(
             request,
             "core/teacher/homework_list.html",
@@ -6027,12 +6197,16 @@ def student_homework_submit(request, homework_id):
         messages.error(request, "Student profile is not configured.")
         return redirect("core:homework_list")
 
+    ensure_homework_enterprise_columns_if_missing(connection)
+
     homework = get_object_or_404(
         Homework.objects.defer("attachment")
         .prefetch_related("classes", "sections")
         .select_related("subject"),
         id=homework_id,
     )
+    if not homework.is_visible_to_students():
+        raise PermissionDenied
     # Check access: new model (classes+sections) or legacy (subject)
     if homework.classes.exists() or homework.sections.exists():
         if not student.section_id or not homework.classes.filter(id=student.classroom_id).exists() or not homework.sections.filter(id=student.section_id).exists():
@@ -6050,8 +6224,15 @@ def student_homework_submit(request, homework_id):
     else:
         raise PermissionDenied
 
+    if not homework.allows_new_submission():
+        messages.error(request, "Submissions are closed for this assignment.")
+        return redirect("core:homework_list")
+    if homework.is_past_submission_deadline():
+        messages.error(request, "The deadline for this assignment has passed.")
+        return redirect("core:homework_list")
+
     upload = request.FILES.get("submission_file")
-    if not upload:
+    if homework.submission_required and not upload:
         messages.error(request, "Please select a file to submit.")
         return redirect("core:homework_list")
 
@@ -6060,10 +6241,13 @@ def student_homework_submit(request, homework_id):
         student=student,
         defaults={"status": HomeworkSubmission.Status.PENDING},
     )
-    submission.submission_file = upload
+    update_fields = ["status", "submitted_at"]
+    if upload:
+        submission.submission_file = upload
+        update_fields.insert(0, "submission_file")
     submission.status = HomeworkSubmission.Status.COMPLETED
     submission.submitted_at = timezone.now()
-    submission.save(update_fields=["submission_file", "status", "submitted_at"])
+    submission.save(update_fields=update_fields)
 
     messages.success(request, f"Assignment submitted for '{homework.title}'.")
     return redirect("core:homework_list")
@@ -6071,26 +6255,47 @@ def student_homework_submit(request, homework_id):
 
 def _school_homework_list_queryset(request):
     # Omit attachment in SELECT when tenant DB predates migration 0037/0040 (column may be missing).
-    qs = (
-        Homework.objects.defer("attachment")
-        .prefetch_related("classes", "sections")
-        .select_related("assigned_by", "subject", "teacher", "teacher__user")
-        .order_by("-due_date", "-created_at")
-    )
+    # Dedupe by primary key via a subquery instead of .distinct() + .order_by() on the main row,
+    # which can return no rows on PostgreSQL for some join shapes.
+    ensure_homework_enterprise_columns_if_missing(connection)
+    base = Homework.objects.defer("attachment")
     classroom_filter = request.GET.get("classroom", "").strip()
     if classroom_filter.isdigit():
-        qs = qs.filter(classes__id=int(classroom_filter))
-    return qs.distinct(), classroom_filter
+        base = base.filter(classes__id=int(classroom_filter))
+    pk_subq = base.values("pk").distinct()
+    qs = (
+        Homework.objects.filter(pk__in=pk_subq)
+        .defer("attachment")
+        .prefetch_related("classes", "sections")
+        .select_related("assigned_by", "subject", "teacher", "teacher__user", "academic_year")
+        .order_by("-due_date", "-created_at")
+    )
+    return qs, classroom_filter
+
+
+def _homework_academic_year_display(hw):
+    if not hw.academic_year_id:
+        return "—"
+    try:
+        return hw.academic_year.name
+    except Exception:
+        return "—"
 
 
 def _homework_row_payload(hw, today):
     teacher_disp = ""
-    if hw.teacher_id and getattr(hw.teacher, "user", None):
-        u = hw.teacher.user
-        teacher_disp = u.get_full_name() or u.username or ""
+    try:
+        if hw.teacher_id and getattr(hw.teacher, "user", None):
+            u = hw.teacher.user
+            teacher_disp = u.get_full_name() or u.username or ""
+    except Exception:
+        teacher_disp = ""
     assigned = ""
-    if hw.assigned_by_id:
-        assigned = hw.assigned_by.get_full_name() or hw.assigned_by.username or ""
+    try:
+        if hw.assigned_by_id:
+            assigned = hw.assigned_by.get_full_name() or hw.assigned_by.username or ""
+    except Exception:
+        assigned = ""
     created_by_line = assigned or teacher_disp or "—"
     class_ids = [c.id for c in hw.classes.all()]
     section_ids = [s.id for s in hw.sections.all()]
@@ -6100,20 +6305,44 @@ def _homework_row_payload(hw, today):
     # may be missing on some tenants — any SELECT for attachment aborts Postgres transactions.
     att_url = ""
     att_name = ""
-    overdue = hw.due_date < today
+    overdue = hw.is_past_submission_deadline()
+    assigned_date_iso = hw.assigned_date.isoformat() if hw.assigned_date else ""
+    assigned_date_display = hw.assigned_date.strftime("%d %b %Y") if hw.assigned_date else "—"
+    late_until_iso = ""
+    if hw.late_submission_until:
+        late_until_iso = timezone.localtime(hw.late_submission_until).strftime("%Y-%m-%dT%H:%M")
     return {
         "id": hw.id,
         "subject": hw.subject.name if hw.subject_id else "",
         "subject_id": hw.subject_id,
         "title": hw.title,
         "description": hw.description,
+        "instructions": hw.instructions or "",
         "class_ids": class_ids,
         "section_ids": section_ids,
         "classes_display": classes_names or "—",
         "sections_display": sections_names or "—",
         "created_display": hw.created_at.strftime("%d %b %Y, %H:%M") if hw.created_at else "—",
+        "assigned_date_iso": assigned_date_iso,
+        "assigned_date_display": assigned_date_display,
         "due_date_iso": hw.due_date.isoformat(),
         "due_date_display": hw.due_date.strftime("%d %b %Y"),
+        "homework_type": hw.homework_type,
+        "homework_type_display": hw.get_homework_type_display(),
+        "submission_type": hw.submission_type,
+        "submission_type_display": hw.get_submission_type_display(),
+        "max_marks": hw.max_marks,
+        "estimated_duration_minutes": hw.estimated_duration_minutes,
+        "priority": hw.priority,
+        "priority_display": hw.get_priority_display(),
+        "workflow_status": hw.status,
+        "workflow_status_display": hw.get_status_display(),
+        "allow_late_submission": hw.allow_late_submission,
+        "late_submission_until_iso": late_until_iso,
+        "submission_required": hw.submission_required,
+        "academic_year_id": hw.academic_year_id,
+        "academic_year_display": _homework_academic_year_display(hw),
+        "assigned_by_id": hw.assigned_by_id,
         "attachment_name": att_name,
         "attachment_url": att_url,
         "created_by": created_by_line,
@@ -6129,16 +6358,13 @@ def _school_homework_list_context(request, homework_list, homework_edit_form=Non
     edit_form = homework_edit_form if homework_edit_form is not None else HomeworkCreateForm(user=request.user)
     classroom_filter = (request.GET.get("classroom") or "").strip()
     try:
-        classrooms = list(
-            ClassRoom.objects.select_related("academic_year").order_by(
-                "academic_year__start_date", "name"
+        with transaction.atomic():
+            classrooms = list(
+                ClassRoom.objects.select_related("academic_year").order_by(
+                    "academic_year__start_date", "name"
+                )
             )
-        )
     except (ProgrammingError, InternalError, DatabaseError, OperationalError):
-        try:
-            connection.rollback()
-        except Exception:
-            pass
         classrooms = []
     return {
         "homework_list": homework_list,
@@ -6164,20 +6390,15 @@ def school_homework_list(request):
     except Exception:
         pass
     qs, _ = _school_homework_list_queryset(request)
+    # Nested atomic = savepoint: if list(qs) fails (e.g. missing columns on a tenant),
+    # PostgreSQL aborts only the savepoint so the request transaction stays usable for
+    # template queries (HomeworkCreateForm widgets) under ATOMIC_REQUESTS.
     try:
-        homework_list = list(qs)
+        with transaction.atomic():
+            homework_list = list(qs)
     except (ProgrammingError, InternalError, DatabaseError, OperationalError):
-        try:
-            connection.rollback()
-        except Exception:
-            pass
         homework_list = []
     ctx = _school_homework_list_context(request, homework_list)
-    try:
-        if getattr(connection, "needs_rollback", False):
-            connection.rollback()
-    except Exception:
-        pass
     return render(request, "core/school/homework_list.html", ctx)
 
 
@@ -6189,18 +6410,25 @@ def school_homework_update(request, pk):
         return redirect("core:admin_dashboard")
     from .forms import HomeworkCreateForm
 
+    ensure_homework_enterprise_columns_if_missing(connection)
     hw = get_object_or_404(Homework.objects.defer("attachment"), pk=pk)
     if request.method != "POST":
         return redirect("core:school_homework_list")
     form = HomeworkCreateForm(request.POST, request.FILES, instance=hw, user=request.user)
     if form.is_valid():
         obj = form.save(commit=False)
+        if not obj.assigned_by_id:
+            obj.assigned_by = request.user
         obj.save()
         form.save_m2m()
         messages.success(request, "Homework updated successfully.")
         return redirect("core:school_homework_list")
     qs, _ = _school_homework_list_queryset(request)
-    homework_list = list(qs)
+    try:
+        with transaction.atomic():
+            homework_list = list(qs)
+    except (ProgrammingError, InternalError, DatabaseError, OperationalError):
+        homework_list = []
     ctx = _school_homework_list_context(
         request, homework_list, homework_edit_form=form, homework_edit_id=hw.id
     )
@@ -6215,6 +6443,7 @@ def school_homework_delete(request, pk):
         return redirect("core:admin_dashboard")
     if request.method != "POST":
         return redirect("core:school_homework_list")
+    ensure_homework_enterprise_columns_if_missing(connection)
     hw = get_object_or_404(Homework.objects.defer("attachment"), pk=pk)
     title = hw.title
     hw.delete()
@@ -6230,11 +6459,14 @@ def school_homework_create(request):
     if not school:
         return redirect("core:admin_dashboard")
     from .forms import HomeworkCreateForm
+
+    ensure_homework_enterprise_columns_if_missing(connection)
     if request.method == "POST":
         form = HomeworkCreateForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
             hw = form.save(commit=False)
-            hw.assigned_by = request.user
+            if not hw.assigned_by_id:
+                hw.assigned_by = request.user
             hw.save()
             form.save_m2m()
             messages.success(request, "Homework created successfully.")
@@ -6334,11 +6566,13 @@ def create_homework(request):
         messages.warning(request, "Teacher profile is not configured.")
         return redirect("core:teacher_dashboard")
 
+    ensure_homework_enterprise_columns_if_missing(connection)
     if request.method == "POST":
         form = HomeworkCreateForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
             hw = form.save(commit=False)
-            hw.assigned_by = request.user
+            if not hw.assigned_by_id:
+                hw.assigned_by = request.user
             hw.teacher = teacher
             hw.save()
             form.save_m2m()
@@ -6380,6 +6614,17 @@ def enter_marks(request):
                 section__name__iexact=student.section.name,
                 subject=subject,
             ).exists()
+            if not allowed:
+                from .utils import teacher_allowed_class_section_pairs_lower
+
+                pair_ok = (
+                    student.classroom.name.strip().lower(),
+                    student.section.name.strip().lower(),
+                ) in teacher_allowed_class_section_pairs_lower(teacher)
+                subj_ids = set(teacher.subjects.values_list("id", flat=True))
+                if teacher.subject_id:
+                    subj_ids.add(teacher.subject_id)
+                allowed = pair_ok and subject.id in subj_ids
             if not allowed:
                 return HttpResponseForbidden("This mark entry is not allowed.")
 
@@ -7578,15 +7823,21 @@ def school_exam_calendar(request):
     elif role == "TEACHER":
         teacher = getattr(request.user, "teacher_profile", None)
         if teacher:
-            pairs = (
-                ClassSectionSubjectTeacher.objects.filter(teacher=teacher)
-                .values_list("class_obj_id", "section_id")
-                .distinct()
-            )
-            cids = {p[0] for p in pairs if p[0]}
-            sids = {p[1] for p in pairs if p[1]}
-            classrooms = ClassRoom.objects.filter(id__in=cids).order_by("name")
-            sections = Section.objects.filter(id__in=sids).order_by("name")
+            cids = set()
+            sids = set()
+            for cid, sid in ClassSectionSubjectTeacher.objects.filter(teacher=teacher).values_list(
+                "class_obj_id", "section_id"
+            ).distinct():
+                if cid:
+                    cids.add(cid)
+                if sid:
+                    sids.add(sid)
+            for classroom in teacher.classrooms.all().prefetch_related("sections"):
+                cids.add(classroom.id)
+                for sec in classroom.sections.all():
+                    sids.add(sec.id)
+            classrooms = ClassRoom.objects.filter(id__in=cids).order_by("name") if cids else ClassRoom.objects.none()
+            sections = Section.objects.filter(id__in=sids).order_by("name") if sids else Section.objects.none()
 
     return render(
         request,
@@ -7803,13 +8054,23 @@ def _exam_enter_marks_view(request, exam_id, *, acting_as_admin):
             ).values_list("subject_id", flat=True).distinct()
         )
         subject_id_set = set(subject_ids)
+        from .utils import teacher_allowed_class_section_pairs_lower
+
+        if exam.class_name and exam.section:
+            if (
+                exam.class_name.strip().lower(),
+                exam.section.strip().lower(),
+            ) in teacher_allowed_class_section_pairs_lower(teacher):
+                subject_id_set.update(teacher.subjects.values_list("id", flat=True))
+                if teacher.subject_id:
+                    subject_id_set.add(teacher.subject_id)
         if exam.subject_id:
             if exam.subject_id in subject_id_set or (exam.teacher_id and exam.teacher_id == teacher.id):
                 subjects = Subject.objects.filter(id=exam.subject_id).order_by("name")
             else:
                 subjects = Subject.objects.none()
         else:
-            subjects = Subject.objects.filter(id__in=subject_ids).order_by("name")
+            subjects = Subject.objects.filter(id__in=subject_id_set).order_by("name")
 
     enter_marks_url = reverse(
         "core:school_exam_paper_enter_marks" if acting_as_admin else "core:teacher_exam_enter_marks",
@@ -8147,6 +8408,17 @@ def bulk_attendance(request):
             messages.error(request, "Cannot mark attendance for a future date.")
             return redirect("core:bulk_attendance")
 
+        from apps.school_data.calendar_policy import academic_year_for_date, resolve_day
+
+        ay_att = academic_year_for_date(att_date)
+        day_res = resolve_day(att_date, "student", ay=ay_att)
+        if not day_res.is_working_day:
+            messages.error(
+                request,
+                f"{att_date.strftime('%d %b %Y')}: {day_res.label}. Attendance is not required on this day.",
+            )
+            return redirect("core:bulk_attendance")
+
         # Enforce mapping: teacher may only mark attendance for mapped class+section.
         if (class_name.lower(), section_val.lower()) not in allowed_pairs_lower:
             return HttpResponseForbidden("You are not allowed to mark attendance for this class/section.")
@@ -8222,6 +8494,12 @@ def bulk_attendance(request):
         att_date = today
     future_date = att_date > today
 
+    from apps.school_data.calendar_policy import academic_year_for_date, resolve_day
+
+    ay_for_att = academic_year_for_date(att_date)
+    day_calendar = resolve_day(att_date, "student", ay=ay_for_att)
+    attendance_day_blocked = not day_calendar.is_working_day
+
     students = []
     existing_attendance = {}
     if class_name and section_val:
@@ -8260,6 +8538,8 @@ def bulk_attendance(request):
         "attendance_date": date_str,
         "students_with_status": students_with_status,
         "future_date": future_date,
+        "day_calendar": day_calendar,
+        "attendance_day_blocked": attendance_day_blocked,
     })
 
 
@@ -8292,6 +8572,18 @@ def mark_attendance(request):
             if (student.classroom.name.lower(), student.section.name.lower()) not in allowed_pairs_lower:
                 return HttpResponseForbidden("This attendance entry is not allowed.")
 
+            att_date = form.cleaned_data.get("date")
+            from apps.school_data.calendar_policy import academic_year_for_date, resolve_day
+
+            ay_att = academic_year_for_date(att_date)
+            day_res = resolve_day(att_date, "student", ay=ay_att)
+            if not day_res.is_working_day:
+                messages.error(
+                    request,
+                    f"{att_date.strftime('%d %b %Y')}: {day_res.label}. Attendance is not required on this day.",
+                )
+                return redirect("core:mark_attendance")
+
             att = form.save(commit=False)
             att.marked_by = request.user
             att.save()
@@ -8317,6 +8609,25 @@ def mark_attendance(request):
 # ======================
 
 
+@admin_required
+@feature_required("fees")
+def school_fee_collect_redirect(request, fee_id):
+    """Legacy /school/fees/collect/<fee_id>/ → new per-student collect screen."""
+    school = _school_fee_check(request)
+    if not school:
+        return redirect("core:admin_dashboard")
+    fee = get_object_or_404(Fee.objects.select_related("student"), pk=fee_id)
+    target = reverse("core:billing_student_collect", args=[fee.student_id])
+    if fee.academic_year_id:
+        target = f"{target}?ay={fee.academic_year_id}"
+    return redirect(target)
+
+
+def redirect_billing_dashboard(request, *args, **kwargs):
+    """Ignore path kwargs (e.g. legacy fee_id / payment_id) and send users to the billing hub."""
+    return redirect("core:billing_dashboard")
+
+
 def _school_fee_check(request):
     """Ensure school has fee module. Return school or None."""
     return _school_module_check(request, "fees")
@@ -8338,307 +8649,10 @@ def _school_module_check(request, feature: str):
     return school
 
 
-def _fee_balance_remaining(fee):
-    from decimal import Decimal
-
-    paid = Payment.objects.filter(fee=fee).aggregate(s=Sum("amount"))["s"] or Decimal("0")
-    return max(Decimal("0"), fee.effective_due_amount - paid)
-
-
-def _parse_fee_ledger_filters(request):
-    """GET params for hub student fee ledger (prefix l*)."""
-    classroom_id = None
-    section_id = None
-    if (v := (request.GET.get("lclass") or "").strip()):
-        try:
-            classroom_id = int(v)
-        except ValueError:
-            pass
-    if (v := (request.GET.get("lsec") or "").strip()):
-        try:
-            section_id = int(v)
-        except ValueError:
-            pass
-    search_q = (request.GET.get("ledger_q") or "").strip()
-    status_filter = (request.GET.get("lst") or "").strip() or None
-    fee_type_id = None
-    if (v := (request.GET.get("lft") or "").strip()):
-        try:
-            fee_type_id = int(v)
-        except ValueError:
-            pass
-    date_from = None
-    date_to = None
-    if (v := (request.GET.get("ldf") or "").strip()):
-        try:
-            date_from = date.fromisoformat(v)
-        except ValueError:
-            pass
-    if (v := (request.GET.get("ldt") or "").strip()):
-        try:
-            date_to = date.fromisoformat(v)
-        except ValueError:
-            pass
-    payment_mode = (request.GET.get("lpm") or "").strip() or None
-    return {
-        "classroom_id": classroom_id,
-        "section_id": section_id,
-        "search_q": search_q,
-        "status_filter": status_filter,
-        "fee_type_id": fee_type_id,
-        "date_from": date_from,
-        "date_to": date_to,
-        "payment_mode": payment_mode,
-    }
-
-
-@admin_required
-def school_fees_index(request):
-    """Fee management hub: KPIs, class-wise structure, ledger, charts, defaulters."""
-    school = _school_fee_check(request)
-    if not school:
-        add_warning_once(request, "fee_not_available_shown", "Fee module not available.")
-        return redirect("core:admin_dashboard")
-
-    from . import fee_services
-
-    ay = get_active_academic_year_obj()
-    ay_param = (request.GET.get("ay") or "").strip()
-    if ay_param:
-        try:
-            ay = AcademicYear.objects.get(pk=int(ay_param))
-        except (ValueError, AcademicYear.DoesNotExist):
-            pass
-
-    kpis = fee_services.build_kpis(ay)
-    fee_class_summaries = fee_services.build_fee_structure_class_summaries(ay)
-
-    lf = _parse_fee_ledger_filters(request)
-    ledger_rows, ledger_totals, ledger_charts = fee_services.build_filtered_fee_ledger(
-        ay,
-        classroom_id=lf["classroom_id"],
-        section_id=lf["section_id"],
-        search_q=lf["search_q"],
-        status_filter=lf["status_filter"],
-        fee_type_id=lf["fee_type_id"],
-        date_from=lf["date_from"],
-        date_to=lf["date_to"],
-        payment_mode=lf["payment_mode"],
-    )
-    ledger_paginator = Paginator(ledger_rows, 20)
-    ledger_page = ledger_paginator.get_page(request.GET.get("ledger_page") or 1)
-
-    lq = {}
-    if ay:
-        lq["ay"] = ay.id
-    if lf["classroom_id"]:
-        lq["lclass"] = lf["classroom_id"]
-    if lf["section_id"]:
-        lq["lsec"] = lf["section_id"]
-    if lf["search_q"]:
-        lq["ledger_q"] = lf["search_q"]
-    if lf["status_filter"]:
-        lq["lst"] = lf["status_filter"]
-    if lf["fee_type_id"]:
-        lq["lft"] = lf["fee_type_id"]
-    if lf["date_from"]:
-        lq["ldf"] = lf["date_from"].isoformat()
-    if lf["date_to"]:
-        lq["ldt"] = lf["date_to"].isoformat()
-    if lf["payment_mode"]:
-        lq["lpm"] = lf["payment_mode"]
-    ledger_filter_qs = urlencode(lq)
-
-    payment_preview = fee_services.payment_history_rows(ay, limit=25)
-    defaulters = fee_services.build_defaulters(ay, limit=40)
-
-    bar_labels, bar_vals = fee_services.chart_monthly_collections(8)
-    pie = fee_services.chart_paid_vs_pending(ay)
-    class_labels, class_vals = fee_services.chart_class_revenue(ay)
-
-    return render(
-        request,
-        "core/fees/dashboard.html",
-        {
-            "academic_year": ay,
-            "academic_years": AcademicYear.objects.order_by("-start_date"),
-            "kpis": kpis,
-            "fee_class_summaries": fee_class_summaries,
-            "ledger_page": ledger_page,
-            "ledger_totals": ledger_totals,
-            "ledger_filters": lf,
-            "ledger_filter_qs": ledger_filter_qs,
-            "ledger_charts": ledger_charts,
-            "payment_preview": payment_preview,
-            "defaulters": defaulters,
-            "chart_bar_labels": json.dumps(bar_labels),
-            "chart_bar_values": json.dumps(bar_vals),
-            "chart_pie_paid": pie["paid"],
-            "chart_pie_pending": pie["pending"],
-            "chart_class_labels": json.dumps(class_labels),
-            "chart_class_values": json.dumps(class_vals),
-            "ledger_chart_pie_paid": ledger_charts["pie_paid"],
-            "ledger_chart_pie_pending": ledger_charts["pie_pending"],
-            "ledger_chart_class_labels": json.dumps(ledger_charts["class_labels"]),
-            "ledger_chart_class_values": json.dumps(ledger_charts["class_values"]),
-            "ledger_chart_overdue_labels": json.dumps(ledger_charts["overdue_labels"]),
-            "ledger_chart_overdue_values": json.dumps(ledger_charts["overdue_values"]),
-            "classrooms": (
-                ClassRoom.objects.filter(academic_year_id=ay.id).order_by("name")
-                if ay
-                else ClassRoom.objects.all().order_by("name")
-            ),
-            "fee_sections": fee_services.section_class_pairs(),
-            "ledger_sections": fee_services.ledger_section_filter_choices(),
-            "fee_types_dd": FeeType.objects.filter(is_active=True).order_by("name"),
-            "payment_mode_choices": ["Cash", "UPI", "Card", "Bank transfer", "Online", "Cheque"],
-        },
-    )
-
-
-@admin_required
-def school_fee_ledger_export_csv(request):
-    school = _school_fee_check(request)
-    if not school:
-        return redirect("core:admin_dashboard")
-    from . import fee_services
-
-    ay = get_active_academic_year_obj()
-    ay_param = (request.GET.get("ay") or "").strip()
-    if ay_param:
-        try:
-            ay = AcademicYear.objects.get(pk=int(ay_param))
-        except (ValueError, AcademicYear.DoesNotExist):
-            pass
-
-    lf = _parse_fee_ledger_filters(request)
-    rows, _, _ = fee_services.build_filtered_fee_ledger(
-        ay,
-        classroom_id=lf["classroom_id"],
-        section_id=lf["section_id"],
-        search_q=lf["search_q"],
-        status_filter=lf["status_filter"],
-        fee_type_id=lf["fee_type_id"],
-        date_from=lf["date_from"],
-        date_to=lf["date_to"],
-        payment_mode=lf["payment_mode"],
-    )
-
-    response = HttpResponse(content_type="text/csv; charset=utf-8")
-    response["Content-Disposition"] = 'attachment; filename="fee_ledger_export.csv"'
-    w = csv.writer(response)
-    w.writerow(
-        [
-            "Student",
-            "Admission",
-            "Class",
-            "Section",
-            "Total fee (net)",
-            "Discount",
-            "Paid",
-            "Pending",
-            "Last payment",
-            "Status",
-        ]
-    )
-    for r in rows:
-        s = r["student"]
-        name = s.user.get_full_name() or s.user.username
-        w.writerow(
-            [
-                name,
-                r["admission"],
-                r["class_name"],
-                r["section_name"],
-                str(r["total_fee"]),
-                str(r["total_discount"]),
-                str(r["paid"]),
-                str(r["pending"]),
-                r["last_payment"].isoformat() if r["last_payment"] else "",
-                r["overall_status"],
-            ]
-        )
-    return response
-
-
 @admin_required
 def school_fee_types(request):
-    school = _school_fee_check(request)
-    if not school:
-        return redirect("core:admin_dashboard")
-    from .forms import FeeTypeForm
-
-    items = (
-        FeeType.objects.annotate(
-            mapped_classes=Count(
-                "structures__classroom",
-                filter=Q(structures__classroom__isnull=False),
-                distinct=True,
-            ),
-            structure_rows=Count("structures", distinct=True),
-        )
-        .prefetch_related(
-            Prefetch(
-                "structures",
-                queryset=FeeStructure.objects.select_related("classroom", "academic_year").order_by(
-                    "classroom__name", "academic_year__name", "fee_type__name"
-                ),
-            )
-        )
-        .order_by("name")
-    )
-
-    show_add_modal = False
-    if request.method == "POST":
-        form = FeeTypeForm(request.POST)
-        if form.is_valid():
-            obj = form.save(commit=False)
-            obj.save_with_audit(request.user)
-            messages.success(request, f"Fee type “{obj.name}” was added.")
-            return redirect("core:school_fee_types")
-        show_add_modal = True
-    else:
-        form = FeeTypeForm()
-
-    total_types = FeeType.objects.count()
-    active_types = FeeType.objects.filter(is_active=True).count()
-    inactive_types = total_types - active_types
-    classes_with_structures = (
-        FeeStructure.objects.filter(classroom_id__isnull=False)
-        .values("classroom_id")
-        .distinct()
-        .count()
-    )
-
-    usage_payload = {}
-    for ft in items:
-        usage_payload[str(ft.id)] = [
-            {
-                "classroom": s.classroom.name if s.classroom_id else "—",
-                "year": s.academic_year.name if s.academic_year_id else "—",
-                "amount": str(s.amount),
-                "frequency": s.get_frequency_display(),
-                "mapping_active": s.is_active,
-            }
-            for s in ft.structures.all()
-        ]
-
-    return render(
-        request,
-        "core/fees/fee_types.html",
-        {
-            "form": form,
-            "items": items,
-            "show_add_modal": show_add_modal,
-            "ft_kpis": {
-                "total": total_types,
-                "active": active_types,
-                "inactive": inactive_types,
-                "mapped_classes": classes_with_structures,
-            },
-            "usage_payload": usage_payload,
-        },
-    )
+    """Legacy URL — fee types live under Fee categories."""
+    return redirect("core:billing_fee_categories")
 
 
 @admin_required
@@ -8657,7 +8671,7 @@ def school_fee_type_update(request, pk):
         messages.success(request, f"Fee type “{obj.name}” was updated.")
     else:
         messages.error(request, "Could not save fee type. Check the fields and try again.")
-    return redirect("core:school_fee_types")
+    return redirect("core:billing_fee_categories")
 
 
 @admin_required
@@ -8676,425 +8690,13 @@ def school_fee_type_delete(request, pk):
         name = ft.name
         ft.delete()
         messages.success(request, f"Fee type “{name}” was deleted.")
-    return redirect("core:school_fee_types")
+    return redirect("core:billing_fee_categories")
 
 
 @admin_required
 def school_fee_structure(request):
-    school = _school_fee_check(request)
-    if not school:
-        return redirect("core:admin_dashboard")
-    from .forms import FeeStructureForm
-    items = FeeStructure.objects.all().select_related("fee_type", "classroom", "academic_year")
-    if request.method == "POST":
-        form = FeeStructureForm(school, request.POST)
-        if form.is_valid():
-            obj = form.save(commit=False)
-            obj.save_with_audit(request.user)
-            return redirect("core:school_fee_structure")
-    else:
-        form = FeeStructureForm(school)
-    return render(
-        request,
-        "core/fees/fee_structure.html",
-        {
-            "form": form,
-            "items": items,
-            "all_classrooms": ClassRoom.objects.all().order_by("name"),
-        },
-    )
-
-
-@admin_required
-def school_fee_add(request):
-    """Generate fee dues from structure, and record student-wise payments (same page)."""
-    from decimal import Decimal
-
-    from .forms import PaymentForm
-
-    school = _school_fee_check(request)
-    if not school:
-        return redirect("core:admin_dashboard")
-
-    students_qs = Student.objects.select_related("user", "classroom", "section").order_by(
-        "user__last_name", "user__first_name", "user__username"
-    )
-
-    selected_student = None
-    pending_fees = []
-    record_form = None
-    preselected_fee_id = None
-
-    student_param = request.POST.get("record_student") or request.GET.get("student")
-    if student_param:
-        try:
-            selected_student = students_qs.get(pk=int(student_param))
-        except (ValueError, Student.DoesNotExist):
-            selected_student = None
-        if selected_student:
-            pending_fees = list(
-                Fee.objects.filter(
-                    student=selected_student,
-                    status__in=["PENDING", "PARTIAL"],
-                )
-                .select_related("fee_structure__fee_type")
-                .order_by("due_date")
-            )
-
-    fee_qs = request.GET.get("fee") or request.POST.get("record_fee")
-    if fee_qs:
-        try:
-            preselected_fee_id = int(fee_qs)
-        except (TypeError, ValueError):
-            preselected_fee_id = None
-
-    if pending_fees:
-        valid_fee_ids = {f.id for f in pending_fees}
-        if preselected_fee_id not in valid_fee_ids:
-            preselected_fee_id = pending_fees[0].id
-
-    if request.method == "POST" and request.POST.get("record_payment"):
-        fee_obj = None
-        sid = request.POST.get("record_student")
-        fid = request.POST.get("record_fee")
-        if sid and fid:
-            try:
-                fee_obj = Fee.objects.select_related("student").get(
-                    pk=int(fid),
-                    student_id=int(sid),
-                    status__in=["PENDING", "PARTIAL"],
-                )
-            except (ValueError, Fee.DoesNotExist):
-                fee_obj = None
-        if fee_obj:
-            record_form = PaymentForm(request.POST, fee=fee_obj)
-            if record_form.is_valid():
-                with transaction.atomic():
-                    p = record_form.save(commit=False)
-                    p.fee = fee_obj
-                    p.received_by = request.user
-                    p.save()
-                    paid = Payment.objects.filter(fee=fee_obj).aggregate(s=Sum("amount"))["s"] or Decimal("0")
-                    if paid >= fee_obj.effective_due_amount:
-                        fee_obj.status = "PAID"
-                    else:
-                        fee_obj.status = "PARTIAL"
-                    fee_obj.save(update_fields=["status"])
-                messages.success(
-                    request,
-                    f"Recorded {p.amount} from {fee_obj.student.user.get_full_name() or fee_obj.student.user.username} "
-                    f"({p.payment_method}).",
-                )
-                return redirect(f"{reverse('core:school_fee_add')}?student={fee_obj.student_id}")
-        else:
-            record_form = PaymentForm(request.POST, fee=None)
-            messages.error(request, "Select a student and a pending fee due, then try again.")
-    elif request.method == "GET" and selected_student and pending_fees:
-        target_fee = None
-        if preselected_fee_id:
-            for pf in pending_fees:
-                if pf.id == preselected_fee_id:
-                    target_fee = pf
-                    break
-        if target_fee is None:
-            target_fee = pending_fees[0]
-        remaining = _fee_balance_remaining(target_fee)
-        record_form = PaymentForm(
-            fee=target_fee,
-            initial={"payment_date": date.today(), "amount": remaining},
-        )
-
-    if request.method == "POST" and not request.POST.get("record_payment"):
-        structure_id = request.POST.get("fee_structure")
-        classroom_id = request.POST.get("classroom")
-        due_date_str = request.POST.get("due_date")
-        if structure_id and due_date_str:
-            try:
-                structure = FeeStructure.objects.get(id=structure_id)
-                due_date = date.fromisoformat(due_date_str)
-                classroom = ClassRoom.objects.filter(id=classroom_id).first() if classroom_id else None
-                students = Student.objects.all()
-                if classroom:
-                    students = students.filter(classroom=classroom)
-                created = 0
-                for s in students:
-                    _, created_flag = Fee.objects.get_or_create(
-                        student=s,
-                        fee_structure=structure,
-                        due_date=due_date,
-                        defaults={
-                            "amount": structure.amount,
-                            "academic_year": structure.academic_year,
-                        },
-                    )
-                    if created_flag:
-                        created += 1
-                messages.success(request, f"Generated {created} new fee due(s).")
-            except (ValueError, FeeStructure.DoesNotExist):
-                messages.error(request, "Could not generate fees. Check the form and try again.")
-        return redirect("core:school_fee_collection")
-
-    structures = FeeStructure.objects.all().select_related("fee_type", "classroom")
-    classrooms = ClassRoom.objects.all()
-    pending_rows = []
-    for f in pending_fees:
-        pending_rows.append({"fee": f, "balance": _fee_balance_remaining(f)})
-
-    return render(
-        request,
-        "core/fees/fee_add.html",
-        {
-            "structures": structures,
-            "classrooms": classrooms,
-            "students": students_qs,
-            "selected_student": selected_student,
-            "pending_rows": pending_rows,
-            "record_form": record_form,
-            "preselected_fee_id": preselected_fee_id,
-        },
-    )
-
-
-@admin_required
-def school_fee_collection(request):
-    school = _school_fee_check(request)
-    if not school:
-        return redirect("core:admin_dashboard")
-    dues = Fee.objects.filter(status__in=["PENDING", "PARTIAL"]).select_related(
-        "student__user", "fee_structure__fee_type"
-    ).order_by("due_date")
-    students = Student.objects.select_related("user").order_by("user__last_name", "user__first_name")
-    student_filter = (request.GET.get("student") or "").strip()
-    filtered_student = None
-    if student_filter:
-        try:
-            fid = int(student_filter)
-            filtered_student = Student.objects.select_related("user").filter(pk=fid).first()
-            dues = dues.filter(student_id=fid)
-        except ValueError:
-            pass
-    return render(
-        request,
-        "core/fees/fee_collection.html",
-        {
-            "dues": dues,
-            "students": students,
-            "student_filter": student_filter,
-            "filtered_student": filtered_student,
-        },
-    )
-
-
-@admin_required
-def school_fee_collect(request, fee_id):
-    school = _school_fee_check(request)
-    if not school:
-        return redirect("core:admin_dashboard")
-    from decimal import Decimal
-
-    from django.db.models import Prefetch
-
-    from . import fee_services
-    from .forms import FeeConcessionForm, PaymentForm
-
-    fee = get_object_or_404(
-        Fee.objects.select_related(
-            "student__user",
-            "student__classroom",
-            "student__section",
-            "fee_structure__fee_type",
-            "academic_year",
-        ),
-        id=fee_id,
-    )
-    student = fee.student
-
-    student_fees_qs = Fee.objects.filter(student=student).select_related(
-        "fee_structure__fee_type", "academic_year"
-    )
-    if fee.academic_year_id:
-        student_fees_qs = student_fees_qs.filter(academic_year_id=fee.academic_year_id)
-    student_fees = list(
-        student_fees_qs.order_by("fee_structure__fee_type__name", "due_date", "id").prefetch_related(
-            Prefetch(
-                "payments",
-                queryset=Payment.objects.select_related("received_by").order_by("-payment_date", "-id"),
-            )
-        )
-    )
-
-    def _same_ledger_filter(qs):
-        if fee.academic_year_id:
-            return qs.filter(fee__academic_year_id=fee.academic_year_id)
-        return qs
-
-    payment_history = list(
-        _same_ledger_filter(
-            Payment.objects.filter(fee__student=student).select_related(
-                "fee__fee_structure__fee_type", "received_by"
-            )
-        ).order_by("-payment_date", "-id")
-    )
-
-    ledger_rows = []
-    total_original = Decimal("0")
-    total_discount = Decimal("0")
-    total_final = Decimal("0")
-    total_paid_sum = Decimal("0")
-    total_balance_sum = Decimal("0")
-    concessions_map = {}
-    for f in student_fees:
-        paid = fee_services.fee_amount_paid(f)
-        bal = fee_services.fee_balance(f)
-        st = fee_services.fee_line_collection_status(f)
-        total_original += f.amount
-        total_discount += f.total_concession_amount
-        total_final += f.effective_due_amount
-        total_paid_sum += paid
-        total_balance_sum += bal
-        ledger_rows.append(
-            {
-                "fee": f,
-                "original": f.amount,
-                "discount": f.total_concession_amount,
-                "final_due": f.effective_due_amount,
-                "paid": paid,
-                "balance": bal,
-                "status": st,
-            }
-        )
-        concessions_map[str(f.id)] = {
-            "fixed": str(f.concession_fixed),
-            "percent": str(f.concession_percent),
-            "kind": f.concession_kind,
-            "note": f.concession_note or "",
-        }
-
-    default_pay_fee = fee
-    for f in student_fees:
-        if fee_services.fee_balance(f) > 0:
-            default_pay_fee = f
-            break
-    balance_due = _fee_balance_remaining(default_pay_fee)
-    selected_pay_fee_id = default_pay_fee.id
-    selected_concession_fee_id = default_pay_fee.id
-
-    payment_targets = []
-    for f in student_fees:
-        b = fee_services.fee_balance(f)
-        label = f"{f.fee_structure.fee_type.name} · Due {f.due_date}"
-        payment_targets.append({"id": f.id, "label": label, "balance": float(b)})
-
-    form = PaymentForm(
-        fee=default_pay_fee,
-        initial={"payment_date": date.today(), "amount": balance_due},
-    )
-    concession_instance = next(
-        (x for x in student_fees if x.id == selected_concession_fee_id),
-        default_pay_fee,
-    )
-    concession_form = FeeConcessionForm(instance=concession_instance)
-
-    if request.method == "POST":
-        action = (request.POST.get("form_action") or "").strip()
-        if action == "save_concession":
-            try:
-                cfid = int(request.POST.get("concession_fee_id") or 0)
-            except (TypeError, ValueError):
-                cfid = 0
-            cfee = get_object_or_404(Fee, pk=cfid, student_id=student.id)
-            if fee.academic_year_id and cfee.academic_year_id != fee.academic_year_id:
-                messages.error(request, "That fee line is not on this ledger.")
-                return redirect("core:school_fee_collect", fee_id=fee.id)
-            cform = FeeConcessionForm(request.POST, instance=cfee)
-            selected_concession_fee_id = cfee.id
-            if cform.is_valid():
-                cform.save()
-                cfee.refresh_from_db()
-                paid_now = fee_services.fee_amount_paid(cfee)
-                if paid_now >= cfee.effective_due_amount:
-                    cfee.status = "PAID"
-                elif paid_now > 0:
-                    cfee.status = "PARTIAL"
-                else:
-                    cfee.status = "PENDING"
-                cfee.save(update_fields=["status"])
-                messages.success(request, "Concession updated. Balances recalculated.")
-                return redirect("core:school_fee_collect", fee_id=fee.id)
-            concession_form = cform
-            messages.error(request, "Fix the concession form and try again.")
-        else:
-            try:
-                pay_fid = int(request.POST.get("payment_fee_id") or fee_id)
-            except (TypeError, ValueError):
-                pay_fid = fee_id
-            target_fee = get_object_or_404(Fee, pk=pay_fid, student_id=student.id)
-            if fee.academic_year_id and target_fee.academic_year_id != fee.academic_year_id:
-                messages.error(request, "Invalid fee line for this ledger.")
-                return redirect("core:school_fee_collect", fee_id=fee.id)
-            form = PaymentForm(request.POST, fee=target_fee)
-            selected_pay_fee_id = target_fee.id
-            if form.is_valid():
-                with transaction.atomic():
-                    p = form.save(commit=False)
-                    p.fee = target_fee
-                    p.received_by = request.user
-                    p.save()
-                    paid = (
-                        Payment.objects.filter(fee=target_fee).aggregate(s=Sum("amount"))["s"] or Decimal("0")
-                    )
-                    if paid >= target_fee.effective_due_amount:
-                        target_fee.status = "PAID"
-                    else:
-                        target_fee.status = "PARTIAL"
-                    target_fee.save(update_fields=["status"])
-                messages.success(request, "Payment recorded.")
-                return redirect("core:school_fee_collect", fee_id=fee.id)
-            messages.error(request, "Fix the payment form and try again.")
-
-    parent_display = (student.parent_name or "").strip() or "—"
-    phone_display = (student.parent_phone or student.phone or "").strip() or "—"
-
-    return render(
-        request,
-        "core/fees/collect.html",
-        {
-            "form": form,
-            "fee": fee,
-            "student": student,
-            "ledger_rows": ledger_rows,
-            "total_original": total_original,
-            "total_discount": total_discount,
-            "total_final": total_final,
-            "total_paid_sum": total_paid_sum,
-            "total_balance_sum": total_balance_sum,
-            "payment_history": payment_history,
-            "payment_targets": payment_targets,
-            "selected_pay_fee_id": selected_pay_fee_id,
-            "selected_concession_fee_id": selected_concession_fee_id,
-            "concession_form": concession_form,
-            "concessions_map": concessions_map,
-            "balance_due": balance_due,
-            "parent_display": parent_display,
-            "phone_display": phone_display,
-        },
-    )
-
-
-@admin_required
-def school_fee_receipt_pdf(request, payment_id):
-    school = request.user.school
-    if not school:
-        raise PermissionDenied
-    payment = get_object_or_404(Payment, id=payment_id)
-    from .pdf_utils import render_pdf_bytes, pdf_response
-    pdf_bytes = render_pdf_bytes(
-        "core/fees/receipt_pdf.html",
-        {"payment": payment, "school": school},
-    )
-    if not pdf_bytes:
-        raise Http404("PDF generation failed")
-    return pdf_response(pdf_bytes, f"fee_receipt_{payment.id}.pdf")
+    """Legacy URL — class fee structure hub."""
+    return redirect("core:billing_fee_structure")
 
 
 @admin_required
@@ -9110,12 +8712,12 @@ def school_fee_structure_apply(request, structure_id):
     section_id = int(section_raw) if section_raw.isdigit() else None
     if not due_str:
         messages.error(request, "Choose a due date before applying the fee structure.")
-        return redirect("core:school_fees_index")
+        return redirect("core:billing_dashboard")
     try:
         due_date = date.fromisoformat(due_str)
     except ValueError:
         messages.error(request, "Invalid due date.")
-        return redirect("core:school_fees_index")
+        return redirect("core:billing_dashboard")
     from . import fee_services
 
     n, err = fee_services.apply_structure_to_students(structure, due_date, section_id=section_id)
@@ -9123,143 +8725,7 @@ def school_fee_structure_apply(request, structure_id):
         messages.error(request, err)
     else:
         messages.success(request, f"Applied: {n} new fee due(s) created for students in this class.")
-    return redirect("core:school_fees_index")
-
-
-@admin_required
-@require_POST
-def school_fee_structure_clone(request, structure_id):
-    """Clone one fee structure to other classes (same academic year & fee type rules)."""
-    school = _school_fee_check(request)
-    if not school:
-        return redirect("core:admin_dashboard")
-    structure = get_object_or_404(FeeStructure, pk=structure_id)
-    raw_ids = request.POST.getlist("target_classrooms")
-    target_ids = []
-    for x in raw_ids:
-        try:
-            target_ids.append(int(x))
-        except (TypeError, ValueError):
-            continue
-    if not target_ids:
-        messages.error(request, "Select at least one target class.")
-        return redirect("core:school_fee_structure")
-    from . import fee_services
-
-    n = fee_services.clone_structure_to_classes(structure, target_ids, request.user)
-    messages.success(request, f"Cloned to {n} class(es). Configure or apply dues from the billing hub.")
-    return redirect("core:school_fee_structure")
-
-
-@admin_required
-def school_fee_payments(request):
-    """Payment history with filters (full page)."""
-    school = _school_fee_check(request)
-    if not school:
-        return redirect("core:admin_dashboard")
-    from . import fee_services
-
-    ay = get_active_academic_year_obj()
-    ay_param = (request.GET.get("ay") or "").strip()
-    if ay_param.isdigit():
-        try:
-            ay = AcademicYear.objects.get(pk=int(ay_param))
-        except AcademicYear.DoesNotExist:
-            pass
-    else:
-        ay_param = str(ay.id) if ay else ""
-
-    def _int(v):
-        try:
-            return int(v)
-        except (TypeError, ValueError):
-            return None
-
-    class_id = _int(request.GET.get("classroom_id"))
-    section_id = _int(request.GET.get("section_id"))
-    student_id = _int(request.GET.get("student_id"))
-    fee_type_id = _int(request.GET.get("fee_type_id"))
-    status_filter = (request.GET.get("status") or "").strip() or None
-    date_from = None
-    date_to = None
-    if request.GET.get("date_from"):
-        try:
-            date_from = date.fromisoformat(request.GET["date_from"])
-        except ValueError:
-            pass
-    if request.GET.get("date_to"):
-        try:
-            date_to = date.fromisoformat(request.GET["date_to"])
-        except ValueError:
-            pass
-
-    rows = fee_services.payment_history_rows(
-        ay,
-        class_id=class_id,
-        section_id=section_id,
-        student_id=student_id,
-        fee_type_id=fee_type_id,
-        status_filter=status_filter,
-        date_from=date_from,
-        date_to=date_to,
-        limit=500,
-    )
-    return render(
-        request,
-        "core/fees/payments_history.html",
-        {
-            "academic_year": ay,
-            "academic_years": AcademicYear.objects.order_by("-start_date"),
-            "rows": rows,
-            "classrooms": ClassRoom.objects.all().order_by("name"),
-            "fee_sections": fee_services.section_class_pairs(),
-            "students": Student.objects.select_related("user").order_by("user__last_name", "user__first_name"),
-            "fee_types_dd": FeeType.objects.filter(is_active=True).order_by("name"),
-            "filters": {
-                "classroom_id": class_id,
-                "section_id": section_id,
-                "student_id": student_id,
-                "fee_type_id": fee_type_id,
-                "status": status_filter or "",
-                "date_from": request.GET.get("date_from") or "",
-                "date_to": request.GET.get("date_to") or "",
-                "ay": ay_param or (str(ay.id) if ay else ""),
-            },
-        },
-    )
-
-
-@admin_required
-def school_fee_payments_export_csv(request):
-    school = _school_fee_check(request)
-    if not school:
-        return redirect("core:admin_dashboard")
-    import csv
-
-    from . import fee_services
-
-    ay = get_active_academic_year_obj()
-    rows = fee_services.payment_history_rows(ay, limit=5000)
-    response = HttpResponse(content_type="text/csv; charset=utf-8")
-    response["Content-Disposition"] = 'attachment; filename="fee_payments.csv"'
-    w = csv.writer(response)
-    w.writerow(["Receipt", "Student", "Class", "Fee type", "Amount", "Mode", "Date", "Fee status"])
-    for r in rows:
-        st = r["student"]
-        name = st.user.get_full_name() or st.user.username
-        w.writerow(
-            [
-                r["receipt_no"],
-                name,
-                r["class_name"],
-                r["fee_type"],
-                str(r["amount"]),
-                r["mode"],
-                r["date"].isoformat(),
-                r["status"],
-            ]
-        )
-    return response
+    return redirect("core:billing_dashboard")
 
 
 # ======================
@@ -9269,14 +8735,24 @@ def school_fee_payments_export_csv(request):
 
 @parent_required
 def parent_dashboard(request):
+    from apps.school_data.calendar_policy import portal_holiday_widget_context
+
     parent = getattr(request.user, "parent_profile", None)
     if not parent:
-        return render(request, "core/parent/dashboard.html", {"children": []})
+        return render(
+            request,
+            "core/parent/dashboard.html",
+            {"children": [], **portal_holiday_widget_context("student")},
+        )
     children = list(
         Student.objects.filter(guardians__parent=parent)
         .select_related("user", "classroom", "section")
     )
-    return render(request, "core/parent/dashboard.html", {"children": children})
+    return render(
+        request,
+        "core/parent/dashboard.html",
+        {"children": children, **portal_holiday_widget_context("student")},
+    )
 
 
 @parent_required
@@ -9531,11 +9007,13 @@ def school_staff_attendance(request):
         col = status_col_map.get(row["status"])
         if col:
             by_teacher[tid][col] = row["cnt"]
-    # Working days in date range (Mon-Fri)
+    from apps.school_data.calendar_policy import academic_year_for_date, resolve_day
+
     total_working_days = 0
     d = start_date
     while d <= end_date:
-        if d.weekday() not in (5, 6):
+        ay_d = academic_year_for_date(d)
+        if resolve_day(d, "teacher", ay=ay_d).is_working_day:
             total_working_days += 1
         d += timedelta(days=1)
 
@@ -9597,13 +9075,16 @@ def school_staff_attendance_detail(request, teacher_id):
     )
     by_date = {r.date: r for r in records}
 
+    from apps.school_data.calendar_policy import academic_year_for_date, resolve_day
+
     leading_blanks = (first_day.weekday() + 1) % 7
     cells = [{"is_blank": True} for _ in range(leading_blanks)]
     for day_num in range(1, last_day_num + 1):
         cur = date(year, month, day_num)
         rec = by_date.get(cur)
-        is_weekend = cur.weekday() in (5, 6)
         is_future = cur > today
+        ay_cur = academic_year_for_date(cur)
+        pol = resolve_day(cur, "teacher", ay=ay_cur)
         if rec:
             status = rec.status
             remarks = rec.remarks or ""
@@ -9621,8 +9102,8 @@ def school_staff_attendance_detail(request, teacher_id):
                 css, label = "other", rec.get_status_display() or "Other"
         elif is_future:
             css, label, remarks = "future", "Future", ""
-        elif is_weekend:
-            css, label, remarks = "weekend", "Weekend", ""
+        elif not pol.is_working_day:
+            css, label, remarks = "weekend", pol.label, pol.detail or ""
         else:
             css, label, remarks = "no-data", "Not Marked", ""
         title = f"{cur.strftime('%d %b %Y')} - {label}"
@@ -9649,7 +9130,8 @@ def school_staff_attendance_detail(request, teacher_id):
     working_days = 0
     for d in range(1, last_day_num + 1):
         cur = date(year, month, d)
-        if cur.weekday() not in (5, 6) and cur <= today:
+        ay_cur = academic_year_for_date(cur)
+        if cur <= today and resolve_day(cur, "teacher", ay=ay_cur).is_working_day:
             working_days += 1
         rec = by_date.get(cur)
         if rec:
@@ -9682,12 +9164,25 @@ def school_staff_attendance_mark(request):
     except (ValueError, TypeError):
         att_date = date.today()
         att_date_str = att_date.isoformat()
+
+    from apps.school_data.calendar_policy import academic_year_for_date, resolve_day
+
+    ay_att = academic_year_for_date(att_date)
+    day_calendar = resolve_day(att_date, "teacher", ay=ay_att)
+    attendance_day_blocked = not day_calendar.is_working_day
+
     records = StaffAttendance.objects.filter(
         teacher__user__school=school,
         date=att_date,
     ).select_related("teacher")
     by_teacher = {r.teacher_id: r for r in records}
     if request.method == "POST":
+        if attendance_day_blocked:
+            messages.error(
+                request,
+                f"{att_date.strftime('%d %b %Y')}: {day_calendar.label}. Staff attendance is not required on this day.",
+            )
+            return redirect(f"{reverse('core:school_staff_attendance_mark')}?date={att_date_str}")
         valid_statuses = {s[0] for s in STATUS_CHOICES}
         for t in teachers:
             key = f"status_{t.id}"
@@ -9708,7 +9203,235 @@ def school_staff_attendance_mark(request):
         "staff_rows": staff_rows,
         "att_date": att_date_str,
         "status_choices": STATUS_CHOICES,
+        "day_calendar": day_calendar,
+        "attendance_day_blocked": attendance_day_blocked,
     })
+
+
+# ======================
+# Holiday calendar & working-day policy
+# ======================
+
+
+@login_required
+@feature_required("attendance")
+def school_calendar_holidays(request):
+    """Holiday calendar: school admins manage; teachers, students, and parents view (read-only)."""
+    role = getattr(request.user, "role", None)
+    if role == User.Roles.SUPERADMIN:
+        return HttpResponseForbidden("Sign in as a school user to view this calendar.")
+    if role not in (
+        User.Roles.ADMIN,
+        User.Roles.TEACHER,
+        User.Roles.STUDENT,
+        User.Roles.PARENT,
+    ):
+        return HttpResponseForbidden("This calendar is not available for your role.")
+
+    school = request.user.school
+    if not school:
+        add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
+        return redirect("core:admin_dashboard")
+    if not has_feature_access(school, "attendance", user=request.user):
+        return HttpResponseForbidden("This feature is not enabled for this school.")
+
+    can_manage = role == User.Roles.ADMIN
+    calendar_dashboard_url = {
+        User.Roles.ADMIN: "core:admin_dashboard",
+        User.Roles.TEACHER: "core:teacher_dashboard",
+        User.Roles.STUDENT: "core:student_dashboard",
+        User.Roles.PARENT: "core:parent_dashboard",
+    }[role]
+
+    from apps.school_data.calendar_policy import (
+        build_month_cells,
+        ensure_calendar_for_academic_year,
+        publish_calendar,
+        unpublish_calendar,
+    )
+
+    def _parse_int(val):
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return None
+
+    years_qs = AcademicYear.objects.order_by("-start_date")
+    ay_id = _parse_int(request.GET.get("ay") or request.POST.get("ay"))
+    active_ay = get_active_academic_year_obj()
+    ay = years_qs.filter(pk=ay_id).first() if ay_id else (active_ay or years_qs.first())
+    if not ay:
+        messages.warning(request, "Create an academic year before the school calendar is available.")
+        if can_manage:
+            return redirect("core:school_academic_years")
+        return redirect(calendar_dashboard_url)
+
+    try:
+        cal = ensure_calendar_for_academic_year(ay)
+    except ProgrammingError:
+        messages.error(
+            request,
+            "The school calendar tables are missing on this database. From the project root, run: "
+            "python manage.py ensure_holiday_calendar_tables",
+        )
+        return redirect(calendar_dashboard_url)
+
+    today = date.today()
+
+    year = _parse_int(request.GET.get("year")) or today.year
+    month = _parse_int(request.GET.get("month")) or today.month
+    if month < 1:
+        month = 1
+    if month > 12:
+        month = 12
+    # Students and parents always see the student calendar; teachers always see the staff calendar.
+    # Only school admins may switch audience (or override via query string).
+    if can_manage:
+        raw_aud = request.GET.get("audience")
+        if raw_aud is not None:
+            audience = (raw_aud or "").strip().lower()
+            if audience not in ("student", "teacher"):
+                audience = "student"
+        else:
+            audience = "student"
+    else:
+        audience = "teacher" if role == User.Roles.TEACHER else "student"
+
+    edit_event_id = _parse_int(request.GET.get("edit_event")) if can_manage else None
+    edit_event = None
+    if edit_event_id:
+        edit_event = HolidayEvent.objects.filter(pk=edit_event_id, calendar=cal).first()
+
+    event_form = None
+    sunday_form = None
+
+    if request.method == "POST" and not can_manage:
+        return HttpResponseForbidden("Only school admins can change the holiday calendar.")
+
+    if request.method == "POST":
+        py = _parse_int(request.POST.get("planner_year"))
+        pm = _parse_int(request.POST.get("planner_month"))
+        if py:
+            year = py
+        if pm and 1 <= pm <= 12:
+            month = pm
+        if can_manage:
+            pa = (request.POST.get("planner_audience") or "").strip().lower()
+            if pa in ("student", "teacher"):
+                audience = pa
+
+        def _hol_redirect():
+            return redirect(
+                f"{reverse('core:school_calendar_holidays')}?{urlencode({'ay': ay.id, 'year': year, 'month': month, 'audience': audience})}"
+            )
+
+        form_type = (request.POST.get("form_type") or "").strip()
+        if form_type == "publish":
+            publish_calendar(cal, user=request.user)
+            messages.success(request, f"Holiday calendar for {ay.name} is now published.")
+            return _hol_redirect()
+        if form_type == "unpublish":
+            unpublish_calendar(cal, user=request.user)
+            messages.success(
+                request,
+                f"Holiday calendar for {ay.name} is unpublished (only the default Sunday rule applies).",
+            )
+            return _hol_redirect()
+        if form_type == "split_toggle":
+            cal.use_split_calendars = request.POST.get("use_split_calendars") == "1"
+            cal.save_with_audit(request.user)
+            messages.success(request, "Calendar display preference updated.")
+            return _hol_redirect()
+        if form_type == "holiday_event":
+            edit_id = _parse_int(request.POST.get("event_id"))
+            instance = HolidayEvent.objects.filter(pk=edit_id, calendar=cal).first() if edit_id else None
+            bound = HolidayEventForm(request.POST, instance=instance, academic_year=ay)
+            if bound.is_valid():
+                obj = bound.save(commit=False)
+                obj.calendar = cal
+                obj.save_with_audit(request.user)
+                messages.success(request, "Holiday saved.")
+                return _hol_redirect()
+            messages.error(request, "Please correct the errors below.")
+            event_form = bound
+        elif form_type == "delete_event":
+            eid = _parse_int(request.POST.get("event_id"))
+            if eid:
+                HolidayEvent.objects.filter(pk=eid, calendar=cal).delete()
+                messages.success(request, "Holiday removed.")
+            return _hol_redirect()
+        elif form_type == "working_sunday":
+            bound = WorkingSundayOverrideForm(request.POST)
+            if bound.is_valid():
+                obj = bound.save(commit=False)
+                obj.calendar = cal
+                try:
+                    obj.save_with_audit(request.user)
+                except IntegrityError:
+                    messages.error(request, "That Sunday and audience already has an override.")
+                    sunday_form = bound
+                else:
+                    messages.success(request, "Working Sunday saved.")
+                    return _hol_redirect()
+            else:
+                messages.error(request, "Please correct the working Sunday form.")
+                sunday_form = bound
+        elif form_type == "delete_working_sunday":
+            wid = _parse_int(request.POST.get("override_id"))
+            if wid:
+                WorkingSundayOverride.objects.filter(pk=wid, calendar=cal).delete()
+                messages.success(request, "Working Sunday override removed.")
+            return _hol_redirect()
+
+    if can_manage:
+        if event_form is None:
+            event_form = HolidayEventForm(
+                instance=edit_event,
+                initial={"calendar": cal},
+                academic_year=ay,
+            )
+            if not edit_event:
+                event_form.fields["calendar"].initial = cal.pk
+        if sunday_form is None:
+            sunday_form = WorkingSundayOverrideForm(initial={"calendar": cal.pk})
+
+    events = list(HolidayEvent.objects.filter(calendar=cal).order_by("start_date", "name"))
+    overrides = list(cal.working_sunday_overrides.order_by("work_date"))
+
+    month_cells_student = build_month_cells(year, month, cal, audience="student")
+    month_cells_teacher = build_month_cells(year, month, cal, audience="teacher")
+    month_cells = month_cells_teacher if audience == "teacher" else month_cells_student
+
+    prev_m, prev_y = (month - 1, year) if month > 1 else (12, year - 1)
+    next_m, next_y = (month + 1, year) if month < 12 else (1, year + 1)
+
+    return render(
+        request,
+        "core/school/calendar/holidays.html",
+        {
+            "academic_years": years_qs,
+            "ay": ay,
+            "cal": cal,
+            "events": events,
+            "overrides": overrides,
+            "event_form": event_form,
+            "sunday_form": sunday_form,
+            "edit_event": edit_event,
+            "planner_year": year,
+            "planner_month": month,
+            "planner_month_label": date(year, month, 1).strftime("%B %Y"),
+            "month_cells": month_cells,
+            "month_cells_student": month_cells_student,
+            "month_cells_teacher": month_cells_teacher,
+            "audience": audience,
+            "prev_month": prev_m,
+            "prev_year": prev_y,
+            "next_month": next_m,
+            "next_year": next_y,
+            "holiday_cal_can_manage": can_manage,
+            "calendar_dashboard_url": calendar_dashboard_url,
+        },
+    )
 
 
 # ======================
@@ -9786,47 +9509,7 @@ def school_ai_reports(request):
     if not school:
         add_warning_once(request, "ai_reports_not_available", "AI Reports module not available in your plan.")
         return redirect("core:admin_dashboard")
-    # Student performance summary
-    marks_qs = Marks.objects.filter(exam__isnull=False)
-    by_student = {}
-    for m in marks_qs.select_related("student", "subject", "exam"):
-        sid = m.student_id
-        if sid not in by_student:
-            by_student[sid] = {"student": m.student, "total_o": 0, "total_m": 0}
-        by_student[sid]["total_o"] += m.marks_obtained
-        by_student[sid]["total_m"] += m.total_marks
-    perf = []
-    for d in by_student.values():
-        tm = d["total_m"]
-        pct = round((d["total_o"] / tm * 100) if tm else 0, 1)
-        perf.append({"student": d["student"], "pct": pct})
-    perf.sort(key=lambda x: -x["pct"])
-
-    # Class performance
-    by_class = {}
-    for m in marks_qs.select_related("student__classroom"):
-        cid = m.student.classroom_id if m.student.classroom_id else 0
-        if cid not in by_class:
-            by_class[cid] = {"name": m.student.classroom.name if m.student.classroom else "Unassigned", "total_o": 0, "total_m": 0, "count": 0}
-        by_class[cid]["total_o"] += m.marks_obtained
-        by_class[cid]["total_m"] += m.total_marks
-        by_class[cid]["count"] += 1
-    class_perf = [{"name": v["name"], "pct": round((v["total_o"] / v["total_m"] * 100) if v["total_m"] else 0, 1), "count": v["count"]} for v in by_class.values()]
-
-    # Attendance trends (last 30 days)
-    start = date.today() - timedelta(days=30)
-    att_qs = Attendance.objects.filter(date__gte=start)
-    daily = att_qs.values("date").annotate(
-        present=Count("id", filter=Q(status="PRESENT")),
-        total=Count("id"),
-    ).order_by("date")
-    trends = [{"date": d["date"], "present": d["present"], "total": d["total"], "pct": round((d["present"] / d["total"] * 100) if d["total"] else 0, 1)} for d in daily]
-
-    return render(request, "core/ai_reports.html", {
-        "student_performance": perf[:20],
-        "class_performance": class_perf,
-        "attendance_trends": trends,
-    })
+    return redirect("reports:dashboard")
 
 
 # ======================

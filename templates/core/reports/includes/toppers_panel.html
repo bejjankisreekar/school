@@ -1,0 +1,197 @@
+{# Embedded toppers (Analytics dashboard). Preserves hub filters via hidden fields. #}
+<section class="analytics-dash-section mb-3 no-print" id="panel-toppers" aria-labelledby="panel-toppers-heading">
+  <p class="rpt-section-label mb-1">Exam toppers</p>
+  <h2 class="h6 fw-bold mb-2" id="panel-toppers-heading">Toppers</h2>
+
+  <form method="get" action="{% url 'reports:dashboard' %}" class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2 px-3">
+      <input type="hidden" name="academic_year" value="{{ analytics_selected_year_id|default:'' }}">
+      <input type="hidden" name="date_from" value="{{ analytics_date_from_iso|default:'' }}">
+      <input type="hidden" name="date_to" value="{{ analytics_date_to_iso|default:'' }}">
+      <input type="hidden" name="classroom" value="{{ analytics_classroom_id|default:'' }}">
+      <input type="hidden" name="section" value="{{ analytics_section_id|default:'' }}">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label small mb-0">Exam</label>
+          <select name="top_exam" class="form-select form-select-sm">
+            <option value="">All exams</option>
+            {% for e in toppers_exams %}
+            <option value="{{ e.id }}" {% if toppers_selected_exam == e.id|stringformat:"s" %}selected{% endif %}>{{ e.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small mb-0">Class</label>
+          <select name="top_classroom" class="form-select form-select-sm">
+            <option value="">All classes</option>
+            {% for c in toppers_classes %}
+            <option value="{{ c.id }}" {% if toppers_selected_classroom == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small mb-0">Section</label>
+          <select name="top_section" class="form-select form-select-sm">
+            <option value="">All sections</option>
+            {% for s in toppers_sections %}
+            <option value="{{ s.id }}" {% if toppers_selected_section == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small mb-0">Top</label>
+          <select name="top_limit" class="form-select form-select-sm">
+            <option value="3" {% if toppers_top_n == 3 %}selected{% endif %}>Top 3</option>
+            <option value="10" {% if toppers_top_n == 10 %}selected{% endif %}>Top 10</option>
+          </select>
+        </div>
+        <div class="col-md-1 d-grid">
+          <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0 py-2"><strong class="small">Top students</strong></div>
+        <div class="card-body pt-2">
+          <canvas id="chartTopToppersDash" height="140" aria-label="Top students chart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0 py-2"><strong class="small">Class comparison</strong></div>
+        <div class="card-body pt-2">
+          <canvas id="chartClassCompareDash" height="140" aria-label="Class comparison chart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-4 mb-2">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0 py-2"><strong class="small">Class toppers</strong></div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr><th>Class</th><th>Student</th><th class="text-end">%</th></tr>
+              </thead>
+              <tbody>
+                {% for ct in toppers_class_toppers %}
+                  {% for t in ct.toppers %}
+                  <tr>
+                    <td>{% if forloop.first %}{{ ct.class }}{% endif %}</td>
+                    <td>{% if t.student %}{{ t.student.user.get_full_name|default:t.student.user.username }}{% else %}—{% endif %}</td>
+                    <td class="text-end">{{ t.pct }}%</td>
+                  </tr>
+                  {% endfor %}
+                {% empty %}
+                <tr><td colspan="3" class="text-muted text-center py-3 small">No data</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4 mb-2">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0 py-2"><strong class="small">School toppers</strong></div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr><th>#</th><th>Student</th><th>Class</th><th class="text-end">%</th></tr>
+              </thead>
+              <tbody>
+                {% for t in toppers_school_toppers %}
+                <tr>
+                  <td>{% if forloop.counter == 1 %}🥇{% elif forloop.counter == 2 %}🥈{% elif forloop.counter == 3 %}🥉{% else %}{{ forloop.counter }}{% endif %}</td>
+                  <td>{% if t.student %}{{ t.student.user.get_full_name|default:t.student.user.username }}{% else %}—{% endif %}</td>
+                  <td class="small">{% if t.student %}{{ t.student.classroom.name|default:"—" }}{% if t.student.section %} — {{ t.student.section.name }}{% endif %}{% else %}—{% endif %}</td>
+                  <td class="text-end">{{ t.pct }}%</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="text-muted text-center py-3 small">No data</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4 mb-2">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0 py-2"><strong class="small">Subject toppers</strong></div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr><th>Subject</th><th>Student</th><th class="text-end">%</th></tr>
+              </thead>
+              <tbody>
+                {% for st in toppers_subject_toppers %}
+                  {% for t in st.toppers %}
+                  <tr>
+                    <td>{% if forloop.first %}{{ st.subject }}{% endif %}</td>
+                    <td>{% if t.student %}{{ t.student.user.get_full_name|default:t.student.user.username }}{% else %}—{% endif %}</td>
+                    <td class="text-end">{{ t.pct }}%</td>
+                  </tr>
+                  {% endfor %}
+                {% empty %}
+                <tr><td colspan="3" class="text-muted text-center py-3 small">No data</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function () {
+  if (!window.Chart) return;
+  var labels = {{ toppers_chart_labels|safe }};
+  var values = {{ toppers_chart_values|safe }};
+  var classLabels = {{ toppers_class_chart_labels|safe }};
+  var classValues = {{ toppers_class_chart_values|safe }};
+
+  var el1 = document.getElementById("chartTopToppersDash");
+  if (el1 && labels && labels.length) {
+    new Chart(el1, {
+      type: "bar",
+      data: {
+        labels: labels,
+        datasets: [{ label: "Percentage", data: values, backgroundColor: "rgba(59,130,246,0.6)" }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, max: 100 } }
+      }
+    });
+  }
+  var el2 = document.getElementById("chartClassCompareDash");
+  if (el2 && classLabels && classLabels.length) {
+    new Chart(el2, {
+      type: "bar",
+      data: {
+        labels: classLabels,
+        datasets: [{ label: "Average %", data: classValues, backgroundColor: "rgba(34,197,94,0.6)" }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, max: 100 } }
+      }
+    });
+  }
+})();
+</script>

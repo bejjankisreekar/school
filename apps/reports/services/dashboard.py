@@ -11,12 +11,15 @@ from django.urls import reverse
 
 from apps.core.utils import has_feature_access
 
+from .ai_panel import build_ai_reports_panel_context
 from .analytics_dashboard import build_analytics_summary_metrics
+from .analytics_scope import build_analytics_scope_for_request
 from .dashboard_charts import extend_dashboard_charts_context
 from .hub_charts import build_hub_chart_context
+from .toppers_panel import build_toppers_panel_context
 
 
-def build_school_reports_dashboard_context(school, *, user=None) -> dict:
+def build_school_reports_dashboard_context(school, *, user=None, request=None) -> dict:
     """Analytics hub: KPI metrics + report cards for schools with the reports feature."""
     report_cards_primary: list = []
     report_cards_more: list = []
@@ -46,9 +49,26 @@ def build_school_reports_dashboard_context(school, *, user=None) -> dict:
             }
         )
 
-    hub_charts = build_hub_chart_context(school, user=user)
-    extend_dashboard_charts_context(school, hub_charts, user=user)
+    scope_ctx: dict = {}
+    if school:
+        scope_ctx = build_analytics_scope_for_request(request, school)
+    scope = scope_ctx.get("analytics_scope") or {}
+
+    hub_charts = build_hub_chart_context(
+        school, user=user, analytics_scope=scope if school else None
+    )
+    if school:
+        extend_dashboard_charts_context(
+            school, hub_charts, user=user, analytics_scope=scope
+        )
     hub_charts_enabled = bool(school and has_feature_access(school, "reports", user=user))
+
+    panels: dict = {}
+    if request is not None and school:
+        panels.update(build_toppers_panel_context(request, school, user=user))
+        panels.update(build_ai_reports_panel_context(school, user=user))
+    panels.setdefault("dash_show_toppers_panel", False)
+    panels.setdefault("dash_show_ai_panel", False)
 
     return {
         "analytics_metrics": analytics["analytics_metrics"],
@@ -56,5 +76,7 @@ def build_school_reports_dashboard_context(school, *, user=None) -> dict:
         "report_cards_primary": report_cards_primary,
         "report_cards_more": report_cards_more,
         "hub_charts_enabled": hub_charts_enabled,
+        **scope_ctx,
         **hub_charts,
+        **panels,
     }

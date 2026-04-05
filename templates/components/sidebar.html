@@ -1,7 +1,12 @@
 {% load nav_tags %}
 <aside id="sidebar" class="sidebar">
-  <div class="sidebar-logo">
-    <span>SE</span>
+  <div class="sidebar-product-brand">
+    <div class="sidebar-product-mark" aria-hidden="true">
+      <span class="sidebar-product-mark-inner">{{ app_product_name|branding_initials }}</span>
+    </div>
+    <div class="sidebar-product-text-col min-w-0">
+      <span class="sidebar-product-name text-truncate" title="{{ app_product_name }}">{{ app_product_name }}</span>
+    </div>
   </div>
   <nav class="sidebar-nav-list">
     <a href="{% if request.user.role == 'SUPERADMIN' %}{% url 'core:super_admin_dashboard' %}{% elif request.user.role == 'ADMIN' %}{% url 'core:admin_dashboard' %}{% elif request.user.role == 'TEACHER' %}{% url 'core:teacher_dashboard' %}{% elif request.user.role == 'PARENT' %}{% url 'core:parent_dashboard' %}{% else %}{% url 'core:student_dashboard' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'super_admin_dashboard' 'admin_dashboard' 'teacher_dashboard' 'student_dashboard' 'parent_dashboard' %}">
@@ -104,9 +109,9 @@
     </a>
     {% endif %}
     {% if request|school_has_feature:'fees' and request.user.role != 'TEACHER' %}
-    <a href="{% if request.user.role == 'ADMIN' %}{% url 'core:school_fees_index' %}{% elif request.user.role == 'STUDENT' %}{% url 'core:student_fees' %}{% else %}#{% endif %}" class="sidebar-nav-item {% if request.user.role == 'ADMIN' %}{% nav_active_names request 'school_fees_index' 'school_fee_types' 'school_fee_structure' 'school_fee_collection' 'school_fee_collect' 'school_fee_add' 'school_fee_payments' 'school_fee_payments_export_csv' 'school_fee_structure_apply' 'school_fee_structure_clone' %}{% elif request.user.role == 'STUDENT' %}{% nav_active_names request 'student_fees' %}{% endif %}">
+    <a href="{% if request.user.role == 'ADMIN' %}{% url 'core:billing_dashboard' %}{% elif request.user.role == 'STUDENT' %}{% url 'core:student_fees' %}{% else %}#{% endif %}" class="sidebar-nav-item {% if request.user.role == 'ADMIN' %}{% nav_active_names request 'billing_dashboard' 'billing_record_payment' 'billing_student_collect' 'billing_fee_structure' 'billing_fee_master' 'billing_fee_categories' 'billing_class_fee_students' 'billing_student_fee_lines' 'billing_concessions' 'school_fee_type_update' 'school_fee_type_delete' 'billing_structure_apply' 'school_fee_structure' %}{% elif request.user.role == 'STUDENT' %}{% nav_active_names request 'student_fees' %}{% endif %}">
       <span class="sidebar-nav-icon"><i class="bi bi-currency-dollar"></i></span>
-      <span class="sidebar-nav-text">Billing</span>
+      <span class="sidebar-nav-text">Fees &amp; billing</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
     {% endif %}
@@ -120,7 +125,7 @@
     {% endif %}
     {% endif %}
     {% if request.user.role == 'ADMIN' or request|feature_access:"reports" %}
-    <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_reports' %}{% elif request.user.role == 'ADMIN' %}{% url 'reports:dashboard' %}{% else %}{% url 'core:reports_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'student_reports' 'reports_list' 'dashboard' 'students_by_class' 'attendance_trend' 'toppers' 'student_report_card_view' 'student_report_card_session_view' 'student_report_card_pdf' 'student_report_card_session_pdf' 'student_attendance_report_pdf' %}">
+    <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_reports' %}{% elif request.user.role == 'ADMIN' %}{% url 'reports:dashboard' %}{% else %}{% url 'core:reports_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'student_reports' 'reports_list' 'dashboard' 'students_by_class' 'attendance_trend' 'toppers' 'school_toppers' 'school_ai_reports' 'student_report_card_view' 'student_report_card_session_view' 'student_report_card_pdf' 'student_report_card_session_pdf' 'student_attendance_report_pdf' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-bar-chart-line-fill"></i></span>
       <span class="sidebar-nav-text">Analytics</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
@@ -153,32 +158,11 @@
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
     {% endif %}
-    {% if request|school_has_feature:'ai_reports' %}
-    <a href="{% url 'core:school_ai_reports' %}" class="sidebar-nav-item {% nav_active_names request 'school_ai_reports' %}">
-      <span class="sidebar-nav-icon"><i class="bi bi-robot"></i></span>
-      <span class="sidebar-nav-text">AI Analytics</span>
-      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-    </a>
-    {% endif %}
     <a href="{% url 'core:school_support_create' %}" class="sidebar-nav-item {% nav_active_names request 'school_support_create' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-headset"></i></span>
       <span class="sidebar-nav-text">Support</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
-    {% if request|school_has_feature:'online_admission' %}
-    <a href="{% url 'core:school_admissions_list' %}" class="sidebar-nav-item {% nav_active_names request 'school_admissions_list' %}">
-      <span class="sidebar-nav-icon"><i class="bi bi-person-plus"></i></span>
-      <span class="sidebar-nav-text">Admissions</span>
-      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-    </a>
-    {% endif %}
-    {% if request|school_has_feature:'topper_list' %}
-    <a href="{% url 'reports:toppers' %}" class="sidebar-nav-item {% nav_active_names request 'toppers' 'school_toppers' %}">
-      <span class="sidebar-nav-icon"><i class="bi bi-trophy"></i></span>
-      <span class="sidebar-nav-text">Toppers</span>
-      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-    </a>
-    {% endif %}
     {% if request|school_has_feature:'library' %}
     <a href="{% url 'core:school_library_index' %}" class="sidebar-nav-item {% nav_active_names request 'school_library_index' 'school_library_book_add' 'school_library_issue' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-book"></i></span>

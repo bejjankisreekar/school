@@ -186,6 +186,17 @@
     color: var(--sp-primary);
   }
   .student-profile-dash .sp-stat-row { margin-top: 0.35rem; }
+  .student-profile-dash .sp-stat-card-link {
+    display: block;
+    height: 100%;
+    color: inherit;
+    text-decoration: none;
+    border-radius: 1rem;
+    outline: none;
+  }
+  .student-profile-dash .sp-stat-card-link:focus-visible {
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.45);
+  }
   .student-profile-dash .sp-stat-card {
     background: linear-gradient(145deg, rgba(79, 70, 229, 0.07), rgba(255, 255, 255, 0.95));
     border: 1px solid rgba(79, 70, 229, 0.14);
@@ -258,7 +269,7 @@
     <a href="{% url 'core:school_students_list' %}" class="btn btn-sm sp-btn-ghost"><i class="bi bi-arrow-left me-1"></i> Back</a>
     <div class="d-flex flex-wrap align-items-center gap-2 justify-content-end ms-md-auto">
       <a href="{% url 'core:school_student_edit' student.id %}" class="btn btn-sm sp-btn-primary"><i class="bi bi-pencil me-1"></i> Edit</a>
-      <a href="{% url 'core:school_fee_collection' %}?student={{ student.id }}" class="btn btn-sm sp-btn-ghost"><i class="bi bi-wallet2 me-1"></i> Fees</a>
+      <a href="{% url 'core:billing_dashboard' %}" class="btn btn-sm sp-btn-ghost"><i class="bi bi-wallet2 me-1"></i> Billing</a>
       <a href="{% url 'core:attendance_list' %}?student_id={{ student.id }}" class="btn btn-sm sp-btn-ghost"><i class="bi bi-calendar-check me-1"></i> Attendance</a>
     </div>
   </div>
@@ -320,39 +331,57 @@
         </div>
         <div class="row g-3 sp-stat-row">
           <div class="col-12 col-sm-6">
+            {% if student_profile_attendance_url %}
+            <a href="{{ student_profile_attendance_url }}" class="sp-stat-card-link" aria-label="Open attendance for this student">
+            {% endif %}
             <div class="sp-stat-card">
               <div class="sp-stat-ring" style="--prog: {% if stats_attendance.pct is not None %}{{ stats_attendance.pct }}{% else %}0{% endif %};">
                 <div class="sp-stat-ring-inner">{% if stats_attendance.pct is not None %}{{ stats_attendance.pct }}%{% else %}<span class="sp-empty small">—</span>{% endif %}</div>
               </div>
               <div class="min-w-0">
-                <div class="sp-stat-title"><i class="bi bi-calendar-check me-1" style="color: var(--sp-primary);"></i>Attendance rate</div>
+                <div class="sp-stat-title d-flex align-items-center flex-wrap gap-1">
+                  <span><i class="bi bi-calendar-check me-1" style="color: var(--sp-primary);"></i>Attendance rate</span>
+                  {% if student_profile_attendance_url %}<span class="small fw-normal text-primary ms-auto"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Open</span>{% endif %}
+                </div>
                 <div class="sp-stat-meta">
                   {% if stats_attendance.total %}
                     <strong>{{ stats_attendance.present }}</strong> present of <strong>{{ stats_attendance.total }}</strong> recorded day{{ stats_attendance.total|pluralize }}
                     {% if student.academic_year %}<span class="d-block mt-1">Scoped to this student’s academic year when attendance rows are linked to a year.</span>{% endif %}
                   {% else %}
-                    No attendance records yet for this profile.
+                    No attendance records yet for this profile.{% if student_profile_attendance_url %} <span class="text-primary fw-medium">Go to attendance to add or view marks.</span>{% endif %}
                   {% endif %}
                 </div>
               </div>
             </div>
+            {% if student_profile_attendance_url %}
+            </a>
+            {% endif %}
           </div>
           <div class="col-12 col-sm-6">
+            {% if student_profile_exams_url %}
+            <a href="{{ student_profile_exams_url }}" class="sp-stat-card-link" aria-label="Open school exams and marks">
+            {% endif %}
             <div class="sp-stat-card">
               <div class="sp-stat-ring" style="--prog: {% if stats_exams.pct is not None %}{{ stats_exams.pct }}{% else %}0{% endif %};">
                 <div class="sp-stat-ring-inner">{% if stats_exams.pct is not None %}{{ stats_exams.pct }}%{% else %}<span class="sp-empty small">—</span>{% endif %}</div>
               </div>
               <div class="min-w-0">
-                <div class="sp-stat-title"><i class="bi bi-journal-richtext me-1" style="color: var(--sp-primary);"></i>Exams average</div>
+                <div class="sp-stat-title d-flex align-items-center flex-wrap gap-1">
+                  <span><i class="bi bi-journal-richtext me-1" style="color: var(--sp-primary);"></i>Exams average</span>
+                  {% if student_profile_exams_url %}<span class="small fw-normal text-primary ms-auto"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Open</span>{% endif %}
+                </div>
                 <div class="sp-stat-meta">
                   {% if stats_exams.count %}
                     Mean percentage across <strong>{{ stats_exams.count }}</strong> mark record{{ stats_exams.count|pluralize }} (obtained ÷ total per entry).
                   {% else %}
-                    No exam marks on file yet.
+                    No exam marks on file yet.{% if student_profile_exams_url %} <span class="text-primary fw-medium">Open exams to enter or review marks.</span>{% endif %}
                   {% endif %}
                 </div>
               </div>
             </div>
+            {% if student_profile_exams_url %}
+            </a>
+            {% endif %}
           </div>
         </div>
       </div>

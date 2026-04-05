@@ -15,6 +15,7 @@ from django.contrib.auth.password_validation import (
 )
 from django.core.exceptions import ValidationError
 from django.db.models import Q, Sum
+from django.utils import timezone
 from apps.customers.models import Coupon, Plan, SaaSPlatformPayment, School, SchoolSubscription
 from apps.school_data.models import (
     Homework,
@@ -50,6 +51,8 @@ from apps.school_data.models import (
     StudentRouteAssignment,
     OnlineAdmission,
     StudentPromotion,
+    HolidayEvent,
+    WorkingSundayOverride,
 )
 from .models import ContactEnquiry, SchoolEnrollmentRequest
 
@@ -70,34 +73,119 @@ class HomeworkForm(forms.ModelForm):
 
 class HomeworkCreateForm(forms.ModelForm):
     """Create homework with class+section assignment. Role-based filtering in __init__."""
+
     class Meta:
         model = Homework
-        fields = ["title", "subject", "description", "classes", "sections", "due_date", "attachment"]
+        fields = [
+            "title",
+            "subject",
+            "homework_type",
+            "priority",
+            "status",
+            "assigned_date",
+            "due_date",
+            "estimated_duration_minutes",
+            "max_marks",
+            "submission_type",
+            "submission_required",
+            "allow_late_submission",
+            "late_submission_until",
+            "description",
+            "instructions",
+            "academic_year",
+            "assigned_by",
+            "classes",
+            "sections",
+            "attachment",
+        ]
         widgets = {
             "title": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Homework title"}),
             "subject": forms.Select(attrs={"class": BS_INPUT}),
-            "description": forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 4, "placeholder": "Description"}),
+            "homework_type": forms.Select(attrs={"class": BS_INPUT}),
+            "priority": forms.Select(attrs={"class": BS_INPUT}),
+            "status": forms.Select(attrs={"class": BS_INPUT}),
+            "assigned_date": forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
+            "due_date": forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
+            "estimated_duration_minutes": forms.NumberInput(
+                attrs={"class": INPUT_CLASS, "min": 0, "placeholder": "e.g. 30, 60"}
+            ),
+            "max_marks": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 0, "placeholder": "Optional"}),
+            "submission_type": forms.Select(attrs={"class": BS_INPUT}),
+            "submission_required": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "allow_late_submission": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "late_submission_until": forms.DateTimeInput(
+                attrs={"type": "datetime-local", "class": INPUT_CLASS},
+                format="%Y-%m-%dT%H:%M",
+            ),
+            "description": forms.Textarea(
+                attrs={"class": INPUT_CLASS, "rows": 4, "placeholder": "What students should do"}
+            ),
+            "instructions": forms.Textarea(
+                attrs={
+                    "class": INPUT_CLASS,
+                    "rows": 3,
+                    "placeholder": "Format, materials, how to submit (optional)",
+                }
+            ),
+            "academic_year": forms.Select(attrs={"class": BS_INPUT}),
+            "assigned_by": forms.Select(attrs={"class": BS_INPUT}),
             "classes": forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
             "sections": forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
-            "due_date": forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
             "attachment": forms.ClearableFileInput(attrs={"class": "form-control"}),
         }
         labels = {
             "subject": "Subject",
+            "homework_type": "Work type",
+            "max_marks": "Max marks",
+            "estimated_duration_minutes": "Est. time (minutes)",
+            "late_submission_until": "Late submission until",
         }
 
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         from apps.school_data.models import ClassSectionSubjectTeacher
+        from datetime import date as date_cls
+
+        self.fields["late_submission_until"].required = False
+        self.fields["late_submission_until"].input_formats = [
+            "%Y-%m-%dT%H:%M",
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%d %H:%M",
+        ]
+        if self.instance.pk and self.instance.late_submission_until:
+            dt = self.instance.late_submission_until
+            if hasattr(dt, "strftime"):
+                self.initial.setdefault(
+                    "late_submission_until",
+                    timezone.localtime(dt).strftime("%Y-%m-%dT%H:%M"),
+                )
+
         self.fields["classes"].required = True
         self.fields["sections"].required = True
         self.fields["subject"].required = True
         self.fields["subject"].empty_label = "Select subject"
+        self.fields["academic_year"].required = False
+        self.fields["academic_year"].empty_label = "Infer from class (or pick year)"
+        self.fields["max_marks"].required = False
+        self.fields["estimated_duration_minutes"].required = False
+        self.fields["instructions"].required = False
+
+        if not self.instance.pk:
+            self.initial.setdefault("assigned_date", date_cls.today())
 
         if user and getattr(user, "role", None) == "ADMIN":
             self.fields["subject"].queryset = Subject.objects.order_by("name")
-            self.fields["classes"].queryset = ClassRoom.objects.select_related("academic_year").order_by("academic_year__start_date", "name")
+            self.fields["classes"].queryset = ClassRoom.objects.select_related("academic_year").order_by(
+                "academic_year__start_date", "name"
+            )
             self.fields["sections"].queryset = Section.objects.order_by("name")
+            self.fields["assigned_by"].required = False
+            self.fields["assigned_by"].empty_label = "Me (current user)"
+            self.fields["assigned_by"].queryset = User.objects.filter(
+                school=user.school,
+                role__in=[User.Roles.ADMIN, User.Roles.TEACHER],
+            ).order_by("first_name", "last_name", "username")
+            self.fields["academic_year"].queryset = AcademicYear.objects.order_by("-start_date")
         elif user and getattr(user, "role", None) == "TEACHER":
             teacher = getattr(user, "teacher_profile", None)
             if teacher:
@@ -107,6 +195,8 @@ class HomeworkCreateForm(forms.ModelForm):
                     ClassSectionSubjectTeacher.objects.filter(teacher=teacher).values_list("subject_id", flat=True)
                 )
                 subj_ids |= set(teacher.subjects.values_list("id", flat=True))
+                if teacher.subject_id:
+                    subj_ids.add(teacher.subject_id)
                 self.fields["subject"].queryset = (
                     Subject.objects.filter(id__in=subj_ids).order_by("name")
                     if subj_ids
@@ -133,14 +223,32 @@ class HomeworkCreateForm(forms.ModelForm):
                 self.fields["sections"].queryset = (
                     Section.objects.filter(id__in=section_ids).order_by("name") if section_ids else Section.objects.none()
                 )
+                self.fields["academic_year"].queryset = AcademicYear.objects.order_by("-start_date")
             else:
                 self.fields["subject"].queryset = Subject.objects.none()
                 self.fields["classes"].queryset = ClassRoom.objects.none()
                 self.fields["sections"].queryset = Section.objects.none()
+                self.fields["academic_year"].queryset = AcademicYear.objects.order_by("-start_date")
         else:
             self.fields["subject"].queryset = Subject.objects.order_by("name")
             self.fields["classes"].queryset = ClassRoom.objects.order_by("name")
             self.fields["sections"].queryset = Section.objects.order_by("name")
+            self.fields["academic_year"].queryset = AcademicYear.objects.order_by("-start_date")
+
+        if not user or getattr(user, "role", None) != "ADMIN":
+            self.fields.pop("assigned_by", None)
+
+    def save(self, commit=True):
+        obj = super().save(commit=False)
+        classes = self.cleaned_data.get("classes")
+        if not obj.academic_year_id and classes:
+            cr_list = list(classes)
+            if cr_list and getattr(cr_list[0], "academic_year_id", None):
+                obj.academic_year_id = cr_list[0].academic_year_id
+        if commit:
+            obj.save()
+            self.save_m2m()
+        return obj
 
 
 class TeacherHomeworkForm(forms.ModelForm):
@@ -1299,7 +1407,7 @@ class TeacherEditForm(forms.Form):
 class StudentBulkImportForm(forms.Form):
     csv_file = forms.FileField(
         label="CSV File",
-        help_text="Columns: name, username, password, class, section, roll_number",
+        help_text="UTF-8 CSV. First row: exact header names below. Required columns must have a value on every data row.",
         widget=forms.FileInput(attrs={"class": INPUT_CLASS, "accept": ".csv"}),
     )
 
@@ -1345,6 +1453,82 @@ class AcademicYearForm(forms.ModelForm):
         if self.instance and self.instance.pk and end and end < date.today():
             raise forms.ValidationError("Cannot edit an academic year that has already ended.")
         return data
+
+
+class HolidayEventForm(forms.ModelForm):
+    """Holiday / closure entry for a school holiday calendar (calendar FK set by view). One calendar day per row."""
+
+    holiday_date = forms.DateField(
+        label="Holiday date",
+        widget=forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
+    )
+
+    class Meta:
+        model = HolidayEvent
+        fields = [
+            "calendar",
+            "name",
+            "holiday_type",
+            "holiday_date",
+            "applies_to",
+            "description",
+            "recurring_yearly",
+        ]
+        widgets = {
+            "calendar": forms.HiddenInput(),
+            "name": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. Independence Day"}),
+            "holiday_type": forms.Select(attrs={"class": BS_INPUT}),
+            "applies_to": forms.Select(attrs={"class": BS_INPUT}),
+            "description": forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 2}),
+            "recurring_yearly": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+
+    def __init__(self, *args, academic_year=None, **kwargs):
+        self.academic_year = academic_year
+        super().__init__(*args, **kwargs)
+        inst = getattr(self, "instance", None)
+        if inst and getattr(inst, "pk", None) and inst.start_date:
+            self.fields["holiday_date"].initial = inst.start_date
+
+    def clean(self):
+        data = super().clean()
+        inst = getattr(self, "instance", None)
+        if inst and getattr(inst, "pk", None):
+            data.setdefault("calendar", inst.calendar)
+        cal = data.get("calendar")
+        d = data.get("holiday_date")
+        ay = self.academic_year or (cal.academic_year if cal else None)
+        if ay and d and (d < ay.start_date or d > ay.end_date):
+            raise forms.ValidationError("Holiday date must fall within the selected academic year.")
+        return data
+
+    def save(self, commit=True):
+        obj = super().save(commit=False)
+        d = self.cleaned_data.get("holiday_date")
+        if d:
+            obj.start_date = d
+            obj.end_date = d
+        if commit:
+            obj.save()
+        return obj
+
+
+class WorkingSundayOverrideForm(forms.ModelForm):
+    class Meta:
+        model = WorkingSundayOverride
+        fields = ["calendar", "work_date", "applies_to", "note"]
+        widgets = {
+            "calendar": forms.HiddenInput(),
+            "work_date": forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
+            "applies_to": forms.Select(attrs={"class": BS_INPUT}),
+            "note": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Optional reason"}),
+        }
+
+    def clean_work_date(self):
+        d = self.cleaned_data.get("work_date")
+        if d and d.weekday() != 6:
+            raise forms.ValidationError("Only Sundays can be marked as working days.")
+        return d
 
 
 class PromoteStudentsFilterForm(forms.Form):
@@ -1734,33 +1918,77 @@ class FeeStructureForm(forms.ModelForm):
     class Meta:
         model = FeeStructure
         fields = [
-            "fee_type",
-            "classroom",
-            "amount",
             "academic_year",
+            "classroom",
+            "section",
+            "line_name",
+            "fee_type",
+            "amount",
             "frequency",
+            "installments_enabled",
+            "first_due_date",
             "due_day_of_month",
+            "late_fine_rule",
+            "discount_allowed",
             "is_active",
         ]
         widgets = {
-            "fee_type": forms.Select(attrs={"class": BS_INPUT}),
-            "classroom": forms.Select(attrs={"class": BS_INPUT}),
-            "amount": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 0, "step": "0.01"}),
             "academic_year": forms.Select(attrs={"class": BS_INPUT}),
+            "classroom": forms.Select(attrs={"class": BS_INPUT}),
+            "section": forms.Select(attrs={"class": BS_INPUT}),
+            "line_name": forms.TextInput(
+                attrs={
+                    "class": INPUT_CLASS,
+                    "placeholder": "Optional display name (defaults to fee type)",
+                }
+            ),
+            "fee_type": forms.Select(attrs={"class": BS_INPUT}),
+            "amount": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 0, "step": "0.01"}),
             "frequency": forms.Select(attrs={"class": BS_INPUT}),
+            "installments_enabled": forms.CheckboxInput(attrs={"class": "form-check-input", "role": "switch"}),
+            "first_due_date": forms.DateInput(attrs={"class": INPUT_CLASS, "type": "date"}),
             "due_day_of_month": forms.NumberInput(
                 attrs={"class": INPUT_CLASS, "min": 1, "max": 28, "placeholder": "e.g. 5"}
             ),
-            "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "late_fine_rule": forms.TextInput(
+                attrs={
+                    "class": INPUT_CLASS,
+                    "placeholder": "e.g. Standard late fee (see Late Fine Rules)",
+                }
+            ),
+            "discount_allowed": forms.CheckboxInput(attrs={"class": "form-check-input", "role": "switch"}),
+            "is_active": forms.CheckboxInput(attrs={"class": "form-check-input", "role": "switch"}),
         }
 
     def __init__(self, school, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["fee_type"].queryset = FeeType.objects.filter(is_active=True).order_by("name")
         self.fields["classroom"].queryset = ClassRoom.objects.all()
+        self.fields["section"].queryset = Section.objects.all().order_by("name")
+        self.fields["section"].required = False
         self.fields["academic_year"].queryset = AcademicYear.objects.order_by("-start_date")
         self.fields["due_day_of_month"].required = False
-        self.fields["classroom"].help_text = "Class-wise fees apply to every student in this class when you generate dues."
+        self.fields["first_due_date"].required = False
+        self.fields["line_name"].required = False
+        self.fields["late_fine_rule"].required = False
+        self.fields["classroom"].help_text = "Required. Dues are auto-created for all active students in this class."
+        self.fields["section"].help_text = "Optional: limit to one section (e.g. Grade 5A only)."
+        self.fields["first_due_date"].help_text = "If set, used as the due date for new student fee lines. Otherwise due day of month is used."
+        self.fields["due_day_of_month"].help_text = "Used when first due date is empty."
+        self.fields["installments_enabled"].help_text = "Optional flag for installment-eligible fee lines (reporting / future use)."
+        self.fields["discount_allowed"].initial = True
+        if not getattr(self.instance, "pk", None):
+            self.fields["is_active"].initial = True
+
+    def clean(self):
+        data = super().clean()
+        classroom = data.get("classroom")
+        section = data.get("section")
+        if section and not classroom:
+            raise forms.ValidationError("Select a class before choosing a section.")
+        if section and classroom and section not in classroom.sections.all():
+            raise forms.ValidationError("Section must belong to the selected class.")
+        return data
 
 class PaymentForm(forms.ModelForm):
     PAYMENT_MODE_CHOICES = [
@@ -1769,7 +1997,7 @@ class PaymentForm(forms.ModelForm):
         ("Card", "Card"),
         ("Bank transfer", "Bank transfer"),
         ("Bank Transfer", "Bank transfer"),  # legacy stored value
-        ("Online", "Online"),
+        ("Online", "Online gateway"),
         ("Cheque", "Cheque"),
     ]
 
@@ -1879,6 +2107,30 @@ class FeeConcessionForm(forms.ModelForm):
         if pct_amt + fixed > base:
             raise forms.ValidationError("Total concession cannot exceed the original fee amount.")
         return cleaned
+
+
+class FeeLineAdjustForm(forms.ModelForm):
+    """Staff adjustment of billed amount and due date on an assigned student fee line."""
+
+    class Meta:
+        model = Fee
+        fields = ["amount", "due_date"]
+        labels = {"amount": "Billed amount (₹)", "due_date": "Due date"}
+        widgets = {
+            "amount": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 0, "step": "0.01"}),
+            "due_date": forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
+        }
+
+    def clean_amount(self):
+        amount = self.cleaned_data.get("amount")
+        if amount is None or not getattr(self.instance, "pk", None):
+            return amount
+        paid = self.instance.payments.aggregate(s=Sum("amount"))["s"] or Decimal("0")
+        if amount < paid:
+            raise forms.ValidationError(
+                f"Billed amount cannot be less than total payments already recorded (₹{paid})."
+            )
+        return amount
 
 
 class StaffAttendanceForm(forms.ModelForm):

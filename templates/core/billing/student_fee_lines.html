@@ -1,0 +1,708 @@
+{% extends "core/billing/base_billing.html" %}
+{% load humanize nav_tags %}
+{% block billing_title %}{{ student.user.get_full_name|default:student.user.username }} — fee lines | School ERP{% endblock %}
+{% block billing_extra_head %}
+<style>
+  .sfl-hub { --bd: #e2e8f0; --card: #fff; }
+  html.dark .sfl-hub { --bd: rgba(148,163,184,.2); --card: rgba(30,41,59,.94); }
+  .sfl-hub { background: #f1f5f9; margin: -0.5rem -1rem 0; padding: 1rem 1rem 2rem; min-height: calc(100vh - 100px); }
+  @media (min-width: 992px) { .sfl-hub { margin: -0.5rem -1.5rem 0; padding: 1.25rem 1.5rem 2.5rem; } }
+  .sfl-card { background: var(--card); border: 1px solid var(--bd); border-radius: 1.15rem; box-shadow: 0 1px 3px rgba(15,23,42,.06); }
+  .sfl-btn-edit {
+    border: 1px solid rgba(99, 102, 241, 0.45) !important;
+    background: linear-gradient(180deg, rgba(99, 102, 241, 0.12) 0%, rgba(99, 102, 241, 0.06) 100%) !important;
+    color: #4338ca !important;
+    font-weight: 600;
+    transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .sfl-btn-edit:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(79, 70, 229, 0.22) !important;
+    border-color: rgba(79, 70, 229, 0.55) !important;
+    color: #3730a3 !important;
+  }
+  html.dark .sfl-btn-edit {
+    color: #c7d2fe !important;
+    border-color: rgba(129, 140, 248, 0.45) !important;
+    background: linear-gradient(180deg, rgba(99, 102, 241, 0.2) 0%, rgba(99, 102, 241, 0.08) 100%) !important;
+  }
+  /* Overlay — no Bootstrap .modal */
+  .sflx-layer {
+    display: none !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 2147483640 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 1.25rem !important;
+    box-sizing: border-box !important;
+    overflow: auto !important;
+    pointer-events: none !important;
+  }
+  .sflx-layer.sflx-open {
+    display: flex !important;
+    pointer-events: auto !important;
+  }
+  .sflx-layer .sflx-scrim {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: 0 !important;
+    background: rgba(15, 23, 42, 0.48) !important;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    pointer-events: auto !important;
+    cursor: default;
+    opacity: 0;
+    transition: opacity 0.28s ease;
+  }
+  .sflx-layer.sflx-open .sflx-scrim {
+    opacity: 1;
+  }
+  .sflx-layer .sflx-panel {
+    position: relative !important;
+    z-index: 1 !important;
+    width: 100% !important;
+    max-width: min(100%, 32rem) !important;
+    max-height: min(92vh, 720px) !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background: #f8fafc !important;
+    color: #0f172a !important;
+    border-radius: 1.25rem !important;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+      0 32px 64px -16px rgba(15, 23, 42, 0.45),
+      0 12px 24px -8px rgba(15, 23, 42, 0.2) !important;
+    border: 1px solid rgba(148, 163, 184, 0.35) !important;
+    pointer-events: auto !important;
+    margin: auto !important;
+    flex-shrink: 0 !important;
+    transform: translateY(14px) scale(0.97);
+    opacity: 0;
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s ease;
+  }
+  @media (min-width: 480px) {
+    .sflx-layer .sflx-panel { max-width: 36rem !important; }
+  }
+  @media (min-width: 768px) {
+    .sflx-layer .sflx-panel { max-width: 42rem !important; }
+  }
+  @media (min-width: 1200px) {
+    .sflx-layer .sflx-panel { max-width: 44rem !important; }
+  }
+  .sflx-layer.sflx-open .sflx-panel {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  .sflx-panel-body {
+    overflow: hidden !important;
+    flex: 1 1 auto;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+  }
+  .sflx-tabrail {
+    display: flex;
+    gap: 0.35rem;
+    padding: 0.7rem 0.85rem 0.8rem;
+    background: linear-gradient(180deg, rgba(238, 242, 255, 0.95) 0%, #f8fafc 55%, #f1f5f9 100%);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+    flex-shrink: 0;
+  }
+  .sflx-tab {
+    flex: 1 1 0;
+    flex-basis: 0;
+    min-width: 0;
+    min-height: 3.35rem;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    border: none;
+    background: transparent;
+    color: #64748b;
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.5rem 0.35rem;
+    border-radius: 0.75rem;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+    line-height: 1.2;
+  }
+  .sflx-tab .sflx-tab-ic {
+    font-size: 1.05rem;
+    opacity: 0.85;
+    line-height: 1;
+  }
+  .sflx-tab:hover {
+    color: #4338ca;
+    background: rgba(99, 102, 241, 0.1);
+    transform: translateY(-1px);
+  }
+  .sflx-tab.sflx-tab-active {
+    background: #fff;
+    color: #3730a3;
+    box-shadow:
+      0 4px 14px rgba(79, 70, 229, 0.12),
+      0 0 0 1px rgba(99, 102, 241, 0.22);
+  }
+  .sflx-tab.sflx-tab-active .sflx-tab-ic { opacity: 1; }
+  .sflx-tab[data-sflx-tab="del"].sflx-tab-active {
+    color: #b91c1c;
+    box-shadow:
+      0 4px 14px rgba(220, 38, 38, 0.12),
+      0 0 0 1px rgba(248, 113, 113, 0.35);
+  }
+  /* Fixed-size content well so switching tabs does not resize the dialog */
+  .sflx-tab-panels {
+    --sflx-well-h: max(14rem, min(23.5rem, calc(92vh - 13rem)));
+    flex: 0 0 auto;
+    width: 100%;
+    box-sizing: border-box;
+    height: var(--sflx-well-h);
+    min-height: var(--sflx-well-h);
+    max-height: var(--sflx-well-h);
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    padding: 1rem 1.15rem 1.25rem;
+  }
+  .sflx-tab-panel:not(.sflx-tab-panel-active) {
+    display: none !important;
+  }
+  .sflx-tab-panel.sflx-tab-panel-active {
+    min-height: 100%;
+    box-sizing: border-box;
+  }
+  @media (min-width: 640px) {
+    .sflx-tab-panel[data-sflx-tab-panel="amt"] .sflx-fields-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0 1rem;
+      align-items: start;
+    }
+  }
+  .sflx-hero {
+    background: linear-gradient(135deg, #312e81 0%, #4f46e5 42%, #0891b2 115%);
+    color: #fff !important;
+    padding: 1.1rem 1.15rem 1.25rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .sflx-hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 80% 60% at 100% 0%, rgba(255,255,255,0.18), transparent 55%);
+    pointer-events: none;
+  }
+  .sflx-hero-inner { position: relative; z-index: 1; }
+  .sflx-hero .btn-close {
+    filter: brightness(0) invert(1);
+    opacity: 0.88;
+    box-shadow: none;
+  }
+  .sflx-hero .btn-close:hover { opacity: 1; }
+  .sflx-kpis {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    margin-top: 0.85rem;
+  }
+  .sflx-kpi {
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 0.65rem;
+    padding: 0.45rem 0.5rem;
+    text-align: center;
+    backdrop-filter: blur(8px);
+  }
+  .sflx-kpi .lbl {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.85;
+    font-weight: 700;
+  }
+  .sflx-kpi .val {
+    font-size: 0.95rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    margin-top: 0.15rem;
+  }
+  .sflx-section {
+    background: #fff;
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    border-radius: 0.9rem;
+    padding: 0.9rem 1rem 1rem;
+    margin-bottom: 0.85rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+  .sflx-section-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+  }
+  .sflx-section-head .ic {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.55rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+  .sflx-section-head .ic.invoice { background: rgba(79, 70, 229, 0.12); color: #4f46e5; }
+  .sflx-section-head .ic.percent { background: rgba(8, 145, 178, 0.12); color: #0891b2; }
+  .sflx-section-head .ic.trash { background: rgba(220, 38, 38, 0.1); color: #dc2626; }
+  .sflx-section-title {
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #64748b;
+    margin: 0;
+  }
+  .sflx-section .form-control,
+  .sflx-section .form-select {
+    border-radius: 0.6rem;
+    border-color: #e2e8f0;
+  }
+  .sflx-section .form-control:focus,
+  .sflx-section .form-select:focus {
+    border-color: rgba(79, 70, 229, 0.45);
+    box-shadow: 0 0 0 0.2rem rgba(79, 70, 229, 0.12);
+  }
+  .sflx-btn-primary {
+    background: linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #0891b2 130%) !important;
+    border: none !important;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+    transition: transform 0.15s ease, box-shadow 0.2s ease;
+  }
+  .sflx-btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 22px rgba(79, 70, 229, 0.4);
+    color: #fff !important;
+  }
+  .sflx-btn-darkline {
+    background: #0f172a !important;
+    border: none !important;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+  }
+  .sflx-danger-zone {
+    background: linear-gradient(180deg, rgba(254, 242, 242, 0.9) 0%, #fff 40%);
+    border: 1px solid rgba(252, 165, 165, 0.55);
+    border-radius: 0.9rem;
+    padding: 0.9rem 1rem 1rem;
+  }
+  html.dark .sflx-danger-zone {
+    background: linear-gradient(180deg, rgba(127, 29, 29, 0.2) 0%, rgba(30, 41, 59, 0.6) 45%);
+    border-color: rgba(248, 113, 113, 0.25);
+  }
+  .sflx-footer {
+    padding: 0.85rem 1.15rem;
+    background: linear-gradient(180deg, rgba(248, 250, 252, 0.9) 0%, #f1f5f9 100%);
+    border-top: 1px solid rgba(226, 232, 240, 0.95);
+  }
+  html.dark .sflx-layer .sflx-panel {
+    background: #0f172a !important;
+    color: #f1f5f9 !important;
+    border-color: rgba(71, 85, 105, 0.5) !important;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+      0 32px 64px -12px rgba(0, 0, 0, 0.55) !important;
+  }
+  html.dark .sflx-section {
+    background: rgba(30, 41, 59, 0.85);
+    border-color: rgba(71, 85, 105, 0.45);
+  }
+  html.dark .sflx-section-head { border-bottom-color: rgba(71, 85, 105, 0.5); }
+  html.dark .sflx-section-title { color: #94a3b8; }
+  html.dark .sflx-section .form-control,
+  html.dark .sflx-section .form-select {
+    background: rgba(15, 23, 42, 0.6);
+    border-color: rgba(71, 85, 105, 0.55);
+    color: #f1f5f9;
+  }
+  html.dark .sflx-footer {
+    background: linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, #0f172a 100%);
+    border-top-color: rgba(71, 85, 105, 0.45);
+  }
+  html.dark .sflx-tabrail {
+    background: linear-gradient(180deg, rgba(49, 46, 129, 0.35) 0%, rgba(15, 23, 42, 0.92) 100%);
+    border-bottom-color: rgba(71, 85, 105, 0.5);
+  }
+  html.dark .sflx-tab { color: #94a3b8; }
+  html.dark .sflx-tab:hover {
+    color: #c7d2fe;
+    background: rgba(99, 102, 241, 0.15);
+  }
+  html.dark .sflx-tab.sflx-tab-active {
+    background: rgba(30, 41, 59, 0.95);
+    color: #e0e7ff;
+    box-shadow:
+      0 4px 18px rgba(0, 0, 0, 0.35),
+      0 0 0 1px rgba(129, 140, 248, 0.35);
+  }
+  html.dark .sflx-tab[data-sflx-tab="del"].sflx-tab-active {
+    color: #fca5a5;
+    box-shadow:
+      0 4px 18px rgba(0, 0, 0, 0.35),
+      0 0 0 1px rgba(248, 113, 113, 0.3);
+  }
+  html.dark .sflx-layer .sflx-panel .btn-close {
+    filter: brightness(0) invert(1);
+    opacity: 0.88;
+  }
+</style>
+{% endblock %}
+{% block billing_main %}
+<div class="sfl-hub" id="sfl-page">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:billing_dashboard' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}">Fees &amp; billing</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:billing_fee_structure' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}">Class fee structure</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:billing_class_fee_students' classroom.id %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}">{{ classroom.name }}</a></li>
+      <li class="breadcrumb-item active">Edit fees</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h1 class="h4 fw-bold mb-1">Fee lines — {{ student.user.get_full_name|default:student.user.username }}</h1>
+      <p class="small text-muted mb-0">{{ classroom.name }}{% if student.section %} · {{ student.section.name }}{% endif %} · Adm. {{ student.admission_number|default:"—" }}</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      {% if academic_years %}
+      <form method="get" class="d-flex align-items-center gap-2">
+        <label class="small text-muted mb-0">Year</label>
+        <select name="ay" class="form-select form-select-sm" style="width:auto;min-width:9rem;" onchange="this.form.submit()">
+          {% for y in academic_years %}
+          <option value="{{ y.id }}" {% if academic_year and academic_year.id == y.id %}selected{% endif %}>{{ y.name }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      {% endif %}
+      <a href="{% url 'core:billing_class_fee_students' classroom.id %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}" class="btn btn-outline-secondary btn-sm rounded-pill">← Class list</a>
+      <a href="{% url 'core:billing_student_collect' student.id %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}" class="btn btn-primary btn-sm rounded-pill">Collect fee</a>
+    </div>
+  </div>
+
+  {% if messages %}
+  <div class="mb-3">
+    {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} rounded-3 border-0 shadow-sm mb-2">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="sfl-card overflow-hidden">
+    <div class="px-3 py-3 border-bottom small text-muted" style="border-color: var(--bd) !important;">
+      <span class="fw-semibold text-body">Assigned fee lines</span> · Use <strong>Edit</strong> to change amount, due date, concession, or remove a line
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">Fee head</th>
+            <th class="text-end">Billed</th>
+            <th class="text-end">Concession</th>
+            <th class="text-end">Net due</th>
+            <th class="text-end">Paid</th>
+            <th class="text-end">Balance</th>
+            <th>Due</th>
+            <th class="text-center">Discount OK</th>
+            <th class="pe-3 text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in line_rows %}
+          {% with fee=row.fee %}
+          <tr class="{% if error_fee_id == fee.id %}table-warning bg-warning bg-opacity-10{% endif %}">
+            <td class="ps-3 small">
+              <div class="fw-semibold">{{ fee.fee_structure.line_name|default:fee.fee_structure.fee_type.name }}</div>
+              <div class="text-muted">{{ fee.fee_structure.fee_type.name }}</div>
+            </td>
+            <td class="text-end font-monospace small">₹{{ fee.amount|inr }}</td>
+            <td class="text-end font-monospace small text-secondary">₹{{ fee.total_concession_amount|inr }}</td>
+            <td class="text-end font-monospace small">₹{{ fee.effective_due_amount|inr }}</td>
+            <td class="text-end font-monospace small text-success">₹{{ row.paid|inr }}</td>
+            <td class="text-end font-monospace small {% if row.balance > 0 %}fw-semibold text-warning{% else %}text-muted{% endif %}">₹{{ row.balance|inr }}</td>
+            <td class="small">{{ fee.due_date|date:"M j, Y" }}</td>
+            <td class="text-center">
+              {% if fee.fee_structure.discount_allowed %}
+              <span class="badge rounded-pill text-bg-success">Yes</span>
+              {% else %}
+              <span class="badge rounded-pill text-bg-secondary">No</span>
+              {% endif %}
+            </td>
+            <td class="pe-3 text-end">
+              <button type="button" class="btn btn-sm rounded-pill px-3 sfl-btn-edit" data-sflx-open="sflx-{{ fee.id }}">
+                <i class="bi bi-pencil-square me-1"></i>Edit
+              </button>
+            </td>
+          </tr>
+          {% endwith %}
+          {% empty %}
+          <tr><td colspan="9" class="text-center text-muted py-5">No fee lines for this student in the selected year.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+{% for row in line_rows %}
+{% with fee=row.fee %}
+<div id="sflx-{{ fee.id }}" class="sflx-layer" aria-hidden="true" data-sflx-tab-default="{{ row.sflx_initial_tab }}">
+  <div class="sflx-scrim" data-sflx-close="sflx-{{ fee.id }}" role="presentation"></div>
+  <div class="sflx-panel" role="dialog" aria-modal="true" aria-labelledby="sflx-title-{{ fee.id }}">
+    <div class="sflx-hero">
+      <div class="d-flex justify-content-between align-items-start gap-2 sflx-hero-inner">
+        <div>
+          <p class="small text-white-50 text-uppercase fw-bold mb-1" style="letter-spacing:.12em;font-size:.62rem;">Adjust student fee</p>
+          <h2 class="h5 fw-bold text-white mb-0" id="sflx-title-{{ fee.id }}">Edit fee line</h2>
+          <p class="small text-white mb-0 mt-1 opacity-90" style="line-height:1.35;">{{ fee.fee_structure.line_name|default:fee.fee_structure.fee_type.name }} · {{ fee.fee_structure.fee_type.name }}</p>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-sflx-close="sflx-{{ fee.id }}" aria-label="Close"></button>
+      </div>
+      <div class="sflx-kpis sflx-hero-inner">
+        <div class="sflx-kpi">
+          <div class="lbl">Net due</div>
+          <div class="val">₹{{ fee.effective_due_amount|inr }}</div>
+        </div>
+        <div class="sflx-kpi">
+          <div class="lbl">Paid</div>
+          <div class="val">₹{{ row.paid|inr }}</div>
+        </div>
+        <div class="sflx-kpi">
+          <div class="lbl">Balance</div>
+          <div class="val">₹{{ row.balance|inr }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sflx-panel-body">
+      <div class="sflx-tabrail" role="tablist" aria-label="Choose action">
+        <button type="button" class="sflx-tab{% if row.sflx_initial_tab == 'amt' %} sflx-tab-active{% endif %}" role="tab" id="sflx-tab-{{ fee.id }}-amt" aria-controls="sflx-panel-{{ fee.id }}-amt" aria-selected="{% if row.sflx_initial_tab == 'amt' %}true{% else %}false{% endif %}" data-sflx-tab="amt">
+          <span class="sflx-tab-ic" aria-hidden="true"><i class="bi bi-currency-rupee"></i></span>
+          <span class="sflx-tab-lbl">Fee &amp; due</span>
+        </button>
+        <button type="button" class="sflx-tab{% if row.sflx_initial_tab == 'conc' %} sflx-tab-active{% endif %}" role="tab" id="sflx-tab-{{ fee.id }}-conc" aria-controls="sflx-panel-{{ fee.id }}-conc" aria-selected="{% if row.sflx_initial_tab == 'conc' %}true{% else %}false{% endif %}" data-sflx-tab="conc">
+          <span class="sflx-tab-ic" aria-hidden="true"><i class="bi bi-percent"></i></span>
+          <span class="sflx-tab-lbl">Concession</span>
+        </button>
+        <button type="button" class="sflx-tab{% if row.sflx_initial_tab == 'del' %} sflx-tab-active{% endif %}" role="tab" id="sflx-tab-{{ fee.id }}-del" aria-controls="sflx-panel-{{ fee.id }}-del" aria-selected="{% if row.sflx_initial_tab == 'del' %}true{% else %}false{% endif %}" data-sflx-tab="del">
+          <span class="sflx-tab-ic" aria-hidden="true"><i class="bi bi-trash3"></i></span>
+          <span class="sflx-tab-lbl">Remove</span>
+        </button>
+      </div>
+      <div class="sflx-tab-panels">
+        <div class="sflx-tab-panel{% if row.sflx_initial_tab == 'amt' %} sflx-tab-panel-active{% endif %}" role="tabpanel" id="sflx-panel-{{ fee.id }}-amt" aria-labelledby="sflx-tab-{{ fee.id }}-amt" data-sflx-tab-panel="amt" {% if row.sflx_initial_tab != 'amt' %}hidden{% endif %}>
+          <div class="sflx-section mb-0">
+            <div class="sflx-section-head">
+              <span class="ic invoice"><i class="bi bi-currency-rupee"></i></span>
+              <h3 class="sflx-section-title mb-0">Billed amount &amp; due date</h3>
+            </div>
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="save_fee_line" value="1">
+              <input type="hidden" name="fee_id" value="{{ fee.id }}">
+              {% if academic_year %}<input type="hidden" name="ay" value="{{ academic_year.id }}">{% endif %}
+              <div class="sflx-fields-grid">
+                {% for field in row.adjust_form.visible_fields %}
+                <div class="mb-3">
+                  <label class="form-label small fw-semibold mb-1" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                  {{ field }}
+                  {% for e in field.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+                </div>
+                {% endfor %}
+              </div>
+              {% if row.adjust_form.non_field_errors %}<div class="text-danger small mb-2">{{ row.adjust_form.non_field_errors }}</div>{% endif %}
+              <button type="submit" class="btn btn-sm rounded-pill w-100 py-2 text-white sflx-btn-darkline"><i class="bi bi-check2-circle me-1"></i>Save fee line</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="sflx-tab-panel{% if row.sflx_initial_tab == 'conc' %} sflx-tab-panel-active{% endif %}" role="tabpanel" id="sflx-panel-{{ fee.id }}-conc" aria-labelledby="sflx-tab-{{ fee.id }}-conc" data-sflx-tab-panel="conc" {% if row.sflx_initial_tab != 'conc' %}hidden{% endif %}>
+          {% if row.concession_form %}
+          <div class="sflx-section mb-0">
+            <div class="sflx-section-head">
+              <span class="ic percent"><i class="bi bi-percent"></i></span>
+              <h3 class="sflx-section-title mb-0">Concession &amp; waiver</h3>
+            </div>
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="save_concession" value="1">
+              <input type="hidden" name="fee_id" value="{{ fee.id }}">
+              {% if academic_year %}<input type="hidden" name="ay" value="{{ academic_year.id }}">{% endif %}
+              {% for field in row.concession_form.visible_fields %}
+              <div class="mb-3">
+                <label class="form-label small fw-semibold mb-1" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% for e in field.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+              </div>
+              {% endfor %}
+              {% if row.concession_form.non_field_errors %}<div class="text-danger small mb-2">{{ row.concession_form.non_field_errors }}</div>{% endif %}
+              <button type="submit" class="btn btn-sm rounded-pill w-100 py-2 text-white sflx-btn-primary"><i class="bi bi-sliders me-1"></i>Save concession</button>
+            </form>
+          </div>
+          {% else %}
+          <div class="sflx-section mb-0">
+            <div class="sflx-section-head border-0 pb-0 mb-2">
+              <span class="ic percent opacity-50"><i class="bi bi-percent"></i></span>
+              <h3 class="sflx-section-title mb-0">Concession</h3>
+            </div>
+            <p class="small text-muted mb-0">Concessions are disabled for this head on the class structure. Enable <strong>Discount allowed</strong> on the class fee structure line to edit waivers here.</p>
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="sflx-tab-panel{% if row.sflx_initial_tab == 'del' %} sflx-tab-panel-active{% endif %}" role="tabpanel" id="sflx-panel-{{ fee.id }}-del" aria-labelledby="sflx-tab-{{ fee.id }}-del" data-sflx-tab-panel="del" {% if row.sflx_initial_tab != 'del' %}hidden{% endif %}>
+          <div class="sflx-danger-zone mb-0">
+            <div class="sflx-section-head border-0 pb-2 mb-0">
+              <span class="ic trash"><i class="bi bi-trash3"></i></span>
+              <h3 class="sflx-section-title mb-0" style="color:#b91c1c;">Remove fee line</h3>
+            </div>
+            {% if row.paid > 0 %}
+            <p class="small text-muted mb-3">This line has recorded payments (<strong>₹{{ row.paid|inr }}</strong>). Delete stays blocked until those payments are removed.</p>
+            <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill w-100 py-2" disabled><i class="bi bi-lock me-1"></i>Delete unavailable</button>
+            {% else %}
+            <p class="small text-muted mb-3">Permanently removes this fee head for this student. You can recreate it from <strong>Class fee structure</strong> if needed.</p>
+            <form method="post" class="js-sflx-delete-form" data-fee-label="{{ fee.fee_structure.fee_type.name|default:'Fee'|escape }}">
+              {% csrf_token %}
+              <input type="hidden" name="delete_fee_line" value="1">
+              <input type="hidden" name="fee_id" value="{{ fee.id }}">
+              {% if academic_year %}<input type="hidden" name="ay" value="{{ academic_year.id }}">{% endif %}
+              <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill w-100 py-2 fw-semibold"><i class="bi bi-trash3 me-1"></i>Delete this fee head</button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sflx-footer d-flex justify-content-end gap-2">
+      <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-4" data-sflx-close="sflx-{{ fee.id }}"><i class="bi bi-x-lg me-1"></i>Close</button>
+    </div>
+  </div>
+</div>
+{% endwith %}
+{% endfor %}
+{% endblock %}
+
+{% block after_bootstrap %}
+<script>
+(function () {
+  var OPEN = "sflx-open";
+  var VALID_TABS = { amt: 1, conc: 1, del: 1 };
+  function sflxAnyOpen() {
+    return document.querySelector(".sflx-layer." + OPEN);
+  }
+  function sflxActivateTabInLayer(layer, key) {
+    if (!layer) return;
+    key = (key && VALID_TABS[key]) ? key : "amt";
+    layer.querySelectorAll(".sflx-tab[data-sflx-tab]").forEach(function (t) {
+      var k = t.getAttribute("data-sflx-tab");
+      var on = k === key;
+      t.classList.toggle("sflx-tab-active", on);
+      t.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    layer.querySelectorAll("[data-sflx-tab-panel]").forEach(function (p) {
+      var k = p.getAttribute("data-sflx-tab-panel");
+      var on = k === key;
+      p.classList.toggle("sflx-tab-panel-active", on);
+      if (on) p.removeAttribute("hidden");
+      else p.setAttribute("hidden", "");
+    });
+  }
+  function sflxOpen(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var def = el.getAttribute("data-sflx-tab-default") || "amt";
+    sflxActivateTabInLayer(el, def);
+    el.removeAttribute("data-sflx-tab-default");
+    el.classList.add(OPEN);
+    el.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+  }
+  function sflxClose(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove(OPEN);
+    el.setAttribute("aria-hidden", "true");
+    if (!sflxAnyOpen()) document.body.style.overflow = "";
+  }
+  function sflxCloseAll() {
+    document.querySelectorAll(".sflx-layer." + OPEN).forEach(function (el) {
+      el.classList.remove(OPEN);
+      el.setAttribute("aria-hidden", "true");
+    });
+    document.body.style.overflow = "";
+  }
+
+  document.addEventListener("click", function (e) {
+    var openBtn = e.target.closest("[data-sflx-open]");
+    if (openBtn) {
+      e.preventDefault();
+      var oid = openBtn.getAttribute("data-sflx-open");
+      if (oid) sflxOpen(oid);
+      return;
+    }
+    var tabBtn = e.target.closest(".sflx-tab[data-sflx-tab]");
+    if (tabBtn) {
+      var layer = tabBtn.closest(".sflx-layer");
+      if (layer && layer.classList.contains(OPEN)) {
+        e.preventDefault();
+        sflxActivateTabInLayer(layer, tabBtn.getAttribute("data-sflx-tab"));
+      }
+      return;
+    }
+    var closeEl = e.target.closest("[data-sflx-close]");
+    if (closeEl) {
+      e.preventDefault();
+      var cid = closeEl.getAttribute("data-sflx-close");
+      if (cid) sflxClose(cid);
+    }
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && sflxAnyOpen()) {
+      e.preventDefault();
+      sflxCloseAll();
+    }
+  });
+
+  document.querySelectorAll(".js-sflx-delete-form").forEach(function (form) {
+    form.addEventListener("submit", function (e) {
+      var label = form.getAttribute("data-fee-label") || "this fee head";
+      if (!window.confirm('Remove "' + label + '" from this student? This cannot be undone.')) {
+        e.preventDefault();
+      }
+    });
+  });
+
+  var errId = {% if error_fee_id %}{{ error_fee_id }}{% else %}null{% endif %};
+  if (errId) {
+    var layer = document.getElementById("sflx-" + errId);
+    if (layer) sflxOpen("sflx-" + errId);
+  }
+})();
+</script>
+{% endblock %}

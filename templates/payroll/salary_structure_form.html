@@ -1,48 +1,331 @@
 {% extends "base.html" %}
+{% load nav_tags %}
 {% block title %}{{ title }} | School ERP{% endblock %}
+{% block extra_head %}
+<style>
+  .ss-hero {
+    background: linear-gradient(135deg, #0f766e 0%, #0d9488 42%, #0e7490 100%);
+    color: #fff;
+    border-radius: 1rem;
+    padding: 1.35rem 1.5rem;
+    box-shadow: 0 12px 40px rgba(13, 148, 136, 0.25);
+  }
+  .ss-hero .ss-avatar {
+    width: 3.25rem;
+    height: 3.25rem;
+    border-radius: 0.85rem;
+    background: rgba(255,255,255,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+  .ss-panel {
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 0.85rem;
+    background: var(--bs-body-bg);
+    overflow: hidden;
+  }
+  .ss-panel-h {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  }
+  .ss-panel-h.allow { background: rgba(16, 185, 129, 0.1); color: #047857; }
+  .ss-panel-h.ded { background: rgba(239, 68, 68, 0.08); color: #b91c1c; }
+  .ss-comp-scroll { max-height: min(48vh, 400px); overflow-y: auto; }
+  .ss-comp-row {
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+    padding: 0.75rem 1rem;
+  }
+  .ss-comp-row:last-child { border-bottom: none; }
+  .ss-kpi {
+    border-radius: 0.75rem;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    padding: 0.65rem 0.85rem;
+    text-align: center;
+    background: rgba(248, 250, 252, 0.8);
+  }
+  html.dark .ss-kpi { background: rgba(30, 41, 59, 0.6); border-color: rgba(148, 163, 184, 0.2); }
+  .ss-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    background: linear-gradient(180deg, transparent 0%, var(--bs-body-bg) 18%);
+    padding-top: 1rem;
+    margin-top: 0.5rem;
+  }
+</style>
+{% endblock %}
 {% block content %}
-<div class="container-fluid px-0">
+<div class="container-fluid px-0" style="max-width: 1100px;">
   <nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb">
+    <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
       <li class="breadcrumb-item"><a href="{% url 'payroll:payroll_dashboard' %}">Payroll</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'payroll:salary_structure_list' %}">Salary Structure</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'payroll:salary_structure_list' %}">Salary structure</a></li>
       <li class="breadcrumb-item active">{{ title }}</li>
     </ol>
   </nav>
 
-  <h1 class="h4 fw-bold mb-4">{{ title }}</h1>
+  {% if messages %}
+  <div class="mb-3">
+    {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} rounded-3 border-0 shadow-sm mb-2 py-2 px-3 small">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
 
-  <div class="card border-0 shadow-sm rounded-3" style="max-width: 500px;">
-    <div class="card-body">
+  {% if structure %}
+  <form method="post" class="pb-4">
+    {% csrf_token %}
+    <div class="ss-hero mb-4">
+      <div class="d-flex flex-wrap align-items-start gap-3 justify-content-between">
+        <div class="d-flex align-items-start gap-3">
+          <div class="ss-avatar text-white">{{ structure.teacher.user.get_full_name|default:structure.teacher.user.username|branding_initials }}</div>
+          <div>
+            <h1 class="h5 fw-bold text-white mb-1">{{ structure.teacher.user.get_full_name|default:structure.teacher.user.username }}</h1>
+            <p class="small text-white mb-0 opacity-90">
+              {% if structure.teacher.employee_id %}ID {{ structure.teacher.employee_id }} · {% endif %}
+              Salary structure · {{ title }}
+            </p>
+          </div>
+        </div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <a href="{% url 'payroll:salary_components_list' %}" class="btn btn-sm btn-light bg-opacity-25 text-white border border-light border-opacity-25 rounded-pill px-3">Salary components</a>
+          <a href="{% url 'payroll:salary_structure_list' %}" class="btn btn-sm btn-outline-light rounded-pill px-3">All structures</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+      <div class="col-lg-5">
+        <div class="card border-0 shadow-sm rounded-4 h-100">
+          <div class="card-body p-4">
+            <h2 class="h6 fw-bold text-body mb-1">Employment &amp; basic pay</h2>
+            <p class="small text-muted mb-4">Employee assignment and monthly basic (used for % allowances/deductions).</p>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold text-muted">Employee</label>
+              {{ form.teacher }}
+              {% if form.teacher.errors %}<div class="text-danger small mt-1">{{ form.teacher.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold text-muted">Designation</label>
+              {{ form.designation }}
+              {% if form.designation.errors %}<div class="text-danger small mt-1">{{ form.designation.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold text-muted">Department</label>
+              {{ form.department }}
+              {% if form.department.errors %}<div class="text-danger small mt-1">{{ form.department.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="mb-0">
+              <label class="form-label small fw-semibold text-muted">Basic salary (₹ / month)</label>
+              {{ form.basic_salary }}
+              {% if form.basic_salary.errors %}<div class="text-danger small mt-1">{{ form.basic_salary.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-7">
+        <div class="card border-0 shadow-sm rounded-4 h-100">
+          <div class="card-body p-4">
+            <h2 class="h6 fw-bold text-body mb-1">Pay preview</h2>
+            <p class="small text-muted mb-3">Snapshot from the last saved structure (save to refresh after edits).</p>
+            <div class="row g-2 g-md-3">
+              <div class="col-6 col-md-3">
+                <div class="ss-kpi">
+                  <div class="text-muted text-uppercase" style="font-size:0.65rem;letter-spacing:0.06em;">Allowances</div>
+                  <div class="fw-bold text-success small">₹{{ structure_preview.allowances|inr }}</div>
+                </div>
+              </div>
+              <div class="col-6 col-md-3">
+                <div class="ss-kpi">
+                  <div class="text-muted text-uppercase" style="font-size:0.65rem;letter-spacing:0.06em;">Deductions</div>
+                  <div class="fw-bold text-danger small">₹{{ structure_preview.deductions|inr }}</div>
+                </div>
+              </div>
+              {% if structure_preview.advance %}
+              <div class="col-6 col-md-3">
+                <div class="ss-kpi">
+                  <div class="text-muted text-uppercase" style="font-size:0.65rem;letter-spacing:0.06em;">Advance</div>
+                  <div class="fw-bold small">₹{{ structure_preview.advance|inr }}</div>
+                </div>
+              </div>
+              {% endif %}
+              <div class="col-6 col-md-3">
+                <div class="ss-kpi border-primary border-opacity-25" style="background: rgba(13, 148, 136, 0.08);">
+                  <div class="text-muted text-uppercase" style="font-size:0.65rem;letter-spacing:0.06em;">Net pay</div>
+                  <div class="fw-bold small" style="color:#0f766e;">₹{{ structure_preview.net|inr }}</div>
+                </div>
+              </div>
+            </div>
+            <p class="small text-muted mt-3 mb-0">
+              {% if structure.use_default_salary_components %}
+              <i class="bi bi-info-circle me-1"></i><strong>All active heads</strong> apply. Enable <strong>Custom rate</strong> only where this employee differs from the master component.
+              {% else %}
+              <i class="bi bi-info-circle me-1"></i>Select which heads apply; optional custom % or fixed ₹ per line.
+              {% endif %}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="h6 fw-bold mb-3">Payslip heads</h2>
+    <div class="row g-4 mb-2">
+      <div class="col-lg-6">
+        <div class="ss-panel shadow-sm">
+          <div class="ss-panel-h allow"><i class="bi bi-plus-circle me-1"></i>Allowances</div>
+          <div class="ss-comp-scroll">
+            {% for row in allowance_lines %}
+            {% with c=row.c %}
+            <div class="ss-comp-row">
+              <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                {% if structure.use_default_salary_components %}
+                <input type="hidden" name="component_id" value="{{ c.pk }}">
+                <span class="small fw-semibold">{{ c.name }}</span>
+                {% else %}
+                <input class="form-check-input flex-shrink-0 mt-0" type="checkbox" name="component_id" value="{{ c.pk }}" id="ssa{{ c.pk }}" {% if row.included %}checked{% endif %}>
+                <label class="form-check-label small fw-semibold mb-0" for="ssa{{ c.pk }}">{{ c.name }}</label>
+                {% endif %}
+                <span class="badge rounded-pill bg-body-secondary border small">{% if c.calculation_type == 'PERCENTAGE' %}{{ c.value }}% of basic{% else %}₹{{ c.value|inr:0 }}{% endif %}</span>
+              </div>
+              <div class="d-flex flex-wrap align-items-center gap-2 ps-1">
+                <div class="form-check mb-0">
+                  <input class="form-check-input pg-custom-toggle" type="checkbox" name="c{{ c.pk }}_custom" value="1" id="sscusta{{ c.pk }}" {% if row.custom %}checked{% endif %} data-pg-target="ss-rate-a-{{ c.pk }}">
+                  <label class="form-check-label small" for="sscusta{{ c.pk }}">Custom rate</label>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-1 pg-rate-group" id="ss-rate-a-{{ c.pk }}">
+                  <select name="c{{ c.pk }}_calc" class="form-select form-select-sm rounded-3" style="width: auto; min-width: 7.5rem;">
+                    <option value="PERCENTAGE" {% if row.calc == 'PERCENTAGE' %}selected{% endif %}>% of basic</option>
+                    <option value="FIXED" {% if row.calc == 'FIXED' %}selected{% endif %}>Fixed ₹</option>
+                  </select>
+                  <input type="text" name="c{{ c.pk }}_val" class="form-control form-control-sm font-monospace rounded-3" style="width: 6.5rem;" value="{{ row.value }}" inputmode="decimal" autocomplete="off" placeholder="0">
+                </div>
+              </div>
+            </div>
+            {% endwith %}
+            {% empty %}
+            <div class="p-4 text-muted small">No active allowances. <a href="{% url 'payroll:salary_component_add' %}">Create a component</a>.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="ss-panel shadow-sm">
+          <div class="ss-panel-h ded"><i class="bi bi-dash-circle me-1"></i>Deductions</div>
+          <div class="ss-comp-scroll">
+            {% for row in deduction_lines %}
+            {% with c=row.c %}
+            <div class="ss-comp-row">
+              <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                {% if structure.use_default_salary_components %}
+                <input type="hidden" name="component_id" value="{{ c.pk }}">
+                <span class="small fw-semibold">{{ c.name }}</span>
+                {% else %}
+                <input class="form-check-input flex-shrink-0 mt-0" type="checkbox" name="component_id" value="{{ c.pk }}" id="ssd{{ c.pk }}" {% if row.included %}checked{% endif %}>
+                <label class="form-check-label small fw-semibold mb-0" for="ssd{{ c.pk }}">{{ c.name }}</label>
+                {% endif %}
+                <span class="badge rounded-pill bg-body-secondary border small">{% if c.calculation_type == 'PERCENTAGE' %}{{ c.value }}% of basic{% else %}₹{{ c.value|inr:0 }}{% endif %}</span>
+              </div>
+              <div class="d-flex flex-wrap align-items-center gap-2 ps-1">
+                <div class="form-check mb-0">
+                  <input class="form-check-input pg-custom-toggle" type="checkbox" name="c{{ c.pk }}_custom" value="1" id="sscustd{{ c.pk }}" {% if row.custom %}checked{% endif %} data-pg-target="ss-rate-d-{{ c.pk }}">
+                  <label class="form-check-label small" for="sscustd{{ c.pk }}">Custom rate</label>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-1 pg-rate-group" id="ss-rate-d-{{ c.pk }}">
+                  <select name="c{{ c.pk }}_calc" class="form-select form-select-sm rounded-3" style="width: auto; min-width: 7.5rem;">
+                    <option value="PERCENTAGE" {% if row.calc == 'PERCENTAGE' %}selected{% endif %}>% of basic</option>
+                    <option value="FIXED" {% if row.calc == 'FIXED' %}selected{% endif %}>Fixed ₹</option>
+                  </select>
+                  <input type="text" name="c{{ c.pk }}_val" class="form-control form-control-sm font-monospace rounded-3" style="width: 6.5rem;" value="{{ row.value }}" inputmode="decimal" autocomplete="off" placeholder="0">
+                </div>
+              </div>
+            </div>
+            {% endwith %}
+            {% empty %}
+            <div class="p-4 text-muted small">No active deductions.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ss-footer d-flex flex-wrap gap-2 align-items-center justify-content-between">
+      <p class="small text-muted mb-0">One save updates employee details, basic salary, and all payslip heads.</p>
+      <div class="d-flex flex-wrap gap-2">
+        <a href="{% url 'payroll:salary_structure_list' %}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
+        <button type="submit" class="btn btn-primary rounded-pill px-4 shadow-sm"><i class="bi bi-check2-circle me-2"></i>Save salary structure</button>
+      </div>
+    </div>
+  </form>
+
+  {% else %}
+  {# Add new structure #}
+  <div class="ss-hero mb-4">
+    <h1 class="h5 fw-bold text-white mb-1">{{ title }}</h1>
+    <p class="small text-white mb-0 opacity-90">Assign an employee and basic pay. You can configure allowances and deductions on the next screen.</p>
+  </div>
+  <div class="card border-0 shadow-sm rounded-4" style="max-width: 640px;">
+    <div class="card-body p-4">
       <form method="post">
         {% csrf_token %}
         <div class="mb-3">
-          <label class="form-label">Employee</label>
+          <label class="form-label small fw-semibold text-muted">Employee</label>
           {{ form.teacher }}
-          {% if form.teacher.errors %}<div class="text-danger small">{{ form.teacher.errors.0 }}</div>{% endif %}
+          {% if form.teacher.errors %}<div class="text-danger small mt-1">{{ form.teacher.errors.0 }}</div>{% endif %}
         </div>
         <div class="mb-3">
-          <label class="form-label">Designation</label>
+          <label class="form-label small fw-semibold text-muted">Designation</label>
           {{ form.designation }}
-          {% if form.designation.errors %}<div class="text-danger small">{{ form.designation.errors.0 }}</div>{% endif %}
         </div>
         <div class="mb-3">
-          <label class="form-label">Department</label>
+          <label class="form-label small fw-semibold text-muted">Department</label>
           {{ form.department }}
-          {% if form.department.errors %}<div class="text-danger small">{{ form.department.errors.0 }}</div>{% endif %}
         </div>
-        <div class="mb-3">
-          <label class="form-label">Basic Salary</label>
+        <div class="mb-4">
+          <label class="form-label small fw-semibold text-muted">Basic salary (₹ / month)</label>
           {{ form.basic_salary }}
-          {% if form.basic_salary.errors %}<div class="text-danger small">{{ form.basic_salary.errors.0 }}</div>{% endif %}
+          {% if form.basic_salary.errors %}<div class="text-danger small mt-1">{{ form.basic_salary.errors.0 }}</div>{% endif %}
         </div>
-        <div class="d-flex gap-2">
-          <button type="submit" class="btn btn-primary">Save</button>
-          <a href="{% url 'payroll:salary_structure_list' %}" class="btn btn-outline-secondary">Cancel</a>
+        <div class="d-flex flex-wrap gap-2">
+          <button type="submit" class="btn btn-primary rounded-pill px-4">Create &amp; continue</button>
+          <a href="{% url 'payroll:salary_structure_list' %}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
         </div>
       </form>
     </div>
   </div>
+  {% endif %}
 </div>
+{% endblock %}
+
+{% block after_bootstrap %}
+{{ block.super }}
+{% if structure %}
+<script>
+(function () {
+  function syncGroup(cb) {
+    var id = cb.getAttribute("data-pg-target");
+    var wrap = id ? document.getElementById(id) : null;
+    if (!wrap) return;
+    var on = cb.checked;
+    wrap.querySelectorAll("select, input").forEach(function (el) {
+      el.disabled = !on;
+    });
+  }
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll(".pg-custom-toggle").forEach(function (cb) {
+      cb.addEventListener("change", function () { syncGroup(cb); });
+      syncGroup(cb);
+    });
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}

@@ -55,49 +55,170 @@
   html.dark .att-table-card {
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
   }
-  /* One-line filter bar: horizontal scroll on narrow viewports */
-  .att-filter-scroll {
-    overflow-x: auto;
-    overflow-y: visible;
-    -webkit-overflow-scrolling: touch;
-    margin: 0 -0.25rem;
-    padding: 0 0.25rem;
+  /* Filter toolbar — premium ERP card (grid + equal control height) */
+  .att-filter-card-body {
+    padding: 1.25rem 1.25rem 1rem;
   }
-  .att-filter-row {
+  @media (min-width: 992px) {
+    .att-filter-card-body {
+      padding: 1.5rem 1.5rem 1.125rem;
+    }
+  }
+  .att-filter-card-head {
     display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    align-items: flex-end;
-    gap: 0.65rem 1rem;
-    min-width: min(100%, 56rem);
+    align-items: flex-start;
+    gap: 0.875rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--att-border);
   }
-  .att-filter-cell .form-label {
-    margin-bottom: 0.2rem;
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    font-weight: 700;
+  .att-filter-card-head-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: var(--att-brand-soft);
+    color: var(--att-brand);
+    font-size: 1.1rem;
+  }
+  .att-filter-card-title {
+    font-family: "Poppins", "Inter", system-ui, sans-serif;
+    font-size: 1.0625rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.2rem;
+    color: #0f172a;
+  }
+  html.dark .att-filter-card-title {
+    color: #f1f5f9;
+  }
+  .att-filter-card-sub {
+    margin: 0;
+    font-size: 0.8125rem;
     color: var(--att-muted);
-    white-space: nowrap;
+    line-height: 1.45;
+    max-width: 36rem;
   }
-  .att-filter-cell .form-select,
-  .att-filter-cell .form-control {
-    min-height: 42px;
+  .att-load-form .form-label {
+    margin-bottom: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--att-muted);
+  }
+  .att-filter-grid {
+    display: grid;
+    gap: 1rem 1.25rem;
+    align-items: end;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 576px) {
+    .att-filter-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .att-filter-field--session {
+      grid-column: 1 / -1;
+    }
+    .att-filter-field--action {
+      grid-column: 1 / -1;
+    }
+  }
+  @media (min-width: 992px) {
+    .att-filter-grid {
+      grid-template-columns: minmax(10.5rem, 1.15fr) minmax(8.5rem, 0.95fr) minmax(8.5rem, 0.95fr) minmax(11rem, 1.05fr) minmax(12rem, 1.25fr) auto;
+      gap: 1rem 1rem;
+    }
+    .att-filter-field--session {
+      grid-column: auto;
+    }
+    .att-filter-field--action {
+      grid-column: auto;
+    }
+  }
+  .att-filter-grid--focus {
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 768px) {
+    .att-filter-grid--focus {
+      grid-template-columns: minmax(12rem, 1.4fr) minmax(11rem, 1fr) auto;
+    }
+  }
+  .att-filter-field .form-select,
+  .att-filter-field .form-control {
+    min-height: 44px;
+    height: 44px;
     font-size: 0.875rem;
-    border-radius: 8px;
-    border-color: var(--att-border);
+    border-radius: 10px;
+    border: 1px solid var(--att-border);
     background: var(--att-surface-2);
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
   }
-  html.dark .att-filter-cell .form-select,
-  html.dark .att-filter-cell .form-control {
+  .att-filter-field input[type="date"].form-control {
+    min-height: 44px;
+  }
+  html.dark .att-filter-field .form-select,
+  html.dark .att-filter-field .form-control {
     background: rgba(15, 23, 42, 0.55);
     color: #f1f5f9;
   }
-  .att-filter-class { flex: 0 0 9.25rem; min-width: 7.5rem; }
-  .att-filter-section { flex: 0 0 9.25rem; min-width: 7.5rem; }
-  .att-filter-date { flex: 0 0 15rem; min-width: 13rem; }
-  .att-filter-search { flex: 1 1 12rem; min-width: 11rem; max-width: 24rem; }
-  .att-filter-action { flex: 0 0 auto; }
+  .att-session-display {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0.875rem;
+    border-radius: 10px;
+    border: 1px dashed var(--att-border);
+    background: var(--att-surface-2);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #0f172a;
+    line-height: 1.35;
+  }
+  html.dark .att-session-display {
+    color: #f1f5f9;
+    background: rgba(15, 23, 42, 0.45);
+  }
+  .att-filter-hint {
+    margin: 1.25rem 0 0;
+    padding-top: 1rem;
+    border-top: 1px solid var(--att-border);
+    font-size: 0.8125rem;
+    color: var(--att-muted);
+    line-height: 1.5;
+    max-width: 42rem;
+  }
+  .att-filter-btn-load {
+    min-height: 44px;
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+    font-weight: 600;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
+  }
+  @media (max-width: 991.98px) {
+    .att-filter-field--action {
+      justify-self: stretch;
+    }
+    .att-filter-btn-load {
+      width: 100%;
+    }
+  }
+  .att-filter-btn-load--focus {
+    width: 100%;
+  }
+  @media (min-width: 768px) {
+    .att-filter-btn-load--focus {
+      width: auto;
+    }
+  }
   .att-erp-table {
     border-collapse: separate;
     border-spacing: 0;
@@ -468,76 +589,85 @@
   {% endif %}
 
   <div class="card border-0 att-filters-card mb-4">
-    <div class="card-body py-3 px-3 px-lg-4">
-      <div class="d-flex align-items-center gap-2 mb-2 pb-2 border-bottom" style="border-color: var(--att-border) !important;">
-        <span class="rounded-2 d-inline-flex align-items-center justify-content-center text-white" style="width:32px;height:32px;background:var(--att-brand);font-size:0.9rem;">
-          <i class="bi bi-funnel-fill"></i>
-        </span>
-        <h2 class="h6 fw-bold mb-0 att-page-title">Session filters</h2>
+    <div class="card-body att-filter-card-body">
+      <div class="att-filter-card-head">
+        <div class="att-filter-card-head-icon" aria-hidden="true">
+          <i class="bi bi-sliders"></i>
+        </div>
+        <div class="min-w-0">
+          <h2 class="att-filter-card-title">Attendance filters</h2>
+          <p class="att-filter-card-sub">Choose the class roster and date, then load students to open the roll call.</p>
+        </div>
       </div>
-      <form method="get" action="{% url 'core:attendance_list' %}" id="loadForm" class="erp-filter-toolbar">
+      <form method="get" action="{% url 'core:attendance_list' %}" id="loadForm" class="att-load-form">
         {% if focus_student %}
         <input type="hidden" name="student_id" value="{{ focus_student.id }}">
         <input type="hidden" name="classroom_id" value="{{ classroom_id }}">
         <input type="hidden" name="section_id" value="{{ section_id }}">
         <input type="hidden" name="q" value="{{ search_q }}">
         <input type="hidden" name="per_page" value="{{ per_page_param }}">
-        <div class="att-filter-scroll pt-1">
-          <div class="att-filter-row">
-            <div class="att-filter-cell att-filter-class">
-              <span class="form-label d-block">Class &amp; section</span>
-              <p class="fw-semibold mb-0 small">{{ focus_student.classroom.name }} — {{ focus_student.section.name }}</p>
-            </div>
-            <div class="att-filter-cell att-filter-date">
-              <label for="attendance_date" class="form-label">Attendance date</label>
-              <input type="date" name="attendance_date" id="attendance_date" class="form-control" value="{{ attendance_date }}" required autocomplete="off">
-            </div>
-            <div class="att-filter-cell att-filter-action">
-              <label class="form-label d-block opacity-0 user-select-none">Go</label>
-              <button type="submit" class="btn btn-primary">
-                <i class="bi bi-people-fill me-1"></i>Load
-              </button>
+        <div class="att-filter-grid att-filter-grid--focus">
+          <div class="att-filter-field att-filter-field--session">
+            <span class="form-label d-block">Class &amp; section</span>
+            <div class="att-session-display">
+              <span class="att-session-display__text">{{ focus_student.classroom.name }} — {{ focus_student.section.name }}</span>
             </div>
           </div>
+          <div class="att-filter-field">
+            <label for="attendance_date" class="form-label">Date</label>
+            <input type="date" name="attendance_date" id="attendance_date" class="form-control" value="{{ attendance_date }}" required autocomplete="off">
+          </div>
+          <div class="att-filter-field att-filter-field--action">
+            <label class="form-label d-block user-select-none" style="visibility:hidden;">Load</label>
+            <button type="submit" class="btn btn-primary att-filter-btn-load att-filter-btn-load--focus">
+              <i class="bi bi-people-fill me-1"></i>Load students
+            </button>
+          </div>
         </div>
+        <p class="att-filter-hint mb-0">Select class, section, and attendance date to load students.</p>
         {% else %}
         <input type="hidden" name="per_page" value="{{ per_page_param }}">
-        <div class="att-filter-scroll pt-1">
-          <div class="att-filter-row">
-            <div class="att-filter-cell att-filter-class">
-              <label for="classroom_id" class="form-label">Class</label>
-              <select name="classroom_id" id="classroom_id" class="form-select" required>
-                <option value="">— Select —</option>
-                {% for c in class_sections_data %}
-                <option value="{{ c.id }}" {% if classroom_id == c.id %}selected{% endif %}>{{ c.name }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="att-filter-cell att-filter-section">
-              <label for="section_id" class="form-label">Section</label>
-              <select name="section_id" id="section_id" class="form-select" required>
-                <option value="">— Select —</option>
-              </select>
-            </div>
-            <div class="att-filter-cell att-filter-date">
-              <label for="attendance_date" class="form-label">Attendance date</label>
-              <input type="date" name="attendance_date" id="attendance_date" class="form-control" value="{{ attendance_date }}" required autocomplete="off">
-            </div>
-            <div class="att-filter-cell att-filter-search">
-              <label for="q" class="form-label">Search <span class="fw-normal opacity-75">(optional)</span></label>
-              <input type="search" name="q" id="q" class="form-control" placeholder="Name, admission or roll no." value="{{ search_q }}" autocomplete="off">
-            </div>
-            <div class="att-filter-cell att-filter-action">
-              <label class="form-label d-block opacity-0 user-select-none">Load</label>
-              <button type="submit" class="btn btn-primary text-nowrap">
-                <i class="bi bi-people-fill me-1"></i>Load students
-              </button>
+        <div class="att-filter-grid">
+          <div class="att-filter-field att-filter-field--session">
+            <span class="form-label d-block">Session</span>
+            <div class="att-session-display" title="{{ attendance_pct_scope_label|escape }}">
+              <span class="att-session-display__text">{{ attendance_pct_scope_label }}</span>
             </div>
           </div>
+          <div class="att-filter-field">
+            <label for="classroom_id" class="form-label">Class</label>
+            <select name="classroom_id" id="classroom_id" class="form-select" required>
+              <option value="">— Select —</option>
+              {% for c in class_sections_data %}
+              <option value="{{ c.id }}" {% if classroom_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="att-filter-field">
+            <label for="section_id" class="form-label">Section</label>
+            <select name="section_id" id="section_id" class="form-select" required>
+              <option value="">— Select —</option>
+            </select>
+          </div>
+          <div class="att-filter-field">
+            <label for="attendance_date" class="form-label">Date</label>
+            <input type="date" name="attendance_date" id="attendance_date" class="form-control" value="{{ attendance_date }}" required autocomplete="off">
+          </div>
+          <div class="att-filter-field">
+            <label for="q" class="form-label">Search <span class="fw-normal text-lowercase" style="letter-spacing:0;">(optional)</span></label>
+            <input type="search" name="q" id="q" class="form-control" placeholder="Name, admission or roll no." value="{{ search_q }}" autocomplete="off">
+          </div>
+          <div class="att-filter-field att-filter-field--action">
+            <label class="form-label d-block user-select-none" style="visibility:hidden;">Load</label>
+            <button type="submit" class="btn btn-primary att-filter-btn-load">
+              <i class="bi bi-people-fill me-1"></i>Load students
+            </button>
+          </div>
         </div>
+        <p class="att-filter-hint mb-0">Select class, section, and attendance date to load students.</p>
         {% endif %}
         {% if future_date %}
-        <p class="text-danger small mb-0 mt-2">Future dates cannot be recorded.</p>
+        <p class="text-danger small mb-0 mt-3">Future dates cannot be recorded.</p>
         {% endif %}
       </form>
     </div>
@@ -552,6 +682,12 @@
   {% elif roll_call_total %}
   {% if future_date %}
   <div class="alert alert-warning rounded-4 border-0">Pick today or an earlier date to mark attendance.</div>
+  {% elif attendance_day_blocked %}
+  <div class="alert alert-secondary rounded-4 border-0">
+    <strong>{{ day_calendar.label }}</strong>
+    {% if day_calendar.detail %}<span class="d-block small mt-1">{{ day_calendar.detail }}</span>{% endif %}
+    <span class="d-block small mt-1 text-muted">Saving attendance is disabled for this date.</span>
+  </div>
   {% endif %}
 
   <div class="card border-0 shadow-sm att-table-card">
@@ -597,16 +733,16 @@
           <span class="att-stat-pill leave"><i class="bi bi-suitcase-lg"></i> Leave <strong id="attCountL">0</strong></span>
         </div>
         <div class="d-flex flex-nowrap gap-2 att-bulk-actions order-2 justify-content-start justify-content-md-end w-100 w-md-auto">
-          <button type="button" class="btn btn-sm att-bulk-btn" id="markAllPresent" {% if future_date %}disabled{% endif %} title="Set every row to Present">
+          <button type="button" class="btn btn-sm att-bulk-btn" id="markAllPresent" {% if future_date or attendance_day_blocked %}disabled{% endif %} title="Set every row to Present">
             <i class="bi bi-check-all me-1"></i>All present
           </button>
-          <button type="button" class="btn btn-sm att-bulk-btn" id="markAllAbsent" {% if future_date %}disabled{% endif %} title="Set every row to Absent">
+          <button type="button" class="btn btn-sm att-bulk-btn" id="markAllAbsent" {% if future_date or attendance_day_blocked %}disabled{% endif %} title="Set every row to Absent">
             <i class="bi bi-x-lg me-1"></i>All absent
           </button>
-          <button type="button" class="btn btn-sm att-bulk-btn" id="markAllLeave" {% if future_date %}disabled{% endif %} title="Set every row to Leave">
+          <button type="button" class="btn btn-sm att-bulk-btn" id="markAllLeave" {% if future_date or attendance_day_blocked %}disabled{% endif %} title="Set every row to Leave">
             <i class="bi bi-suitcase-lg me-1"></i>All leave
           </button>
-          <button type="button" class="btn btn-sm text-white border-0 att-save-btn" id="saveAttendanceBtn" {% if future_date %}disabled{% endif %}>
+          <button type="button" class="btn btn-sm text-white border-0 att-save-btn" id="saveAttendanceBtn" {% if future_date or attendance_day_blocked %}disabled{% endif %}>
             <i class="bi bi-cloud-upload me-1"></i>Save attendance
           </button>
         </div>
@@ -665,11 +801,11 @@
               </td>
               <td>
                 <div class="att-status-toggle d-flex flex-wrap gap-1" role="group" aria-label="Status for {{ s.user.get_full_name|default:s.user.username }}">
-                  <input type="radio" class="btn-check" name="status_{{ s.id }}" id="att_{{ s.id }}_P" value="PRESENT" {% if item.status == 'PRESENT' %}checked{% endif %} {% if future_date %}disabled{% endif %}>
+                  <input type="radio" class="btn-check" name="status_{{ s.id }}" id="att_{{ s.id }}_P" value="PRESENT" {% if item.status == 'PRESENT' %}checked{% endif %} {% if future_date or attendance_day_blocked %}disabled{% endif %}>
                   <label class="att-pill att-pill-present" for="att_{{ s.id }}_P">Present</label>
-                  <input type="radio" class="btn-check" name="status_{{ s.id }}" id="att_{{ s.id }}_A" value="ABSENT" {% if item.status == 'ABSENT' %}checked{% endif %} {% if future_date %}disabled{% endif %}>
+                  <input type="radio" class="btn-check" name="status_{{ s.id }}" id="att_{{ s.id }}_A" value="ABSENT" {% if item.status == 'ABSENT' %}checked{% endif %} {% if future_date or attendance_day_blocked %}disabled{% endif %}>
                   <label class="att-pill att-pill-absent" for="att_{{ s.id }}_A">Absent</label>
-                  <input type="radio" class="btn-check" name="status_{{ s.id }}" id="att_{{ s.id }}_L" value="LEAVE" {% if item.status == 'LEAVE' %}checked{% endif %} {% if future_date %}disabled{% endif %}>
+                  <input type="radio" class="btn-check" name="status_{{ s.id }}" id="att_{{ s.id }}_L" value="LEAVE" {% if item.status == 'LEAVE' %}checked{% endif %} {% if future_date or attendance_day_blocked %}disabled{% endif %}>
                   <label class="att-pill att-pill-leave" for="att_{{ s.id }}_L">Leave</label>
                 </div>
               </td>
@@ -745,8 +881,6 @@
     </div>
     {% endif %}
   </div>
-  {% else %}
-  <div class="alert alert-secondary border-0 shadow-sm rounded-4">Choose <strong>class</strong>, <strong>section</strong>, and <strong>date</strong>, then <strong>Load students</strong>.</div>
   {% endif %}
 </div>
 
@@ -785,7 +919,7 @@
 })();
 </script>
 
-{% if roll_call_items and not future_date %}
+{% if roll_call_items and not future_date and not attendance_day_blocked %}
 <script>
 (function() {
   function showAttendanceToast(type, message) {

@@ -1,5 +1,7 @@
 from django.urls import include, path
-from . import views
+from django.views.generic import RedirectView
+
+from . import billing_views, views
 
 app_name = "core"
 
@@ -205,6 +207,7 @@ urlpatterns = [
     path("school/subjects/add/", views.school_subject_add, name="school_subject_add"),
     path("school/subjects/<int:subject_id>/edit/", views.school_subject_edit, name="school_subject_edit"),
     path("school/subjects/<int:subject_id>/delete/", views.school_subject_delete, name="school_subject_delete"),
+    path("school/calendar/holidays/", views.school_calendar_holidays, name="school_calendar_holidays"),
     path("attendance/", views.attendance_list, name="attendance_list"),
     path("marks/", views.marks_list, name="marks_list"),
     path("homework/", views.homework_list, name="homework_list"),
@@ -230,37 +233,196 @@ urlpatterns = [
     path("teacher/attendance/", views.bulk_attendance, name="bulk_attendance"),
     path("teacher/attendance/mark/", views.mark_attendance, name="mark_attendance"),
 
-    # Fee & Billing (Basic Plan)
-    path("school/fees/", views.school_fees_index, name="school_fees_index"),
-    path("school/fees/types/", views.school_fee_types, name="school_fee_types"),
+    # Fees & Billing (SaaS module)
+    path("school/billing/", billing_views.billing_dashboard, name="billing_dashboard"),
     path(
-        "school/fees/types/<int:pk>/update/",
+        "school/billing/record-payment/",
+        billing_views.billing_record_payment,
+        name="billing_record_payment",
+    ),
+    path(
+        "school/billing/api/students-search/",
+        billing_views.billing_fee_student_search,
+        name="billing_fee_student_search",
+    ),
+    path(
+        "school/billing/collect/student/<int:student_id>/",
+        billing_views.billing_student_collect,
+        name="billing_student_collect",
+    ),
+    path(
+        "school/billing/fee-structure/",
+        billing_views.billing_class_fee_structure,
+        name="billing_fee_structure",
+    ),
+    path(
+        "school/billing/fee-structure/impacted-count/",
+        billing_views.billing_structure_impacted_count,
+        name="billing_structure_impacted_count",
+    ),
+    path(
+        "school/billing/fee-structure/class/<int:classroom_id>/students/",
+        billing_views.billing_class_fee_students,
+        name="billing_class_fee_students",
+    ),
+    path(
+        "school/billing/fee-structure/class/<int:classroom_id>/student/<int:student_id>/fees/",
+        billing_views.billing_student_fee_lines,
+        name="billing_student_fee_lines",
+    ),
+    path(
+        "school/billing/fee-categories/",
+        billing_views.billing_fee_categories,
+        name="billing_fee_categories",
+    ),
+    path("school/billing/concessions/", billing_views.billing_concessions, name="billing_concessions"),
+    path(
+        "school/billing/fee-master/",
+        RedirectView.as_view(pattern_name="core:billing_fee_structure", permanent=False),
+        name="billing_fee_master",
+    ),
+    path(
+        "school/billing/fee-master/types/<int:pk>/update/",
         views.school_fee_type_update,
         name="school_fee_type_update",
     ),
     path(
-        "school/fees/types/<int:pk>/delete/",
+        "school/billing/fee-master/types/<int:pk>/delete/",
         views.school_fee_type_delete,
         name="school_fee_type_delete",
     ),
+    path(
+        "school/billing/fee-master/apply/<int:structure_id>/",
+        views.school_fee_structure_apply,
+        name="billing_structure_apply",
+    ),
+    path(
+        "school/billing/assignment/",
+        RedirectView.as_view(pattern_name="core:billing_fee_structure", permanent=False),
+        name="billing_assignment",
+    ),
+    path(
+        "school/billing/collection/students-search/",
+        RedirectView.as_view(pattern_name="core:billing_dashboard", permanent=False),
+        name="billing_collection_students_search",
+    ),
+    path(
+        "school/billing/collection/",
+        RedirectView.as_view(pattern_name="core:billing_dashboard", permanent=False),
+        name="billing_collection",
+    ),
+    path(
+        "school/billing/collect/<int:fee_id>/",
+        views.redirect_billing_dashboard,
+        name="billing_collect",
+    ),
+    path(
+        "school/billing/pending-dues/",
+        RedirectView.as_view(pattern_name="core:billing_dashboard", permanent=False),
+        name="billing_pending_dues",
+    ),
+    path(
+        "school/billing/installments/",
+        RedirectView.as_view(pattern_name="core:billing_dashboard", permanent=False),
+        name="billing_installments",
+    ),
+    path(
+        "school/billing/discounts/",
+        RedirectView.as_view(pattern_name="core:billing_dashboard", permanent=False),
+        name="billing_discounts",
+    ),
+    path(
+        "school/billing/late-fines/",
+        RedirectView.as_view(pattern_name="core:billing_dashboard", permanent=False),
+        name="billing_late_fines",
+    ),
+    path(
+        "school/billing/receipts/",
+        RedirectView.as_view(pattern_name="core:billing_dashboard", permanent=False),
+        name="billing_receipts",
+    ),
+    path(
+        "school/billing/receipts/export.csv",
+        RedirectView.as_view(pattern_name="core:billing_dashboard", permanent=False),
+        name="billing_receipts_export_csv",
+    ),
+    path(
+        "school/billing/ledger/export.csv",
+        RedirectView.as_view(pattern_name="core:billing_dashboard", permanent=False),
+        name="billing_ledger_export_csv",
+    ),
+    path(
+        "school/billing/receipt/<int:payment_id>/pdf/",
+        views.redirect_billing_dashboard,
+        name="billing_receipt_pdf",
+    ),
+    path(
+        "school/billing/refunds/",
+        RedirectView.as_view(pattern_name="core:billing_dashboard", permanent=False),
+        name="billing_refunds",
+    ),
+    path(
+        "school/billing/reports/",
+        RedirectView.as_view(pattern_name="core:billing_dashboard", permanent=False),
+        name="billing_reports",
+    ),
+    path(
+        "school/billing/gateway/",
+        RedirectView.as_view(pattern_name="core:billing_dashboard", permanent=False),
+        name="billing_gateway",
+    ),
+    path(
+        "school/billing/parent-portal/",
+        RedirectView.as_view(pattern_name="core:billing_dashboard", permanent=False),
+        name="billing_parent_portal",
+    ),
+    # Legacy /school/fees/* → new module
+    path(
+        "school/fees/",
+        RedirectView.as_view(pattern_name="core:billing_dashboard", permanent=False),
+        name="school_fees_index",
+    ),
+    path(
+        "school/fees/types/",
+        RedirectView.as_view(pattern_name="core:billing_fee_structure", permanent=False),
+        name="school_fee_types",
+    ),
     path("school/fees/structure/", views.school_fee_structure, name="school_fee_structure"),
     path(
-        "school/fees/structure/<int:structure_id>/apply/",
-        views.school_fee_structure_apply,
-        name="school_fee_structure_apply",
+        "school/fees/add/",
+        RedirectView.as_view(pattern_name="core:billing_fee_structure", permanent=False),
+        name="school_fee_add",
     ),
     path(
-        "school/fees/structure/<int:structure_id>/clone/",
-        views.school_fee_structure_clone,
-        name="school_fee_structure_clone",
+        "school/fees/collection/",
+        RedirectView.as_view(pattern_name="core:billing_record_payment", permanent=False),
+        name="school_fee_collection",
     ),
-    path("school/fees/add/", views.school_fee_add, name="school_fee_add"),
-    path("school/fees/collection/", views.school_fee_collection, name="school_fee_collection"),
-    path("school/fees/payments/", views.school_fee_payments, name="school_fee_payments"),
-    path("school/fees/payments/export.csv", views.school_fee_payments_export_csv, name="school_fee_payments_export_csv"),
-    path("school/fees/ledger/export.csv", views.school_fee_ledger_export_csv, name="school_fee_ledger_export_csv"),
-    path("school/fees/collect/<int:fee_id>/", views.school_fee_collect, name="school_fee_collect"),
-    path("school/fees/receipt/<int:payment_id>/pdf/", views.school_fee_receipt_pdf, name="school_fee_receipt_pdf"),
+    path(
+        "school/fees/payments/",
+        RedirectView.as_view(pattern_name="core:billing_dashboard", permanent=False),
+        name="school_fee_payments",
+    ),
+    path(
+        "school/fees/payments/export.csv",
+        RedirectView.as_view(pattern_name="core:billing_dashboard", permanent=False),
+        name="school_fee_payments_export_csv",
+    ),
+    path(
+        "school/fees/ledger/export.csv",
+        RedirectView.as_view(pattern_name="core:billing_dashboard", permanent=False),
+        name="school_fee_ledger_export_csv",
+    ),
+    path(
+        "school/fees/collect/<int:fee_id>/",
+        views.school_fee_collect_redirect,
+        name="school_fee_collect",
+    ),
+    path(
+        "school/fees/receipt/<int:payment_id>/pdf/",
+        views.redirect_billing_dashboard,
+        name="school_fee_receipt_pdf",
+    ),
 
     # Parent Portal
     path("parent/dashboard/", views.parent_dashboard, name="parent_dashboard"),

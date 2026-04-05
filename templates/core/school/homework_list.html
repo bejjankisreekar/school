@@ -228,7 +228,13 @@
     pointer-events: auto !important;
     margin: auto !important;
   }
-  .hwx-layer.hwx-wide .hwx-panel { max-width: 40rem; }
+  .hwx-layer.hwx-wide .hwx-panel { max-width: 44rem; }
+  .hwx-layer.hwx-xwide .hwx-panel { max-width: min(52rem, 96vw); }
+  .hw-edit-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
+    gap: 0.75rem 1rem;
+  }
   .hwx-layer .hwx-panel-body { overflow-y: auto; flex: 1 1 auto; }
   html.dark .hwx-layer .hwx-panel,
   body.dark-mode .hwx-layer .hwx-panel {
@@ -298,7 +304,7 @@
   <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xxl-4 g-3">
     {% for hw in homework_list %}
     <div class="col hw-card-col">
-      <article class="hw-mini-card d-flex flex-column h-100{% if hw.due_date < today %} hw-overdue{% endif %}">
+      <article class="hw-mini-card d-flex flex-column h-100{% if hw.is_due_overdue %} hw-overdue{% endif %}">
         <div class="hw-mini-card-inner d-flex flex-column flex-grow-1">
           <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
             {% if hw.subject %}
@@ -306,16 +312,32 @@
             {% else %}
             <span class="hw-subject-pill" style="opacity:0.6;">No subject</span>
             {% endif %}
-            {% if hw.due_date < today %}
-            <span class="badge rounded-pill text-bg-danger" style="font-size:0.65rem;">Overdue</span>
+            <div class="d-flex flex-column align-items-end gap-1">
+            {% if hw.is_due_overdue %}
+            <span class="badge rounded-pill text-bg-danger" style="font-size:0.65rem;">Past due</span>
             {% else %}
-            <span class="badge rounded-pill text-bg-success" style="font-size:0.65rem;">Active</span>
+            <span class="badge rounded-pill text-bg-success" style="font-size:0.65rem;">On track</span>
+            {% endif %}
+            {% if hw.status != 'PUBLISHED' %}
+            <span class="badge rounded-pill text-bg-secondary" style="font-size:0.6rem;">{{ hw.get_status_display }}</span>
+            {% endif %}
+            </div>
+          </div>
+          <div class="d-flex flex-wrap gap-1 mb-2">
+            <span class="badge rounded-pill border bg-body-secondary text-body-secondary" style="font-size:0.62rem; font-weight:600;">{{ hw.get_homework_type_display }}</span>
+            {% if hw.priority == 'URGENT' %}
+            <span class="badge rounded-pill text-bg-danger" style="font-size:0.62rem;">Urgent</span>
+            {% elif hw.priority == 'HIGH' %}
+            <span class="badge rounded-pill text-bg-warning text-dark" style="font-size:0.62rem;">High</span>
             {% endif %}
           </div>
           <h2 class="hw-card-title mb-2">{{ hw.title }}</h2>
           <div class="hw-meta-line mb-1"><strong>Class</strong> · {% for c in hw.classes.all %}{{ c.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</div>
           <div class="hw-meta-line mb-2"><strong>Section</strong> · {% for s in hw.sections.all %}{{ s.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</div>
-          <div class="hw-due-line mt-auto {% if hw.due_date < today %}overdue{% endif %}">
+          {% if hw.assigned_date %}
+          <div class="hw-meta-line mb-1"><strong>Given</strong> · {{ hw.assigned_date|date:"M j, Y" }}</div>
+          {% endif %}
+          <div class="hw-due-line mt-auto {% if hw.is_due_overdue %}overdue{% endif %}">
             <i class="bi bi-calendar-event me-1 opacity-75"></i>Due {{ hw.due_date|date:"M j, Y" }}
           </div>
           <div class="hw-actions">
@@ -346,7 +368,7 @@
 
 {% block modals %}
 {{ homework_payload|json_script:"hw-payload" }}
-<div id="hwxView" class="hwx-layer hwx-wide" aria-hidden="true">
+<div id="hwxView" class="hwx-layer hwx-xwide" aria-hidden="true">
   <div class="hwx-scrim" data-hwx-close="hwxView" role="presentation"></div>
   <div class="hwx-panel" role="dialog" aria-modal="true" aria-labelledby="hwxViewTitle">
     <div class="d-flex justify-content-between align-items-start gap-2 p-3 border-bottom flex-shrink-0">
@@ -359,21 +381,39 @@
         <dd id="hwx_v_subject">—</dd>
         <dt>Title</dt>
         <dd id="hwx_v_title">—</dd>
-        <dt>Description / instructions</dt>
+        <dt>Work type</dt>
+        <dd id="hwx_v_type">—</dd>
+        <dt>Priority</dt>
+        <dd id="hwx_v_priority">—</dd>
+        <dt>Workflow</dt>
+        <dd id="hwx_v_workflow">—</dd>
+        <dt>Academic year</dt>
+        <dd id="hwx_v_year">—</dd>
+        <dt>Description</dt>
         <dd id="hwx_v_description" class="text-break" style="white-space: pre-wrap;">—</dd>
+        <dt>Instructions</dt>
+        <dd id="hwx_v_instructions" class="text-break" style="white-space: pre-wrap;">—</dd>
         <dt>Assigned class(es)</dt>
         <dd id="hwx_v_classes">—</dd>
         <dt>Section(s)</dt>
         <dd id="hwx_v_sections">—</dd>
-        <dt>Assigned date</dt>
-        <dd id="hwx_v_created">—</dd>
+        <dt>Given on</dt>
+        <dd id="hwx_v_assigned">—</dd>
         <dt>Due date</dt>
         <dd id="hwx_v_due">—</dd>
+        <dt>Est. time / Max marks</dt>
+        <dd id="hwx_v_marks_time">—</dd>
+        <dt>Submission</dt>
+        <dd id="hwx_v_submission">—</dd>
+        <dt>Late policy</dt>
+        <dd id="hwx_v_late">—</dd>
         <dt>Attachment</dt>
         <dd id="hwx_v_attachment">—</dd>
-        <dt>Created by</dt>
+        <dt>Assigned by</dt>
         <dd id="hwx_v_creator">—</dd>
-        <dt>Status</dt>
+        <dt>Recorded</dt>
+        <dd id="hwx_v_created">—</dd>
+        <dt>Due status</dt>
         <dd id="hwx_v_status">—</dd>
       </dl>
     </div>
@@ -383,7 +423,7 @@
   </div>
 </div>
 
-<div id="hwxEdit" class="hwx-layer" aria-hidden="true">
+<div id="hwxEdit" class="hwx-layer hwx-xwide" aria-hidden="true">
   <div class="hwx-scrim" data-hwx-close="hwxEdit" role="presentation"></div>
   <div class="hwx-panel" role="dialog" aria-modal="true" aria-labelledby="hwxEditTitle">
     <form id="hwxEditForm" method="post" enctype="multipart/form-data" action="{% if homework_edit_id %}{% url 'core:school_homework_update' homework_edit_id %}{% endif %}">
@@ -404,20 +444,84 @@
           {{ homework_edit_form.title }}
           {% if homework_edit_form.title.errors %}<div class="text-danger small mt-1">{{ homework_edit_form.title.errors.0 }}</div>{% endif %}
         </div>
-        <div class="mb-3">
-          <label class="form-label small fw-semibold" for="{{ homework_edit_form.subject.id_for_label }}">Subject</label>
-          {{ homework_edit_form.subject }}
-          {% if homework_edit_form.subject.errors %}<div class="text-danger small mt-1">{{ homework_edit_form.subject.errors.0 }}</div>{% endif %}
+        <div class="hw-edit-grid mb-3">
+          <div>
+            <label class="form-label small fw-semibold" for="{{ homework_edit_form.subject.id_for_label }}">Subject</label>
+            {{ homework_edit_form.subject }}
+            {% if homework_edit_form.subject.errors %}<div class="text-danger small mt-1">{{ homework_edit_form.subject.errors.0 }}</div>{% endif %}
+          </div>
+          <div>
+            <label class="form-label small fw-semibold" for="{{ homework_edit_form.homework_type.id_for_label }}">Work type</label>
+            {{ homework_edit_form.homework_type }}
+          </div>
+          <div>
+            <label class="form-label small fw-semibold" for="{{ homework_edit_form.priority.id_for_label }}">Priority</label>
+            {{ homework_edit_form.priority }}
+          </div>
+          <div>
+            <label class="form-label small fw-semibold" for="{{ homework_edit_form.status.id_for_label }}">Status</label>
+            {{ homework_edit_form.status }}
+          </div>
         </div>
-        <div class="mb-3">
-          <label class="form-label small fw-semibold" for="{{ homework_edit_form.due_date.id_for_label }}">Due date</label>
-          {{ homework_edit_form.due_date }}
-          {% if homework_edit_form.due_date.errors %}<div class="text-danger small mt-1">{{ homework_edit_form.due_date.errors.0 }}</div>{% endif %}
+        <div class="hw-edit-grid mb-3">
+          <div>
+            <label class="form-label small fw-semibold" for="{{ homework_edit_form.assigned_date.id_for_label }}">Given on</label>
+            {{ homework_edit_form.assigned_date }}
+          </div>
+          <div>
+            <label class="form-label small fw-semibold" for="{{ homework_edit_form.due_date.id_for_label }}">Due date</label>
+            {{ homework_edit_form.due_date }}
+            {% if homework_edit_form.due_date.errors %}<div class="text-danger small mt-1">{{ homework_edit_form.due_date.errors.0 }}</div>{% endif %}
+          </div>
+          <div>
+            <label class="form-label small fw-semibold" for="{{ homework_edit_form.estimated_duration_minutes.id_for_label }}">Est. minutes</label>
+            {{ homework_edit_form.estimated_duration_minutes }}
+          </div>
+          <div>
+            <label class="form-label small fw-semibold" for="{{ homework_edit_form.max_marks.id_for_label }}">Max marks</label>
+            {{ homework_edit_form.max_marks }}
+          </div>
+        </div>
+        <div class="hw-edit-grid mb-3">
+          <div class="grid-column-span-2" style="grid-column: 1 / -1;">
+            <label class="form-label small fw-semibold" for="{{ homework_edit_form.submission_type.id_for_label }}">Submission type</label>
+            {{ homework_edit_form.submission_type }}
+          </div>
+          <div class="d-flex flex-column gap-2 pt-2">
+            <div class="form-check">
+              {{ homework_edit_form.submission_required }}
+              <label class="form-check-label small" for="{{ homework_edit_form.submission_required.id_for_label }}">Submission required</label>
+            </div>
+            <div class="form-check">
+              {{ homework_edit_form.allow_late_submission }}
+              <label class="form-check-label small" for="{{ homework_edit_form.allow_late_submission.id_for_label }}">Allow late submission</label>
+            </div>
+          </div>
+          <div>
+            <label class="form-label small fw-semibold" for="{{ homework_edit_form.late_submission_until.id_for_label }}">Late until</label>
+            {{ homework_edit_form.late_submission_until }}
+          </div>
+        </div>
+        <div class="hw-edit-grid mb-3">
+          <div>
+            <label class="form-label small fw-semibold" for="{{ homework_edit_form.academic_year.id_for_label }}">Academic year</label>
+            {{ homework_edit_form.academic_year }}
+          </div>
+          {% if homework_edit_form.assigned_by %}
+          <div>
+            <label class="form-label small fw-semibold" for="{{ homework_edit_form.assigned_by.id_for_label }}">Assigned by</label>
+            {{ homework_edit_form.assigned_by }}
+          </div>
+          {% endif %}
         </div>
         <div class="mb-3">
           <label class="form-label small fw-semibold" for="{{ homework_edit_form.description.id_for_label }}">Description</label>
           {{ homework_edit_form.description }}
           {% if homework_edit_form.description.errors %}<div class="text-danger small mt-1">{{ homework_edit_form.description.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="{{ homework_edit_form.instructions.id_for_label }}">Instructions</label>
+          {{ homework_edit_form.instructions }}
         </div>
         <div class="mb-3">
           <label class="form-label small fw-semibold d-block" for="{{ homework_edit_form.attachment.id_for_label }}">Attachment</label>
@@ -556,11 +660,34 @@
         if (!row) return;
         textOrDash(document.getElementById("hwx_v_subject"), row.subject);
         textOrDash(document.getElementById("hwx_v_title"), row.title);
+        textOrDash(document.getElementById("hwx_v_type"), row.homework_type_display);
+        textOrDash(document.getElementById("hwx_v_priority"), row.priority_display);
+        textOrDash(document.getElementById("hwx_v_workflow"), row.workflow_status_display);
+        textOrDash(document.getElementById("hwx_v_year"), row.academic_year_display);
         textOrDash(document.getElementById("hwx_v_description"), row.description);
+        textOrDash(document.getElementById("hwx_v_instructions"), row.instructions);
         textOrDash(document.getElementById("hwx_v_classes"), row.classes_display);
         textOrDash(document.getElementById("hwx_v_sections"), row.sections_display);
-        textOrDash(document.getElementById("hwx_v_created"), row.created_display);
+        textOrDash(document.getElementById("hwx_v_assigned"), row.assigned_date_display);
         textOrDash(document.getElementById("hwx_v_due"), row.due_date_display);
+        var mt = [];
+        if (row.estimated_duration_minutes != null && row.estimated_duration_minutes !== "")
+          mt.push(String(row.estimated_duration_minutes) + " min");
+        if (row.max_marks != null && row.max_marks !== "")
+          mt.push(String(row.max_marks) + " marks");
+        textOrDash(document.getElementById("hwx_v_marks_time"), mt.length ? mt.join(" · ") : "—");
+        var subParts = [row.submission_type_display || "—"];
+        subParts.push(row.submission_required ? "File / proof expected" : "No submission required");
+        textOrDash(document.getElementById("hwx_v_submission"), subParts.join(" · "));
+        var lateEl = document.getElementById("hwx_v_late");
+        if (lateEl) {
+          if (row.allow_late_submission) {
+            if (row.late_submission_until_iso)
+              lateEl.textContent = "Until " + row.late_submission_until_iso.replace("T", " ");
+            else lateEl.textContent = "Yes (no fixed cutoff)";
+          } else lateEl.textContent = "No";
+        }
+        textOrDash(document.getElementById("hwx_v_created"), row.created_display);
         var attEl = document.getElementById("hwx_v_attachment");
         if (attEl) {
           if (row.attachment_url && row.attachment_name) {
@@ -594,10 +721,37 @@
         form.action = editBtn.getAttribute("data-update-url") || "";
         form.querySelectorAll('input[name="title"]').forEach(function (inp) { inp.value = row.title || ""; });
         form.querySelectorAll('textarea[name="description"]').forEach(function (inp) { inp.value = row.description || ""; });
+        form.querySelectorAll('textarea[name="instructions"]').forEach(function (inp) { inp.value = row.instructions || ""; });
         var due = form.querySelector('input[name="due_date"]');
         if (due) due.value = row.due_date_iso || "";
+        var ad = form.querySelector('input[name="assigned_date"]');
+        if (ad) ad.value = row.assigned_date_iso || "";
         var sub = form.querySelector('select[name="subject"]');
         if (sub) sub.value = row.subject_id != null ? String(row.subject_id) : "";
+        var ht = form.querySelector('select[name="homework_type"]');
+        if (ht) ht.value = row.homework_type || "";
+        var pr = form.querySelector('select[name="priority"]');
+        if (pr) pr.value = row.priority || "";
+        var st = form.querySelector('select[name="status"]');
+        if (st) st.value = row.workflow_status || "";
+        var stt = form.querySelector('select[name="submission_type"]');
+        if (stt) stt.value = row.submission_type || "";
+        var mm = form.querySelector('input[name="max_marks"]');
+        if (mm) mm.value = row.max_marks != null ? String(row.max_marks) : "";
+        var em = form.querySelector('input[name="estimated_duration_minutes"]');
+        if (em) em.value = row.estimated_duration_minutes != null ? String(row.estimated_duration_minutes) : "";
+        var ay = form.querySelector('select[name="academic_year"]');
+        if (ay) ay.value = row.academic_year_id != null ? String(row.academic_year_id) : "";
+        var ab = form.querySelector('select[name="assigned_by"]');
+        if (ab) ab.value = row.assigned_by_id != null ? String(row.assigned_by_id) : "";
+        form.querySelectorAll('input[name="submission_required"]').forEach(function (cb) {
+          if (cb.type === "checkbox") cb.checked = !!row.submission_required;
+        });
+        form.querySelectorAll('input[name="allow_late_submission"]').forEach(function (cb) {
+          if (cb.type === "checkbox") cb.checked = !!row.allow_late_submission;
+        });
+        var lu = form.querySelector('input[name="late_submission_until"]');
+        if (lu) lu.value = row.late_submission_until_iso || "";
         var cids = row.class_ids || [];
         var sids = row.section_ids || [];
         form.querySelectorAll('input[name="classes"]').forEach(function (cb) {

@@ -3,13 +3,41 @@ from django.core.exceptions import ValidationError
 
 
 class ScheduleProfile(models.Model):
-    """Tenant-scoped schedule profile (e.g., Default, Summer, Exam week)."""
+    """Tenant-scoped schedule profile (e.g., Default, Exam week, Saturday). Each profile has its own time slots."""
 
     name = models.CharField(max_length=80, db_index=True)
+    description = models.TextField(blank=True)
+    academic_year = models.ForeignKey(
+        "school_data.AcademicYear",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="schedule_profiles",
+    )
+    is_active = models.BooleanField(default=True, db_index=True)
+    default_start_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Suggested day start when generating or documenting this profile.",
+    )
+    default_end_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Suggested day end when generating or documenting this profile.",
+    )
+    total_periods = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Target number of teaching periods (optional reference).",
+    )
+    break_enabled = models.BooleanField(
+        default=True,
+        help_text="Whether this profile typically includes break rows (hint for admins).",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["name"]
+        ordering = ["-is_active", "name"]
 
     def __str__(self) -> str:
         return self.name
@@ -50,6 +78,13 @@ class TimeSlot(models.Model):
     def clean(self):
         if self.is_break and self.break_type == self.BreakType.NONE:
             self.break_type = self.BreakType.SHORT_BREAK
+
+    def save(self, *args, **kwargs):
+        if not self.is_break:
+            self.break_type = self.BreakType.NONE
+        elif self.is_break and self.break_type == self.BreakType.NONE:
+            self.break_type = self.BreakType.SHORT_BREAK
+        super().save(*args, **kwargs)
 
 
 class Timetable(models.Model):

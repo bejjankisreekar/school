@@ -587,6 +587,130 @@ class Attendance(models.Model):
         return f"{self.student} - {self.date} - {self.get_status_display()}"
 
 
+class HolidayCalendar(BaseModel):
+    """
+    One holiday calendar per academic year. Custom holidays and working-Sunday overrides apply
+    only while the calendar is published (built-in Sunday holiday always applies when unpublished).
+    """
+
+    academic_year = models.OneToOneField(
+        AcademicYear,
+        on_delete=models.CASCADE,
+        related_name="holiday_calendar",
+    )
+    name = models.CharField(max_length=120, default="Official holiday calendar")
+    is_published = models.BooleanField(default=False, db_index=True)
+    use_split_calendars = models.BooleanField(
+        default=False,
+        help_text="Use separate student vs teacher portal views; events still use “Applies to”.",
+    )
+    published_at = models.DateTimeField(null=True, blank=True)
+    unpublished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-academic_year__start_date", "id"]
+
+    def __str__(self) -> str:
+        pub = " (published)" if self.is_published else ""
+        return f"{self.academic_year.name}: {self.name}{pub}"
+
+
+class HolidayEvent(BaseModel):
+    """Named holiday or closure on a single calendar day (end_date mirrors start_date in storage)."""
+
+    class HolidayType(models.TextChoices):
+        NATIONAL = "NATIONAL", "National Holiday"
+        FESTIVAL = "FESTIVAL", "Festival Holiday"
+        SCHOOL = "SCHOOL", "School Holiday"
+        EMERGENCY = "EMERGENCY", "Emergency Closure"
+        EXAM_LEAVE = "EXAM_LEAVE", "Exam Leave"
+        VACATION = "VACATION", "Vacation"
+        SPECIAL = "SPECIAL", "Special Holiday"
+
+    class AppliesTo(models.TextChoices):
+        STUDENTS = "STUDENTS", "Students only"
+        TEACHERS = "TEACHERS", "Teachers only"
+        BOTH = "BOTH", "Students and teachers"
+
+    calendar = models.ForeignKey(
+        HolidayCalendar,
+        on_delete=models.CASCADE,
+        related_name="events",
+    )
+    name = models.CharField(max_length=200)
+    holiday_type = models.CharField(max_length=20, choices=HolidayType.choices, db_index=True)
+    start_date = models.DateField(db_index=True, verbose_name="Holiday date")
+    end_date = models.DateField(db_index=True, help_text="Must match holiday date; kept for schema compatibility.")
+    applies_to = models.CharField(
+        max_length=16,
+        choices=AppliesTo.choices,
+        default=AppliesTo.BOTH,
+        db_index=True,
+    )
+    description = models.TextField(blank=True)
+    recurring_yearly = models.BooleanField(
+        default=False,
+        help_text="If set, this holiday repeats on the same month/day each year within the academic year.",
+    )
+
+    class Meta:
+        ordering = ["start_date", "name"]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.get_holiday_type_display()})"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            raise ValidationError("End date must be on or after start date.")
+        if self.start_date and self.end_date and self.start_date != self.end_date:
+            raise ValidationError("Holidays must be a single day; end date must match the holiday date.")
+
+    def save(self, *args, **kwargs):
+        if self.start_date:
+            self.end_date = self.start_date
+        elif self.end_date:
+            self.start_date = self.end_date
+        super().save(*args, **kwargs)
+
+
+class WorkingSundayOverride(BaseModel):
+    """Mark a specific Sunday as a working day for the chosen audience (overrides default Sunday holiday)."""
+
+    class AppliesTo(models.TextChoices):
+        STUDENTS = "STUDENTS", "Students only"
+        TEACHERS = "TEACHERS", "Teachers only"
+        BOTH = "BOTH", "Students and teachers"
+
+    calendar = models.ForeignKey(
+        HolidayCalendar,
+        on_delete=models.CASCADE,
+        related_name="working_sunday_overrides",
+    )
+    work_date = models.DateField(db_index=True)
+    applies_to = models.CharField(max_length=16, choices=AppliesTo.choices, default=AppliesTo.BOTH)
+    note = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["work_date"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["calendar", "work_date", "applies_to"],
+                name="school_working_sunday_unique_cal_date_audience",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"Working {self.work_date} ({self.get_applies_to_display()})"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if self.work_date and self.work_date.weekday() != 6:
+            raise ValidationError("Working day override is intended for Sundays only.")
+
+
 class Marks(models.Model):
     student = models.ForeignKey(
         Student,
@@ -646,9 +770,95 @@ class Grade(models.Model):
 
 class Homework(models.Model):
     """Homework assigned to class(es) and section(s). Legacy subject/teacher kept for backward compat."""
+
+    class HomeworkType(models.TextChoices):
+        CLASSWORK = "CLASSWORK", "Classwork"
+        HOMEWORK = "HOMEWORK", "Homework"
+        PROJECT = "PROJECT", "Project"
+        ASSIGNMENT = "ASSIGNMENT", "Assignment"
+        REVISION = "REVISION", "Revision work"
+        LAB = "LAB", "Lab work"
+        READING = "READING", "Reading task"
+
+    class SubmissionType(models.TextChoices):
+        NOTEBOOK = "NOTEBOOK", "Notebook submission"
+        ONLINE = "ONLINE", "Online upload"
+        BOTH = "BOTH", "Both"
+        ORAL = "ORAL", "Oral / practical"
+
+    class Priority(models.TextChoices):
+        LOW = "LOW", "Low"
+        NORMAL = "NORMAL", "Normal"
+        HIGH = "HIGH", "High"
+        URGENT = "URGENT", "Urgent"
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        PUBLISHED = "PUBLISHED", "Published"
+        CLOSED = "CLOSED", "Closed"
+        ARCHIVED = "ARCHIVED", "Archived"
+
     title = models.CharField(max_length=200)
     description = models.TextField()
     due_date = models.DateField(db_index=True)
+    assigned_date = models.DateField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Date the work was given (defaults to today on create if left blank).",
+    )
+    homework_type = models.CharField(
+        max_length=50,
+        choices=HomeworkType.choices,
+        default=HomeworkType.HOMEWORK,
+        db_index=True,
+    )
+    max_marks = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Optional cap for internal grading.",
+    )
+    submission_type = models.CharField(
+        max_length=50,
+        choices=SubmissionType.choices,
+        default=SubmissionType.NOTEBOOK,
+    )
+    allow_late_submission = models.BooleanField(default=False)
+    late_submission_until = models.DateTimeField(null=True, blank=True)
+    priority = models.CharField(
+        max_length=20,
+        choices=Priority.choices,
+        default=Priority.NORMAL,
+        db_index=True,
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PUBLISHED,
+        db_index=True,
+        help_text="Draft is hidden from students; published and closed are visible; archived is hidden.",
+    )
+    academic_year = models.ForeignKey(
+        "AcademicYear",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="homeworks",
+    )
+    estimated_duration_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Rough effort estimate for students and parents.",
+    )
+    instructions = models.TextField(
+        blank=True,
+        default="",
+        help_text="How to submit, materials, format — separate from task description.",
+    )
+    submission_required = models.BooleanField(
+        default=True,
+        help_text="If off, students see the task but no file upload is expected.",
+    )
     assigned_by = models.ForeignKey(
         "accounts.User",
         on_delete=models.CASCADE,
@@ -688,6 +898,38 @@ class Homework(models.Model):
         blank=True,
         help_text="Optional worksheet or reference file for students.",
     )
+
+    def save(self, *args, **kwargs):
+        if self.pk is None and self.assigned_date is None:
+            from django.utils import timezone as dj_tz
+
+            self.assigned_date = dj_tz.now().date()
+        super().save(*args, **kwargs)
+
+    def is_past_submission_deadline(self, when=None):
+        """True when the student can no longer submit (after due date, respecting late rules)."""
+        from django.utils import timezone as dj_tz
+
+        when = when or dj_tz.now()
+        today = when.date()
+        if self.due_date >= today:
+            return False
+        if self.allow_late_submission:
+            if self.late_submission_until is None:
+                return False
+            return when > self.late_submission_until
+        return True
+
+    def is_visible_to_students(self) -> bool:
+        return self.status in (self.Status.PUBLISHED, self.Status.CLOSED)
+
+    def allows_new_submission(self) -> bool:
+        return self.status == self.Status.PUBLISHED
+
+    @property
+    def is_due_overdue(self) -> bool:
+        """Template-friendly: past due / late window (for badges)."""
+        return self.is_past_submission_deadline()
 
     class Meta:
         ordering = ["-due_date", "-created_at"]
@@ -747,19 +989,35 @@ class FeeStructure(BaseModel):
     """Fee amount per class/term — drives class-wise billing for all students in that class."""
 
     class Frequency(models.TextChoices):
+        ONE_TIME = "ONE_TIME", "One Time"
         MONTHLY = "MONTHLY", "Monthly"
         QUARTERLY = "QUARTERLY", "Quarterly"
-        SEMESTER = "SEMESTER", "Semester"
+        HALF_YEARLY = "HALF_YEARLY", "Half Yearly"
         YEARLY = "YEARLY", "Yearly"
-        ONE_TIME = "ONE_TIME", "One-time"
+        TERM_WISE = "TERM_WISE", "Term Wise"
+        SEMESTER = "SEMESTER", "Semester"
 
     fee_type = models.ForeignKey(FeeType, on_delete=models.CASCADE, related_name="structures")
+    line_name = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="Optional label on receipts (defaults to fee type name if empty).",
+    )
     classroom = models.ForeignKey(
         ClassRoom,
         on_delete=models.CASCADE,
         related_name="fee_structures",
         null=True,
         blank=True,
+    )
+    section = models.ForeignKey(
+        "Section",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="fee_structures",
+        help_text="Optional: limit this fee head to one section. Leave empty for all sections in the class.",
     )
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     academic_year = models.ForeignKey(
@@ -780,14 +1038,45 @@ class FeeStructure(BaseModel):
         blank=True,
         help_text="Typical due day of month (1–28) for this fee.",
     )
+    first_due_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="When set, used as the due date for auto-created student fee lines (otherwise computed from due day).",
+    )
+    installments_enabled = models.BooleanField(
+        default=False,
+        help_text="Marks this head as installment-capable (schedules are configured separately).",
+    )
+    late_fine_rule = models.CharField(
+        max_length=120,
+        blank=True,
+        default="",
+        help_text="Reference label for late-fine policy (configure rules under Late Fine Rules).",
+    )
+    discount_allowed = models.BooleanField(
+        default=True,
+        help_text="If disabled, staff are discouraged from applying concessions on this head.",
+    )
     is_active = models.BooleanField(default=True, db_index=True)
 
     class Meta:
-        unique_together = [("fee_type", "classroom", "academic_year")]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["fee_type", "classroom", "academic_year"],
+                condition=models.Q(section__isnull=True),
+                name="school_data_feestructure_unique_class_wide",
+            ),
+            models.UniqueConstraint(
+                fields=["fee_type", "classroom", "academic_year", "section"],
+                condition=models.Q(section__isnull=False),
+                name="school_data_feestructure_unique_section",
+            ),
+        ]
         ordering = ["fee_type", "classroom"]
 
     def __str__(self) -> str:
-        return f"{self.fee_type.name} - {self.classroom or 'All'} - {self.amount}"
+        label = (self.line_name or "").strip() or (self.fee_type.name if self.fee_type_id else "Fee")
+        return f"{label} - {self.classroom or 'All'} - {self.amount}"
 
 
 class Fee(BaseModel):

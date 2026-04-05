@@ -1,0 +1,458 @@
+{% extends "core/billing/base_billing.html" %}
+{% load humanize nav_tags %}
+{% block billing_title %}{% if show_student_finder %}Record payment{% else %}Collect fee{% endif %} | School ERP{% endblock %}
+{% block billing_extra_head %}
+<style>
+  .fc-hub { --bd: #e2e8f0; --card: #fff; --muted: #64748b; --brand: #4f46e5; }
+  html.dark .fc-hub { --bd: rgba(148,163,184,.22); --card: rgba(30,41,59,.94); --muted: #94a3b8; }
+  .fc-hub { background: #f1f5f9; margin: -0.5rem -1rem 0; padding: 1rem 1rem 2rem; min-height: calc(100vh - 100px); }
+  @media (min-width: 992px) { .fc-hub { margin: -0.5rem -1.5rem 0; padding: 1.25rem 1.5rem 2.5rem; } }
+  .fc-card {
+    background: var(--card); border: 1px solid var(--bd); border-radius: 1.15rem;
+    box-shadow: 0 1px 3px rgba(15,23,42,.06);
+  }
+  .fc-metric { border-radius: 0.75rem; padding: 0.65rem 0.9rem; background: rgba(248,250,252,.9); border: 1px solid var(--bd); }
+  html.dark .fc-metric { background: rgba(15,23,42,.5); }
+  .fc-metric .lbl { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; }
+  .fc-metric .val { font-size: 1.05rem; font-weight: 700; }
+  .fc-ledger thead th { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+  .fc-search-results { max-height: min(52vh, 420px); overflow: auto; border: 1px solid var(--bd); border-radius: 0.75rem; }
+  .fc-search-results button { border: 0; background: transparent; width: 100%; text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--bd); }
+  .fc-search-results button:last-child { border-bottom: 0; }
+  .fc-search-results button:hover { background: rgba(79,70,229,.08); }
+  .pay-card-sticky { position: sticky; top: 5.5rem; }
+  .timeline-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--brand); margin-top: 0.35rem; flex-shrink: 0; }
+</style>
+{% endblock %}
+
+{% block billing_main %}
+<div class="fc-hub" id="fc-page" data-search-url="{{ student_search_url|escape }}">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:billing_dashboard' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}">Fees &amp; billing</a></li>
+      {% if show_student_finder %}
+      <li class="breadcrumb-item active">Record payment</li>
+      {% else %}
+      <li class="breadcrumb-item"><a href="{% url 'core:billing_fee_structure' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}">Class fee structure</a></li>
+      {% if student.classroom %}
+      <li class="breadcrumb-item"><a href="{% url 'core:billing_class_fee_students' student.classroom_id %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}">{{ student.classroom.name }}</a></li>
+      {% endif %}
+      <li class="breadcrumb-item active">Collect fee</li>
+      {% endif %}
+    </ol>
+  </nav>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h1 class="h4 fw-bold mb-1">{% if show_student_finder %}Record payment{% else %}Collect fee{% endif %}</h1>
+      <p class="small text-muted mb-0">{% if show_student_finder %}Choose class and section, search for a student, then allocate payment to a fee line (full or partial).{% else %}Ledger and payment entry for this student.{% endif %}</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      {% if academic_years %}
+      <form method="get" class="d-flex align-items-center gap-2" id="fc-ay-form">
+        {% if show_student_finder and classroom_id %}<input type="hidden" name="classroom_id" value="{{ classroom_id }}">{% endif %}
+        {% if show_student_finder and section_id %}<input type="hidden" name="section_id" value="{{ section_id }}">{% endif %}
+        {% if show_student_finder and student %}<input type="hidden" name="student_id" value="{{ student.id }}">{% endif %}
+        <label class="small text-muted mb-0">Year</label>
+        <select name="ay" class="form-select form-select-sm" style="width:auto;min-width:9rem;" onchange="this.form.submit()">
+          {% for y in academic_years %}
+          <option value="{{ y.id }}" {% if academic_year and academic_year.id == y.id %}selected{% endif %}>{{ y.name }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      {% endif %}
+      {% if show_student_finder %}
+      <a href="{% url 'core:billing_record_payment' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}" class="btn btn-outline-secondary btn-sm rounded-pill">Clear</a>
+      {% else %}
+      <a href="{% url 'core:billing_record_payment' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}" class="btn btn-outline-primary btn-sm rounded-pill">Other student</a>
+      {% if student.classroom_id %}
+      <a href="{% url 'core:billing_class_fee_students' student.classroom_id %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}" class="btn btn-outline-secondary btn-sm rounded-pill">← Class list</a>
+      {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  {% if show_student_finder %}
+  <div class="fc-card p-3 p-lg-4 mb-4">
+    <div class="fw-bold mb-3">Find student</div>
+    <form method="get" class="row g-3 align-items-end">
+      {% if academic_year %}<input type="hidden" name="ay" value="{{ academic_year.id }}">{% endif %}
+      <div class="col-md-4">
+        <label class="form-label small fw-semibold">Class</label>
+        <select name="classroom_id" id="fc-class" class="form-select form-select-sm rounded-3" required>
+          <option value="">Select class</option>
+          {% for c in classrooms %}
+          <option value="{{ c.id }}" {% if classroom_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small fw-semibold">Section</label>
+        <select name="section_id" id="fc-section" class="form-select form-select-sm rounded-3">
+          <option value="">All sections</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <button type="submit" class="btn btn-dark btn-sm rounded-pill px-4">Apply</button>
+      </div>
+      <div class="col-12">
+        <label class="form-label small fw-semibold" for="fc-q">Filter by name or admission <span class="text-muted fw-normal">(optional)</span></label>
+        <input type="search" id="fc-q" class="form-control form-control-sm rounded-3" placeholder="Narrows the student list below…" autocomplete="off" {% if not classroom_id %}disabled{% endif %}>
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-3 mb-1">
+          <span class="small fw-semibold text-body">Students</span>
+          <span class="small text-muted" id="fc-student-count"></span>
+        </div>
+        <div class="fc-search-results mt-1 d-none" id="fc-results" role="listbox" aria-label="Students in class"></div>
+        <p class="small text-muted mb-0 mt-2">Choose class and section, click <strong>Apply</strong>, then pick a student from the list to record payment. Use the filter box only if you need to narrow the list.</p>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
+  {% if student and bundle %}
+  <div class="fc-card p-3 p-lg-4 mb-4">
+    <div class="row g-3 align-items-center">
+      <div class="col-lg-6 d-flex align-items-center gap-3">
+        <div class="rounded-3 bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center" style="width:52px;height:52px;">
+          <i class="bi bi-person-fill fs-4"></i>
+        </div>
+        <div>
+          <div class="text-uppercase small text-muted fw-semibold" style="letter-spacing:.06em;">Student</div>
+          <div class="fs-5 fw-bold">{{ student.user.get_full_name|default:student.user.username }}</div>
+          <div class="small text-muted">
+            Adm. {% if student.admission_number %}{{ student.admission_number }}{% else %}—{% endif %}
+            · {% if student.classroom %}{{ student.classroom.name }}{% else %}—{% endif %}{% if student.section %} · {{ student.section.name }}{% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="row g-2">
+          <div class="col-6">
+            <div class="fc-metric"><div class="lbl">Net due</div><div class="val text-primary">₹{{ bundle.total_final|inr }}</div></div>
+          </div>
+          <div class="col-6">
+            <div class="fc-metric"><div class="lbl">Paid</div><div class="val text-success">₹{{ bundle.total_paid_sum|inr }}</div></div>
+          </div>
+          <div class="col-6">
+            <div class="fc-metric"><div class="lbl">Pending</div><div class="val text-warning">₹{{ bundle.total_balance_sum|inr }}</div></div>
+          </div>
+          <div class="col-6">
+            <div class="fc-metric"><div class="lbl">Concessions</div><div class="val text-secondary">₹{{ bundle.total_discount|inr }}</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% if bundle.scope_fee and bundle.scope_fee.academic_year %}
+    <div class="mt-3 pt-3 border-top small text-muted"><i class="bi bi-calendar3 me-1"></i>Ledger: <strong>{{ bundle.scope_fee.academic_year.name }}</strong></div>
+    {% endif %}
+  </div>
+
+  <div class="row g-4 align-items-start">
+    <div class="col-lg-8">
+      <div class="fc-card overflow-hidden mb-4">
+        <div class="px-3 py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div>
+            <div class="fw-bold">Fee ledger</div>
+            <div class="small text-muted">Original amounts, concessions, paid and balance per line</div>
+          </div>
+          <span class="badge rounded-pill bg-light text-dark border">Gross billed ₹{{ bundle.total_original|inr }}</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0 fc-ledger">
+            <thead class="table-light">
+              <tr>
+                <th class="ps-3">Fee type</th>
+                <th class="text-end">Original</th>
+                <th class="text-end">Discount</th>
+                <th class="text-end">Net</th>
+                <th class="text-end">Paid</th>
+                <th class="text-end">Balance</th>
+                <th class="text-end pe-3">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in bundle.ledger_rows %}
+              <tr>
+                <td class="ps-3 fw-medium">{{ row.fee.fee_structure.fee_type.name }}</td>
+                <td class="text-end small">₹{{ row.original|inr }}</td>
+                <td class="text-end small text-muted">{% if row.discount %}₹{{ row.discount|inr }}{% else %}—{% endif %}</td>
+                <td class="text-end small fw-semibold">₹{{ row.final_due|inr }}</td>
+                <td class="text-end small text-success">₹{{ row.paid|inr }}</td>
+                <td class="text-end small {% if row.balance > 0 %}fw-bold text-danger{% else %}text-muted{% endif %}">₹{{ row.balance|inr }}</td>
+                <td class="text-end pe-3">
+                  {% if row.status == "PAID" %}
+                  <span class="badge rounded-pill text-bg-success">Paid</span>
+                  {% elif row.status == "PARTIAL" %}
+                  <span class="badge rounded-pill text-bg-warning text-dark">Partial</span>
+                  {% else %}
+                  <span class="badge rounded-pill text-bg-secondary">Due</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="7" class="text-center text-muted py-5">No fee lines for this student in this academic year.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="fc-card p-3 p-lg-4">
+        <div class="fw-bold mb-3">Recent payments</div>
+        {% if bundle.payment_history %}
+        <div class="d-flex flex-column gap-3">
+          {% for p in bundle.payment_history %}
+          <div class="d-flex gap-3">
+            <div class="timeline-dot"></div>
+            <div class="flex-grow-1 border-bottom pb-3">
+              <div class="d-flex flex-wrap justify-content-between gap-2">
+                <span class="fw-semibold">{{ p.payment_date|date:"M j, Y" }}</span>
+                <span class="fw-bold text-success">₹{{ p.amount|inr }}</span>
+              </div>
+              <div class="small text-muted">{{ p.payment_method }}{% if p.receipt_number %} · Rcpt {{ p.receipt_number }}{% endif %}{% if p.fee.fee_structure.fee_type %} · {{ p.fee.fee_structure.fee_type.name }}{% endif %}</div>
+              <div class="small text-muted">By {% if p.received_by %}{{ p.received_by.get_full_name|default:p.received_by.username }}{% else %}—{% endif %}</div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted small mb-0">No payments in this period yet.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="fc-card p-3 p-lg-4 pay-card-sticky">
+        <div class="fw-bold mb-1">Record payment</div>
+        <p class="small text-muted mb-3">Choose the fee line. Amount cannot exceed the line balance.</p>
+        {% if bundle.payment_targets %}
+        <form method="post" novalidate id="fc-payment-form">
+          {% csrf_token %}
+          <input type="hidden" name="form_action" value="record_payment" />
+          {% if academic_year %}<input type="hidden" name="ay" value="{{ academic_year.id }}" />{% endif %}
+          {% if show_student_finder %}
+          <input type="hidden" name="classroom_id" value="{{ classroom_id|default:'' }}" />
+          <input type="hidden" name="section_id" value="{{ section_id|default:'' }}" />
+          <input type="hidden" name="student_id" value="{{ student.id }}" />
+          {% endif %}
+          <div class="mb-3">
+            <label class="form-label small fw-semibold" for="payment_fee_select">Fee line</label>
+            <select class="form-select rounded-3" name="payment_fee_id" id="payment_fee_select">
+              {% for t in bundle.payment_targets %}
+              <option value="{{ t.id }}" data-balance="{{ t.balance }}" {% if selected_pay_fee_id == t.id %}selected{% elif not selected_pay_fee_id and forloop.first %}selected{% endif %}>{{ t.label }} — bal ₹{{ t.balance|inr }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold" for="id_amount">Amount received</label>
+            {{ form.amount }}
+            {% if form.amount.errors %}<div class="text-danger small mt-1">{{ form.amount.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="mb-3">
+            <label class="form-label small" for="id_payment_date">Payment date</label>
+            {{ form.payment_date }}
+          </div>
+          <div class="mb-3">
+            <label class="form-label small" for="id_payment_method">Payment mode</label>
+            {{ form.payment_method }}
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-md-6">
+              <label class="form-label small" for="id_receipt_number">{{ form.receipt_number.label }}</label>
+              {{ form.receipt_number }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small" for="id_transaction_reference">{{ form.transaction_reference.label }}</label>
+              {{ form.transaction_reference }}
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small" for="id_notes">Notes</label>
+            {{ form.notes }}
+          </div>
+          {% if form.non_field_errors %}<div class="alert alert-danger py-2 small">{{ form.non_field_errors }}</div>{% endif %}
+          <div class="d-grid gap-2">
+            <div class="btn-group" role="group">
+              <button type="button" class="btn btn-outline-primary rounded-start-3" id="btn-collect-full">Pay full balance</button>
+              <button type="button" class="btn btn-outline-secondary rounded-end-3" id="btn-collect-partial">Partial</button>
+            </div>
+            <button type="submit" class="btn btn-primary rounded-3 py-2 fw-semibold">Save payment</button>
+          </div>
+        </form>
+        {% else %}
+        <p class="text-muted small mb-0">No balance due on any line for this year — nothing to collect.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% elif student and not bundle %}
+  <div class="alert alert-warning rounded-3">Could not load fee data for this student.</div>
+  {% elif show_student_finder and not student %}
+  <div class="fc-card p-4 text-center text-muted small">Select a class and search for a student to record a payment.</div>
+  {% endif %}
+</div>
+
+{{ sections_by_class|json_script:"fc-sections-data" }}
+{% endblock %}
+
+{% block after_bootstrap %}
+<script>
+(function () {
+  var feeSelect = document.getElementById("payment_fee_select");
+  var amt = document.getElementById("id_amount");
+  if (feeSelect && amt) {
+    function balanceForSelected() {
+      var opt = feeSelect.options[feeSelect.selectedIndex];
+      if (!opt) return null;
+      var b = opt.getAttribute("data-balance");
+      return b !== null ? parseFloat(b) : null;
+    }
+    document.getElementById("btn-collect-full")?.addEventListener("click", function () {
+      var b = balanceForSelected();
+      if (b !== null && !isNaN(b)) amt.value = b.toFixed(2);
+    });
+    document.getElementById("btn-collect-partial")?.addEventListener("click", function () {
+      amt.focus();
+      amt.select();
+    });
+    feeSelect.addEventListener("change", function () {
+      var b = balanceForSelected();
+      if (b !== null && !isNaN(b)) amt.value = b.toFixed(2);
+    });
+  }
+
+  var page = document.getElementById("fc-page");
+  if (!page || !page.dataset.searchUrl) return;
+  var searchUrl = page.dataset.searchUrl;
+  var sectionsEl = document.getElementById("fc-sections-data");
+  var sectionsMap = {};
+  try { sectionsMap = JSON.parse(sectionsEl ? sectionsEl.textContent : "{}"); } catch (e) {}
+  var classSel = document.getElementById("fc-class");
+  var secSel = document.getElementById("fc-section");
+  var qInput = document.getElementById("fc-q");
+  var resultsEl = document.getElementById("fc-results");
+  var selectedSection = "{{ section_id|default:'' }}";
+
+  function fillSections() {
+    if (!classSel || !secSel) return;
+    var cid = classSel.value;
+    secSel.innerHTML = "";
+    var o0 = document.createElement("option");
+    o0.value = "";
+    o0.textContent = "All sections";
+    secSel.appendChild(o0);
+    var list = sectionsMap[cid] || [];
+    for (var i = 0; i < list.length; i++) {
+      var o = document.createElement("option");
+      o.value = list[i].id;
+      o.textContent = list[i].name;
+      if (String(list[i].id) === String(selectedSection)) o.selected = true;
+      secSel.appendChild(o);
+    }
+  }
+  var countEl = document.getElementById("fc-student-count");
+  var tmr;
+
+  function renderStudentRows(rows) {
+    if (!resultsEl || !classSel) return;
+    resultsEl.innerHTML = "";
+    var ay = document.querySelector("#fc-ay-form select[name=ay]");
+    var ayv = ay ? ay.value : "";
+    if (countEl) {
+      countEl.textContent = rows.length ? rows.length + " shown" : "";
+    }
+    if (!rows.length) {
+      resultsEl.classList.remove("d-none");
+      var empty = document.createElement("div");
+      empty.className = "p-3 small text-muted";
+      empty.textContent = "No students in this class/section.";
+      resultsEl.appendChild(empty);
+      return;
+    }
+    resultsEl.classList.remove("d-none");
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.setAttribute("role", "option");
+      var t1 = document.createElement("div");
+      t1.className = "fw-semibold";
+      t1.textContent = row.text || "";
+      var t2 = document.createElement("div");
+      t2.className = "small text-muted";
+      t2.textContent = row.sub || "";
+      btn.appendChild(t1);
+      btn.appendChild(t2);
+      btn.addEventListener("click", function (id) {
+        return function () {
+          var params = new URLSearchParams();
+          if (ayv) params.set("ay", ayv);
+          params.set("classroom_id", classSel.value);
+          if (secSel && secSel.value) params.set("section_id", secSel.value);
+          params.set("student_id", String(id));
+          window.location.href = "{% url 'core:billing_record_payment' %}?" + params.toString();
+        };
+      }(row.id));
+      resultsEl.appendChild(btn);
+    }
+  }
+
+  function loadStudentList() {
+    if (!resultsEl || !classSel || !classSel.value) {
+      if (resultsEl) {
+        resultsEl.classList.add("d-none");
+        resultsEl.innerHTML = "";
+      }
+      if (countEl) countEl.textContent = "";
+      return;
+    }
+    var q = qInput ? (qInput.value || "").trim() : "";
+    var u = searchUrl + (searchUrl.indexOf("?") >= 0 ? "&" : "?") +
+      "classroom_id=" + encodeURIComponent(classSel.value) +
+      "&section_id=" + encodeURIComponent(secSel ? secSel.value : "") +
+      "&q=" + encodeURIComponent(q);
+    fetch(u, { credentials: "same-origin", headers: { "Accept": "application/json" } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var rows = (data && data.results) ? data.results : [];
+        renderStudentRows(rows);
+      })
+      .catch(function () {
+        if (countEl) countEl.textContent = "";
+        resultsEl.classList.remove("d-none");
+        resultsEl.innerHTML = "";
+        var err = document.createElement("div");
+        err.className = "p-2 small text-danger";
+        err.textContent = "Could not load students.";
+        resultsEl.appendChild(err);
+      });
+  }
+
+  if (classSel) {
+    classSel.addEventListener("change", function () {
+      selectedSection = "";
+      fillSections();
+      loadStudentList();
+    });
+    fillSections();
+  }
+  if (secSel) {
+    secSel.addEventListener("change", function () {
+      loadStudentList();
+    });
+  }
+
+  if (classSel && classSel.value) {
+    loadStudentList();
+  }
+
+  if (qInput && classSel) {
+    qInput.addEventListener("input", function () {
+      window.clearTimeout(tmr);
+      tmr = window.setTimeout(loadStudentList, 280);
+    });
+  }
+})();
+</script>
+{% endblock %}

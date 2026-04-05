@@ -184,6 +184,12 @@
   {% if students_with_status %}
   {% if future_date %}
   <div class="alert alert-warning rounded-4 border-0">Choose today or a past date to mark attendance.</div>
+  {% elif attendance_day_blocked %}
+  <div class="alert alert-secondary rounded-4 border-0">
+    <strong>{{ day_calendar.label }}</strong>
+    {% if day_calendar.detail %}<span class="d-block small mt-1">{{ day_calendar.detail }}</span>{% endif %}
+    <span class="d-block small mt-1 text-muted">Saving attendance is disabled for this date.</span>
+  </div>
   {% endif %}
 
   <div class="card border-0 shadow-sm att-table-card">
@@ -198,10 +204,10 @@
         <span class="att-stat-pill leave"><i class="bi bi-suitcase-lg"></i> Leave <strong id="attCountL">0</strong></span>
       </div>
       <div class="d-flex flex-wrap gap-2">
-        <button type="button" class="btn btn-outline-success btn-sm rounded-pill" id="markAllPresent" {% if future_date %}disabled{% endif %}>All present</button>
-        <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" id="markAllAbsent" {% if future_date %}disabled{% endif %}>All absent</button>
-        <button type="button" class="btn btn-outline-warning btn-sm rounded-pill" id="markAllLeave" {% if future_date %}disabled{% endif %}>All leave</button>
-        <button type="button" class="btn btn-primary btn-sm rounded-pill px-3" id="saveAttendanceBtn" {% if future_date %}disabled{% endif %}>
+        <button type="button" class="btn btn-outline-success btn-sm rounded-pill" id="markAllPresent" {% if future_date or attendance_day_blocked %}disabled{% endif %}>All present</button>
+        <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" id="markAllAbsent" {% if future_date or attendance_day_blocked %}disabled{% endif %}>All absent</button>
+        <button type="button" class="btn btn-outline-warning btn-sm rounded-pill" id="markAllLeave" {% if future_date or attendance_day_blocked %}disabled{% endif %}>All leave</button>
+        <button type="button" class="btn btn-primary btn-sm rounded-pill px-3" id="saveAttendanceBtn" {% if future_date or attendance_day_blocked %}disabled{% endif %}>
           <i class="bi bi-cloud-upload me-1"></i>Save
         </button>
       </div>
@@ -241,11 +247,11 @@
               <td class="fw-semibold">{{ s.user.get_full_name|default:s.user.username }}</td>
               <td>
                 <div class="att-status-toggle d-flex flex-wrap gap-1" role="group" aria-label="Status for {{ s.user.get_full_name|default:s.user.username }}">
-                  <input type="radio" class="btn-check" name="status_{{ s.id }}" id="tatt_{{ s.id }}_P" value="PRESENT" {% if item.status == 'PRESENT' %}checked{% endif %} {% if future_date %}disabled{% endif %}>
+                  <input type="radio" class="btn-check" name="status_{{ s.id }}" id="tatt_{{ s.id }}_P" value="PRESENT" {% if item.status == 'PRESENT' %}checked{% endif %} {% if future_date or attendance_day_blocked %}disabled{% endif %}>
                   <label class="btn btn-outline-success btn-sm" for="tatt_{{ s.id }}_P">Present</label>
-                  <input type="radio" class="btn-check" name="status_{{ s.id }}" id="tatt_{{ s.id }}_A" value="ABSENT" {% if item.status == 'ABSENT' %}checked{% endif %} {% if future_date %}disabled{% endif %}>
+                  <input type="radio" class="btn-check" name="status_{{ s.id }}" id="tatt_{{ s.id }}_A" value="ABSENT" {% if item.status == 'ABSENT' %}checked{% endif %} {% if future_date or attendance_day_blocked %}disabled{% endif %}>
                   <label class="btn btn-outline-danger btn-sm" for="tatt_{{ s.id }}_A">Absent</label>
-                  <input type="radio" class="btn-check" name="status_{{ s.id }}" id="tatt_{{ s.id }}_L" value="LEAVE" {% if item.status == 'LEAVE' %}checked{% endif %} {% if future_date %}disabled{% endif %}>
+                  <input type="radio" class="btn-check" name="status_{{ s.id }}" id="tatt_{{ s.id }}_L" value="LEAVE" {% if item.status == 'LEAVE' %}checked{% endif %} {% if future_date or attendance_day_blocked %}disabled{% endif %}>
                   <label class="btn btn-outline-warning btn-sm" for="tatt_{{ s.id }}_L">Leave</label>
                 </div>
               </td>
@@ -264,7 +270,7 @@
   {% endif %}
 </div>
 
-{% if students_with_status and not future_date %}
+{% if students_with_status and not future_date and not attendance_day_blocked %}
 <script>
 document.addEventListener("DOMContentLoaded", function() {
   const form = document.getElementById("attendanceForm");

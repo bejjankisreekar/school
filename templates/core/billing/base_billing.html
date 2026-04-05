@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% load nav_tags %}
+{% block title %}{% block billing_title %}Fees &amp; Billing | School ERP{% endblock %}{% endblock %}
+{% block extra_head %}
+<style>
+  .billing-sheet {
+    margin: -0.25rem -0.5rem 0;
+  }
+  @media (min-width: 992px) {
+    .billing-sheet { margin: -0.25rem -0.75rem 0; }
+  }
+  .billing-tabs-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 1010;
+    margin: 0 -0.5rem 1rem;
+    padding: 0.65rem 0.5rem 0.85rem;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+    box-shadow: 0 6px 24px rgba(15, 23, 42, 0.06);
+  }
+  @media (min-width: 992px) {
+    .billing-tabs-sticky {
+      margin-left: -0.75rem;
+      margin-right: -0.75rem;
+      padding-left: 0.75rem;
+      padding-right: 0.75rem;
+    }
+  }
+  html.dark .billing-tabs-sticky {
+    background: rgba(15, 23, 42, 0.92);
+    border-bottom-color: rgba(148, 163, 184, 0.18);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  }
+  .billing-sheet-head {
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: 0.55rem;
+    width: 100%;
+  }
+  html.dark .billing-sheet-head { color: #94a3b8; }
+  .billing-tabs-rail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    align-items: center;
+  }
+  @media (max-width: 991.98px) {
+    .billing-tabs-rail {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 0.2rem;
+      scrollbar-width: thin;
+    }
+  }
+  .billing-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.48rem 0.95rem;
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-decoration: none;
+    color: #475569;
+    border: 1px solid rgba(148, 163, 184, 0.55);
+    background: #fff;
+    white-space: nowrap;
+    transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.2s ease, transform 0.12s ease;
+  }
+  html.dark .billing-tab {
+    color: #cbd5e1;
+    background: rgba(30, 41, 59, 0.65);
+    border-color: rgba(148, 163, 184, 0.32);
+  }
+  .billing-tab:hover {
+    color: #4338ca;
+    border-color: rgba(99, 102, 241, 0.5);
+    background: rgba(99, 102, 241, 0.09);
+    box-shadow: 0 4px 16px rgba(79, 70, 229, 0.14);
+    transform: translateY(-1px);
+  }
+  html.dark .billing-tab:hover {
+    color: #c7d2fe;
+    background: rgba(99, 102, 241, 0.18);
+  }
+  .billing-tab.active {
+    color: #fff !important;
+    background: linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #0891b2 120%);
+    border-color: transparent;
+    box-shadow: 0 8px 26px rgba(79, 70, 229, 0.4);
+  }
+  .billing-tab i { font-size: 1rem; opacity: 0.95; }
+  .billing-sheet-body { min-width: 0; }
+</style>
+{% block billing_extra_head %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+{% with current=request.resolver_match.url_name %}
+<div class="billing-sheet">
+  <div class="billing-tabs-sticky" aria-label="Fees and billing sections">
+    <div class="billing-sheet-head">Fees &amp; Billing</div>
+    <nav class="billing-tabs-rail">
+      <a href="{% url 'core:billing_dashboard' %}" class="billing-tab {% if current == 'billing_dashboard' %}active{% endif %}"><i class="bi bi-speedometer2"></i><span>Dashboard</span></a>
+      <a href="{% url 'core:billing_record_payment' %}" class="billing-tab {% if current == 'billing_record_payment' or current == 'billing_student_collect' %}active{% endif %}"><i class="bi bi-cash-coin"></i><span>Record payment</span></a>
+      <a href="{% url 'core:billing_fee_structure' %}" class="billing-tab {% if current == 'billing_fee_structure' or current == 'billing_fee_master' or current == 'billing_class_fee_students' or current == 'billing_student_fee_lines' %}active{% endif %}"><i class="bi bi-ui-checks-grid"></i><span>Class fee structure</span></a>
+      <a href="{% url 'core:billing_fee_categories' %}" class="billing-tab {% if current == 'billing_fee_categories' or current == 'school_fee_type_update' or current == 'school_fee_type_delete' %}active{% endif %}"><i class="bi bi-tags"></i><span>Fee categories</span></a>
+      <a href="{% url 'core:billing_concessions' %}" class="billing-tab {% if current == 'billing_concessions' %}active{% endif %}"><i class="bi bi-percent"></i><span>Concessions</span></a>
+    </nav>
+  </div>
+  <div class="billing-sheet-body w-100">
+    {% block billing_main %}{% endblock %}
+  </div>
+</div>
+{% endwith %}
+{% endblock %}

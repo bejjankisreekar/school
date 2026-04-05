@@ -1,96 +1,299 @@
 {% extends "base.html" %}
-{% block title %}Master Schedule — {{ classroom }} | School ERP{% endblock %}
+{% block title %}Timetable — {{ classroom.name }} | School ERP{% endblock %}
 
 {% block extra_head %}
+{% if edit_mode %}
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+{% endif %}
+<style>
+  .tt-page { --tt-accent: #4f46e5; --tt-radius: 14px; max-width: 100%; }
+  .tt-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: linear-gradient(180deg, rgba(248,250,252,.97) 0%, rgba(248,250,252,.93) 85%, transparent 100%);
+    backdrop-filter: blur(8px);
+    margin: -0.5rem -0.5rem 1rem;
+    padding: 0.75rem 0.5rem 1rem;
+    border-radius: 0 0 var(--tt-radius) var(--tt-radius);
+  }
+  html.dark .tt-toolbar, body.dark-mode .tt-toolbar {
+    background: linear-gradient(180deg, rgba(15,23,42,.97) 0%, rgba(15,23,42,.92) 85%, transparent 100%);
+  }
+  .tt-title { font-size: clamp(1.1rem, 2vw, 1.35rem); font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+  .tt-meta { font-size: 0.8125rem; color: var(--bs-secondary-color); }
+  .tt-badge { font-size: 0.7rem; font-weight: 600; padding: 0.2rem 0.55rem; border-radius: 999px; }
+  .tt-table-wrap {
+    border-radius: var(--tt-radius);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    overflow: auto;
+    max-height: min(78vh, 1200px);
+    box-shadow: 0 10px 40px -12px rgba(15, 23, 42, 0.12);
+  }
+  html.dark .tt-table-wrap, body.dark-mode .tt-table-wrap {
+    border-color: rgba(71, 85, 105, 0.5);
+    box-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.4);
+  }
+  .tt-grid { margin: 0; font-size: 0.875rem; border-collapse: separate; border-spacing: 0; min-width: 920px; }
+  .tt-grid thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    color: #475569;
+    padding: 0.65rem 0.5rem;
+    border-bottom: 2px solid #cbd5e1;
+    white-space: nowrap;
+  }
+  html.dark .tt-grid thead th, body.dark-mode .tt-grid thead th {
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    color: #94a3b8;
+    border-bottom-color: #334155;
+  }
+  .tt-grid thead th.tt-corner {
+    position: sticky;
+    left: 0;
+    top: 0;
+    z-index: 5;
+    min-width: 118px;
+    text-align: left;
+  }
+  .tt-grid tbody th.tt-slot-col {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: #f8fafc;
+    font-weight: 600;
+    font-size: 0.8rem;
+    padding: 0.5rem 0.65rem;
+    border-right: 2px solid #e2e8f0;
+    border-bottom: 1px solid #e2e8f0;
+    vertical-align: middle;
+    min-width: 118px;
+  }
+  html.dark .tt-grid tbody th.tt-slot-col, body.dark-mode .tt-grid tbody th.tt-slot-col {
+    background: #0f172a;
+    border-right-color: #334155;
+    border-bottom-color: #334155;
+  }
+  .tt-grid td {
+    padding: 0.35rem;
+    border-bottom: 1px solid #e2e8f0;
+    border-right: 1px solid #f1f5f9;
+    vertical-align: top;
+    min-width: 128px;
+    max-width: 200px;
+  }
+  html.dark .tt-grid td, body.dark-mode .tt-grid td {
+    border-bottom-color: #334155;
+    border-right-color: #1e293b;
+  }
+  .tt-grid tr:hover td:not(.tt-slot-col) { background: rgba(79, 70, 229, 0.04); }
+  html.dark .tt-grid tr:hover td:not(.tt-slot-col), body.dark-mode .tt-grid tr:hover td:not(.tt-slot-col) {
+    background: rgba(99, 102, 241, 0.08);
+  }
+  .tt-view-cell {
+    border-radius: 10px;
+    padding: 0.5rem 0.55rem;
+    min-height: 4.5rem;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .tt-view-cell:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08); }
+  html.dark .tt-view-cell:hover, body.dark-mode .tt-view-cell:hover { box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35); }
+  .tt-view-cell--subj {
+    border-left: 4px solid var(--tt-subj, #6366f1);
+    background: linear-gradient(120deg, rgba(255, 255, 255, 0.88) 0%, rgba(248, 250, 252, 0.98) 100%);
+  }
+  html.dark .tt-view-cell--subj, body.dark-mode .tt-view-cell--subj {
+    background: linear-gradient(120deg, rgba(30, 41, 59, 0.92) 0%, rgba(15, 23, 42, 0.98) 100%);
+  }
+  .tt-view-cell--empty { border: 1px dashed rgba(148, 163, 184, 0.5); background: rgba(248, 250, 252, 0.5); }
+  html.dark .tt-view-cell--empty, body.dark-mode .tt-view-cell--empty {
+    background: rgba(30, 41, 59, 0.35);
+    border-color: rgba(71, 85, 105, 0.5);
+  }
+  .tt-subject { font-weight: 700; font-size: 0.82rem; line-height: 1.25; margin: 0 0 0.2rem; }
+  .tt-teachers { font-size: 0.72rem; color: var(--bs-secondary-color); line-height: 1.35; margin: 0; }
+  .tt-time-hint { font-size: 0.65rem; color: var(--bs-secondary-color); margin-top: 0.35rem; font-variant-numeric: tabular-nums; }
+  .tt-break-cell { text-align: center; color: var(--bs-secondary-color); font-size: 0.78rem; padding: 0.5rem; }
+  .tt-edit-cell .form-select { font-size: 0.8rem; }
+  .tt-mode-pill { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid px-0">
-  <nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb">
+<div class="tt-page container-fluid px-0">
+  <nav aria-label="breadcrumb" class="mb-2">
+    <ol class="breadcrumb mb-0 small">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
       <li class="breadcrumb-item"><a href="{% url 'timetable:school_timetable_index' %}">Schedules</a></li>
-      <li class="breadcrumb-item active" aria-current="page">Master Schedule — {{ classroom }}</li>
+      <li class="breadcrumb-item active" aria-current="page">{{ classroom.name }}</li>
     </ol>
   </nav>
 
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-    <div class="d-flex flex-wrap align-items-center gap-2 gap-md-3">
-      <a href="{% url 'timetable:school_timetable_index' %}" class="btn btn-outline-secondary btn-sm rounded-pill">
-        <i class="bi bi-arrow-left me-1"></i>Back to schedules
-      </a>
-      <h1 class="h4 fw-bold mb-0">Master Schedule — {{ classroom }}</h1>
+  <div class="tt-toolbar d-flex flex-column gap-3">
+    <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+      <div class="d-flex flex-wrap align-items-center gap-2 gap-md-3">
+        <a href="{% url 'timetable:school_timetable_index' %}" class="btn btn-outline-secondary btn-sm rounded-pill">
+          <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
+        <div>
+          <h1 class="tt-title">Class timetable</h1>
+          <div class="tt-meta">
+            <strong>{{ classroom.name }}</strong>
+            {% if classroom.academic_year %}
+              <span class="mx-1">·</span> {{ classroom.academic_year.name }}
+            {% endif %}
+            <span class="mx-1">·</span> Profile: <strong>{{ active_profile.name }}</strong>
+            {% if not edit_mode %}
+              <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 tt-badge ms-1 tt-mode-pill">View</span>
+            {% else %}
+              <span class="badge bg-warning bg-opacity-15 text-warning border border-warning border-opacity-35 tt-badge ms-1 tt-mode-pill">Editing</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <form method="post" class="d-flex align-items-center gap-2 mb-0">
+          {% csrf_token %}
+          <label class="small text-muted mb-0 text-nowrap" for="ttProfileSelect">Schedule profile</label>
+          <select name="set_profile" id="ttProfileSelect" class="form-select form-select-sm" style="min-width: 160px;" onchange="this.form.submit()">
+            {% for p in profiles %}
+            <option value="{{ p.id }}" {% if active_profile.id == p.id %}selected{% endif %}>{{ p.name }}</option>
+            {% endfor %}
+          </select>
+        </form>
+      </div>
     </div>
-    <div class="d-flex flex-wrap gap-2">
-      <a href="{% url 'timetable:school_timeslots' %}" class="btn btn-outline-secondary btn-sm">Time slots</a>
-      <a href="{% url 'timetable:school_timetable_print' classroom.id %}" class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener">Print</a>
-      <button type="submit" form="timetableForm" class="btn btn-primary">Save schedule</button>
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <div class="d-flex flex-wrap gap-2">
+        <a href="{% url 'timetable:school_timeslots' %}?profile={{ active_profile.id }}" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-clock-history me-1"></i>Time slots
+        </a>
+        <a href="{% url 'timetable:school_timetable_print' classroom.id %}" class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener">
+          <i class="bi bi-printer me-1"></i>Print
+        </a>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        {% if edit_mode %}
+        <a href="{% url 'timetable:school_timetable' classroom.id %}" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-x-lg me-1"></i>Cancel
+        </a>
+        <button type="submit" form="timetableForm" class="btn btn-primary btn-sm px-3">
+          <i class="bi bi-check2-circle me-1"></i>Save timetable
+        </button>
+        {% else %}
+        <a href="{% url 'timetable:school_timetable' classroom.id %}?edit=1" class="btn btn-primary btn-sm px-3">
+          <i class="bi bi-pencil-square me-1"></i>Edit timetable
+        </a>
+        {% endif %}
+      </div>
     </div>
   </div>
 
-  <form method="post" id="timetableForm">
+  {% if edit_mode %}
+  <form method="post" id="timetableForm" class="m-0">
     {% csrf_token %}
-    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
-      <div class="table-responsive">
-        <table class="table table-bordered mb-0 timetable-grid">
-          <thead class="table-light sticky-top">
-            <tr>
-              <th style="min-width: 100px;">Time</th>
-              <th>Monday</th>
-              <th>Tuesday</th>
-              <th>Wednesday</th>
-              <th>Thursday</th>
-              <th>Friday</th>
-              <th>Saturday</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in grid %}
-            <tr>
-              <td class="text-nowrap fw-medium">
-                {{ row.slot.start_time|time:"H:i" }}–{{ row.slot.end_time|time:"H:i" }}
-                {% if row.slot.is_break %}
-                <br><small class="text-muted">{% if row.slot.break_type == 'SHORT_BREAK' %}<i class="bi bi-cup-hot"></i> Short Break{% else %}<i class="bi bi-egg-fried"></i> Lunch{% endif %}</small>
+    <input type="hidden" name="save_timetable" value="1">
+  {% endif %}
+  <div class="tt-table-wrap bg-body{% if edit_mode %} mt-0{% endif %}">
+    <table class="table tt-grid mb-0">
+      <thead>
+        <tr>
+          <th class="tt-corner" scope="col">Period</th>
+          {% for day_val, day_name in days %}
+          <th scope="col">{{ day_name }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in grid %}
+        <tr>
+          <th class="tt-slot-col" scope="row">
+            <div class="font-monospace text-nowrap">{{ row.slot.start_time|time:"H:i" }}–{{ row.slot.end_time|time:"H:i" }}</div>
+            {% if row.slot.is_break %}
+            <div class="small text-muted mt-1">
+              {% if row.slot.break_type == 'SHORT_BREAK' %}<i class="bi bi-cup-hot"></i> Break{% else %}<i class="bi bi-egg-fried"></i> Lunch{% endif %}
+            </div>
+            {% else %}
+            <div class="small text-muted mt-1">Period</div>
+            {% endif %}
+          </th>
+          {% for d in row.days %}
+          <td class="{% if row.slot.is_break %}align-middle{% endif %}">
+            {% if row.slot.is_break %}
+            <div class="tt-break-cell">
+              {% if row.slot.break_type == 'SHORT_BREAK' %}Short break{% else %}Lunch{% endif %}
+            </div>
+            {% elif edit_mode %}
+            <div class="tt-edit-cell d-flex flex-column gap-1">
+              <select name="subj_{{ d.day }}_{{ row.slot.id }}" class="form-select form-select-sm" aria-label="Subject {{ d.day_name }} {{ row.slot.start_time }}">
+                <option value="">— Subject —</option>
+                {% for s in subjects %}
+                <option value="{{ s.id }}" {% if d.entry and d.entry.subject_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+                {% endfor %}
+              </select>
+              <select name="teach_{{ d.day }}_{{ row.slot.id }}" class="form-select form-select-sm teacher-select" multiple size="2" aria-label="Teachers {{ d.day_name }}">
+                {% if d.entry %}{% with chosen=d.entry.teachers.all %}
+                {% for t in teachers %}
+                <option value="{{ t.id }}" {% if t in chosen %}selected{% endif %}>{{ t.user.get_full_name|default:t.user.username }}</option>
+                {% endfor %}
+                {% endwith %}{% else %}
+                {% for t in teachers %}
+                <option value="{{ t.id }}">{{ t.user.get_full_name|default:t.user.username }}</option>
+                {% endfor %}
                 {% endif %}
-              </td>
-              {% for d in row.days %}
-              <td class="timetable-cell {% if row.slot.is_break %}table-secondary{% endif %}">
-                {% if row.slot.is_break %}
-                <span class="text-muted">{% if row.slot.break_type == 'SHORT_BREAK' %}Short Break{% else %}Lunch Break{% endif %}</span>
-                {% else %}
-                <select name="subj_{{ d.day }}_{{ row.slot.id }}" class="form-select form-select-sm mb-1">
-                  <option value="">-- Subject --</option>
-                  {% for s in subjects %}
-                  <option value="{{ s.id }}" {% if d.entry and d.entry.subject_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+              </select>
+            </div>
+            {% else %}
+            <div class="tt-view-cell {% if d.entry and d.entry.subject %}tt-view-cell--subj text-body{% elif d.entry %}text-body{% else %}tt-view-cell--empty d-flex align-items-center justify-content-center{% endif %}"
+                 {% if d.subject_bg %}style="--tt-subj: {{ d.subject_bg }};"{% endif %}>
+              {% if d.entry and d.entry.subject %}
+                <p class="tt-subject mb-0">{{ d.entry.subject.name }}</p>
+                <p class="tt-teachers">
+                  {% for te in d.entry.teachers.all %}
+                    {{ te.user.get_full_name|default:te.user.username }}{% if not forloop.last %}, {% endif %}
+                  {% empty %}
+                    <span class="fst-italic opacity-75">No teacher assigned</span>
                   {% endfor %}
-                </select>
-                <select name="teach_{{ d.day }}_{{ row.slot.id }}" class="form-select form-select-sm teacher-select" multiple size="3">
-                  {% for t in teachers %}
-                  <option value="{{ t.id }}" {% if d.entry and t in d.entry.teachers.all %}selected{% endif %}>{{ t.user.get_full_name|default:t.user.username }}</option>
-                  {% endfor %}
-                </select>
-                {% endif %}
-              </td>
-              {% endfor %}
-            </tr>
-            {% empty %}
-            <tr><td colspan="8" class="text-center text-muted py-4">Add time slots first.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </form>
+                </p>
+                <div class="tt-time-hint">{{ row.slot.start_time|time:"H:i" }}–{{ row.slot.end_time|time:"H:i" }}</div>
+              {% elif d.entry %}
+                <p class="tt-subject mb-0 text-muted">Free period</p>
+                <div class="tt-time-hint">{{ row.slot.start_time|time:"H:i" }}–{{ row.slot.end_time|time:"H:i" }}</div>
+              {% else %}
+                <span class="small text-muted">Free</span>
+              {% endif %}
+            </div>
+            {% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" class="text-center text-muted py-5">
+            <i class="bi bi-calendar-x d-block fs-3 mb-2 opacity-50"></i>
+            No time slots for this schedule profile. <a href="{% url 'timetable:school_timeslots' %}?profile={{ active_profile.id }}">Add periods</a> first.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if edit_mode %}</form>{% endif %}
 </div>
-<style>
-.timetable-cell:hover { background-color: rgba(13,110,253,.05); }
-</style>
+
+{% if edit_mode %}
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
-  $(function () {
-    $(".teacher-select").select2({ width: "100%", placeholder: "Select teachers" });
-  });
+  (function () {
+    $(".teacher-select").select2({ width: "100%", placeholder: "Teachers", allowClear: true });
+  })();
 </script>
+{% endif %}
 {% endblock %}

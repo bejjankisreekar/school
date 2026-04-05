@@ -31,6 +31,9 @@ DEBUG = env("DEBUG")
 
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
+# Product name in app header / navbar center (not school ``header_text``, which is separate).
+APP_PRODUCT_NAME = env.str("APP_PRODUCT_NAME", default="Campus ERP")
+
 
 # Application definition — django-tenants multi-tenancy
 # SHARED_APPS: public schema. TENANT_APPS: per-school schema.
@@ -105,6 +108,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "apps.core.context_processors.app_branding",
             ],
         },
     },

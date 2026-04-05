@@ -1,0 +1,354 @@
+{% extends "core/billing/base_billing.html" %}
+{% load humanize nav_tags %}
+{% block billing_title %}Concessions | School ERP{% endblock %}
+{% block billing_extra_head %}
+<style>
+  .conc-hub { --bd: #e2e8f0; --card: #fff; }
+  html.dark .conc-hub { --bd: rgba(148,163,184,.2); --card: rgba(30,41,59,.94); }
+  .conc-hub { background: #f1f5f9; margin: -0.5rem -1rem 0; padding: 1rem 1rem 2rem; min-height: calc(100vh - 100px); }
+  @media (min-width: 992px) { .conc-hub { margin: -0.5rem -1.5rem 0; padding: 1.25rem 1.5rem 2.5rem; } }
+  .conc-card { background: var(--card); border: 1px solid var(--bd); border-radius: 1.15rem; box-shadow: 0 1px 3px rgba(15,23,42,.06); }
+  .conc-summary-row:hover { background: rgba(79, 70, 229, 0.06) !important; }
+  html.dark .conc-summary-row:hover { background: rgba(99, 102, 241, 0.12) !important; }
+  .conc-modal-lines-header {
+    background: linear-gradient(135deg, #4338ca 0%, #4f46e5 40%, #0d9488 100%);
+    padding: 1.1rem 1.35rem;
+    border-radius: 1rem 1rem 0 0;
+  }
+  .conc-modal-lines-header .modal-title { letter-spacing: -0.02em; }
+  .conc-lines-modal .modal-content {
+    border: none;
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.28);
+  }
+  html.dark .conc-lines-modal .modal-content {
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.55);
+  }
+  .conc-modal-table-wrap {
+    max-height: min(62vh, 520px);
+    overflow: auto;
+    border: 1px solid var(--bd);
+    border-radius: 0.65rem;
+  }
+  .conc-modal-table-wrap thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: rgba(248, 250, 252, 0.98) !important;
+    box-shadow: 0 1px 0 var(--bd);
+  }
+  html.dark .conc-modal-table-wrap thead th {
+    background: rgba(30, 41, 59, 0.98) !important;
+  }
+  .conc-edit-modal .modal-content {
+    border: none;
+    border-radius: 1rem;
+    box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.35);
+  }
+  .conc-edit-modal .modal-header {
+    border-bottom: 1px solid var(--bd);
+    padding: 1rem 1.25rem;
+  }
+  .conc-edit-modal .modal-body { padding: 1.25rem; }
+  .conc-edit-modal .modal-footer {
+    border-top: 1px solid var(--bd);
+    padding: 0.85rem 1.25rem;
+  }
+  .conc-row-highlight { outline: 2px solid rgba(234, 179, 8, 0.65); outline-offset: -2px; }
+</style>
+{% endblock %}
+{% block billing_main %}
+<div class="conc-hub">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:billing_dashboard' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}">Fees &amp; billing</a></li>
+      <li class="breadcrumb-item active">Concessions</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h1 class="h4 fw-bold mb-1">Student concessions</h1>
+      <p class="small text-muted mb-0">One row per student (totals across all fee lines). Click <strong>Fee lines</strong> to open a focused window, then <strong>Edit concession</strong> on each line where discounts are allowed.</p>
+    </div>
+    <a href="{% url 'core:billing_fee_structure' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}" class="btn btn-outline-primary btn-sm rounded-pill">Class fee structure</a>
+  </div>
+
+  {% if messages %}
+  <div class="mb-3">
+    {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} rounded-3 border-0 shadow-sm mb-2">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="conc-card p-3 p-lg-4 mb-4">
+    <form method="get" class="row g-3 align-items-end">
+      {% if academic_years %}
+      <div class="col-6 col-md-3">
+        <label class="form-label small text-muted mb-0">Academic year</label>
+        <select name="ay" class="form-select form-select-sm rounded-3" onchange="this.form.submit()">
+          {% for y in academic_years %}
+          <option value="{{ y.id }}" {% if academic_year and academic_year.id == y.id %}selected{% endif %}>{{ y.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <div class="col-6 col-md-3">
+        <label class="form-label small text-muted mb-0">Class</label>
+        <select name="classroom_id" class="form-select form-select-sm rounded-3" onchange="this.form.submit()">
+          <option value="">All classes</option>
+          {% for c in classrooms %}
+          <option value="{{ c.id }}" {% if classroom_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-4">
+        <label class="form-label small text-muted mb-0">Search</label>
+        <input type="search" name="q" class="form-control form-control-sm rounded-3" placeholder="Student or fee type…" value="{{ q }}">
+      </div>
+      <div class="col-12 col-md-2 d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-sm rounded-pill px-3 flex-grow-1">Apply</button>
+        <a href="{% url 'core:billing_concessions' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}" class="btn btn-outline-secondary btn-sm rounded-pill">Reset</a>
+      </div>
+    </form>
+  </div>
+
+  <div class="conc-card overflow-hidden">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">Student</th>
+            <th>Class</th>
+            <th class="text-center"># Lines</th>
+            <th class="text-end">Original (all)</th>
+            <th class="text-end">Concession (all)</th>
+            <th class="text-end">Net due (all)</th>
+            <th class="pe-3 text-end">Fee lines</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for group in student_concession_groups %}
+          {% with s=group.student %}
+          <tr class="conc-summary-row">
+            <td class="ps-3">
+              <div class="fw-semibold small">{{ s.user.get_full_name|default:s.user.username }}</div>
+              <div class="small text-muted font-monospace">{{ s.admission_number|default:"" }}</div>
+            </td>
+            <td class="small">{{ s.classroom.name|default:"—" }}</td>
+            <td class="text-center"><span class="badge rounded-pill bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">{{ group.lines_count }}</span></td>
+            <td class="text-end font-monospace small">₹{{ group.total_original|inr }}</td>
+            <td class="text-end font-monospace small text-secondary">₹{{ group.total_concession|inr }}</td>
+            <td class="text-end font-monospace small fw-semibold">₹{{ group.total_net|inr }}</td>
+            <td class="pe-3 text-end">
+              <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#concLinesStudent{{ s.id }}" aria-label="Open fee lines for {{ s.user.get_full_name|default:s.user.username }}">
+                <i class="bi bi-receipt-cutoff me-1"></i>Fee lines
+              </button>
+            </td>
+          </tr>
+          {% endwith %}
+          {% empty %}
+          <tr><td colspan="7" class="text-center text-muted py-5">No students with fee lines match these filters.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-3 border-top small" style="border-color: var(--bd) !important;">
+      <span class="text-muted">Students: page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} total)</span>
+      <div class="d-flex gap-2">
+        {% if page_obj.has_previous %}
+        <a class="btn btn-sm btn-outline-secondary rounded-pill" href="?{% if academic_year %}ay={{ academic_year.id }}&{% endif %}{% if classroom_id %}classroom_id={{ classroom_id }}&{% endif %}{% if q %}q={{ q|urlencode }}&{% endif %}page={{ page_obj.previous_page_number }}">Previous</a>
+        {% endif %}
+        {% if page_obj.has_next %}
+        <a class="btn btn-sm btn-outline-secondary rounded-pill" href="?{% if academic_year %}ay={{ academic_year.id }}&{% endif %}{% if classroom_id %}classroom_id={{ classroom_id }}&{% endif %}{% if q %}q={{ q|urlencode }}&{% endif %}page={{ page_obj.next_page_number }}">Next</a>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+{% for group in student_concession_groups %}
+{% with s=group.student %}
+<div class="modal fade conc-lines-modal" id="concLinesStudent{{ s.id }}" tabindex="-1" aria-labelledby="concLinesLabel{{ s.id }}" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header conc-modal-lines-header text-white">
+        <div class="pe-3">
+          <h2 class="modal-title h5 fw-bold text-white" id="concLinesLabel{{ s.id }}">Fee lines &amp; concessions</h2>
+          <p class="small mb-0 text-white opacity-90">
+            {{ s.user.get_full_name|default:s.user.username }}
+            {% if s.classroom.name %}<span class="opacity-50">·</span> {{ s.classroom.name }}{% endif %}
+            {% if s.admission_number %}<span class="opacity-50">·</span> <span class="font-monospace">{{ s.admission_number }}</span>{% endif %}
+          </p>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-body pt-3 pb-4">
+        <p class="small text-muted mb-3">Adjust concessions only where <span class="badge text-bg-success rounded-pill">Discount OK</span> is shown. Other lines follow the class fee structure.</p>
+        <div class="conc-modal-table-wrap">
+          <table class="table table-sm table-hover align-middle mb-0 bg-body">
+            <thead class="table-light">
+              <tr>
+                <th class="ps-3">Fee line</th>
+                <th class="text-end">Original</th>
+                <th class="text-end">Concession</th>
+                <th class="text-end">Net due</th>
+                <th class="text-center">Discount OK</th>
+                <th class="pe-3 text-end">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in group.rows %}
+              {% with fee=row.fee %}
+              <tr class="{% if error_fee_id == fee.id %}conc-row-highlight{% endif %}">
+                <td class="ps-3 small">
+                  <div class="fw-semibold">{{ fee.fee_structure.line_name|default:fee.fee_structure.fee_type.name }}</div>
+                  <div class="text-muted">{{ fee.fee_structure.fee_type.name }} · due {{ fee.due_date|date:"M j, Y" }}</div>
+                </td>
+                <td class="text-end font-monospace small">₹{{ fee.amount|inr }}</td>
+                <td class="text-end font-monospace small text-secondary">₹{{ fee.total_concession_amount|inr }}</td>
+                <td class="text-end font-monospace small">₹{{ fee.effective_due_amount|inr }}</td>
+                <td class="text-center">
+                  {% if fee.fee_structure.discount_allowed %}
+                  <span class="badge rounded-pill text-bg-success">Yes</span>
+                  {% else %}
+                  <span class="badge rounded-pill text-bg-secondary">No</span>
+                  {% endif %}
+                </td>
+                <td class="pe-3 text-end">
+                  {% if fee.fee_structure.discount_allowed %}
+                  <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#concEditFee{{ fee.id }}">
+                    <i class="bi bi-pencil-square me-1"></i>Edit concession
+                  </button>
+                  {% else %}
+                  <span class="small text-muted">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endwith %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer border-0 bg-body pt-0">
+        <button type="button" class="btn btn-primary rounded-pill px-4" data-bs-dismiss="modal">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endwith %}
+{% endfor %}
+
+{% for group in student_concession_groups %}
+{% for row in group.rows %}
+{% with fee=row.fee form=row.form %}
+{% if fee.fee_structure.discount_allowed %}
+<div class="modal fade conc-edit-modal" id="concEditFee{{ fee.id }}" tabindex="-1" aria-labelledby="concEditLabel{{ fee.id }}" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title h6 fw-bold mb-0" id="concEditLabel{{ fee.id }}">Edit concession</h2>
+          <p class="small text-muted mb-0">{{ fee.fee_structure.line_name|default:fee.fee_structure.fee_type.name }} · ₹{{ fee.amount|inr }} billed</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" action="{% url 'core:billing_concessions' %}">
+        {% csrf_token %}
+        <input type="hidden" name="save_concession" value="1">
+        <input type="hidden" name="fee_id" value="{{ fee.id }}">
+        <input type="hidden" name="page" value="{{ page_obj.number }}">
+        {% if academic_year %}<input type="hidden" name="ay" value="{{ academic_year.id }}">{% endif %}
+        {% if classroom_id %}<input type="hidden" name="classroom_id" value="{{ classroom_id }}">{% endif %}
+        <input type="hidden" name="q" value="{{ q }}">
+        <div class="modal-body">
+          {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+          {% for field in form.visible_fields %}
+          <div class="mb-3">
+            <label class="form-label small fw-semibold mb-1" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% for e in field.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+          {% endfor %}
+          {% if form.non_field_errors %}<div class="alert alert-danger small mb-0 py-2">{{ form.non_field_errors }}</div>{% endif %}
+        </div>
+        <div class="modal-footer gap-2">
+          <button type="button" class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary rounded-pill px-4"><i class="bi bi-check2 me-1"></i>Save concession</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endwith %}
+{% endfor %}
+{% endfor %}
+{% endblock %}
+
+{% block after_bootstrap %}
+{{ block.super }}
+<script>
+(function () {
+  document.addEventListener("DOMContentLoaded", function () {
+    if (typeof bootstrap === "undefined" || !bootstrap.Modal) return;
+
+    var suspendedLinesModal = null;
+    document.addEventListener("show.bs.modal", function (ev) {
+      if (!ev.target.classList.contains("conc-edit-modal")) return;
+      var openLines = document.querySelector(".conc-lines-modal.show");
+      if (openLines) {
+        suspendedLinesModal = bootstrap.Modal.getInstance(openLines);
+        if (suspendedLinesModal) suspendedLinesModal.hide();
+      }
+    });
+    document.addEventListener("hidden.bs.modal", function (ev) {
+      if (!ev.target.classList.contains("conc-edit-modal")) return;
+      if (suspendedLinesModal) {
+        suspendedLinesModal.show();
+        suspendedLinesModal = null;
+      }
+    });
+
+    var openSid = {% if open_student_id %}{{ open_student_id }}{% else %}null{% endif %};
+    var errFid = {% if error_fee_id %}{{ error_fee_id }}{% else %}null{% endif %};
+    if (!openSid && !errFid) return;
+
+    function showEdit() {
+      if (!errFid) return;
+      var editEl = document.getElementById("concEditFee" + errFid);
+      if (editEl) new bootstrap.Modal(editEl).show();
+    }
+
+    if (openSid) {
+      var linesEl = document.getElementById("concLinesStudent" + openSid);
+      if (linesEl) {
+        var m = new bootstrap.Modal(linesEl);
+        if (errFid) {
+          linesEl.addEventListener("shown.bs.modal", function onShown() {
+            linesEl.removeEventListener("shown.bs.modal", onShown);
+            showEdit();
+          });
+        }
+        m.show();
+      } else {
+        showEdit();
+      }
+    } else {
+      showEdit();
+    }
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,32 @@
+{# Expects: holiday_today (DayResolution), holiday_upcoming (list of (date, HolidayEvent)), holiday_cal_published (bool) #}
+<div class="card border-0 shadow-sm rounded-3 {% if margin_class %}{{ margin_class }}{% else %}mt-3{% endif %}">
+  <div class="card-body p-2 p-sm-3">
+    <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-2">
+      <h3 class="h6 fw-bold mb-0"><i class="bi bi-calendar2-event me-1 text-primary"></i>School calendar</h3>
+      {% if holiday_cal_published %}
+      <span class="badge text-bg-success">Published</span>
+      {% else %}
+      <span class="badge text-bg-secondary">Draft / local rule</span>
+      {% endif %}
+    </div>
+    {% if holiday_today %}
+      {% if holiday_today.code == "working_sunday_override" %}
+      <p class="small text-success mb-2 mb-md-2"><strong>Today</strong>: {{ holiday_today.label }} — {{ holiday_today.detail }}</p>
+      {% elif not holiday_today.is_working_day %}
+      <p class="small mb-2"><strong>Today</strong>: <span class="text-danger-emphasis">{{ holiday_today.label }}</span>{% if holiday_today.detail %} <span class="text-muted">— {{ holiday_today.detail }}</span>{% endif %}</p>
+      {% else %}
+      <p class="small text-muted mb-2"><strong>Today</strong>: Regular working day.</p>
+      {% endif %}
+    {% endif %}
+    {% if holiday_upcoming %}
+    <p class="small text-muted mb-1 fw-semibold text-uppercase" style="font-size:0.65rem;letter-spacing:0.06em;">Upcoming holidays</p>
+    <ul class="small mb-0 ps-3">
+      {% for when, ev in holiday_upcoming %}
+      <li class="mb-1">{{ when|date:"D, d M" }} — <strong>{{ ev.name }}</strong> <span class="text-muted">({{ ev.get_holiday_type_display }})</span></li>
+      {% endfor %}
+    </ul>
+    {% elif holiday_cal_published %}
+    <p class="small text-muted mb-0">No further holidays listed from today in the published calendar.</p>
+    {% endif %}
+  </div>
+</div>

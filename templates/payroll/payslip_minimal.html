@@ -1,0 +1,140 @@
+{% load nav_tags %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Payslip — {{ employee_name }} — {{ period_label }}</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 11.5px; color: #334155; margin: 0; padding: 10px; background: #fff; }
+    .max { max-width: 190mm; margin: 0 auto; }
+    .no-print { margin-bottom: 8px; }
+    .no-print a { font-size: 12px; margin-right: 8px; color: #0f766e; }
+    .top { width: 100%; border-collapse: collapse; margin-bottom: 8px; border-bottom: 1px solid #e2e8f0; }
+    .top td { vertical-align: middle; padding-bottom: 8px; }
+    .mark { width: 48px; }
+    .mark img { width: 44px; height: 44px; object-fit: contain; border-radius: 6px; border: 1px solid #e2e8f0; }
+    .mark span { display: inline-block; width: 44px; height: 44px; line-height: 44px; text-align: center; background: #f1f5f9; border-radius: 6px; font-weight: 700; font-size: 13px; color: #64748b; }
+    h1 { font-size: 15px; margin: 0; color: #0f172a; }
+    .sub { font-size: 10px; color: #64748b; margin: 2px 0 0; }
+    .ref { text-align: right; font-size: 10px; color: #64748b; }
+    .ref b { color: #334155; display: block; }
+    .banner { text-align: center; font-weight: 600; font-size: 11px; margin: 10px 0; color: #0f172a; }
+    .kv { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 11px; }
+    .kv td { padding: 3px 8px 3px 0; border-bottom: 1px dotted #e2e8f0; }
+    .kv td:nth-child(odd) { color: #64748b; width: 36%; }
+    .block { margin-bottom: 12px; }
+    .block h2 { font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; margin: 0 0 4px; font-weight: 700; }
+    .rows { width: 100%; border-collapse: collapse; }
+    .rows td { padding: 3px 0; border-bottom: 1px solid #f1f5f9; }
+    .rows td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+    .net { background: #ecfdf5; border: 1px solid #059669; border-radius: 8px; padding: 10px 12px; margin: 12px 0; }
+    .net table { width: 100%; border-collapse: collapse; }
+    .net td { padding: 2px 0; border: none; }
+    .net td:last-child { text-align: right; font-weight: 700; }
+    .net .big { font-size: 14px; color: #047857; }
+    .net .words { font-size: 10px; color: #065f46; font-style: italic; padding-top: 6px !important; }
+    .att { font-size: 10px; width: 100%; border-collapse: collapse; margin-top: 8px; }
+    .att th, .att td { border: 1px solid #e2e8f0; padding: 4px 6px; text-align: left; }
+    .att th { background: #f8fafc; font-weight: 600; }
+    .foot { font-size: 9px; color: #94a3b8; margin-top: 14px; padding-top: 8px; border-top: 1px solid #e2e8f0; }
+    @media print {
+      @page { size: A4; margin: 10mm; }
+      .no-print { display: none !important; }
+      body { padding: 0; }
+    }
+    @media (max-width: 520px) {
+      .top, .top tr, .top td { display: block; width: 100% !important; }
+      .ref { text-align: left !important; margin-top: 8px; }
+    }
+  </style>
+</head>
+<body>
+<div class="max">
+  <div class="no-print">
+    <a href="javascript:window.print()">Print</a>
+    <a href="{% url 'payroll:payslip_pdf' payslip.pk %}">Download PDF</a>
+    <a href="{% url 'payroll:payslips_list' %}?month={{ payslip.month }}&year={{ payslip.year }}">Back</a>
+  </div>
+
+  <table class="top">
+    <tr>
+      <td class="mark" style="width:52px;">
+        {% if school_logo_url %}<img src="{{ school_logo_url }}" alt="">{% else %}<span>{{ school.name|branding_initials }}</span>{% endif %}
+      </td>
+      <td>
+        <h1>{{ school.name }}</h1>
+        {% if school.address %}<p class="sub">{{ school.address|truncatewords:30 }}</p>{% endif %}
+      </td>
+      <td class="ref" style="width:120px;text-align:right;">Payroll ref.<b>{{ payroll_ref }}</b></td>
+    </tr>
+  </table>
+
+  <p class="banner">Payslip · {{ period_label }}</p>
+
+  <table class="kv">
+    <tr><td>Employee</td><td><strong>{{ employee_name }}</strong></td><td>ID</td><td>{{ employee_id_display }}</td></tr>
+    <tr><td>Designation</td><td>{{ teacher_meta.designation }}</td><td>Department</td><td>{{ teacher_meta.department }}</td></tr>
+    <tr><td>Branch</td><td>{{ teacher_meta.branch }}</td><td>Pay period</td><td>{{ period_label }}</td></tr>
+    <tr><td>Joining</td><td>{{ teacher_meta.date_of_joining }}</td><td>Tax ID</td><td>{{ teacher_meta.tax_id }}</td></tr>
+    <tr><td>Bank name</td><td>{{ teacher_meta.bank_name }}</td><td>IFSC</td><td>{{ teacher_meta.ifsc }}</td></tr>
+    <tr><td>Bank (last 4)</td><td>{{ teacher_meta.bank_last4 }}</td><td>UAN</td><td>{{ teacher_meta.uan }}</td></tr>
+    <tr><td>PF account</td><td>{{ teacher_meta.pf_account }}</td><td>ESI</td><td>{{ teacher_meta.esi_number }}</td></tr>
+  </table>
+
+  {% if earnings_rows %}
+  <div class="block">
+    <h2>Earnings</h2>
+    <table class="rows">
+      {% for label, amount in earnings_rows %}
+      <tr><td>{{ label }}</td><td>&#8377;{{ amount|inr:0 }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+
+  {% if deductions_rows %}
+  <div class="block">
+    <h2>Deductions</h2>
+    <table class="rows">
+      {% for label, amount in deductions_rows %}
+      <tr><td>{{ label }}</td><td>&#8377;{{ amount|inr:0 }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+
+  <div class="net">
+    <table>
+      <tr><td>Gross</td><td>&#8377;{{ gross_earnings|inr:0 }}</td></tr>
+      <tr><td>Deductions</td><td>&#8377;{{ payslip.total_deductions|inr:0 }}</td></tr>
+      <tr class="big"><td>Net pay</td><td>&#8377;{{ payslip.net_salary|inr:0 }}</td></tr>
+      <tr><td colspan="2" class="words">({{ net_salary_words }})</td></tr>
+    </table>
+  </div>
+
+  <table class="att">
+    <tr><th>Work days</th><th>Present</th><th>Paid leave</th><th>LOP</th><th>OT hrs</th></tr>
+    <tr>
+      <td>{{ teacher_meta.working_days }}</td>
+      <td>{{ teacher_meta.present_days }}</td>
+      <td>{{ teacher_meta.paid_leave_days }}</td>
+      <td>{{ teacher_meta.lop_days }}</td>
+      <td>{{ teacher_meta.overtime_hours }}</td>
+    </tr>
+  </table>
+
+  {% if payslip.payment_date %}
+  <p class="foot" style="border:none;margin:6px 0 0;">Paid {{ payslip.payment_date|date:"j M Y" }}{% if payslip.payment_method %} · {{ payslip.payment_method }}{% endif %}</p>
+  {% endif %}
+
+  {% if qr_data_uri %}
+  <p style="text-align:center;margin:8px 0 0;"><img src="{{ qr_data_uri }}" alt="" style="max-width:80px;"></p>
+  {% endif %}
+
+  <div class="foot">
+    Generated {{ generated_on|date:"j M Y, H:i" }} · System-generated payslip · Signature lines optional per policy
+  </div>
+</div>
+</body>
+</html>
