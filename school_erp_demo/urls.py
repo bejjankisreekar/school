@@ -17,9 +17,14 @@ Including another URLconf
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import include, path, re_path
 
 from apps.core import api_views
+from apps.core import error_views
+
+# Custom error pages (used when DEBUG = False)
+handler404 = error_views.page_not_found
+handler500 = error_views.server_error
 
 urlpatterns = [
     # Before core's "" catch-all so `reports:dashboard` resolves (namespace `reports`).
@@ -39,6 +44,8 @@ urlpatterns = [
     path("accounts/", include(("apps.accounts.urls", "accounts"), namespace="accounts")),
     path("admin/", include(("apps.core.admin_urls", "admin_manage"))),
     path("django-admin/", admin.site.urls),
+    # Friendly 404 for any unmatched route (also in DEBUG=True).
+    re_path(r"^.*$", error_views.page_not_found),
 ]
 
 if settings.DEBUG:

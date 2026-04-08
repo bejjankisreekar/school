@@ -88,6 +88,41 @@
     font-size: 0.8rem;
     color: var(--bs-secondary-color);
   }
+  /* "Now" ticker (no card) */
+  .tt-now-ticker {
+    display: none;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+    background: rgba(248, 250, 252, 0.65);
+  }
+  html.dark .tt-now-ticker {
+    background: rgba(15, 23, 42, 0.35);
+  }
+  .tt-now-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-weight: 800;
+    font-size: 0.85rem;
+    color: #065f46;
+    white-space: nowrap;
+  }
+  html.dark .tt-now-badge { color: #86efac; }
+  .tt-now-track {
+    position: relative;
+    flex: 1;
+    overflow: visible;
+    white-space: normal;
+  }
+  .tt-now-marquee {
+    display: inline-block;
+    padding-left: 0;
+    animation: none;
+    color: var(--bs-body-color);
+    font-weight: 700;
+  }
 </style>
 {% endblock %}
 
@@ -114,6 +149,13 @@
       <div class="alert alert-secondary border-0 mb-0">No schedule rows available.</div>
     </div>
     {% else %}
+    {# "Now" ticker (no card) #}
+    <div id="ttNowTicker" class="tt-now-ticker" role="status" aria-live="polite">
+      <div class="tt-now-badge"><i class="bi bi-clock-history"></i> Now:</div>
+      <div class="tt-now-track">
+        <span id="ttNowText" class="tt-now-marquee"></span>
+      </div>
+    </div>
     <div class="table-responsive">
       <table class="table table-bordered tt-grid-table mb-0">
         <thead class="table-light sticky-top">
@@ -165,4 +207,110 @@
     {% endif %}
   </div>
 </div>
+<script>
+(function() {
+  function qs(sel) { return document.querySelector(sel); }
+  function qsa(sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); }
+  function qsaIn(ctx, sel) { return ctx ? Array.prototype.slice.call(ctx.querySelectorAll(sel)) : []; }
+  function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
+  function parseHm(s) {
+    // "HH:MM" -> minutes since midnight
+    if (!s) return null;
+    var m = String(s).trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return null;
+    var hh = parseInt(m[1], 10);
+    var mm = parseInt(m[2], 10);
+    if (isNaN(hh) || isNaN(mm)) return null;
+    // School schedules commonly use PM times; if data was saved as 01:30 meaning 13:30,
+    // assume anything before 06:00 is PM to avoid "Now" matching wrong slots.
+    if (hh >= 0 && hh < 6) hh = hh + 12;
+    return hh * 60 + mm;
+  }
+
+  var ticker = qs("#ttNowTicker");
+  var textEl = qs("#ttNowText");
+  var table = qs("table.tt-grid-table");
+  if (!ticker || !textEl || !table) return;
+
+  // Determine active day/slot using browser time (more reliable than server TZ).
+  var now = new Date();
+  var jsDay = now.getDay(); // 0=Sun ... 6=Sat
+  // Table shows Mon..Sat => map: Mon=1..Sat=6; Sun not shown.
+  if (jsDay === 0) return;
+  var dayIdx = jsDay; // 1..6 corresponds to Mon..Sat columns
+
+  var minsNow = now.getHours() * 60 + now.getMinutes();
+  var activeRow = null;
+  var activeCell = null;
+  var activeSlotLabel = "";
+  var rows = qsa("table.tt-grid-table tbody tr");
+  rows.forEach(function(tr) {
+    if (activeRow) return;
+    var timeCol = tr.querySelector("td.tt-time-col .tt-slot-time");
+    if (!timeCol) return;
+    var txt = (timeCol.textContent || "").trim(); // "HH:MM–HH:MM"
+    var parts = txt.split("–");
+    if (parts.length !== 2) return;
+    var a = parseHm(parts[0]);
+    var b = parseHm(parts[1]);
+    if (a === null || b === null) return;
+    // Use half-open interval to avoid marking two adjacent slots as "Now".
+    if (minsNow >= a && minsNow < b) {
+      activeRow = tr;
+      activeSlotLabel = txt;
+      // td[0] is time, then 6 day cells => pick 1..6
+      var tds = tr.querySelectorAll("td");
+      var idx = clamp(dayIdx, 1, 6);
+      activeCell = tds && tds.length > idx ? tds[idx] : null;
+    }
+  });
+
+  if (!activeRow || !activeCell) return;
+
+  // Highlight active cell (in case server didn't add it).
+  activeCell.classList.add("tt-cell-live");
+
+  // Add "Now" badges to each entry block in the active cell.
+  qsaIn(activeCell, ".tt-entry-block").forEach(function(block) {
+    var meta = block.querySelector(".d-flex");
+    if (!meta) return;
+    if (block.querySelector(".badge.bg-success")) return;
+    var b = document.createElement("span");
+    b.className = "badge bg-success rounded-pill";
+    b.style.fontSize = "0.65rem";
+    b.textContent = "Now";
+    meta.appendChild(b);
+  });
+
+  // Build Now card content from entries in active cell.
+  var items = [];
+  qsaIn(activeCell, ".tt-entry-block").forEach(function(block) {
+    var classPill = block.querySelector(".tt-class-pill");
+    var subj = block.querySelector(".tt-subject");
+    var cls = classPill ? (classPill.textContent || "").trim() : "";
+    var sj = subj ? (subj.textContent || "").trim() : "";
+    if (cls || sj) items.push({ c: cls, s: sj });
+  });
+
+  if (!items.length) return;
+
+  function esc(s) { return String(s || "").replace(/</g, "&lt;"); }
+  var prefix = activeSlotLabel ? ("(" + esc(activeSlotLabel) + ") ") : "";
+  var line = items.map(function(it) {
+    var c = (it.c || "").trim();
+    var s = (it.s || "").trim();
+    if (!s || s === "—") s = "a class";
+    if (!c) c = "your class";
+    return "You are scheduled to teach " + esc(s) + " for " + esc(c) + ".";
+  }).join("  ");
+  textEl.innerHTML = prefix + line;
+
+  ticker.style.display = "flex";
+
+  // Auto-scroll the timetable so the active row is visible.
+  try {
+    activeRow.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+  } catch (e) {}
+})();
+</script>
 {% endblock %}

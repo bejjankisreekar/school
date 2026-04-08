@@ -49,6 +49,48 @@
   .hol-legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; font-size: 0.75rem; margin-top: 0.75rem; }
   .hol-legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
   .hol-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  .cal-view-switch {
+    display: flex;
+    width: 100%;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 999px;
+    padding: 3px;
+    background: var(--bs-body-bg);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+  }
+  .cal-view-seg {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.55rem;
+    border-radius: 999px;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
+    transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+    user-select: none;
+  }
+  .cal-view-seg:hover { background: var(--bs-tertiary-bg); color: var(--bs-body-color); }
+  .cal-view-seg.is-active {
+    background: var(--bs-primary);
+    color: #fff;
+    box-shadow: 0 8px 18px rgba(13, 110, 253, 0.18);
+  }
+  .cal-view-seg.is-active:hover { color: #fff; }
+
+  .hol-year-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; }
+  @media (max-width: 1200px) { .hol-year-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 992px) { .hol-year-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 576px) { .hol-year-grid { grid-template-columns: 1fr; } }
+  .hol-year-month { border: 1px solid var(--bs-border-color); border-radius: 10px; background: var(--bs-body-bg); }
+  .hol-year-month .hol-year-head { padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--bs-border-color); color: var(--bs-secondary-color); font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .hol-year-month .hol-year-body { padding: 0.5rem; }
+  .hol-year-month .hol-cal-grid { font-size: 0.65rem; }
+  .hol-year-month .hol-cal-cell { min-height: 2.15rem; border-radius: 6px; }
 </style>
 
 <div class="container-fluid px-0 hol-cal-wrap">
@@ -94,6 +136,7 @@
       <form method="get" class="row g-2 align-items-end">
         <input type="hidden" name="year" value="{{ planner_year }}">
         <input type="hidden" name="month" value="{{ planner_month }}">
+        <input type="hidden" name="view" value="{{ view_mode|default:'month' }}">
         <div class="col-md-4 col-lg-3">
           <label class="form-label small mb-0">Academic year</label>
           <select name="ay" class="form-select form-select-sm" onchange="this.form.submit()">
@@ -111,9 +154,31 @@
           </select>
         </div>
         {% endif %}
+        <div class="col-md-4 col-lg-3">
+          <label class="form-label small mb-0">View</label>
+          <div class="cal-view-switch" role="group" aria-label="Calendar view">
+            <a class="cal-view-seg {% if view_mode != 'year' %}is-active{% endif %}"
+               {% if view_mode != 'year' %}aria-current="page"{% endif %}
+               href="?ay={{ ay.id }}&amp;year={{ planner_year }}&amp;month={{ planner_month }}&amp;audience={{ audience }}&amp;view=month">
+              <i class="bi bi-calendar3"></i>
+              <span>Month</span>
+            </a>
+            <a class="cal-view-seg {% if view_mode == 'year' %}is-active{% endif %}"
+               {% if view_mode == 'year' %}aria-current="page"{% endif %}
+               href="?ay={{ ay.id }}&amp;year={{ planner_year }}&amp;month={{ planner_month }}&amp;audience={{ audience }}&amp;view=year">
+              <i class="bi bi-calendar2-range"></i>
+              <span>Year</span>
+            </a>
+          </div>
+        </div>
         <div class="col-12 col-lg-auto ms-lg-auto d-flex gap-2 flex-wrap">
-          <a class="btn btn-sm btn-outline-secondary" href="?ay={{ ay.id }}&amp;year={{ prev_year }}&amp;month={{ prev_month }}&amp;audience={{ audience }}">← Prev</a>
-          <a class="btn btn-sm btn-outline-secondary" href="?ay={{ ay.id }}&amp;year={{ next_year }}&amp;month={{ next_month }}&amp;audience={{ audience }}">Next →</a>
+          {% if view_mode == "year" %}
+          <a class="btn btn-sm btn-outline-secondary" href="?ay={{ ay.id }}&amp;year={{ planner_year|add:'-1' }}&amp;month={{ planner_month }}&amp;audience={{ audience }}&amp;view=year">← Prev year</a>
+          <a class="btn btn-sm btn-outline-secondary" href="?ay={{ ay.id }}&amp;year={{ planner_year|add:'1' }}&amp;month={{ planner_month }}&amp;audience={{ audience }}&amp;view=year">Next year →</a>
+          {% else %}
+          <a class="btn btn-sm btn-outline-secondary" href="?ay={{ ay.id }}&amp;year={{ prev_year }}&amp;month={{ prev_month }}&amp;audience={{ audience }}&amp;view=month">← Prev</a>
+          <a class="btn btn-sm btn-outline-secondary" href="?ay={{ ay.id }}&amp;year={{ next_year }}&amp;month={{ next_month }}&amp;audience={{ audience }}&amp;view=month">Next →</a>
+          {% endif %}
         </div>
       </form>
       {% if holiday_cal_can_manage %}
@@ -134,35 +199,69 @@
     <div class="col-lg-{% if holiday_cal_can_manage %}7{% else %}12{% endif %}">
       <div class="card border-0 shadow-sm rounded-3 h-100">
         <div class="card-header bg-transparent py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
-          <strong class="small text-uppercase text-muted">{{ planner_month_label }}</strong>
+          <strong class="small text-uppercase text-muted">
+            {% if view_mode == "year" %}{{ planner_year }}{% else %}{{ planner_month_label }}{% endif %}
+          </strong>
           {% if cal.use_split_calendars %}
           <span class="small text-muted">Showing: {% if audience == "teacher" %}Teachers{% else %}Students{% endif %}</span>
           {% endif %}
         </div>
         <div class="card-body pt-2">
-          <div class="hol-cal-grid mb-1">
-            <div class="hol-cal-dow">Sun</div>
-            <div class="hol-cal-dow">Mon</div>
-            <div class="hol-cal-dow">Tue</div>
-            <div class="hol-cal-dow">Wed</div>
-            <div class="hol-cal-dow">Thu</div>
-            <div class="hol-cal-dow">Fri</div>
-            <div class="hol-cal-dow">Sat</div>
-          </div>
-          <div class="hol-cal-grid">
-            {% for c in month_cells %}
-              {% if c.is_blank %}
-              <div class="hol-cal-cell hol-blank"></div>
-              {% else %}
-              <div class="{{ c.css }} hol-cal-cell" title="{{ c.title|escape }}">
-                <span class="hol-dom">{{ c.dom }}</span>
-                {% if c.resolution.label %}
-                <span class="hol-hint">{{ c.resolution.label }}</span>
-                {% endif %}
+          {% if view_mode == "year" %}
+            <div class="hol-year-grid">
+              {% for m in year_months %}
+              <div class="hol-year-month">
+                <div class="hol-year-head">{{ m.label }}</div>
+                <div class="hol-year-body">
+                  <div class="hol-cal-grid mb-1">
+                    <div class="hol-cal-dow">S</div>
+                    <div class="hol-cal-dow">M</div>
+                    <div class="hol-cal-dow">T</div>
+                    <div class="hol-cal-dow">W</div>
+                    <div class="hol-cal-dow">T</div>
+                    <div class="hol-cal-dow">F</div>
+                    <div class="hol-cal-dow">S</div>
+                  </div>
+                  <div class="hol-cal-grid">
+                    {% for c in m.cells %}
+                      {% if c.is_blank %}
+                      <div class="hol-cal-cell hol-blank"></div>
+                      {% else %}
+                      <div class="{{ c.css }} hol-cal-cell" title="{{ c.title|escape }}">
+                        <span class="hol-dom">{{ c.dom }}</span>
+                      </div>
+                      {% endif %}
+                    {% endfor %}
+                  </div>
+                </div>
               </div>
-              {% endif %}
-            {% endfor %}
-          </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="hol-cal-grid mb-1">
+              <div class="hol-cal-dow">Sun</div>
+              <div class="hol-cal-dow">Mon</div>
+              <div class="hol-cal-dow">Tue</div>
+              <div class="hol-cal-dow">Wed</div>
+              <div class="hol-cal-dow">Thu</div>
+              <div class="hol-cal-dow">Fri</div>
+              <div class="hol-cal-dow">Sat</div>
+            </div>
+            <div class="hol-cal-grid">
+              {% for c in month_cells %}
+                {% if c.is_blank %}
+                <div class="hol-cal-cell hol-blank"></div>
+                {% else %}
+                <div class="{{ c.css }} hol-cal-cell" title="{{ c.title|escape }}">
+                  <span class="hol-dom">{{ c.dom }}</span>
+                  {% if c.resolution.label %}
+                  <span class="hol-hint">{{ c.resolution.label }}</span>
+                  {% endif %}
+                </div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          {% endif %}
           <div class="hol-legend text-muted">
             <span><span class="hol-dot cal-national"></span> National</span>
             <span><span class="hol-dot cal-festival"></span> Festival</span>

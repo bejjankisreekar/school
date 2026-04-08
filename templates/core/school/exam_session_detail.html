@@ -53,6 +53,8 @@
             <th>Subject</th>
             <th>Date</th>
             <th>Time</th>
+            <th>Room</th>
+            <th style="min-width: 220px;">Details / Topics</th>
             <th>Teacher</th>
             <th>Max marks</th>
             <th>Teacher edits</th>
@@ -72,6 +74,15 @@
                 {% if e.end_time %}{{ e.end_time|time:"g:i A" }}{% endif %}
               {% else %}
                 —
+              {% endif %}
+            </td>
+            <td class="small">{% if e.room %}{{ e.room }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+            <td class="small">
+              {% if e.details or e.topics %}
+                {% if e.details %}<div class="mb-1"><span class="text-muted">Details:</span> {{ e.details }}</div>{% endif %}
+                {% if e.topics %}<div><span class="text-muted">Topics:</span> {{ e.topics }}</div>{% endif %}
+              {% else %}
+                <span class="text-muted">—</span>
               {% endif %}
             </td>
             <td>

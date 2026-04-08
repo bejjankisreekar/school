@@ -3,13 +3,10 @@ AI-style performance summary panel for the analytics dashboard.
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
 from typing import Any
 
-from django.db.models import Count, Q
-
 from apps.core.utils import has_feature_access
-from apps.school_data.models import Attendance, Marks
+from apps.school_data.models import Marks
 
 
 def build_ai_reports_panel_context(school, *, user=None) -> dict[str, Any]:
@@ -58,28 +55,8 @@ def build_ai_reports_panel_context(school, *, user=None) -> dict[str, Any]:
         for v in by_class.values()
     ]
 
-    start = date.today() - timedelta(days=30)
-    att_qs = Attendance.objects.filter(
-        date__gte=start,
-        student__user__school=school,
-    )
-    daily = att_qs.values("date").annotate(
-        present=Count("id", filter=Q(status=Attendance.Status.PRESENT)),
-        total=Count("id"),
-    ).order_by("date")
-    trends = [
-        {
-            "date": d["date"],
-            "present": d["present"],
-            "total": d["total"],
-            "pct": round((d["present"] / d["total"] * 100) if d["total"] else 0, 1),
-        }
-        for d in daily
-    ]
-
     return {
         "dash_show_ai_panel": True,
         "ai_student_performance": perf[:20],
         "ai_class_performance": class_perf,
-        "ai_attendance_trends": trends,
     }

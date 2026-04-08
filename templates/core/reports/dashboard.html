@@ -267,13 +267,56 @@
     line-height: 1.25;
   }
 
-  .rpt-bottom-grid {
+  /* Detailed analytics: heatmap = 1/4 width, three tables = 3/4 — one tight row on lg+ */
+  .rpt-detail-analytics-grid {
     display: grid;
     gap: var(--rpt-gap);
     grid-template-columns: 1fr;
+    align-items: start;
   }
-  @media (min-width: 992px) { .rpt-bottom-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (min-width: 1400px) { .rpt-bottom-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  @media (min-width: 992px) {
+    .rpt-detail-analytics-grid {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
+    }
+  }
+  .rpt-detail-triple {
+    display: grid;
+    gap: var(--rpt-gap);
+    grid-template-columns: 1fr;
+    min-width: 0;
+    min-height: 0;
+  }
+  @media (min-width: 576px) {
+    .rpt-detail-triple {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .rpt-detail-triple .rpt-card {
+    min-height: 0;
+  }
+  .rpt-detail-triple .rpt-table-wrap {
+    max-height: 200px;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .rpt-card--heatmap .rpt-card-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    padding-bottom: 0.35rem;
+  }
+  .rpt-heatmap-canvas-box--compact {
+    height: 168px;
+    min-height: 140px;
+    flex-shrink: 0;
+  }
+  @media (min-width: 992px) and (max-width: 1199px) {
+    .rpt-heatmap-canvas-box--compact {
+      height: 152px;
+      min-height: 128px;
+    }
+  }
 
   .rpt-table-wrap {
     border-radius: var(--analytics-card-radius);
@@ -312,6 +355,14 @@
   }
   html.dark .rpt-heat {
     background: color-mix(in srgb, var(--bs-primary) calc(var(--h) * 45%), var(--bs-body-bg));
+  }
+
+  /* Attendance heatmap — Chart.js grouped bars */
+  .rpt-heatmap-wrap {
+    min-width: 0;
+  }
+  .rpt-heatmap-canvas-box {
+    max-width: 100%;
   }
 
   .rpt-shortcuts {
@@ -758,7 +809,93 @@
   .analytics-dashboard-page.analytics-ready .reports-hub-chart-wrap canvas.reports-hub-chart-canvas.is-visible {
     opacity: 1;
   }
+
+  /* Student spotlight (bottom section) — compact; charts must not use .reports-hub-chart-canvas opacity rules */
+  .si-root {
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--bs-border-color-translucent);
+  }
+  .si-card {
+    background: var(--bs-body-bg);
+    border-radius: var(--analytics-card-radius);
+    border: 1px solid var(--bs-border-color-translucent);
+    box-shadow: var(--analytics-card-shadow);
+    overflow: hidden;
+  }
+  .si-card-hd {
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+    background: color-mix(in srgb, var(--bs-tertiary-bg) 88%, transparent);
+  }
+  .si-card-bd { padding: 0.5rem 0.6rem; }
+  .si-hero-name { font-size: 0.95rem; font-weight: 700; letter-spacing: -0.02em; margin: 0; line-height: 1.25; }
+  .si-hero-meta { font-size: 0.62rem; color: var(--bs-secondary-color); margin: 0.1rem 0 0; }
+  .si-badge-topper {
+    font-size: 0.55rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.15rem 0.4rem;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    color: #1c1917;
+    white-space: nowrap;
+  }
+  .si-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+  @media (max-width: 575px) { .si-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .si-kpi {
+    background: color-mix(in srgb, var(--bs-tertiary-bg) 65%, transparent);
+    border-radius: 0.5rem;
+    padding: 0.3rem 0.4rem;
+    border: 1px solid var(--bs-border-color-translucent);
+  }
+  .si-kpi-lab { font-size: 0.5rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--bs-secondary-color); margin: 0; }
+  .si-kpi-val { font-size: 0.88rem; font-weight: 700; font-variant-numeric: tabular-nums; margin: 0.05rem 0 0; line-height: 1.2; }
+  .si-chart-inner {
+    position: relative;
+    width: 100%;
+    height: 236px;
+    min-height: 200px;
+    border-radius: 0.5rem;
+    background: color-mix(in srgb, var(--bs-tertiary-bg) 40%, transparent);
+    overflow: visible;
+    padding: 12px 4px 6px;
+    box-sizing: border-box;
+  }
+  .si-chart-inner canvas.si-canvas {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    opacity: 1 !important;
+    vertical-align: bottom;
+  }
+  .si-subj-wrap { max-height: 160px; overflow-y: auto; }
+  .si-subj-table { font-size: 0.68rem; margin: 0; }
+  .si-subj-table th { font-size: 0.52rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--bs-secondary-color); padding: 0.3rem 0.45rem; }
+  .si-subj-table td { padding: 0.28rem 0.45rem; }
+  .si-lb-scroll { max-height: 200px; overflow-y: auto; }
+  .si-lb-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.35rem;
+    width: 100%; text-align: left;
+    padding: 0.28rem 0.4rem; border: 0; border-radius: 0.45rem;
+    background: transparent; font-size: 0.68rem;
+    cursor: pointer; transition: background 0.12s ease;
+  }
+  .si-lb-item:hover { background: color-mix(in srgb, var(--bs-primary) 10%, transparent); }
+  .si-lb-item[aria-current="true"] { background: color-mix(in srgb, var(--bs-primary) 14%, transparent); }
+  .si-lb-rank { font-weight: 800; color: var(--bs-secondary-color); width: 1.1rem; flex-shrink: 0; }
+  .si-lb-pct { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--bs-body-color); flex-shrink: 0; }
+  .select2-container--bootstrap-5 .select2-selection { min-height: 34px; font-size: 0.8rem; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 {% endblock %}
 {% block content %}
@@ -766,7 +903,7 @@
   <header class="d-flex flex-wrap align-items-center justify-content-between gap-2 py-1 mb-1 border-bottom border-light-subtle">
     <div>
       <h1 class="h6 fw-bold mb-0 text-body">Analytics &amp; reports</h1>
-      <p class="text-muted mb-0" style="font-size:0.65rem;">Enrollment, attendance, exams — live school signals</p>
+      <p class="text-muted mb-0" style="font-size:0.65rem;">Student performance, attendance trends, and school overview</p>
     </div>
   </header>
 
@@ -812,8 +949,10 @@
     {% if request.GET.top_limit %}<input type="hidden" name="top_limit" value="{{ request.GET.top_limit }}">{% endif %}
     {% if request.GET.exam %}<input type="hidden" name="exam" value="{{ request.GET.exam }}">{% endif %}
     {% if request.GET.top %}<input type="hidden" name="top" value="{{ request.GET.top }}">{% endif %}
+    {% if student_insights_selected_id %}<input type="hidden" name="student" value="{{ student_insights_selected_id }}">{% endif %}
   </form>
 
+  <p class="rpt-section-label mb-1 mt-2">School overview</p>
   {% if analytics_metrics %}
   {% with m0=analytics_metrics.0 m1=analytics_metrics.1 m2=analytics_metrics.2 m3=analytics_metrics.3 %}
   <section class="analytics-dash-section mb-1" id="summary-metrics" aria-label="KPI summary">
@@ -1132,95 +1271,98 @@
   </section>
 
   <section class="analytics-dash-section mb-1" id="rpt-detail-analytics">
-    <p class="rpt-section-label">Detailed analytics</p>
-    <div class="rpt-bottom-grid">
-      <div class="rpt-card">
+    <p class="rpt-section-label mb-1">Detailed analytics</p>
+    <div class="rpt-detail-analytics-grid">
+      <div class="rpt-card rpt-card--heatmap">
         <div class="rpt-card-body p-0">
-          <div class="px-2 py-1 border-bottom border-light-subtle d-flex justify-content-between align-items-center">
-            <span class="fw-semibold" style="font-size:0.7rem;">Class performance</span>
-            <span class="text-muted" style="font-size:0.58rem;">Enrollment + share</span>
-          </div>
-          <div class="rpt-table-wrap">
-            {% if dash_enrollment_rows %}
-            <table class="table table-sm rpt-table mb-0">
-              <thead><tr><th>Class</th><th class="text-end">Students</th><th class="text-end">Share</th><th class="text-end">Attn %</th></tr></thead>
-              <tbody id="rpt-tbody-performance">
-                {% for row in dash_enrollment_rows %}
-                <tr data-class-name="{{ row.class_name }}">
-                  <td class="fw-medium">{{ row.class_name }}</td>
-                  <td class="text-end">{{ row.students }}</td>
-                  <td class="text-end">{{ row.share }}%</td>
-                  <td class="text-end text-muted rpt-cell-attn" data-class="{{ row.class_name }}">—</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-            {% else %}
-            <div class="text-muted text-center py-3 small">No enrollment rows</div>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-      <div class="rpt-card">
-        <div class="rpt-card-body p-0">
-          <div class="px-2 py-1 border-bottom border-light-subtle d-flex justify-content-between align-items-center">
+          <div class="px-2 py-1 border-bottom border-light-subtle">
             <span class="fw-semibold" style="font-size:0.7rem;">Attendance heatmap</span>
-            <span class="text-muted" style="font-size:0.58rem;">7d rate × class</span>
+            <span class="d-block text-muted" style="font-size:0.55rem;">Mon–Sat × class · same range as trend</span>
           </div>
-          <div class="rpt-table-wrap">
-            <table class="table table-sm rpt-table mb-0 text-center" style="font-size:0.58rem;">
-              <thead><tr><th>Class</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th></tr></thead>
-              <tbody id="rpt-tbody-heatmap"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      <div class="rpt-card">
-        <div class="rpt-card-body p-0">
-          <div class="px-2 py-1 border-bottom border-light-subtle d-flex justify-content-between align-items-center">
-            <span class="fw-semibold" style="font-size:0.7rem;">Fee collection matrix</span>
-            <a href="{% url 'core:school_fee_ledger_export_csv' %}" class="text-decoration-none" style="font-size:0.58rem;">CSV</a>
-          </div>
-          <div class="rpt-table-wrap">
-            <table class="table table-sm rpt-table mb-0">
-              <thead><tr><th>Class</th><th class="text-end">Students</th><th class="text-end">Est. focus</th></tr></thead>
-              <tbody>
-                {% for row in dash_enrollment_rows %}
-                <tr>
-                  <td>{{ row.class_name }}</td>
-                  <td class="text-end">{{ row.students }}</td>
-                  <td class="text-end text-muted">{{ row.share }}% share</td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="3" class="text-center text-muted py-2 small">No data — use Billing for live balances</td></tr>
-                {% endfor %}
-              </tbody>
-            </table>
+          <div class="rpt-heatmap-wrap px-1 pb-1 pt-1">
+            <p class="text-muted small mb-1 px-1 d-none d-xl-block" style="font-size:0.55rem;line-height:1.25;">Weekday % pooled in range; else class %.</p>
+            <div id="rpt-heatmap-empty" class="text-muted text-center py-3 small" hidden>No class attendance data for this period.</div>
+            <div class="position-relative rpt-heatmap-canvas-box rpt-heatmap-canvas-box--compact">
+              <canvas id="rptChartAttendanceHeatmap" aria-label="Attendance by class and weekday"></canvas>
+            </div>
           </div>
         </div>
       </div>
-      <div class="rpt-card">
-        <div class="rpt-card-body p-0">
-          <div class="px-2 py-1 border-bottom border-light-subtle d-flex justify-content-between align-items-center">
-            <span class="fw-semibold" style="font-size:0.7rem;">Exam comparison</span>
-            <span class="text-muted" style="font-size:0.58rem;">90d: {{ dash_exams_last_90_days }} exams</span>
+      <div class="rpt-detail-triple">
+        <div class="rpt-card">
+          <div class="rpt-card-body p-0 d-flex flex-column">
+            <div class="px-2 py-1 border-bottom border-light-subtle d-flex justify-content-between align-items-center flex-shrink-0">
+              <span class="fw-semibold" style="font-size:0.7rem;">Class performance</span>
+              <span class="text-muted" style="font-size:0.55rem;">Enrollment</span>
+            </div>
+            <div class="rpt-table-wrap">
+              {% if dash_enrollment_rows %}
+              <table class="table table-sm rpt-table mb-0">
+                <thead><tr><th>Class</th><th class="text-end">Students</th><th class="text-end">Share</th><th class="text-end">Attn %</th></tr></thead>
+                <tbody id="rpt-tbody-performance">
+                  {% for row in dash_enrollment_rows %}
+                  <tr data-class-name="{{ row.class_name }}">
+                    <td class="fw-medium">{{ row.class_name }}</td>
+                    <td class="text-end">{{ row.students }}</td>
+                    <td class="text-end">{{ row.share }}%</td>
+                    <td class="text-end text-muted rpt-cell-attn" data-class="{{ row.class_name }}">—</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+              {% else %}
+              <div class="text-muted text-center py-2 small">No enrollment rows</div>
+              {% endif %}
+            </div>
           </div>
-          <div class="rpt-table-wrap">
-            {% if dash_subject_labels %}
-            <table class="table table-sm rpt-table mb-0">
-              <thead><tr><th>Subject</th><th class="text-end">Avg %</th></tr></thead>
-              <tbody>
-                {% for sub in dash_subject_labels %}
-                <tr>
-                  <td>{{ sub }}</td>
-                  <td class="text-end fw-medium">{% for a in dash_subject_avg_pct %}{% if forloop.parentloop.counter0 == forloop.counter0 %}{{ a }}{% endif %}{% endfor %}</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-            {% else %}
-            <div class="text-muted text-center py-3 small">No marks yet</div>
-            {% endif %}
+        </div>
+        <div class="rpt-card">
+          <div class="rpt-card-body p-0 d-flex flex-column">
+            <div class="px-2 py-1 border-bottom border-light-subtle d-flex justify-content-between align-items-center flex-shrink-0">
+              <span class="fw-semibold" style="font-size:0.7rem;">Fee collection</span>
+              <a href="{% url 'core:school_fee_ledger_export_csv' %}" class="text-decoration-none" style="font-size:0.55rem;">CSV</a>
+            </div>
+            <div class="rpt-table-wrap">
+              <table class="table table-sm rpt-table mb-0">
+                <thead><tr><th>Class</th><th class="text-end">Students</th><th class="text-end">Focus</th></tr></thead>
+                <tbody>
+                  {% for row in dash_enrollment_rows %}
+                  <tr>
+                    <td>{{ row.class_name }}</td>
+                    <td class="text-end">{{ row.students }}</td>
+                    <td class="text-end text-muted">{{ row.share }}%</td>
+                  </tr>
+                  {% empty %}
+                  <tr><td colspan="3" class="text-center text-muted py-2 small">No data — Billing for balances</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="rpt-card">
+          <div class="rpt-card-body p-0 d-flex flex-column">
+            <div class="px-2 py-1 border-bottom border-light-subtle d-flex justify-content-between align-items-center flex-shrink-0">
+              <span class="fw-semibold" style="font-size:0.7rem;">Exam comparison</span>
+              <span class="text-muted" style="font-size:0.55rem;">90d · {{ dash_exams_last_90_days }}</span>
+            </div>
+            <div class="rpt-table-wrap">
+              {% if dash_subject_labels %}
+              <table class="table table-sm rpt-table mb-0">
+                <thead><tr><th>Subject</th><th class="text-end">Avg %</th></tr></thead>
+                <tbody>
+                  {% for sub in dash_subject_labels %}
+                  <tr>
+                    <td>{{ sub }}</td>
+                    <td class="text-end fw-medium">{% for a in dash_subject_avg_pct %}{% if forloop.parentloop.counter0 == forloop.counter0 %}{{ a }}{% endif %}{% endfor %}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+              {% else %}
+              <div class="text-muted text-center py-2 small">No marks yet</div>
+              {% endif %}
+            </div>
           </div>
         </div>
       </div>
@@ -1380,6 +1522,99 @@
 
   {% if dash_show_toppers_panel %}{% include "core/reports/includes/toppers_panel.html" %}{% endif %}
   {% if dash_show_ai_panel %}{% include "core/reports/includes/ai_reports_panel.html" %}{% endif %}
+
+  {% if student_insights_enabled and student_insights_profile %}
+  <section class="si-root no-print" id="student-insights" aria-label="Student analytics">
+    <p class="rpt-section-label mb-2">Student spotlight</p>
+    <div class="row g-2 g-lg-3 align-items-stretch">
+      <div class="col-12 col-lg-8 d-flex flex-column gap-2">
+        <div class="si-card">
+          <div class="si-card-hd py-2 d-flex flex-wrap align-items-start justify-content-between gap-2">
+            <div class="min-w-0 flex-grow-1">
+              <p class="text-uppercase text-muted fw-bold mb-0" style="font-size:0.52rem;letter-spacing:0.07em;">{% if student_insights_profile.rank == 1 %}School topper{% else %}Selected student{% endif %}</p>
+              <h2 class="si-hero-name text-truncate mt-1">{{ student_insights_profile.name }}</h2>
+              <p class="si-hero-meta mb-0">{{ student_insights_profile.admissionId }} · {{ student_insights_profile.className }}</p>
+            </div>
+            {% if student_insights_profile.isTopper %}
+            <span class="si-badge-topper align-self-start"><i class="bi bi-trophy-fill me-1"></i>Topper</span>
+            {% endif %}
+          </div>
+          <div class="si-card-bd pt-2">
+            <div class="row g-2 align-items-end">
+              <div class="col-12 col-md-7">
+                <label for="student-insights-select" class="form-label small text-muted mb-0">Find student</label>
+                <select id="student-insights-select" class="form-select form-select-sm" data-placeholder="Search student by name or admission ID" aria-label="Search student by name or admission ID"></select>
+              </div>
+              <div class="col-12 col-md-5">
+                <div class="si-kpi-grid">
+                  <div class="si-kpi"><p class="si-kpi-lab">Attn</p><p class="si-kpi-val">{% if student_insights_profile.attendancePct is not None %}{{ student_insights_profile.attendancePct }}%{% else %}—{% endif %}</p></div>
+                  <div class="si-kpi"><p class="si-kpi-lab">Avg</p><p class="si-kpi-val">{% if student_insights_profile.avgMarksPct is not None %}{{ student_insights_profile.avgMarksPct }}%{% else %}—{% endif %}</p></div>
+                  <div class="si-kpi"><p class="si-kpi-lab">Rank</p><p class="si-kpi-val">#{{ student_insights_profile.rank }}</p></div>
+                  <div class="si-kpi"><p class="si-kpi-lab">Exams</p><p class="si-kpi-val">{{ student_insights_profile.examsTaken }}</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row g-2">
+          <div class="col-12 col-md-6">
+            <div class="si-card h-100">
+              <div class="si-card-hd py-1"><span class="fw-semibold" style="font-size:0.7rem;">Attendance trend</span><span class="text-muted d-block d-md-inline ms-md-2" style="font-size:0.55rem;">by week (Mon–Sun) · toolbar range</span></div>
+              <div class="si-card-bd py-2">
+                <div class="si-chart-inner"><canvas id="si-chart-attendance" class="si-canvas" aria-label="Attendance trend"></canvas></div>
+                <p class="text-muted text-center small mb-0 py-2 d-none" id="si-chart-attendance-empty">No attendance in range.</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-md-6">
+            <div class="si-card h-100">
+              <div class="si-card-hd py-1"><span class="fw-semibold" style="font-size:0.7rem;">Exam score trend</span><span class="text-muted d-block d-md-inline ms-md-2" style="font-size:0.55rem;">per exam paper</span></div>
+              <div class="si-card-bd py-2">
+                <div class="si-chart-inner"><canvas id="si-chart-exams" class="si-canvas" aria-label="Exam score trend"></canvas></div>
+                <p class="text-muted text-center small mb-0 py-2 d-none" id="si-chart-exams-empty">No exam marks yet.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="si-card mb-0">
+          <div class="si-card-hd py-1"><span class="fw-semibold" style="font-size:0.7rem;">Subject averages</span></div>
+          <div class="si-card-bd p-0 si-subj-wrap">
+            <table class="table si-subj-table mb-0">
+              <thead><tr><th>Subject</th><th class="text-end">Avg %</th></tr></thead>
+              <tbody>
+                {% for s in student_insights_bundle.subjects %}
+                <tr><td>{{ s.name }}</td><td class="text-end fw-medium">{% if s.pct is not None %}{{ s.pct }}%{% else %}—{% endif %}</td></tr>
+                {% empty %}
+                <tr><td colspan="2" class="text-center text-muted py-2 small">No graded subjects.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-4">
+        <div class="si-card h-100">
+          <div class="si-card-hd py-2 d-flex justify-content-between align-items-center">
+            <span class="fw-semibold" style="font-size:0.72rem;">Top 5</span>
+            <span class="text-muted" style="font-size:0.52rem;">Avg %</span>
+          </div>
+          <div class="si-card-bd si-lb-scroll py-2">
+            {% for row in student_insights_leaderboard %}
+            <button type="button" class="si-lb-item" data-si-student="{{ row.id }}" {% if row.id == student_insights_selected_id %}aria-current="true"{% endif %}>
+              <span class="text-truncate"><span class="si-lb-rank">{{ forloop.counter }}.</span>{{ row.name }}</span>
+              <span class="si-lb-pct">{% if row.avgPct is not None %}{{ row.avgPct }}%{% else %}—{% endif %}</span>
+            </button>
+            {% empty %}
+            <p class="text-muted small mb-0">No data.</p>
+            {% endfor %}
+            <p class="text-muted mb-0 mt-2" style="font-size:0.52rem;line-height:1.3;">50% exam + 50% attendance in range.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  {{ student_insights_bundle|json_script:"student-insights-bundle" }}
+  {% endif %}
 </div>
 
 {% if hub_charts_enabled %}
@@ -1969,30 +2204,109 @@
       if (nn && mapNameToPct[nn] != null) cell.textContent = mapNameToPct[nn] + "%";
     });
 
-    var heatBody = document.getElementById("rpt-tbody-heatmap");
-    if (heatBody && caLab.length && caPct.length) {
-      var weekPct = bundle.hubAttendancePcts || [];
-      caLab.forEach(function (cn, ri) {
-        var tr = document.createElement("tr");
-        var th = document.createElement("th");
-        th.className = "text-start ps-1 fw-medium";
-        th.scope = "row";
-        th.textContent = cn;
-        tr.appendChild(th);
+    var heatCanvas = document.getElementById("rptChartAttendanceHeatmap");
+    var heatEmpty = document.getElementById("rpt-heatmap-empty");
+    var heatBox = document.querySelector(".rpt-heatmap-canvas-box");
+    if (heatEmpty && heatBox) {
+      if (!caLab.length || !caPct.length) {
+        heatEmpty.hidden = false;
+        heatBox.style.display = "none";
+      } else {
+        heatEmpty.hidden = true;
+        heatBox.style.display = "";
+      }
+    }
+    if (heatCanvas && caLab.length && caPct.length && window.Chart) {
+      var fallDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      var dayLabs = (bundle.weekdayShortLabels || []).slice(0, 6);
+      for (var dl = dayLabs.length; dl < 6; dl++) dayLabs.push(fallDays[dl]);
+      var wdHubHints = bundle.weekdayHubHints || [];
+      var classWd = bundle.classWeekdayPcts || [];
+      var useClassWd = classWd.length === caLab.length;
+      var bcHeat = barColors(caLab.length);
+      var datasets = caLab.map(function (cn, ri) {
         var base = caPct[ri] != null ? caPct[ri] / 100 : 0;
-        for (var d = 0; d < 7; d++) {
-          var td = document.createElement("td");
-          var raw = weekPct[d];
-          var cellPct = raw != null && raw !== "" ? raw : (base * 100);
+        var pts = [];
+        for (var d = 0; d < 6; d++) {
+          var raw = null;
+          if (useClassWd && classWd[ri] && classWd[ri][d] != null && classWd[ri][d] !== "") {
+            raw = classWd[ri][d];
+          }
+          var cellPct = raw != null && raw !== "" && !isNaN(raw) ? raw : base * 100;
           var v = typeof cellPct === "number" ? cellPct : parseFloat(cellPct);
           if (isNaN(v)) v = base * 100;
-          var h = Math.min(1, Math.max(0, v / 100));
-          td.style.setProperty("--h", String(h));
-          td.className = "rpt-heat";
-          td.textContent = Math.round(v) + "%";
-          tr.appendChild(td);
+          pts.push(Math.round(v * 10) / 10);
         }
-        heatBody.appendChild(tr);
+        var lbl = String(cn);
+        if (lbl.length > 22) lbl = lbl.slice(0, 20) + "…";
+        return {
+          label: lbl,
+          data: pts,
+          backgroundColor: bcHeat.bg[ri % bcHeat.bg.length],
+          borderColor: bcHeat.borders[ri % bcHeat.borders.length],
+          borderWidth: 1.25,
+          borderRadius: 6,
+          borderSkipped: false,
+          maxBarThickness: caLab.length > 8 ? 8 : caLab.length > 5 ? 10 : 14
+        };
+      });
+      new Chart(heatCanvas.getContext("2d"), {
+        type: "bar",
+        data: { labels: dayLabs, datasets: datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: anim,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: {
+              position: "bottom",
+              maxHeight: caLab.length > 8 ? 52 : 44,
+              labels: {
+                usePointStyle: true,
+                padding: 3,
+                font: { size: caLab.length > 10 ? 7 : caLab.length > 6 ? 8 : 9 },
+                boxWidth: 6
+              }
+            },
+            tooltip: Object.assign(commonTooltip(), {
+              callbacks: {
+                title: function (items) {
+                  if (!items.length) return "";
+                  var di = items[0].dataIndex;
+                  var w = dayLabs[di] || "";
+                  var hubH = wdHubHints[di];
+                  var head = w ? w + " — all " + w + "s in selected range" : "";
+                  if (hubH) return head ? [head, hubH] : hubH;
+                  return head || w;
+                },
+                label: function (ctx) {
+                  return ctx.dataset.label + ": " + ctx.parsed.y.toFixed(1) + "%";
+                }
+              }
+            })
+          },
+          scales: {
+            x: {
+              stacked: false,
+              title: { display: false },
+              ticks: { color: tick, maxRotation: 0, font: { size: 9 } },
+              grid: { display: false }
+            },
+            y: {
+              min: 0,
+              max: 100,
+              title: { display: false },
+              ticks: {
+                color: tick,
+                callback: function (v) { return v + "%"; },
+                font: { size: 9 },
+                maxTicksLimit: 5
+              },
+              grid: { color: gridMaj }
+            }
+          }
+        }
       });
     }
 
@@ -2049,6 +2363,301 @@
     requestAnimationFrame(function () {
       requestAnimationFrame(reveal);
     });
+  });
+})();
+</script>
+{% if student_insights_enabled and student_insights_profile %}
+<script>
+(function () {
+  function readSiBundle() {
+    var el = document.getElementById("student-insights-bundle");
+    if (!el) return null;
+    try { return JSON.parse(el.textContent || "{}"); } catch (e) { return null; }
+  }
+  document.addEventListener("DOMContentLoaded", function () {
+    var bundle = readSiBundle();
+    if (!bundle || !window.Chart) return;
+    var isDark = document.documentElement.classList.contains("dark");
+    var tick = isDark ? "#94a3b8" : "#64748b";
+    var gridMaj = isDark ? "rgba(148,163,184,0.14)" : "rgba(100,116,139,0.18)";
+    var gridMin = isDark ? "rgba(148,163,184,0.06)" : "rgba(100,116,139,0.08)";
+    function siTooltip() {
+      return {
+        backgroundColor: isDark ? "rgba(15, 23, 42, 0.94)" : "rgba(255,255,255,0.96)",
+        titleColor: isDark ? "#f8fafc" : "#0f172a",
+        bodyColor: isDark ? "#e2e8f0" : "#334155",
+        borderColor: isDark ? "rgba(148,163,184,0.25)" : "rgba(15,23,42,0.08)",
+        borderWidth: 1,
+        padding: 12,
+        cornerRadius: 10
+      };
+    }
+
+    var sel = document.getElementById("student-insights-select");
+    if (window.jQuery && jQuery.fn.select2 && sel) {
+      var $s = window.jQuery(sel);
+      (bundle.searchOptions || []).forEach(function (o) {
+        var opt = new Option(o.text, String(o.id), false, String(o.id) === String(bundle.selectedId));
+        $s.append(opt);
+      });
+      $s.select2({
+        theme: "bootstrap-5",
+        width: "100%",
+        placeholder: "Search student by name or admission ID",
+        allowClear: false,
+        dropdownParent: jQuery(document.body)
+      });
+      $s.on("change", function () {
+        var id = $s.val();
+        if (!id || String(id) === String(bundle.selectedId)) return;
+        var u = new URL(window.location.href);
+        u.searchParams.set("student", id);
+        window.location.href = u.toString();
+      });
+    }
+
+    document.querySelectorAll("[data-si-student]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-si-student");
+        if (!id || String(id) === String(bundle.selectedId)) return;
+        var u = new URL(window.location.href);
+        u.searchParams.set("student", id);
+        window.location.href = u.toString();
+      });
+    });
+
+    var anim = { duration: 900, easing: "easeOutQuart" };
+    function siNumOrNull(x) {
+      if (x === null || x === undefined || x === "") return null;
+      var n = typeof x === "number" ? x : parseFloat(String(x));
+      return isFinite(n) ? n : null;
+    }
+    function siHasPoint(arr) {
+      return (arr || []).some(function (x) { return siNumOrNull(x) !== null; });
+    }
+    var attEl = document.getElementById("si-chart-attendance");
+    var exEl = document.getElementById("si-chart-exams");
+    var attEmpty = document.getElementById("si-chart-attendance-empty");
+    var exEmpty = document.getElementById("si-chart-exams-empty");
+    var att = bundle.attendanceTrend || {};
+    var ex = bundle.examTrend || {};
+    var attLabs = att.labels || [];
+    var attP = (att.pcts || []).map(siNumOrNull);
+    var exLabs = ex.labels || [];
+    var exP = (ex.pcts || []).map(siNumOrNull);
+
+    function siResizeSiCharts() {
+      if (window._siChartAttendance && typeof window._siChartAttendance.resize === "function") {
+        window._siChartAttendance.resize();
+      }
+      if (window._siChartExam && typeof window._siChartExam.resize === "function") {
+        window._siChartExam.resize();
+      }
+    }
+
+    /* Extra vertical scale above 100% so points at 100% sit below chart edge (labels stay 0–100%). */
+    var siYPercentScale = {
+      min: 0,
+      max: 120,
+      ticks: {
+        color: tick,
+        stepSize: 20,
+        callback: function (v) {
+          var n = typeof v === "number" ? v : parseFloat(v);
+          if (!isFinite(n) || n > 100) return "";
+          return Math.round(n) + "%";
+        },
+        font: { size: 10 }
+      },
+      grid: { color: gridMaj }
+    };
+
+    if (attEl && attLabs.length && siHasPoint(attP)) {
+      if (attEmpty) attEmpty.classList.add("d-none");
+      window._siChartAttendance = new Chart(attEl.getContext("2d"), {
+        type: "line",
+        data: {
+          labels: attLabs,
+          datasets: [{
+            label: "Attendance %",
+            data: attP,
+            borderColor: isDark ? "#34d399" : "#059669",
+            backgroundColor: isDark ? "rgba(52, 211, 153, 0.14)" : "rgba(5, 150, 105, 0.1)",
+            fill: true,
+            tension: 0.38,
+            spanGaps: true,
+            borderWidth: 2.5,
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            pointBorderWidth: 3,
+            pointBorderColor: isDark ? "#0f172a" : "#ffffff",
+            pointBackgroundColor: isDark ? "#34d399" : "#059669",
+            clip: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: anim,
+          layout: {
+            padding: { top: 56, bottom: 10, left: 6, right: 8 }
+          },
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: Object.assign(siTooltip(), {
+              displayColors: false,
+              callbacks: {
+                label: function (ctx) {
+                  var v = ctx.raw;
+                  return v == null ? "No data" : "Attendance: " + v + "%";
+                }
+              }
+            })
+          },
+          scales: {
+            x: {
+              ticks: { color: tick, maxRotation: 35, font: { size: 10 } },
+              grid: { color: gridMin }
+            },
+            y: siYPercentScale
+          }
+        }
+      });
+    } else {
+      if (attEmpty) attEmpty.classList.remove("d-none");
+    }
+
+    if (exEl && exLabs.length && siHasPoint(exP)) {
+      if (exEmpty) exEmpty.classList.add("d-none");
+      window._siChartExam = new Chart(exEl.getContext("2d"), {
+        type: "line",
+        data: {
+          labels: exLabs,
+          datasets: [{
+            label: "Exam %",
+            data: exP,
+            borderColor: isDark ? "#60a5fa" : "#2563eb",
+            backgroundColor: isDark ? "rgba(96, 165, 250, 0.14)" : "rgba(37, 99, 235, 0.1)",
+            fill: true,
+            tension: 0.35,
+            spanGaps: true,
+            borderWidth: 2.5,
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            pointBorderWidth: 3,
+            pointBorderColor: isDark ? "#0f172a" : "#ffffff",
+            pointBackgroundColor: isDark ? "#60a5fa" : "#2563eb",
+            clip: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: anim,
+          layout: {
+            padding: { top: 56, bottom: 10, left: 6, right: 8 }
+          },
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: Object.assign(siTooltip(), {
+              displayColors: false,
+              callbacks: {
+                label: function (ctx) {
+                  var v = ctx.raw;
+                  return v == null ? "No data" : "Score: " + v + "%";
+                }
+              }
+            })
+          },
+          scales: {
+            x: {
+              ticks: { color: tick, maxRotation: 40, font: { size: 9 } },
+              grid: { color: gridMin }
+            },
+            y: siYPercentScale
+          }
+        }
+      });
+    } else {
+      if (exEmpty) exEmpty.classList.remove("d-none");
+    }
+
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        siResizeSiCharts();
+        setTimeout(siResizeSiCharts, 120);
+        setTimeout(siResizeSiCharts, 400);
+      });
+    });
+    window.addEventListener("resize", siResizeSiCharts);
+  });
+})();
+</script>
+{% endif %}
+<script>
+(function () {
+  var KEY = "erp_scrollpos_school_reports_v1";
+  try {
+    if ("scrollRestoration" in history) {
+      history.scrollRestoration = "manual";
+    }
+  } catch (e) {}
+
+  function navigationIsReload() {
+    try {
+      var nav = performance.getEntriesByType("navigation")[0];
+      if (nav && nav.type) return nav.type === "reload";
+    } catch (err) {}
+    try {
+      if (performance.navigation && typeof performance.navigation.type === "number") {
+        return performance.navigation.type === 1;
+      }
+    } catch (err2) {}
+    return false;
+  }
+
+  function saveScroll() {
+    try {
+      sessionStorage.setItem(KEY, String(Math.max(0, window.scrollY || window.pageYOffset || 0)));
+    } catch (e) {}
+  }
+
+  function restoreScroll() {
+    if (!navigationIsReload()) return;
+    var raw;
+    try {
+      raw = sessionStorage.getItem(KEY);
+    } catch (e) {
+      return;
+    }
+    var y = parseFloat(raw, 10);
+    if (!isFinite(y) || y < 8) return;
+
+    function go() {
+      window.scrollTo(0, y);
+    }
+    go();
+    requestAnimationFrame(function () {
+      requestAnimationFrame(go);
+    });
+    [0, 50, 120, 280, 600, 1200].forEach(function (ms) {
+      setTimeout(go, ms);
+    });
+  }
+
+  window.addEventListener("pagehide", saveScroll);
+  window.addEventListener("beforeunload", saveScroll);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () {
+      setTimeout(restoreScroll, 0);
+    });
+  } else {
+    setTimeout(restoreScroll, 0);
+  }
+  window.addEventListener("load", function () {
+    restoreScroll();
   });
 })();
 </script>

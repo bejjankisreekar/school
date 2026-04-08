@@ -1,5 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Timetable — {{ classroom.name }} | School ERP{% endblock %}
+{% block title %}
+  {% if portal_readonly %}
+    {% if portal_role == "teacher" %}My timetable{% else %}Timetable — {{ classroom.name }}{% endif %} | School ERP
+  {% else %}
+    Timetable — {{ classroom.name }} | School ERP
+  {% endif %}
+{% endblock %}
 
 {% block extra_head %}
 {% if edit_mode %}
@@ -129,26 +135,44 @@
 <div class="tt-page container-fluid px-0">
   <nav aria-label="breadcrumb" class="mb-2">
     <ol class="breadcrumb mb-0 small">
-      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'timetable:school_timetable_index' %}">Schedules</a></li>
-      <li class="breadcrumb-item active" aria-current="page">{{ classroom.name }}</li>
+      {% if portal_readonly %}
+        <li class="breadcrumb-item">
+          <a href="{% if portal_role == 'teacher' %}{% url 'core:teacher_dashboard' %}{% else %}{% url 'core:student_dashboard' %}{% endif %}">Dashboard</a>
+        </li>
+        <li class="breadcrumb-item active" aria-current="page">Timetable</li>
+      {% else %}
+        <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'timetable:school_timetable_index' %}">Schedules</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ classroom.name }}</li>
+      {% endif %}
     </ol>
   </nav>
 
   <div class="tt-toolbar d-flex flex-column gap-3">
     <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
       <div class="d-flex flex-wrap align-items-center gap-2 gap-md-3">
-        <a href="{% url 'timetable:school_timetable_index' %}" class="btn btn-outline-secondary btn-sm rounded-pill">
-          <i class="bi bi-arrow-left me-1"></i>Back
-        </a>
+        {% if not portal_readonly %}
+          <a href="{% url 'timetable:school_timetable_index' %}" class="btn btn-outline-secondary btn-sm rounded-pill">
+            <i class="bi bi-arrow-left me-1"></i>Back
+          </a>
+        {% endif %}
         <div>
-          <h1 class="tt-title">Class timetable</h1>
-          <div class="tt-meta">
-            <strong>{{ classroom.name }}</strong>
-            {% if classroom.academic_year %}
-              <span class="mx-1">·</span> {{ classroom.academic_year.name }}
+          <h1 class="tt-title">
+            {% if portal_readonly %}
+              {% if portal_role == "teacher" %}My timetable{% else %}Class timetable{% endif %}
+            {% else %}
+              Class timetable
             {% endif %}
-            <span class="mx-1">·</span> Profile: <strong>{{ active_profile.name }}</strong>
+          </h1>
+          <div class="tt-meta">
+            {% if portal_role != "teacher" %}
+              <strong>{{ classroom.name }}</strong>
+              {% if classroom.academic_year %}
+                <span class="mx-1">·</span> {{ classroom.academic_year.name }}
+              {% endif %}
+              <span class="mx-1">·</span>
+            {% endif %}
+            Profile: <strong>{{ active_profile.name }}</strong>
             {% if not edit_mode %}
               <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 tt-badge ms-1 tt-mode-pill">View</span>
             {% else %}
@@ -158,38 +182,44 @@
         </div>
       </div>
       <div class="d-flex flex-wrap align-items-center gap-2">
-        <form method="post" class="d-flex align-items-center gap-2 mb-0">
-          {% csrf_token %}
-          <label class="small text-muted mb-0 text-nowrap" for="ttProfileSelect">Schedule profile</label>
-          <select name="set_profile" id="ttProfileSelect" class="form-select form-select-sm" style="min-width: 160px;" onchange="this.form.submit()">
-            {% for p in profiles %}
-            <option value="{{ p.id }}" {% if active_profile.id == p.id %}selected{% endif %}>{{ p.name }}</option>
-            {% endfor %}
-          </select>
-        </form>
+        {% if not portal_readonly %}
+          <form method="post" class="d-flex align-items-center gap-2 mb-0">
+            {% csrf_token %}
+            <label class="small text-muted mb-0 text-nowrap" for="ttProfileSelect">Schedule profile</label>
+            <select name="set_profile" id="ttProfileSelect" class="form-select form-select-sm" style="min-width: 160px;" onchange="this.form.submit()">
+              {% for p in profiles %}
+              <option value="{{ p.id }}" {% if active_profile.id == p.id %}selected{% endif %}>{{ p.name }}</option>
+              {% endfor %}
+            </select>
+          </form>
+        {% endif %}
       </div>
     </div>
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
       <div class="d-flex flex-wrap gap-2">
-        <a href="{% url 'timetable:school_timeslots' %}?profile={{ active_profile.id }}" class="btn btn-outline-secondary btn-sm">
-          <i class="bi bi-clock-history me-1"></i>Time slots
-        </a>
-        <a href="{% url 'timetable:school_timetable_print' classroom.id %}" class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener">
-          <i class="bi bi-printer me-1"></i>Print
-        </a>
+        {% if not portal_readonly %}
+          <a href="{% url 'timetable:school_timeslots' %}?profile={{ active_profile.id }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-clock-history me-1"></i>Time slots
+          </a>
+          <a href="{% url 'timetable:school_timetable_print' classroom.id %}" class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener">
+            <i class="bi bi-printer me-1"></i>Print
+          </a>
+        {% endif %}
       </div>
       <div class="d-flex flex-wrap gap-2">
-        {% if edit_mode %}
-        <a href="{% url 'timetable:school_timetable' classroom.id %}" class="btn btn-outline-secondary btn-sm">
-          <i class="bi bi-x-lg me-1"></i>Cancel
-        </a>
-        <button type="submit" form="timetableForm" class="btn btn-primary btn-sm px-3">
-          <i class="bi bi-check2-circle me-1"></i>Save timetable
-        </button>
-        {% else %}
-        <a href="{% url 'timetable:school_timetable' classroom.id %}?edit=1" class="btn btn-primary btn-sm px-3">
-          <i class="bi bi-pencil-square me-1"></i>Edit timetable
-        </a>
+        {% if not portal_readonly %}
+          {% if edit_mode %}
+          <a href="{% url 'timetable:school_timetable' classroom.id %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-x-lg me-1"></i>Cancel
+          </a>
+          <button type="submit" form="timetableForm" class="btn btn-primary btn-sm px-3">
+            <i class="bi bi-check2-circle me-1"></i>Save timetable
+          </button>
+          {% else %}
+          <a href="{% url 'timetable:school_timetable' classroom.id %}?edit=1" class="btn btn-primary btn-sm px-3">
+            <i class="bi bi-pencil-square me-1"></i>Edit timetable
+          </a>
+          {% endif %}
         {% endif %}
       </div>
     </div>
@@ -250,9 +280,23 @@
               </select>
             </div>
             {% else %}
-            <div class="tt-view-cell {% if d.entry and d.entry.subject %}tt-view-cell--subj text-body{% elif d.entry %}text-body{% else %}tt-view-cell--empty d-flex align-items-center justify-content-center{% endif %}"
+            <div class="tt-view-cell {% if d.entries %}tt-view-cell--subj text-body{% elif d.entry and d.entry.subject %}tt-view-cell--subj text-body{% elif d.entry %}text-body{% else %}tt-view-cell--empty d-flex align-items-center justify-content-center{% endif %}"
                  {% if d.subject_bg %}style="--tt-subj: {{ d.subject_bg }};"{% endif %}>
-              {% if d.entry and d.entry.subject %}
+              {% if d.entries %}
+                {% for e in d.entries %}
+                  <div class="{% if not forloop.first %}pt-2 mt-2 border-top border-opacity-25{% endif %}">
+                    <p class="tt-subject mb-0">
+                      {% if e.subject %}{{ e.subject.name }}{% else %}<span class="text-muted">Free period</span>{% endif %}
+                    </p>
+                    <p class="tt-teachers mb-0">
+                      {{ e.classroom.name }}
+                    </p>
+                  </div>
+                {% empty %}
+                  <span class="small text-muted">Free</span>
+                {% endfor %}
+                <div class="tt-time-hint">{{ row.slot.start_time|time:"H:i" }}–{{ row.slot.end_time|time:"H:i" }}</div>
+              {% elif d.entry and d.entry.subject %}
                 <p class="tt-subject mb-0">{{ d.entry.subject.name }}</p>
                 <p class="tt-teachers">
                   {% for te in d.entry.teachers.all %}

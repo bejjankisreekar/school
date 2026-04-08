@@ -16,6 +16,7 @@ from .analytics_dashboard import build_analytics_summary_metrics
 from .analytics_scope import build_analytics_scope_for_request
 from .dashboard_charts import extend_dashboard_charts_context
 from .hub_charts import build_hub_chart_context
+from .student_insights import build_student_insights_context
 from .toppers_panel import build_toppers_panel_context
 
 
@@ -54,6 +55,12 @@ def build_school_reports_dashboard_context(school, *, user=None, request=None) -
         scope_ctx = build_analytics_scope_for_request(request, school)
     scope = scope_ctx.get("analytics_scope") or {}
 
+    student_insights_ctx: dict = {}
+    if school:
+        student_insights_ctx = build_student_insights_context(
+            school, user=user, request=request, analytics_scope=scope
+        )
+
     hub_charts = build_hub_chart_context(
         school, user=user, analytics_scope=scope if school else None
     )
@@ -78,5 +85,6 @@ def build_school_reports_dashboard_context(school, *, user=None, request=None) -
         "hub_charts_enabled": hub_charts_enabled,
         **scope_ctx,
         **hub_charts,
+        **student_insights_ctx,
         **panels,
     }

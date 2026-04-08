@@ -41,7 +41,7 @@
       <div class="card border-0 shadow-sm rounded-4">
         <div class="card-body">
           <p class="text-muted small text-uppercase mb-1">Grade</p>
-          <h2 class="display-5 fw-bold mb-0">{{ grade }}</h2>
+          <h2 class="display-5 fw-bold mb-0" title="{{ overall_grade_tooltip|default:'' }}">{{ grade }}</h2>
         </div>
       </div>
     </div>
@@ -85,7 +85,7 @@
               {% endif %}
             </td>
             <td class="text-end">{% if row.pct is not None %}{{ row.pct }}%{% else %}—{% endif %}</td>
-            <td>{{ row.grade }}</td>
+            <td title="{{ row.grade_tooltip|default:'' }}">{{ row.grade }}</td>
           </tr>
           {% empty %}
           <tr><td colspan="6" class="text-center text-muted py-4">No papers in this exam session yet.</td></tr>

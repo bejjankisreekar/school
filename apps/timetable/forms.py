@@ -62,11 +62,13 @@ class TimeSlotForm(forms.ModelForm):
 
     class Meta:
         model = TimeSlot
-        fields = ["start_time", "end_time", "is_break", "break_type", "order"]
+        fields = ["start_time", "end_time", "is_break", "slot_type", "slot_label", "break_type", "order"]
         widgets = {
             "start_time": forms.TimeInput(attrs={"type": "time", "class": INPUT_SM}),
             "end_time": forms.TimeInput(attrs={"type": "time", "class": INPUT_SM}),
             "is_break": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "slot_type": forms.Select(attrs={"class": SELECT_SM}),
+            "slot_label": forms.TextInput(attrs={"class": INPUT_SM, "placeholder": "Enter type label"}),
             "break_type": forms.Select(attrs={"class": SELECT_SM}),
             "order": forms.NumberInput(attrs={"class": INPUT_SM, "min": 1}),
         }
@@ -82,8 +84,15 @@ class TimeSlotForm(forms.ModelForm):
                 cleaned["is_break"] = True
         if not cleaned.get("is_break"):
             cleaned["break_type"] = TimeSlot.BreakType.NONE
+            if cleaned.get("slot_type") == TimeSlot.SlotType.BREAK:
+                cleaned["slot_type"] = TimeSlot.SlotType.TEACHING
         elif cleaned.get("break_type") == TimeSlot.BreakType.NONE:
             cleaned["break_type"] = TimeSlot.BreakType.SHORT_BREAK
+            cleaned["slot_type"] = TimeSlot.SlotType.BREAK
+        if cleaned.get("slot_type") != TimeSlot.SlotType.OTHER:
+            cleaned["slot_label"] = ""
+        elif not (cleaned.get("slot_label") or "").strip():
+            raise ValidationError("Enter a label for Other.")
         return cleaned
 
 
@@ -92,11 +101,13 @@ class TimeSlotAddForm(forms.ModelForm):
 
     class Meta:
         model = TimeSlot
-        fields = ["start_time", "end_time", "is_break", "break_type"]
+        fields = ["start_time", "end_time", "is_break", "slot_type", "slot_label", "break_type"]
         widgets = {
             "start_time": forms.TimeInput(attrs={"type": "time", "class": INPUT_SM}),
             "end_time": forms.TimeInput(attrs={"type": "time", "class": INPUT_SM}),
             "is_break": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "slot_type": forms.Select(attrs={"class": SELECT_SM}),
+            "slot_label": forms.TextInput(attrs={"class": INPUT_SM, "placeholder": "Enter type label"}),
             "break_type": forms.Select(attrs={"class": SELECT_SM}),
         }
 
@@ -104,6 +115,13 @@ class TimeSlotAddForm(forms.ModelForm):
         cleaned = super().clean()
         if not cleaned.get("is_break"):
             cleaned["break_type"] = TimeSlot.BreakType.NONE
+            if cleaned.get("slot_type") == TimeSlot.SlotType.BREAK:
+                cleaned["slot_type"] = TimeSlot.SlotType.TEACHING
         elif cleaned.get("break_type") == TimeSlot.BreakType.NONE:
             cleaned["break_type"] = TimeSlot.BreakType.SHORT_BREAK
+            cleaned["slot_type"] = TimeSlot.SlotType.BREAK
+        if cleaned.get("slot_type") != TimeSlot.SlotType.OTHER:
+            cleaned["slot_label"] = ""
+        elif not (cleaned.get("slot_label") or "").strip():
+            raise ValidationError("Enter a label for Other.")
         return cleaned

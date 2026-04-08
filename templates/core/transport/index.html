@@ -1,7 +1,61 @@
 {% extends "base.html" %}
 {% block title %}Transport | School ERP{% endblock %}
 {% block content %}
-<div class="container-fluid px-0">
+<style>
+  .tr-shell { max-width: 1400px; margin: 0 auto; }
+  .tr-hero {
+    border-radius: 1rem;
+    padding: 1.05rem 1.2rem;
+    background: linear-gradient(135deg, rgba(13, 148, 136, 0.14), rgba(99, 102, 241, 0.10));
+    border: 1px solid rgba(148, 163, 184, 0.22);
+  }
+  html.dark .tr-hero {
+    background: linear-gradient(135deg, rgba(13, 148, 136, 0.22), rgba(99, 102, 241, 0.14));
+    border-color: rgba(148, 163, 184, 0.18);
+  }
+  .tr-hero-title { font-weight: 800; letter-spacing: -0.02em; }
+  .tr-hero-sub { color: var(--bs-secondary-color); }
+  .tr-card-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  @media (min-width: 576px) { .tr-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 992px) { .tr-card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .tr-card {
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 1rem;
+    padding: 1.1rem 1.1rem;
+    background: var(--bs-body-bg);
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    gap: 0.9rem;
+    align-items: flex-start;
+    min-height: 106px;
+  }
+  html.dark .tr-card { border-color: rgba(148, 163, 184, 0.18); box-shadow: 0 12px 34px rgba(0, 0, 0, 0.22); }
+  .tr-card:hover { transform: translateY(-2px); border-color: rgba(148, 163, 184, 0.35); box-shadow: 0 14px 34px rgba(15, 23, 42, 0.10); }
+  .tr-icon {
+    width: 2.9rem;
+    height: 2.9rem;
+    border-radius: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 1.25rem;
+  }
+  .tr-title { font-weight: 800; margin: 0; }
+  .tr-sub { margin: 0.25rem 0 0; color: var(--bs-secondary-color); font-size: 0.82rem; line-height: 1.35; }
+  .tr-count { font-weight: 800; }
+  .tr-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.55rem; }
+  .tr-actions .btn { border-radius: 999px; padding: 0.3rem 0.65rem; }
+</style>
+
+<div class="container-fluid px-0 tr-shell">
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
@@ -9,85 +63,40 @@
     </ol>
   </nav>
 
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-    <h1 class="h4 fw-bold mb-0">Transport Management</h1>
-    <div class="d-flex gap-2">
-      <a href="{% url 'core:school_transport_route_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Route</a>
-      <a href="{% url 'core:school_transport_vehicle_add' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-truck"></i> Add Vehicle</a>
-      <a href="{% url 'core:school_transport_assign' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-person-plus"></i> Assign Student</a>
+  <div class="tr-hero mb-4">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+      <div>
+        <h1 class="h3 tr-hero-title mb-1">Transport</h1>
+        <p class="tr-hero-sub small mb-0">Manage routes, vehicles, and student assignments.</p>
+      </div>
     </div>
   </div>
 
-  <div class="row">
-    <div class="col-lg-4 mb-4">
-      <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white border-0"><strong>Routes</strong></div>
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
-              <tr><th>Name</th><th>Description</th></tr>
-            </thead>
-            <tbody>
-              {% for r in routes %}
-              <tr>
-                <td>{{ r.name }}</td>
-                <td>{{ r.description|truncatewords:10|default:"—" }}</td>
-              </tr>
-              {% empty %}
-              <tr><td colspan="2" class="text-muted text-center py-4">No routes. <a href="{% url 'core:school_transport_route_add' %}">Add route</a></td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-    <div class="col-lg-4 mb-4">
-      <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white border-0"><strong>Vehicles</strong></div>
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
-              <tr><th>Reg No</th><th>Type</th><th>Capacity</th><th>Route</th></tr>
-            </thead>
-            <tbody>
-              {% for v in vehicles %}
-              <tr>
-                <td><code>{{ v.registration_number }}</code></td>
-                <td>{{ v.vehicle_type|default:"—" }}</td>
-                <td>{{ v.capacity }}</td>
-                <td>{{ v.route.name|default:"—" }}</td>
-              </tr>
-              {% empty %}
-              <tr><td colspan="4" class="text-muted text-center py-4">No vehicles.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-    <div class="col-lg-4 mb-4">
-      <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white border-0"><strong>Assignments</strong></div>
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
-              <tr><th>Student</th><th>Route</th><th>Pickup</th></tr>
-            </thead>
-            <tbody>
-              {% for a in assignments %}
-              <tr>
-                <td>{{ a.student.user.get_full_name|default:a.student.user.username }}</td>
-                <td>{{ a.route.name }}</td>
-                <td>{{ a.pickup_point|default:"—" }}</td>
-              </tr>
-              {% empty %}
-              <tr><td colspan="3" class="text-muted text-center py-4">No assignments.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+  <div class="tr-card-grid mb-4">
+    <a href="{% url 'core:school_transport_routes' %}" class="tr-card">
+      <span class="tr-icon bg-primary bg-opacity-10 text-primary"><i class="bi bi-signpost-2"></i></span>
+      <span class="min-w-0">
+        <span class="tr-title d-block">Routes <span class="text-muted">·</span> <span class="tr-count">{{ routes_count }}</span></span>
+        <span class="tr-sub d-block">Create and manage pickup/drop routes.</span>
+        <span class="tr-sub d-block mt-2"><span class="badge text-bg-light border">Click to open</span></span>
+      </span>
+    </a>
+    <a href="{% url 'core:school_transport_vehicles' %}" class="tr-card">
+      <span class="tr-icon bg-success bg-opacity-10 text-success"><i class="bi bi-truck-front"></i></span>
+      <span class="min-w-0">
+        <span class="tr-title d-block">Vehicles <span class="text-muted">·</span> <span class="tr-count">{{ vehicles_count }}</span></span>
+        <span class="tr-sub d-block">Manage registrations, capacity, and route mapping.</span>
+        <span class="tr-sub d-block mt-2"><span class="badge text-bg-light border">Click to open</span></span>
+      </span>
+    </a>
+    <a href="{% url 'core:school_transport_assignments' %}" class="tr-card">
+      <span class="tr-icon bg-warning bg-opacity-10 text-warning"><i class="bi bi-person-lines-fill"></i></span>
+      <span class="min-w-0">
+        <span class="tr-title d-block">Assignments <span class="text-muted">·</span> <span class="tr-count">{{ assignments_count }}</span></span>
+        <span class="tr-sub d-block">Assign students to routes, vehicles, and pickup points.</span>
+        <span class="tr-sub d-block mt-2"><span class="badge text-bg-light border">Click to open</span></span>
+      </span>
+    </a>
   </div>
 </div>
 {% endblock %}

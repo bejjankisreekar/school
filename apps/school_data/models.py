@@ -455,6 +455,22 @@ class Exam(models.Model):
         blank=True,
         help_text="Optional end time for calendar / timetable display.",
     )
+    room = models.CharField(
+        max_length=120,
+        blank=True,
+        default="",
+        help_text="Optional: exam room / hall (e.g., Room 102, Main Hall).",
+    )
+    details = models.TextField(
+        blank=True,
+        default="",
+        help_text="Optional: instructions / syllabus / notes for this paper.",
+    )
+    topics = models.TextField(
+        blank=True,
+        default="",
+        help_text="Optional: topics covered (free text).",
+    )
     # Legacy NOT NULL FK; denormalized class_name/section remain the source for filters/UI.
     classroom = models.ForeignKey(
         "ClassRoom",

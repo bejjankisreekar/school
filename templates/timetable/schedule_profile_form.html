@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Edit schedule profile | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0" style="max-width: 980px; margin: 0 auto;">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'timetable:school_timeslots' %}?profile={{ profile.id }}">Time slots</a></li>
+      <li class="breadcrumb-item active">Edit profile</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div>
+      <h1 class="h4 fw-bold mb-1">Edit schedule profile</h1>
+      <p class="text-muted small mb-0">{{ profile.name }}</p>
+    </div>
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'timetable:school_timeslots' %}?profile={{ profile.id }}">
+      <i class="bi bi-arrow-left me-1"></i>Back
+    </a>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body p-4">
+      <form method="post" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger rounded-3 border-0">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold text-muted">Name</label>
+            {{ form.name }}
+            {% if form.name.errors %}<div class="text-danger small">{{ form.name.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold text-muted">Academic year</label>
+            {{ form.academic_year }}
+            {% if form.academic_year.errors %}<div class="text-danger small">{{ form.academic_year.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold text-muted">Description</label>
+            {{ form.description }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold text-muted">Start time (hint)</label>
+            {{ form.default_start_time }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold text-muted">End time (hint)</label>
+            {{ form.default_end_time }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold text-muted">Total periods (hint)</label>
+            {{ form.total_periods }}
+          </div>
+          <div class="col-md-3 d-flex align-items-end">
+            <div class="form-check">
+              {{ form.break_enabled }}
+              <label class="form-check-label" for="{{ form.break_enabled.id_for_label }}">Breaks typical</label>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              {{ form.is_active }}
+              <label class="form-check-label" for="{{ form.is_active.id_for_label }}">Active</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2 mt-4">
+          <button class="btn btn-primary rounded-pill px-4" type="submit"><i class="bi bi-check-lg me-1"></i>Save</button>
+          <a class="btn btn-outline-secondary rounded-pill px-4" href="{% url 'timetable:school_timeslots' %}?profile={{ profile.id }}">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

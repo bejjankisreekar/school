@@ -16,6 +16,15 @@
     <link href="{% static 'css/erp-design-system.css' %}" rel="stylesheet">
     <link href="{% static 'css/sidebar.css' %}" rel="stylesheet">
     <link href="{% static 'css/app-theme-global.css' %}" rel="stylesheet">
+    <style>
+      /* Ensure toasts are always visible top-right (some themes override placement). */
+      .toast-container.position-fixed {
+        top: 1rem !important;
+        right: 1rem !important;
+        bottom: auto !important;
+        left: auto !important;
+      }
+    </style>
     {% block extra_head %}{% endblock %}
     <script>
       (function () {
@@ -144,6 +153,55 @@
     {% block modals %}{% endblock %}
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     {% block after_bootstrap %}{% endblock %}
+    <script>
+      (function () {
+        // Preserve sidebar scroll position between navigations.
+        // This keeps the nav focused on the last-clicked module (e.g. Hostel) instead of jumping to the top.
+        var sidebar = document.getElementById("sidebar");
+        if (!sidebar) return;
+
+        var KEY = "erp.sidebar.scrollTop";
+
+        try {
+          var saved = localStorage.getItem(KEY);
+          if (saved !== null) {
+            var n = parseInt(saved, 10);
+            if (!isNaN(n)) sidebar.scrollTop = n;
+          }
+        } catch (e) {}
+
+        // If there is an active item, ensure it's visible (without forcing a jump to the very top).
+        try {
+          var active = sidebar.querySelector(".sidebar-nav-item.active, .sidebar-nav-item[aria-current='page']");
+          if (active && typeof active.scrollIntoView === "function") {
+            active.scrollIntoView({ block: "nearest" });
+          }
+        } catch (e) {}
+
+        sidebar.addEventListener(
+          "scroll",
+          function () {
+            try {
+              localStorage.setItem(KEY, String(sidebar.scrollTop || 0));
+            } catch (e) {}
+          },
+          { passive: true }
+        );
+
+        // Save immediately on click (before unload) to make it extra reliable.
+        sidebar.addEventListener(
+          "click",
+          function (e) {
+            var a = e.target && e.target.closest ? e.target.closest("a") : null;
+            if (!a) return;
+            try {
+              localStorage.setItem(KEY, String(sidebar.scrollTop || 0));
+            } catch (e) {}
+          },
+          true
+        );
+      })();
+    </script>
     <script>
       function showRealtimeToast(message, title) {
         var container = document.getElementById("realtimeToastContainer");

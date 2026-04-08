@@ -785,6 +785,19 @@ class SchoolExamSingleForm(forms.Form):
         required=False,
         widget=forms.TimeInput(attrs={"type": "time", "class": INPUT_CLASS, "id": "id_single_end_time"}),
     )
+    room = forms.CharField(
+        required=False,
+        max_length=120,
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. Room 102 / Main Hall"}),
+    )
+    details = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 2, "placeholder": "Optional instructions / notes"}),
+    )
+    topics = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 2, "placeholder": "Optional topics covered"}),
+    )
     total_marks = forms.IntegerField(min_value=1, max_value=1000, initial=100, widget=forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 1}))
     teacher = forms.TypedChoiceField(choices=[], required=False, empty_value=None, widget=forms.Select(attrs={"class": BS_INPUT}))
 
@@ -827,6 +840,9 @@ class SchoolExamEditForm(forms.ModelForm):
             "date",
             "start_time",
             "end_time",
+            "room",
+            "details",
+            "topics",
             "class_name",
             "section",
             "subject",
@@ -838,6 +854,9 @@ class SchoolExamEditForm(forms.ModelForm):
             "date": forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
             "start_time": forms.TimeInput(attrs={"type": "time", "class": INPUT_CLASS}),
             "end_time": forms.TimeInput(attrs={"type": "time", "class": INPUT_CLASS}),
+            "room": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Optional room / hall"}),
+            "details": forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 2, "placeholder": "Optional instructions / notes"}),
+            "topics": forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 2, "placeholder": "Optional topics covered"}),
             "total_marks": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 1, "max": 1000}),
         }
 

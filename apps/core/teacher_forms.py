@@ -17,7 +17,7 @@ class TeacherMasterForm(forms.Form):
     # —— Account ——
     username = forms.CharField(
         max_length=150,
-        required=False,
+        required=True,
         widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Login username"}),
     )
     password = forms.CharField(
@@ -179,8 +179,6 @@ class TeacherMasterForm(forms.Form):
                 self.fields[fname].widget.attrs.setdefault("placeholder", text)
 
         if teacher:
-            self.fields["username"].widget.attrs["readonly"] = True
-            self.fields["username"].disabled = True
             self.fields["password"].help_text = "Leave blank to keep the current password."
             extra = teacher.extra_data or {}
             basic = extra.get("basic") or {}
@@ -246,15 +244,15 @@ class TeacherMasterForm(forms.Form):
         else:
             del self.fields["role"]
             self.fields["password"].required = True
-            self.fields["username"].required = True
 
     def clean_username(self):
         u = (self.cleaned_data.get("username") or "").strip()
-        if self.teacher:
-            return self.teacher.user.username
         if not u:
             raise forms.ValidationError("Username is required.")
-        if User.objects.filter(username=u).exists():
+        qs = User.objects.filter(username=u)
+        if self.teacher and self.teacher.user_id:
+            qs = qs.exclude(pk=self.teacher.user_id)
+        if qs.exists():
             raise forms.ValidationError("Username already exists.")
         return u
 

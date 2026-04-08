@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Edit Assignment | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0" style="max-width: 920px; margin: 0 auto;">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_transport_index' %}">Transport</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_transport_assignments' %}">Assignments</a></li>
+      <li class="breadcrumb-item active">Edit</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div>
+      <h1 class="h4 fw-bold mb-1">Edit assignment</h1>
+      <p class="text-muted small mb-0">{{ assignment.student.user.get_full_name|default:assignment.student.user.username }}</p>
+    </div>
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'core:school_transport_assignment_view' assignment.id %}"><i class="bi bi-arrow-left me-1"></i>Back</a>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body p-4">
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label class="form-label">Route</label>
+          <select name="route_id" class="form-select" required>
+            {% for r in routes %}
+              <option value="{{ r.id }}" {% if assignment.route_id == r.id %}selected{% endif %}>{{ r.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Vehicle (optional)</label>
+          <select name="vehicle_id" class="form-select">
+            <option value="">—</option>
+            {% for v in vehicles %}
+              <option value="{{ v.id }}" {% if assignment.vehicle_id == v.id %}selected{% endif %}>{{ v.registration_number }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Pickup point</label>
+          <input type="text" name="pickup_point" class="form-control" value="{{ assignment.pickup_point }}" placeholder="e.g. Main Gate">
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-primary" type="submit"><i class="bi bi-check-lg me-1"></i>Save</button>
+          <a class="btn btn-outline-secondary" href="{% url 'core:school_transport_assignment_view' assignment.id %}">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

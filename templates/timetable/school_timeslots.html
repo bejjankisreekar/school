@@ -255,6 +255,9 @@
   body.dark-mode .ts-modal-foot {
     background: rgba(30, 41, 59, 0.92);
   }
+
+  /* Slot modal form spacing */
+  .ts-slot-help { font-size: 0.82rem; color: var(--ts-muted); }
 </style>
 {% endblock %}
 
@@ -305,6 +308,9 @@
               <option value="{{ p.id }}" {% if selected_profile.id == p.id %}selected{% endif %}>{{ p.name }}{% if not p.is_active %} (inactive){% endif %}</option>
               {% endfor %}
             </select>
+            <a class="btn btn-outline-secondary btn-sm" href="{% url 'timetable:school_schedule_profile_edit' selected_profile.id %}" title="Edit profile">
+              <i class="bi bi-pencil me-1"></i> Edit
+            </a>
             <button type="button" class="btn-ts-primary btn btn-sm" data-bs-toggle="modal" data-bs-target="#newProfileModal">
               <i class="bi bi-plus-lg me-1"></i> New profile
             </button>
@@ -319,45 +325,31 @@
     </div>
   </div>
 
-  <div class="ts-card">
-    <div class="ts-card__head">
-      <h2><span class="ts-icon"><i class="bi bi-plus-circle"></i></span> Add time slot</h2>
-      <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">Profile: {{ selected_profile.name }}</span>
-    </div>
-    <div class="ts-card__body">
-      <form method="post" class="row g-3 align-items-end">
-        {% csrf_token %}
-        <input type="hidden" name="profile" value="{{ selected_profile.id }}">
-        <div class="col-6 col-md-2">
-          <label class="form-label small fw-semibold mb-1">Start</label>
-          {{ form.start_time }}
-          {% if form.start_time.errors %}<div class="text-danger small">{{ form.start_time.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="col-6 col-md-2">
-          <label class="form-label small fw-semibold mb-1">End</label>
-          {{ form.end_time }}
-          {% if form.end_time.errors %}<div class="text-danger small">{{ form.end_time.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="col-6 col-md-2">
-          <label class="form-label small fw-semibold mb-1 d-block">Break</label>
-          <div class="form-check mt-1">{{ form.is_break }} <label class="form-check-label small" for="{{ form.is_break.id_for_label }}">This row is a break</label></div>
-        </div>
-        <div class="col-6 col-md-2">
-          <label class="form-label small fw-semibold mb-1">Break type</label>
-          {{ form.break_type }}
-          <div class="form-text">Only applies when “This row is a break” is checked.</div>
-        </div>
-        <div class="col-12 col-md-4 d-grid align-items-end">
-          <button type="submit" class="btn-ts-primary btn"><i class="bi bi-plus-lg me-1"></i> Add slot</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
   <div class="ts-card p-0">
     <div class="ts-card__head mb-0 border-bottom">
-      <h2><span class="ts-icon"><i class="bi bi-grid-3x2"></i></span> Slots for this profile</h2>
-      <span class="small text-muted">{{ slots|length }} row{{ slots|length|pluralize }}</span>
+      <div>
+        <h2><span class="ts-icon"><i class="bi bi-grid-3x2"></i></span> Time slots</h2>
+        <div class="ts-profile-meta mt-2">
+          <span class="ts-pill ts-pill--muted"><i class="bi bi-person-badge"></i> Profile: <strong>{{ selected_profile.name }}</strong></span>
+          <span class="ts-pill ts-pill--muted"><i class="bi bi-list-ol"></i> {{ slots|length }} row{{ slots|length|pluralize }}</span>
+          {% if current_profile and current_profile.id == selected_profile.id %}
+          <span class="ts-pill ts-pill--ok"><i class="bi bi-broadcast"></i> Published</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <form method="post" class="d-inline">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="set_current_schedule_profile">
+          <input type="hidden" name="profile" value="{{ selected_profile.id }}">
+          <button type="submit" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-broadcast me-1"></i> Publish this profile
+          </button>
+        </form>
+        <button type="button" class="btn-ts-primary btn btn-sm" data-bs-toggle="modal" data-bs-target="#addSlotModal">
+          <i class="bi bi-plus-lg me-1"></i> Add time slot
+        </button>
+      </div>
     </div>
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0 ts-slots-table">
@@ -376,7 +368,15 @@
             <td class="view-cell order-cell fw-semibold">{{ s.order }}</td>
             <td class="view-cell start-cell font-monospace">{{ s.start_time|time:"H:i" }}</td>
             <td class="view-cell end-cell font-monospace">{{ s.end_time|time:"H:i" }}</td>
-            <td class="view-cell type-cell">{% if s.is_break %}<i class="bi bi-cup-hot me-1 text-warning"></i>{{ s.get_break_type_display }}{% else %}<span class="text-muted">Teaching period</span>{% endif %}</td>
+            <td class="view-cell type-cell">
+              {% if s.is_break %}
+                <i class="bi bi-cup-hot me-1 text-warning"></i>{{ s.get_break_type_display }}
+              {% else %}
+                <span class="text-muted">
+                  {% if s.slot_type == 'OTHER' and s.slot_label %}{{ s.slot_label }}{% else %}{{ s.get_slot_type_display|default:"Teaching period" }}{% endif %}
+                </span>
+              {% endif %}
+            </td>
             <td class="actions-cell text-end">
               <div class="d-inline-flex gap-1 align-items-center">
                 <button type="button" class="btn btn-light btn-sm border edit-btn" data-id="{{ s.id }}" title="Edit" aria-label="Edit">
@@ -401,6 +401,20 @@
                 <option value="0" {% if not s.is_break %}selected{% endif %}>Period</option>
                 <option value="1" {% if s.is_break %}selected{% endif %}>Break</option>
               </select>
+              <select class="form-select form-select-sm edit-slot-type ms-0 ms-md-1 mt-1 mt-md-0 d-inline-block" style="width: 150px; max-width: 100%; {% if s.is_break %}display:none !important;{% endif %}">
+                <option value="TEACHING" {% if s.slot_type == 'TEACHING' %}selected{% endif %}>Teaching period</option>
+                <option value="STUDY" {% if s.slot_type == 'STUDY' %}selected{% endif %}>Study hours</option>
+                <option value="READING" {% if s.slot_type == 'READING' %}selected{% endif %}>Reading</option>
+                <option value="GAMES" {% if s.slot_type == 'GAMES' %}selected{% endif %}>Games</option>
+                <option value="PRACTICAL" {% if s.slot_type == 'PRACTICAL' %}selected{% endif %}>Practical / Lab</option>
+                <option value="COMPUTER_LAB" {% if s.slot_type == 'COMPUTER_LAB' %}selected{% endif %}>Computer Lab</option>
+                <option value="DOUBT" {% if s.slot_type == 'DOUBT' %}selected{% endif %}>Doubt Clearing Session</option>
+                <option value="PROJECT" {% if s.slot_type == 'PROJECT' %}selected{% endif %}>Project Work</option>
+                <option value="OTHER" {% if s.slot_type == 'OTHER' %}selected{% endif %}>Other</option>
+              </select>
+              <input type="text" class="form-control form-control-sm edit-slot-label ms-0 ms-md-1 mt-1 mt-md-0 d-inline-block"
+                     value="{{ s.slot_label }}" placeholder="Other label"
+                     style="width: 180px; max-width: 100%; {% if s.is_break or s.slot_type != 'OTHER' %}display:none !important;{% endif %}">
               <select class="form-select form-select-sm edit-break-type ms-0 ms-md-1 mt-1 mt-md-0 d-inline-block" style="width: 130px; max-width: 100%; {% if not s.is_break %}display:none !important;{% endif %}">
                 <option value="NONE" {% if s.break_type == 'NONE' %}selected{% endif %}>None</option>
                 <option value="SHORT_BREAK" {% if s.break_type == 'SHORT_BREAK' %}selected{% endif %}>Short break</option>
@@ -430,6 +444,8 @@
   <input type="hidden" name="start_time" id="update-start">
   <input type="hidden" name="end_time" id="update-end">
   <input type="hidden" name="is_break" id="update-is-break">
+  <input type="hidden" name="slot_type" id="update-slot-type">
+  <input type="hidden" name="slot_label" id="update-slot-label">
   <input type="hidden" name="break_type" id="update-break-type">
   <input type="hidden" name="order" id="update-order">
   <input type="hidden" name="profile" id="update-profile">
@@ -499,6 +515,77 @@
     </div>
   </div>
 </div>
+
+<div class="modal fade" id="addSlotModal" tabindex="-1" aria-labelledby="addSlotModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+    <div class="modal-content ts-modal shadow-lg border-0">
+      <div class="modal-header ts-modal-head border-0 pb-0">
+        <div>
+          <h5 class="modal-title fw-bold" id="addSlotModalLabel"><i class="bi bi-plus-circle me-2 text-primary"></i>Add time slot</h5>
+          <div class="small text-muted mt-1">Profile: <strong>{{ selected_profile.name }}</strong></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" class="px-0">
+        {% csrf_token %}
+        <input type="hidden" name="profile" value="{{ selected_profile.id }}">
+        <div class="modal-body pt-3">
+          {% if form.non_field_errors %}
+          <div class="alert alert-danger small">{{ form.non_field_errors }}</div>
+          {% endif %}
+          <div class="row g-3">
+            <div class="col-6 col-md-3">
+              <label class="form-label small fw-semibold mb-1">Start</label>
+              {{ form.start_time }}
+              {% if form.start_time.errors %}<div class="text-danger small mt-1">{{ form.start_time.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label small fw-semibold mb-1">End</label>
+              {{ form.end_time }}
+              {% if form.end_time.errors %}<div class="text-danger small mt-1">{{ form.end_time.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-semibold mb-1">Type</label>
+              <select id="add-kind" class="form-select form-select-sm">
+                <optgroup label="Periods">
+                  <option value="TEACHING">Teaching period</option>
+                  <option value="STUDY">Study hours</option>
+                  <option value="READING">Reading</option>
+                  <option value="GAMES">Games</option>
+                  <option value="PRACTICAL">Practical / Lab</option>
+                  <option value="COMPUTER_LAB">Computer Lab</option>
+                  <option value="DOUBT">Doubt Clearing Session</option>
+                  <option value="PROJECT">Project Work</option>
+                  <option value="OTHER">Other</option>
+                </optgroup>
+                <optgroup label="Breaks">
+                  <option value="SHORT_BREAK">Short Break</option>
+                  <option value="LUNCH_BREAK">Lunch Break</option>
+                </optgroup>
+              </select>
+              <div class="ts-slot-help mt-1">Pick what this row represents. Break options will be saved as break rows automatically.</div>
+              <div id="add-other-wrap" class="mt-2 d-none">
+                <label class="form-label small fw-semibold mb-1">Other label</label>
+                <input type="text" id="add-other-label" class="form-control form-control-sm" placeholder="e.g. Assembly, Yoga">
+              </div>
+
+              <div class="d-none">
+                {{ form.is_break }}
+                {{ form.break_type }}
+                {{ form.slot_type }}
+                {{ form.slot_label }}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-top ts-modal-foot rounded-bottom">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary px-4"><i class="bi bi-check2-circle me-1"></i> Save slot</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block after_bootstrap %}
@@ -506,6 +593,49 @@
 var updateUrl = "{% url 'timetable:school_timeslot_update' 0 %}";
 (function() {
   function bindTimeslotsPage() {
+    function syncAddSlotKind() {
+      var kind = document.getElementById('add-kind');
+      if (!kind) return;
+
+      var isBreak = document.getElementById('{{ form.is_break.id_for_label }}');
+      var breakType = document.getElementById('{{ form.break_type.id_for_label }}');
+      var slotType = document.getElementById('{{ form.slot_type.id_for_label }}');
+      var slotLabel = document.getElementById('{{ form.slot_label.id_for_label }}');
+      var otherWrap = document.getElementById('add-other-wrap');
+      var otherInput = document.getElementById('add-other-label');
+      if (!isBreak || !breakType || !slotType || !slotLabel) return;
+
+      var v = (kind.value || '').toUpperCase();
+      if (v === 'SHORT_BREAK' || v === 'LUNCH_BREAK') {
+        isBreak.checked = true;
+        breakType.value = v;
+        slotType.value = 'BREAK';
+        slotLabel.value = '';
+        if (otherWrap) otherWrap.classList.add('d-none');
+      } else {
+        isBreak.checked = false;
+        breakType.value = 'NONE';
+        slotType.value = v || 'TEACHING';
+        if (v === 'OTHER') {
+          if (otherWrap) otherWrap.classList.remove('d-none');
+          slotLabel.value = (otherInput && otherInput.value) ? otherInput.value : '';
+        } else {
+          slotLabel.value = '';
+          if (otherWrap) otherWrap.classList.add('d-none');
+        }
+      }
+    }
+
+    var addKind = document.getElementById('add-kind');
+    if (addKind) {
+      addKind.addEventListener('change', syncAddSlotKind);
+      syncAddSlotKind();
+    }
+    var otherInput = document.getElementById('add-other-label');
+    if (otherInput) {
+      otherInput.addEventListener('input', syncAddSlotKind);
+    }
+
     document.querySelectorAll('.edit-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
         var slotId = this.getAttribute('data-id');
@@ -535,8 +665,28 @@ var updateUrl = "{% url 'timetable:school_timeslot_update' 0 %}";
     document.querySelectorAll('.edit-is-break').forEach(function(sel) {
       sel.addEventListener('change', function() {
         var breakTypeSel = this.closest('td').querySelector('.edit-break-type');
+        var slotTypeSel = this.closest('td').querySelector('.edit-slot-type');
+        var slotLabelInp = this.closest('td').querySelector('.edit-slot-label');
         if (breakTypeSel) {
           breakTypeSel.style.display = this.value === '1' ? 'inline-block' : 'none';
+        }
+        if (slotTypeSel) {
+          slotTypeSel.style.display = this.value === '1' ? 'none' : 'inline-block';
+        }
+        if (slotLabelInp) {
+          slotLabelInp.style.display = 'none';
+        }
+      });
+    });
+
+    document.querySelectorAll('.edit-slot-type').forEach(function(sel) {
+      sel.addEventListener('change', function() {
+        var td = this.closest('td');
+        var labelInp = td ? td.querySelector('.edit-slot-label') : null;
+        if (!labelInp) return;
+        labelInp.style.display = (this.value === 'OTHER') ? 'inline-block' : 'none';
+        if (this.value !== 'OTHER') {
+          labelInp.value = '';
         }
       });
     });
@@ -552,6 +702,10 @@ var updateUrl = "{% url 'timetable:school_timeslot_update' 0 %}";
         var start = editRow.querySelector('.edit-start').value;
         var end = editRow.querySelector('.edit-end').value;
         var isBreak = editRow.querySelector('.edit-is-break').value;
+        var slotTypeEl = editRow.querySelector('.edit-slot-type');
+        var slotType = slotTypeEl ? slotTypeEl.value : 'TEACHING';
+        var slotLabelEl = editRow.querySelector('.edit-slot-label');
+        var slotLabel = slotLabelEl ? slotLabelEl.value : '';
         var breakType = editRow.querySelector('.edit-break-type').value;
 
         var form = document.getElementById('update-form');
@@ -559,6 +713,8 @@ var updateUrl = "{% url 'timetable:school_timeslot_update' 0 %}";
         document.getElementById('update-start').value = start;
         document.getElementById('update-end').value = end;
         document.getElementById('update-is-break').value = isBreak;
+        document.getElementById('update-slot-type').value = slotType;
+        document.getElementById('update-slot-label').value = slotLabel;
         document.getElementById('update-break-type').value = breakType;
         document.getElementById('update-order').value = order;
         document.getElementById('update-profile').value = "{{ selected_profile.id }}";
@@ -581,6 +737,13 @@ var updateUrl = "{% url 'timetable:school_timeslot_update' 0 %}";
     var el = document.getElementById('newProfileModal');
     if (el && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
       bootstrap.Modal.getOrCreateInstance(el).show();
+    }
+    {% endif %}
+
+    {% if form.errors %}
+    var slotEl = document.getElementById('addSlotModal');
+    if (slotEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+      bootstrap.Modal.getOrCreateInstance(slotEl).show();
     }
     {% endif %}
   }

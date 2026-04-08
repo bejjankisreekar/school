@@ -1,7 +1,237 @@
 {% extends "base.html" %}
 {% block title %}Mark Faculty Attendance | School ERP{% endblock %}
 {% block content %}
-<div class="container-fluid px-0">
+<style>
+  /* Reuse Student Attendance design language (subset) */
+  .att-page {
+    --att-brand: #4f46e5;
+    --att-brand-soft: rgba(79, 70, 229, 0.12);
+    --att-surface: #ffffff;
+    --att-surface-2: #f8fafc;
+    --att-border: #e2e8f0;
+    --att-muted: #64748b;
+    --att-present: #059669;
+    --att-present-bg: rgba(5, 150, 105, 0.10);
+    --att-absent: #dc2626;
+    --att-absent-bg: rgba(220, 38, 38, 0.08);
+    --att-leave: #ca8a04;
+    --att-leave-bg: rgba(234, 179, 8, 0.14);
+    --att-half: #0ea5e9;
+    --att-half-bg: rgba(14, 165, 233, 0.12);
+    background: linear-gradient(165deg, #eef2f6 0%, #f4f6f9 35%, #f8fafc 100%);
+    margin: -0.5rem -1rem 0;
+    padding: 1rem 1rem 2.5rem;
+    min-height: calc(100vh - 120px);
+  }
+  @media (min-width: 992px) {
+    .att-page { margin: -0.5rem -1.5rem 0; padding: 1.25rem 1.5rem 2.5rem; }
+  }
+  html.dark .att-page {
+    --att-surface: rgba(30, 41, 59, 0.94);
+    --att-surface-2: rgba(15, 23, 42, 0.6);
+    --att-border: rgba(148, 163, 184, 0.2);
+    --att-muted: #94a3b8;
+    background: linear-gradient(165deg, #0f172a 0%, #1e293b 45%, #0f172a 100%);
+  }
+  .att-toolbar-border { border-color: var(--att-border) !important; }
+  .att-filters-card {
+    background: var(--att-surface);
+    border: 1px solid var(--att-border);
+    border-radius: 1rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 40px rgba(15, 23, 42, 0.06);
+  }
+  html.dark .att-filters-card { box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35); }
+  .att-filter-card-body { padding: 1rem 1.1rem 0.85rem; }
+  @media (min-width: 992px) { .att-filter-card-body { padding: 1.1rem 1.25rem 0.95rem; } }
+  .att-filter-card-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.875rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.65rem;
+    border-bottom: 1px solid var(--att-border);
+  }
+  .att-filter-card-head-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: var(--att-brand-soft);
+    color: var(--att-brand);
+    font-size: 1.1rem;
+  }
+  .att-filter-card-title {
+    font-family: "Poppins", "Inter", system-ui, sans-serif;
+    font-size: 1.0625rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.2rem;
+    color: #0f172a;
+  }
+  html.dark .att-filter-card-title { color: #f1f5f9; }
+  .att-filter-card-sub {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--att-muted);
+    line-height: 1.45;
+    max-width: 42rem;
+  }
+  .att-load-form .form-label {
+    margin-bottom: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--att-muted);
+  }
+  .att-filter-grid {
+    display: grid;
+    gap: 0.75rem 1rem;
+    align-items: end;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 576px) { .att-filter-grid { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 992px) { .att-filter-grid { grid-template-columns: 220px 1fr 220px; } }
+  .att-filter-field .form-control {
+    height: 2.6rem;
+    border-radius: 0.85rem;
+    border: 1px solid var(--att-border);
+    background: var(--att-surface-2);
+  }
+  html.dark .att-filter-field .form-control { background: rgba(15, 23, 42, 0.4); }
+  .att-filter-btn-load {
+    height: 2.6rem;
+    border-radius: 0.85rem;
+    font-weight: 600;
+    box-shadow: 0 12px 28px rgba(79, 70, 229, 0.18);
+  }
+  .att-filter-hint {
+    margin-top: 0.75rem;
+    padding-top: 0.65rem;
+    border-top: 1px solid var(--att-border);
+    color: var(--att-muted);
+    font-size: 0.8rem;
+  }
+  .att-table-card {
+    background: var(--att-surface);
+    border: 1px solid var(--att-border);
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 40px rgba(15, 23, 42, 0.06);
+  }
+  html.dark .att-table-card { box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35); }
+  .att-erp-table thead th {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--att-muted);
+    background: var(--att-surface-2);
+    border-bottom: 1px solid var(--att-border);
+    padding: 0.85rem 1rem;
+  }
+  .att-erp-table tbody td {
+    padding: 0.95rem 1rem;
+    border-bottom: 1px solid var(--att-border);
+    vertical-align: middle;
+  }
+  .att-erp-table tbody tr:hover { background: var(--att-brand-soft); }
+  .att-erp-table tbody tr.att-row-present { background: var(--att-present-bg); }
+  .att-erp-table tbody tr.att-row-absent { background: var(--att-absent-bg); }
+  .att-erp-table tbody tr.att-row-leave { background: var(--att-leave-bg); }
+  .att-erp-table tbody tr.att-row-half_day { background: var(--att-half-bg); }
+  html.dark .att-erp-table tbody tr.att-row-present,
+  html.dark .att-erp-table tbody tr.att-row-absent,
+  html.dark .att-erp-table tbody tr.att-row-leave,
+  html.dark .att-erp-table tbody tr.att-row-half_day { background: rgba(148, 163, 184, 0.08); }
+  .att-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+    border: 1px solid var(--att-border);
+    background: var(--att-surface-2);
+    color: var(--att-muted);
+    font-weight: 700;
+    font-size: 0.78rem;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+    user-select: none;
+    min-width: 5.2rem;
+    white-space: nowrap;
+  }
+  @media (max-width: 420px) {
+    .att-pill { min-width: 4.9rem; padding: 0.32rem 0.55rem; font-size: 0.76rem; }
+  }
+  .att-status-toggle {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+    align-items: center;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px; /* avoid scrollbar overlaying pills */
+  }
+  .att-status-toggle::-webkit-scrollbar { height: 6px; }
+  .att-status-toggle::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.35); border-radius: 999px; }
+  html.dark .att-status-toggle::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.28); }
+  html.dark .att-pill { background: rgba(15, 23, 42, 0.4); }
+  .att-pill:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(15, 23, 42, 0.10); }
+  .btn-check:checked + .att-pill-present { background: var(--att-present-bg); color: var(--att-present); border-color: rgba(5,150,105,.45) !important; }
+  .btn-check:checked + .att-pill-absent { background: var(--att-absent-bg); color: var(--att-absent); border-color: rgba(220,38,38,.45) !important; }
+  .btn-check:checked + .att-pill-leave { background: var(--att-leave-bg); color: #854d0e; border-color: rgba(202,138,4,.45) !important; }
+  html.dark .btn-check:checked + .att-pill-leave { color: #fbbf24; }
+  .btn-check:checked + .att-pill-half { background: var(--att-half-bg); color: #0369a1; border-color: rgba(14,165,233,.45) !important; }
+  html.dark .btn-check:checked + .att-pill-half { color: #7dd3fc; }
+  .att-save-btn {
+    background: var(--att-brand) !important;
+    border-radius: 0.85rem;
+    padding: 0.65rem 1rem;
+    font-weight: 700;
+    box-shadow: 0 18px 42px rgba(79, 70, 229, 0.18);
+  }
+  .att-save-btn:hover:not(:disabled) { filter: brightness(0.98); transform: translateY(-1px); }
+  .att-roll-toolbar {
+    background: var(--att-surface-2);
+    border-bottom: 1px solid var(--att-border);
+    padding: 1rem 1.25rem;
+  }
+  @media (min-width: 992px) { .att-roll-toolbar { padding: 1.1rem 1.5rem; } }
+  .att-stat-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    border: 1px solid var(--att-border);
+    background: var(--att-surface);
+  }
+  .att-stat-pill.present { background: var(--att-present-bg); color: var(--att-present); border-color: rgba(5,150,105,.35); }
+  .att-stat-pill.absent { background: var(--att-absent-bg); color: var(--att-absent); border-color: rgba(220,38,38,.30); }
+  .att-stat-pill.leave { background: var(--att-leave-bg); color: #854d0e; border-color: rgba(202,138,4,.30); }
+  html.dark .att-stat-pill.leave { color: #fbbf24; }
+  .att-bulk-btn {
+    border-radius: 0.85rem;
+    border: 1px solid var(--att-border);
+    background: var(--att-surface);
+    font-weight: 700;
+  }
+  .att-bulk-btn:hover:not(:disabled) { background: var(--att-brand-soft); border-color: rgba(79,70,229,.35); }
+  .att-roll-footer {
+    background: var(--att-surface-2);
+    border-top: 1px solid var(--att-border);
+    padding: 1rem 1.25rem;
+  }
+  @media (min-width: 992px) { .att-roll-footer { padding: 1.1rem 1.5rem; } }
+</style>
+
+<div class="container-fluid px-0 att-page">
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
@@ -10,7 +240,12 @@
     </ol>
   </nav>
 
-  <h1 class="h4 fw-bold mb-4">Mark Faculty Attendance</h1>
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 pb-2 border-bottom att-toolbar-border">
+    <div>
+      <h1 class="h4 fw-bold mb-1 att-page-title">Staff attendance</h1>
+      <p class="small mb-0" style="color: var(--att-muted);">Mark and manage daily staff attendance.</p>
+    </div>
+  </div>
 
   {% if attendance_day_blocked %}
   <div class="alert alert-secondary border-0 shadow-sm rounded-3 mb-3">
@@ -20,42 +255,85 @@
   </div>
   {% endif %}
 
-  <form method="post">
+  <form method="post" class="att-load-form" id="staffAttendanceForm">
     {% csrf_token %}
-    <div class="card border-0 shadow-sm mb-4">
-      <div class="card-body">
-        <div class="row g-3 align-items-end">
-          <div class="col-md-3">
-            <label class="form-label">Date</label>
-            <input type="date" name="date" class="form-control" value="{{ att_date }}">
+    <div class="card border-0 att-filters-card mb-4">
+      <div class="card-body att-filter-card-body">
+        <div class="att-filter-card-head">
+          <div class="att-filter-card-head-icon" aria-hidden="true"><i class="bi bi-sliders"></i></div>
+          <div class="min-w-0">
+            <h2 class="att-filter-card-title">Attendance filters</h2>
+            <p class="att-filter-card-sub">Pick date, search staff, mark status, save.</p>
           </div>
         </div>
+        <div class="att-filter-grid">
+          <div class="att-filter-field">
+            <label class="form-label" for="staff_att_date">Date</label>
+            <input type="date" id="staff_att_date" name="date" class="form-control" value="{{ att_date }}" autocomplete="off">
+          </div>
+          <div class="att-filter-field">
+            <label class="form-label" for="staff_q">Search</label>
+            <input type="search" id="staff_q" class="form-control" placeholder="Name or employee id" autocomplete="off">
+          </div>
+          <div class="att-filter-field">
+            <label class="form-label d-block user-select-none" style="visibility:hidden;">Save</label>
+            <button type="submit" class="btn btn-primary w-100 att-filter-btn-load" {% if attendance_day_blocked %}disabled{% endif %}>
+              <i class="bi bi-check-lg me-1"></i>Save attendance
+            </button>
+          </div>
+        </div>
+        <p class="att-filter-hint mb-0">Search helps you quickly find a staff member.</p>
       </div>
     </div>
 
-    <div class="card border-0 shadow-sm">
-      <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <strong>Faculty List — {{ att_date }}</strong>
-        <button type="submit" class="btn btn-primary btn-sm" {% if attendance_day_blocked %}disabled{% endif %}><i class="bi bi-check-lg"></i> Save Attendance</button>
+    <div class="card border-0 shadow-sm att-table-card">
+      <div class="att-roll-toolbar">
+        <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-md-between gap-3">
+          <div>
+            <h2 class="h6 fw-bold mb-1">Roll call</h2>
+            <p class="text-muted small mb-0">{{ staff_rows|length }} staff · {{ att_date }}</p>
+          </div>
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <span class="att-stat-pill present"><i class="bi bi-check-circle-fill"></i> Present <strong id="staffCountP">0</strong></span>
+            <span class="att-stat-pill absent"><i class="bi bi-x-circle-fill"></i> Absent <strong id="staffCountA">0</strong></span>
+            <span class="att-stat-pill leave"><i class="bi bi-suitcase-lg"></i> Leave <strong id="staffCountL">0</strong></span>
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-sm att-bulk-btn" id="staffAllPresent" {% if attendance_day_blocked %}disabled{% endif %}><i class="bi bi-check-all me-1"></i>All Present</button>
+            <button type="button" class="btn btn-sm att-bulk-btn" id="staffAllAbsent" {% if attendance_day_blocked %}disabled{% endif %}><i class="bi bi-x-lg me-1"></i>All Absent</button>
+            <button type="button" class="btn btn-sm att-bulk-btn" id="staffAllLeave" {% if attendance_day_blocked %}disabled{% endif %}><i class="bi bi-suitcase-lg me-1"></i>All Leave</button>
+          </div>
+        </div>
       </div>
       <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+        <table class="table att-erp-table mb-0">
           <thead class="table-light">
             <tr>
-              <th>Faculty Name</th>
-              <th>Attendance Status</th>
+              <th>Staff</th>
+              <th style="width: 320px;">Status</th>
             </tr>
           </thead>
           <tbody>
             {% for row in staff_rows %}
-            <tr>
-              <td>{{ row.teacher.user.get_full_name|default:row.teacher.user.username }}</td>
+            <tr class="staff-row" data-staff="{{ row.teacher.user.get_full_name|default:row.teacher.user.username|lower }} {{ row.teacher.employee_id|default:''|lower }}">
               <td>
-                <select name="status_{{ row.teacher.id }}" class="form-select form-select-sm" style="max-width: 12rem;" {% if attendance_day_blocked %}disabled{% endif %}>
-                  {% for val, label in status_choices %}
-                  <option value="{{ val }}" {% if row.current_status == val %}selected{% endif %}>{{ label }}</option>
-                  {% endfor %}
-                </select>
+                <div class="fw-semibold">{{ row.teacher.user.get_full_name|default:row.teacher.user.username }}</div>
+                <div class="text-muted small">{{ row.teacher.employee_id|default:"—" }}</div>
+              </td>
+              <td>
+                <div class="att-status-toggle" role="group" aria-label="Status for {{ row.teacher.user.get_full_name|default:row.teacher.user.username }}">
+                  <input class="btn-check" type="radio" name="status_{{ row.teacher.id }}" id="st_{{ row.teacher.id }}_P" value="PRESENT" {% if row.current_status == "PRESENT" %}checked{% endif %} {% if attendance_day_blocked %}disabled{% endif %}>
+                  <label class="att-pill att-pill-present" for="st_{{ row.teacher.id }}_P">Present</label>
+
+                  <input class="btn-check" type="radio" name="status_{{ row.teacher.id }}" id="st_{{ row.teacher.id }}_A" value="ABSENT" {% if row.current_status == "ABSENT" %}checked{% endif %} {% if attendance_day_blocked %}disabled{% endif %}>
+                  <label class="att-pill att-pill-absent" for="st_{{ row.teacher.id }}_A">Absent</label>
+
+                  <input class="btn-check" type="radio" name="status_{{ row.teacher.id }}" id="st_{{ row.teacher.id }}_L" value="LEAVE" {% if row.current_status == "LEAVE" %}checked{% endif %} {% if attendance_day_blocked %}disabled{% endif %}>
+                  <label class="att-pill att-pill-leave" for="st_{{ row.teacher.id }}_L">Leave</label>
+
+                  <input class="btn-check" type="radio" name="status_{{ row.teacher.id }}" id="st_{{ row.teacher.id }}_H" value="HALF_DAY" {% if row.current_status == "HALF_DAY" %}checked{% endif %} {% if attendance_day_blocked %}disabled{% endif %}>
+                  <label class="att-pill att-pill-half" for="st_{{ row.teacher.id }}_H">Half Day</label>
+                </div>
               </td>
             </tr>
             {% empty %}
@@ -64,7 +342,73 @@
           </tbody>
         </table>
       </div>
+      <div class="att-roll-footer d-flex flex-wrap justify-content-end gap-2">
+        <button type="submit" class="btn text-white border-0 att-save-btn" {% if attendance_day_blocked %}disabled{% endif %}>
+          <i class="bi bi-cloud-upload me-1"></i>Save attendance
+        </button>
+      </div>
     </div>
   </form>
 </div>
+
+<script>
+(function () {
+  var q = document.getElementById("staff_q");
+  if (!q) return;
+  function normalizeStatus(v) {
+    v = (v || "").toLowerCase();
+    if (v === "present") return "present";
+    if (v === "absent") return "absent";
+    if (v === "leave") return "leave";
+    if (v === "half_day") return "half_day";
+    return "";
+  }
+  function refreshCountsAndRowStyles() {
+    var p = 0, a = 0, l = 0;
+    document.querySelectorAll("tr.staff-row").forEach(function (tr) {
+      tr.classList.remove("att-row-present", "att-row-absent", "att-row-leave", "att-row-half_day");
+      var checked = tr.querySelector('input[type="radio"]:checked');
+      var st = normalizeStatus(checked ? checked.value : "");
+      if (st) tr.classList.add("att-row-" + st);
+      if (st === "present") p++;
+      else if (st === "absent") a++;
+      else if (st === "leave") l++;
+    });
+    var elP = document.getElementById("staffCountP");
+    var elA = document.getElementById("staffCountA");
+    var elL = document.getElementById("staffCountL");
+    if (elP) elP.textContent = String(p);
+    if (elA) elA.textContent = String(a);
+    if (elL) elL.textContent = String(l);
+  }
+  function apply() {
+    var v = (q.value || "").trim().toLowerCase();
+    document.querySelectorAll("tr.staff-row").forEach(function (tr) {
+      var hay = tr.getAttribute("data-staff") || "";
+      tr.style.display = !v || hay.indexOf(v) !== -1 ? "" : "none";
+    });
+  }
+  q.addEventListener("input", apply);
+  document.addEventListener("change", function (e) {
+    if (e.target && e.target.matches('input[type="radio"][name^="status_"]')) {
+      refreshCountsAndRowStyles();
+    }
+  });
+
+  function setAll(val) {
+    document.querySelectorAll('tr.staff-row input[type="radio"][value="' + val + '"]').forEach(function (inp) {
+      if (!inp.disabled) inp.checked = true;
+    });
+    refreshCountsAndRowStyles();
+  }
+  var btnP = document.getElementById("staffAllPresent");
+  var btnA = document.getElementById("staffAllAbsent");
+  var btnL = document.getElementById("staffAllLeave");
+  if (btnP) btnP.addEventListener("click", function () { setAll("PRESENT"); });
+  if (btnA) btnA.addEventListener("click", function () { setAll("ABSENT"); });
+  if (btnL) btnL.addEventListener("click", function () { setAll("LEAVE"); });
+
+  refreshCountsAndRowStyles();
+})();
+</script>
 {% endblock %}

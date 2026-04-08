@@ -16,6 +16,7 @@ urlpatterns = [
     # Logout
     path("logout/", views.logout_view, name="logout"),
     path("account/profile/", views.account_profile, name="account_profile"),
+    path("account/settings/", views.account_settings, name="account_settings"),
     path("account/password/", views.change_password, name="change_password"),
     # First-login: force change password
     path("change-password/", views.change_password_first, name="change_password_first"),

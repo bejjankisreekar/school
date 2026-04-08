@@ -4,7 +4,7 @@ Uses analytics_scope (date range + class/section/year) for attendance aggregates
 """
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.db import connection
 from django.db.models import Count, Q, Sum
@@ -16,6 +16,53 @@ from apps.school_data.models import Attendance, ClassRoom, Exam, Marks, Section,
 
 from .analytics_scope import attendance_student_q
 from .students_by_class import get_students_by_class_data
+
+# Mon–Sat attendance pattern: aggregate all matching calendar weekdays in the analytics range.
+_WEEKDAY_SHORT_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+
+def _dates_by_weekday_mon_sat(d0: date, d1: date) -> dict[int, list[date]]:
+    """Map weekday (Mon=0 .. Sat=5) to dates in [d0, d1]. Sundays excluded."""
+    out: dict[int, list[date]] = {i: [] for i in range(6)}
+    d = d0
+    while d <= d1:
+        wd = d.weekday()
+        if wd < 6:
+            out[wd].append(d)
+        d += timedelta(days=1)
+    return out
+
+
+def _weekday_attendance_row(
+    base_q,
+    dates_by_wd: dict[int, list[date]],
+    *,
+    classroom_id: int | None,
+) -> tuple[list[float | None], list[str]]:
+    """One percentage + hint per Mon..Sat for the given scope (optional class filter)."""
+    pcts: list[float | None] = []
+    hints: list[str] = []
+    for wd in range(6):
+        dates = dates_by_wd[wd]
+        wlab = _WEEKDAY_SHORT_LABELS[wd]
+        if not dates:
+            pcts.append(None)
+            hints.append(f"No {wlab} in selected period")
+            continue
+        q = Attendance.objects.filter(base_q, date__in=dates)
+        if classroom_id is not None:
+            q = q.filter(student__classroom_id=classroom_id)
+        tot = q.count()
+        if tot < 1:
+            pcts.append(None)
+            hints.append(f"No marks on {wlab}s in period")
+        else:
+            pres = q.filter(status=Attendance.Status.PRESENT).count()
+            p = round(100.0 * pres / tot, 1)
+            pcts.append(p)
+            nd = len(dates)
+            hints.append(f"{pres} present of {tot} marks (all {wlab}s in range, {nd} day(s))")
+    return pcts, hints
 
 
 def _rollback_safely() -> None:
@@ -119,6 +166,10 @@ def extend_dashboard_charts_context(
     ctx.setdefault("dash_class_attendance_labels", [])
     ctx.setdefault("dash_class_attendance_pcts", [])
     ctx.setdefault("dash_has_class_attendance_chart", False)
+    ctx.setdefault("dash_weekday_short_labels", list(_WEEKDAY_SHORT_LABELS))
+    ctx.setdefault("dash_weekday_hub_pcts", [])
+    ctx.setdefault("dash_weekday_hub_hints", [])
+    ctx.setdefault("dash_class_weekday_pcts", [])
     ctx.setdefault("dash_age_labels", [])
     ctx.setdefault("dash_age_counts", [])
     ctx.setdefault("dash_has_age_chart", False)
@@ -295,6 +346,7 @@ def extend_dashboard_charts_context(
             cmap = {c.pk: c for c in ClassRoom.objects.filter(pk__in=uniq_ids)}
             labels_ca: list[str] = []
             pcts_ca: list[float] = []
+            class_ids_ca: list[int] = []
             base_scope = attendance_student_q(
                 school,
                 classroom_id=None,
@@ -317,11 +369,30 @@ def extend_dashboard_charts_context(
                 pres = marks.filter(status=Attendance.Status.PRESENT).count()
                 labels_ca.append(cls_obj.name)
                 pcts_ca.append(round(100.0 * pres / tot, 1))
+                class_ids_ca.append(cid)
             ctx["dash_class_attendance_labels"] = labels_ca
             ctx["dash_class_attendance_pcts"] = pcts_ca
             ctx["dash_has_class_attendance_chart"] = len(labels_ca) > 0
+
+            dates_by_wd = _dates_by_weekday_mon_sat(date_from, date_to)
+            hub_wd_pcts, hub_wd_hints = _weekday_attendance_row(
+                base_scope, dates_by_wd, classroom_id=None
+            )
+            ctx["dash_weekday_short_labels"] = list(_WEEKDAY_SHORT_LABELS)
+            ctx["dash_weekday_hub_pcts"] = hub_wd_pcts
+            ctx["dash_weekday_hub_hints"] = hub_wd_hints
+            class_wd: list[list[float | None]] = []
+            for cid in class_ids_ca:
+                row_pcts, _ = _weekday_attendance_row(
+                    base_scope, dates_by_wd, classroom_id=cid
+                )
+                class_wd.append(row_pcts)
+            ctx["dash_class_weekday_pcts"] = class_wd
         except (DatabaseError, InternalError, ProgrammingError):
             _rollback_safely()
+            ctx["dash_weekday_hub_pcts"] = []
+            ctx["dash_weekday_hub_hints"] = []
+            ctx["dash_class_weekday_pcts"] = []
 
     try:
         ctx["dash_class_student_attendance_rows"] = _build_class_student_attendance_rows(
@@ -543,6 +614,10 @@ def _bundle_from_ctx(ctx: dict) -> dict:
         "genderCenterExtra": ctx.get("dash_gender_center_extra") or "",
         "classAttendanceLabels": list(ctx.get("dash_class_attendance_labels") or []),
         "classAttendancePcts": list(ctx.get("dash_class_attendance_pcts") or []),
+        "weekdayShortLabels": list(ctx.get("dash_weekday_short_labels") or []),
+        "weekdayHubPcts": list(ctx.get("dash_weekday_hub_pcts") or []),
+        "weekdayHubHints": list(ctx.get("dash_weekday_hub_hints") or []),
+        "classWeekdayPcts": list(ctx.get("dash_class_weekday_pcts") or []),
         "ageLabels": list(ctx.get("dash_age_labels") or []),
         "ageCounts": list(ctx.get("dash_age_counts") or []),
         "attendanceStatusLabels": list(ctx.get("dash_attendance_status_labels") or []),

@@ -5,6 +5,7 @@ app_name = "timetable"
 
 urlpatterns = [
     path("school/timeslots/", views.school_timeslots, name="school_timeslots"),
+    path("school/timeslots/profiles/<int:profile_id>/edit/", views.school_schedule_profile_edit, name="school_schedule_profile_edit"),
     path("school/timeslots/<int:slot_id>/update/", views.school_timeslot_update, name="school_timeslot_update"),
     path("school/timeslots/<int:slot_id>/delete/", views.school_timeslot_delete, name="school_timeslot_delete"),
     path("school/timetable/", views.school_timetable_index, name="school_timetable_index"),

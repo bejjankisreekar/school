@@ -3,8 +3,33 @@
 
 {% block content %}
 <div class="container-fluid px-0">
-  <h1 class="h4 fw-bold mb-4">My Exams</h1>
-  <p class="text-muted mb-4">Each card is an exam session or a single exam. Open it to see the subject schedule and marks.</p>
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+    <div>
+      <h1 class="h4 fw-bold mb-1">My Exams</h1>
+      <p class="text-muted mb-0">Each card is an exam session or a single exam. Open it to see the subject schedule and marks.</p>
+    </div>
+    <div class="text-end">
+      <div class="small text-muted">Overall percentage</div>
+      <div class="d-flex align-items-center justify-content-end gap-2">
+        <button type="button"
+                class="badge bg-primary rounded-pill px-3 py-2 fs-6 border-0"
+                data-bs-toggle="modal"
+                data-bs-target="#overallPctModal"
+                title="Click to see how overall is calculated">
+          {{ overall_pct }}%
+        </button>
+        {% if overall_grade %}
+          <span class="badge bg-secondary" title="{{ overall_grade_tooltip|default:'' }}">{{ overall_grade }}</span>
+        {% endif %}
+        {% if overall_skipped_count %}
+          <span class="text-muted small"
+                title="{% if overall_has_any_result %}Skipped {{ overall_skipped_count }} pending result(s) in overall percentage.{% else %}No results published yet. Overall is shown as 0% for now.{% endif %}">
+            <i class="bi bi-info-circle"></i>
+          </span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
 
   {% if exams %}
     <div class="row g-3">
@@ -29,7 +54,9 @@
             <div class="d-flex justify-content-between align-items-center mt-3">
               {% if exam.overall_pct is not None %}
               <span class="badge bg-primary rounded-pill fs-6">{{ exam.overall_pct }}%</span>
-              {% if exam.grade %}<span class="badge bg-secondary me-1">{{ exam.grade }}</span>{% endif %}
+              {% if exam.grade %}
+                <span class="badge bg-secondary me-1" title="{{ exam.grade_tooltip|default:'' }}">{{ exam.grade }}</span>
+              {% endif %}
               {% else %}
               <span class="badge bg-light text-dark border rounded-pill fs-6">Awaiting results</span>
               {% endif %}
@@ -60,6 +87,84 @@
       </div>
     </div>
   {% endif %}
+</div>
+
+<div class="modal fade" id="overallPctModal" tabindex="-1" aria-labelledby="overallPctModalLabel" aria-hidden="true" data-bs-backdrop="false">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <div class="modal-header border-0 pb-0">
+        <div class="w-100">
+          <div class="d-flex align-items-start justify-content-between gap-3">
+            <div>
+              <h5 class="modal-title fw-bold" id="overallPctModalLabel">Overall percentage breakdown</h5>
+              <div class="text-muted small">
+                Overall is calculated using published marks only: total obtained ÷ total marks × 100.
+              </div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-body pt-3">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-primary rounded-pill px-3 py-2 fs-6">{{ overall_pct }}%</span>
+            {% if overall_grade %}<span class="badge bg-secondary">{{ overall_grade }}</span>{% endif %}
+          </div>
+          {% if overall_skipped_count %}
+          <div class="small text-muted">
+            <i class="bi bi-info-circle me-1"></i>
+            Skipped {{ overall_skipped_count }} pending result(s) (not published yet).
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Exam</th>
+                <th class="text-nowrap">Marks</th>
+                <th class="text-nowrap">%</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for exam in exams %}
+              <tr>
+                <td class="fw-semibold">{{ exam.exam_name }}</td>
+                <td class="text-nowrap">
+                  {% if exam.total_marks %}
+                    {{ exam.total_obtained }} / {{ exam.total_marks }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td class="text-nowrap">
+                  {% if exam.overall_pct is not None %}
+                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">{{ exam.overall_pct }}%</span>
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td>
+                  {% if exam.overall_pct is not None %}
+                    <span class="badge text-bg-success">Included</span>
+                  {% else %}
+                    <span class="badge text-bg-secondary">Pending</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <style>

@@ -1,6 +1,31 @@
 {% extends "base.html" %}
 {% block title %}{{ teacher.user.get_full_name|default:teacher.user.username }} - Attendance | School ERP{% endblock %}
 {% block content %}
+<style>
+  .staff-att-kpi-strip {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.6rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.25rem;
+  }
+  .staff-att-kpi-strip::-webkit-scrollbar { height: 6px; }
+  .staff-att-kpi-strip::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.35); border-radius: 999px; }
+  html.dark .staff-att-kpi-strip::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.28); }
+  .staff-att-kpi {
+    flex: 0 0 auto;
+    min-width: 135px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 0.85rem;
+    padding: 0.65rem 0.8rem;
+    background: rgba(148, 163, 184, 0.06);
+    text-align: left;
+  }
+  html.dark .staff-att-kpi { background: rgba(148, 163, 184, 0.10); border-color: rgba(148, 163, 184, 0.20); }
+  .staff-att-kpi .k-label { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bs-secondary-color); font-weight: 700; }
+  .staff-att-kpi .k-val { font-size: 1.15rem; font-weight: 800; line-height: 1.1; margin-top: 0.2rem; }
+</style>
 <div class="container-fluid px-0">
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
@@ -18,42 +43,34 @@
   <!-- Summary counts -->
   <div class="card border-0 shadow-sm rounded-4 mb-4">
     <div class="card-body py-3">
-      <div class="row g-2 g-md-3 text-center">
-        <div class="col-4 col-md-2">
-          <div class="border rounded-3 p-2">
-            <div class="small text-muted">Present</div>
-            <div class="h5 mb-0 text-success">{{ summary.present }}</div>
-          </div>
+      <div class="staff-att-kpi-strip" aria-label="Attendance summary">
+        <div class="staff-att-kpi">
+          <div class="k-label">Present</div>
+          <div class="k-val text-success">{{ summary.present }}</div>
         </div>
-        <div class="col-4 col-md-2">
-          <div class="border rounded-3 p-2">
-            <div class="small text-muted">Absent</div>
-            <div class="h5 mb-0 text-danger">{{ summary.absent }}</div>
-          </div>
+        <div class="staff-att-kpi">
+          <div class="k-label">Absent</div>
+          <div class="k-val text-danger">{{ summary.absent }}</div>
         </div>
-        <div class="col-4 col-md-2">
-          <div class="border rounded-3 p-2">
-            <div class="small text-muted">Leave</div>
-            <div class="h5 mb-0 text-warning">{{ summary.leave }}</div>
-          </div>
+        <div class="staff-att-kpi">
+          <div class="k-label">Leave</div>
+          <div class="k-val text-warning">{{ summary.leave }}</div>
         </div>
-        <div class="col-4 col-md-2">
-          <div class="border rounded-3 p-2">
-            <div class="small text-muted">Half Day</div>
-            <div class="h5 mb-0" style="color: #ea580c;">{{ summary.half_day }}</div>
-          </div>
+        <div class="staff-att-kpi">
+          <div class="k-label">Half Day</div>
+          <div class="k-val" style="color:#ea580c;">{{ summary.half_day }}</div>
         </div>
-        <div class="col-4 col-md-2">
-          <div class="border rounded-3 p-2">
-            <div class="small text-muted">Holiday</div>
-            <div class="h5 mb-0 text-secondary">{{ summary.holiday }}</div>
-          </div>
+        <div class="staff-att-kpi">
+          <div class="k-label">Holiday</div>
+          <div class="k-val text-secondary">{{ summary.holiday }}</div>
         </div>
-        <div class="col-4 col-md-2">
-          <div class="border rounded-3 p-2">
-            <div class="small text-muted">Working Days</div>
-            <div class="h5 mb-0">{{ working_days }}</div>
-          </div>
+        <div class="staff-att-kpi">
+          <div class="k-label">Working Days</div>
+          <div class="k-val">{{ working_days }}</div>
+        </div>
+        <div class="staff-att-kpi">
+          <div class="k-label">Not Marked</div>
+          <div class="k-val text-muted">{{ not_marked_days }}</div>
         </div>
       </div>
     </div>

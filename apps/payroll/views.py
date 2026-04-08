@@ -252,7 +252,22 @@ def salary_component_delete(request, pk):
 def salary_structure_list(request):
     if not request.user.school:
         return redirect("core:admin_dashboard")
-    structures = (
+    from django.core.paginator import Paginator
+    from django.db.models import Q
+
+    q = (request.GET.get("q") or "").strip()
+    try:
+        page = int(request.GET.get("page") or 1)
+    except Exception:
+        page = 1
+    try:
+        page_size = int(request.GET.get("page_size") or 10)
+    except Exception:
+        page_size = 10
+    if page_size not in (10, 20, 30, 50):
+        page_size = 10
+
+    structures_qs = (
         SalaryStructure.objects.select_related("teacher__user")
         .prefetch_related(
             Prefetch(
@@ -264,7 +279,28 @@ def salary_structure_list(request):
         )
         .order_by("teacher__user__first_name")
     )
-    return render(request, "payroll/salary_structure_list.html", {"structures": structures})
+    if q:
+        structures_qs = structures_qs.filter(
+            Q(teacher__user__first_name__icontains=q)
+            | Q(teacher__user__last_name__icontains=q)
+            | Q(teacher__user__username__icontains=q)
+            | Q(teacher__employee_id__icontains=q)
+            | Q(designation__icontains=q)
+            | Q(department__icontains=q)
+        )
+
+    paginator = Paginator(structures_qs, page_size)
+    structures_page = paginator.get_page(page)
+
+    return render(
+        request,
+        "payroll/salary_structure_list.html",
+        {
+            "structures": structures_page,
+            "filters": {"q": q, "page_size": page_size},
+            "page_size_options": [10, 20, 30, 50],
+        },
+    )
 
 
 @admin_required
@@ -273,12 +309,22 @@ def salary_structure_add(request):
     if not request.user.school:
         return redirect("core:admin_dashboard")
     from .forms import SalaryStructureForm
+    from apps.school_data.models import Teacher
     form = SalaryStructureForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         obj = form.save()
         messages.success(request, "Salary structure created. Set allowances and deductions below.")
         return redirect("payroll:salary_structure_edit", pk=obj.pk)
-    return render(request, "payroll/salary_structure_form.html", {"form": form, "title": "Add Salary Structure"})
+    teachers = list(
+        Teacher.objects.filter(user__school=request.user.school)
+        .select_related("user")
+        .order_by("user__first_name", "user__last_name", "employee_id", "id")
+    )
+    return render(
+        request,
+        "payroll/salary_structure_form.html",
+        {"form": form, "title": "Add Salary Structure", "teachers": teachers},
+    )
 
 
 @admin_required
@@ -345,6 +391,13 @@ def salary_structure_edit(request, pk):
         "net": structure.net_salary(advance_ded),
     }
 
+    from apps.school_data.models import Teacher
+
+    teachers = list(
+        Teacher.objects.filter(user__school=request.user.school)
+        .select_related("user")
+        .order_by("user__first_name", "user__last_name", "employee_id", "id")
+    )
     return render(
         request,
         "payroll/salary_structure_form.html",
@@ -355,6 +408,7 @@ def salary_structure_edit(request, pk):
             "allowance_lines": allowance_lines,
             "deduction_lines": deduction_lines,
             "structure_preview": structure_preview,
+            "teachers": teachers,
         },
     )
 

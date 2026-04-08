@@ -45,6 +45,18 @@ class ScheduleProfile(models.Model):
 
 class TimeSlot(models.Model):
     """Tenant model - schema defines school."""
+    class SlotType(models.TextChoices):
+        TEACHING = "TEACHING", "Teaching period"
+        STUDY = "STUDY", "Study hours"
+        READING = "READING", "Reading"
+        GAMES = "GAMES", "Games"
+        PRACTICAL = "PRACTICAL", "Practical / Lab"
+        DOUBT = "DOUBT", "Doubt Clearing Session"
+        PROJECT = "PROJECT", "Project Work"
+        COMPUTER_LAB = "COMPUTER_LAB", "Computer Lab"
+        OTHER = "OTHER", "Other"
+        BREAK = "BREAK", "Break"
+
     class BreakType(models.TextChoices):
         NONE = "NONE", "None"
         SHORT_BREAK = "SHORT_BREAK", "Short Break"
@@ -60,6 +72,12 @@ class TimeSlot(models.Model):
     start_time = models.TimeField()
     end_time = models.TimeField()
     is_break = models.BooleanField(default=False)
+    slot_type = models.CharField(
+        max_length=20,
+        choices=SlotType.choices,
+        default=SlotType.TEACHING,
+    )
+    slot_label = models.CharField(max_length=60, blank=True, default="")
     break_type = models.CharField(
         max_length=20,
         choices=BreakType.choices,
@@ -82,8 +100,15 @@ class TimeSlot(models.Model):
     def save(self, *args, **kwargs):
         if not self.is_break:
             self.break_type = self.BreakType.NONE
+            if self.slot_type == self.SlotType.BREAK:
+                self.slot_type = self.SlotType.TEACHING
         elif self.is_break and self.break_type == self.BreakType.NONE:
             self.break_type = self.BreakType.SHORT_BREAK
+        if self.is_break:
+            self.slot_type = self.SlotType.BREAK
+            self.slot_label = ""
+        if self.slot_type != self.SlotType.OTHER:
+            self.slot_label = ""
         super().save(*args, **kwargs)
 
 

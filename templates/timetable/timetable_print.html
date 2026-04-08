@@ -40,11 +40,11 @@
       background: #f1f5f9;
     }
     .print-controls .btn-print {
-      background: #4f46e5;
+      background: #0f172a;
       color: #fff;
-      border-color: #4f46e5;
+      border-color: #0f172a;
     }
-    .print-controls .btn-print:hover { background: #4338ca; }
+    .print-controls .btn-print:hover { background: #111827; }
 
     .header {
       display: flex;
@@ -121,7 +121,7 @@
       width: 100%;
       border-collapse: collapse;
       margin: 20px 0;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      box-shadow: none;
     }
     th, td {
       border: 1px solid #cbd5e1;
@@ -130,8 +130,8 @@
       vertical-align: middle;
     }
     th {
-      background: #1e293b;
-      color: #fff;
+      background: #f1f5f9;
+      color: #0f172a;
       font-weight: 600;
       font-size: 10pt;
     }
@@ -142,7 +142,7 @@
     }
     .time-header {
       min-width: 100px;
-      background: #334155;
+      background: #f1f5f9;
     }
     .subject-cell {
       min-width: 100px;
@@ -152,10 +152,13 @@
     .subject-cell .subj-name { font-weight: 600; display: block; }
     .subject-cell .teacher-name { font-size: 9pt; color: #475569; }
     .break-cell {
-      background: #e2e8f0;
-      color: #64748b;
+      background: #f8fafc;
+      color: #475569;
       font-size: 10pt;
     }
+
+    /* Keep the entire print layout simple and monochrome */
+    .subject-cell { background: #fff !important; }
 
     .signature-section {
       margin-top: 40px;
@@ -203,7 +206,6 @@
 <body>
   <div class="print-controls no-print">
     <button onclick="window.print()" class="btn-print">Print</button>
-    <a href="{% url 'timetable:school_timetable_pdf' classroom.id %}">Download PDF</a>
   </div>
 
   <div class="header">
@@ -251,7 +253,7 @@
         <td class="day-col">{{ row.day_name }}</td>
         {% for s in row.slots %}
         <td class="{% if s.slot.is_break %}break-cell{% else %}subject-cell{% endif %}"
-            {% if not s.slot.is_break and s.bg_color %}style="background-color: {{ s.bg_color }};"{% endif %}>
+        >
           {% if s.slot.is_break %}
             {% if s.slot.break_type == 'SHORT_BREAK' %}Short Break{% else %}Lunch Break{% endif %}
           {% else %}

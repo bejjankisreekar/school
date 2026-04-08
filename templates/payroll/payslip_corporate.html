@@ -225,6 +225,12 @@
               </tr>
               {% endfor %}
             </table>
+            <table class="line-table" style="margin-top:10px;border-top:1px solid rgba(148,163,184,.35);">
+              <tr>
+                <td style="font-weight:700;">Gross earnings</td>
+                <td style="font-weight:700;">&#8377;{{ gross_earnings|inr:0 }}</td>
+              </tr>
+            </table>
           </div>
         </div>
       </td>
@@ -242,6 +248,12 @@
               </tr>
               {% endfor %}
             </table>
+            <table class="line-table" style="margin-top:10px;border-top:1px solid rgba(148,163,184,.35);">
+              <tr>
+                <td style="font-weight:700;">Total deductions</td>
+                <td style="font-weight:700;">&#8377;{{ payslip.total_deductions|inr:0 }}</td>
+              </tr>
+            </table>
           </div>
         </div>
       </td>
@@ -255,22 +267,6 @@
         <tr><td>Total deductions</td><td>&#8377;{{ payslip.total_deductions|inr:0 }}</td></tr>
         <tr><td class="net-highlight">Net salary payable</td><td class="net-highlight">NET PAY: &#8377;{{ payslip.net_salary|inr:0 }}</td></tr>
         <tr><td colspan="2" class="net-words">({{ net_salary_words }})</td></tr>
-      </table>
-    </div>
-
-    <div class="card att-card">
-      <p class="card-title">Attendance / leave summary</p>
-      <table class="att-table">
-        <tr>
-          <th>Working days</th><th>Present</th><th>Paid leave</th><th>LOP</th><th>OT (hrs)</th>
-        </tr>
-        <tr>
-          <td>{{ teacher_meta.working_days }}</td>
-          <td>{{ teacher_meta.present_days }}</td>
-          <td>{{ teacher_meta.paid_leave_days }}</td>
-          <td>{{ teacher_meta.lop_days }}</td>
-          <td>{{ teacher_meta.overtime_hours }}</td>
-        </tr>
       </table>
     </div>
 

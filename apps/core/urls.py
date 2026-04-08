@@ -208,6 +208,7 @@ urlpatterns = [
     path("school/subjects/<int:subject_id>/edit/", views.school_subject_edit, name="school_subject_edit"),
     path("school/subjects/<int:subject_id>/delete/", views.school_subject_delete, name="school_subject_delete"),
     path("school/calendar/holidays/", views.school_calendar_holidays, name="school_calendar_holidays"),
+    path("school/settings/grading/", views.school_grading_settings, name="school_grading_settings"),
     path("attendance/", views.attendance_list, name="attendance_list"),
     path("marks/", views.marks_list, name="marks_list"),
     path("homework/", views.homework_list, name="homework_list"),
@@ -438,11 +439,8 @@ urlpatterns = [
     path("school/staff-attendance/<int:teacher_id>/", views.school_staff_attendance_detail, name="school_staff_attendance_detail"),
     path("school/staff-attendance/mark/", views.school_staff_attendance_mark, name="school_staff_attendance_mark"),
 
-    # Inventory
-    path("school/inventory/", views.school_inventory_index, name="school_inventory_index"),
-    path("school/inventory/item/add/", views.school_inventory_item_add, name="school_inventory_item_add"),
-    path("school/inventory/purchase/add/", views.school_purchase_add, name="school_purchase_add"),
-    path("school/invoices/", views.school_invoices_list, name="school_invoices_list"),
+    # Inventory (removed: keep friendly screen for old links)
+    path("school/inventory/", views.school_inventory_removed, name="school_inventory_removed"),
 
     # AI Reports
     path("school/ai-reports/", views.school_ai_reports, name="school_ai_reports"),
@@ -471,8 +469,20 @@ urlpatterns = [
     path("school/hostel/<int:hostel_id>/room/add/", views.school_hostel_room_add, name="school_hostel_room_add"),
     path("school/hostel/allocate/", views.school_hostel_allocate, name="school_hostel_allocate"),
     path("school/transport/", views.school_transport_index, name="school_transport_index"),
+    path("school/transport/routes/", views.school_transport_routes, name="school_transport_routes"),
     path("school/transport/route/add/", views.school_transport_route_add, name="school_transport_route_add"),
+    path("school/transport/route/<int:route_id>/", views.school_transport_route_view, name="school_transport_route_view"),
+    path("school/transport/route/<int:route_id>/edit/", views.school_transport_route_edit, name="school_transport_route_edit"),
+    path("school/transport/route/<int:route_id>/delete/", views.school_transport_route_delete, name="school_transport_route_delete"),
+    path("school/transport/vehicles/", views.school_transport_vehicles, name="school_transport_vehicles"),
     path("school/transport/vehicle/add/", views.school_transport_vehicle_add, name="school_transport_vehicle_add"),
+    path("school/transport/vehicle/<int:vehicle_id>/", views.school_transport_vehicle_view, name="school_transport_vehicle_view"),
+    path("school/transport/vehicle/<int:vehicle_id>/edit/", views.school_transport_vehicle_edit, name="school_transport_vehicle_edit"),
+    path("school/transport/vehicle/<int:vehicle_id>/delete/", views.school_transport_vehicle_delete, name="school_transport_vehicle_delete"),
+    path("school/transport/assignments/", views.school_transport_assignments, name="school_transport_assignments"),
     path("school/transport/assign/", views.school_transport_assign, name="school_transport_assign"),
+    path("school/transport/assignment/<int:assignment_id>/", views.school_transport_assignment_view, name="school_transport_assignment_view"),
+    path("school/transport/assignment/<int:assignment_id>/edit/", views.school_transport_assignment_edit, name="school_transport_assignment_edit"),
+    path("school/transport/assignment/<int:assignment_id>/delete/", views.school_transport_assignment_delete, name="school_transport_assignment_delete"),
     path("school/branding/", views.school_branding, name="school_branding"),
 ]

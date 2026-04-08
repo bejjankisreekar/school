@@ -236,7 +236,30 @@ def change_password(request):
         messages.success(request, "Your password was updated successfully.")
         return _dashboard_redirect_for_user(request.user)
 
-    return render(request, "accounts/change_password.html", {"form": form})
+    dash_url, dash_label = _profile_breadcrumb_home(request.user)
+    return render(
+        request,
+        "accounts/change_password.html",
+        {
+            "form": form,
+            "settings_dashboard_url": dash_url,
+            "settings_dashboard_label": dash_label,
+        },
+    )
+
+
+@login_required
+def account_settings(request):
+    """Settings landing page for all roles."""
+    dash_url, dash_label = _profile_breadcrumb_home(request.user)
+    return render(
+        request,
+        "accounts/account_settings.html",
+        {
+            "settings_dashboard_url": dash_url,
+            "settings_dashboard_label": dash_label,
+        },
+    )
 
 
 def logout_view(request):

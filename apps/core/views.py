@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
 from django.core.files.storage import default_storage
 from django.http import Http404, HttpResponse, JsonResponse, HttpResponseForbidden
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_POST, require_http_methods
 from django.urls import reverse
 from django.core.exceptions import PermissionDenied
 from datetime import date, timedelta
@@ -586,7 +586,7 @@ def superadmin_global_students(request):
         status=status,
         search=search,
         fee_filter=fee_filter,
-        today=date.today(),
+        today=timezone.localdate(),
     )
     sort_student_rows(rows, sort)
 
@@ -722,7 +722,7 @@ def superadmin_subscription_payments(request):
     ).order_by("-payment_date", "-id")
     paginator = Paginator(qs, 40)
     page = paginator.get_page(request.GET.get("page", 1))
-    today = date.today()
+    today = timezone.localdate()
     month_start = today.replace(day=1)
     year_start = today.replace(month=1, day=1)
     month_total = SaaSPlatformPayment.objects.filter(
@@ -752,7 +752,7 @@ def superadmin_record_subscription_payment(request):
     if request.method == "POST":
         form = SaaSPlatformPaymentForm(request.POST)
     else:
-        initial = {"payment_date": date.today()}
+        initial = {"payment_date": timezone.localdate()}
         raw_school = request.GET.get("school")
         if raw_school:
             try:
@@ -1117,7 +1117,7 @@ def admin_dashboard(request):
         "recent_activities": [],
         "dashboard_sparse": True,
         "admin_display_name": "",
-        "today_iso": date.today().isoformat(),
+        "today_iso": timezone.localdate().isoformat(),
     }
     if not school:
         return render(request, "core/dashboards/admin_dashboard.html", empty_ctx)
@@ -1754,8 +1754,8 @@ def student_dashboard(request):
                 "calendar_next_year": "",
                 "calendar_prev_disabled": True,
                 "calendar_next_disabled": True,
-                "calendar_today_month": date.today().month,
-                "calendar_today_year": date.today().year,
+                "calendar_today_month": timezone.localdate().month,
+                "calendar_today_year": timezone.localdate().year,
                 "calendar_showing_today_month": True,
                 "current_streak": 0,
                 "best_streak": 0,
@@ -2150,6 +2150,195 @@ def _grade_from_pct(pct):
     return "F"
 
 
+def _default_grade_policy() -> list[dict]:
+    """
+    Min % is inclusive lower bound; next higher band caps the range.
+    F: 0–34%, E: 35–50%, D: 51–59%, C: 60–69%, B: 70–79%, A: 80–89%, A+: 90%+.
+    """
+    return [
+        {"grade": "A+", "min_pct": 90, "enabled": True},
+        {"grade": "A", "min_pct": 80, "enabled": True},
+        {"grade": "B", "min_pct": 70, "enabled": True},
+        {"grade": "C", "min_pct": 60, "enabled": True},
+        {"grade": "D", "min_pct": 51, "enabled": True},
+        {"grade": "E", "min_pct": 35, "enabled": True},
+        {"grade": "F", "min_pct": 0, "enabled": True},
+    ]
+
+
+def _grade_policy_key_for_school(school) -> str:
+    return f"school:{school.id}:grading_policy"
+
+
+def _get_grade_policy_for_school(school) -> list[dict]:
+    """
+    Per-school grading policy stored in public schema `PlatformSettings` as JSON.
+    If missing/invalid, falls back to default policy.
+    """
+    if not school:
+        return _default_grade_policy()
+    try:
+        from apps.customers.models import PlatformSettings
+
+        row = PlatformSettings.objects.filter(key=_grade_policy_key_for_school(school)).first()
+        raw = (row.value or {}) if row else {}
+        bands = raw.get("bands")
+        if not isinstance(bands, list) or not bands:
+            return _default_grade_policy()
+        cleaned = []
+        for b in bands:
+            if not isinstance(b, dict):
+                continue
+            g = (b.get("grade") or "").strip()
+            try:
+                mp = int(b.get("min_pct"))
+            except Exception:
+                continue
+            if not g:
+                continue
+            if mp < 0:
+                mp = 0
+            if mp > 100:
+                mp = 100
+            en = b.get("enabled", True)
+            if isinstance(en, str):
+                en = en.strip().lower() in ("1", "true", "yes", "on")
+            cleaned.append({"grade": g, "min_pct": mp, "enabled": bool(en)})
+        cleaned.sort(key=lambda x: x["min_pct"], reverse=True)
+        return cleaned or _default_grade_policy()
+    except Exception:
+        return _default_grade_policy()
+
+
+def _active_grade_bands(bands: list[dict]) -> list[dict]:
+    """Only enabled bands, sorted by min_pct descending (highest threshold first)."""
+    out = []
+    for b in bands or []:
+        if b.get("enabled", True) is False:
+            continue
+        out.append(b)
+    out.sort(key=lambda x: int(x.get("min_pct", 0)), reverse=True)
+    return out
+
+
+def _grade_from_pct_with_policy(pct: float | None, bands: list[dict]) -> str:
+    if pct is None:
+        return "—"
+    try:
+        p = float(pct)
+    except Exception:
+        return "—"
+    for b in _active_grade_bands(bands):
+        try:
+            if p >= float(b.get("min_pct", 0)):
+                return str(b.get("grade") or "").strip() or "—"
+        except Exception:
+            continue
+    return "—"
+
+
+def _grade_tooltip_map(bands: list[dict]) -> dict:
+    """
+    Map grade -> human tooltip (enabled bands only). Ranges use the next enabled higher min − 0.1.
+    """
+    cleaned = []
+    for b in _active_grade_bands(bands):
+        g = (b.get("grade") or "").strip()
+        try:
+            mp = float(b.get("min_pct"))
+        except Exception:
+            continue
+        if g:
+            cleaned.append((g, mp))
+    cleaned.sort(key=lambda x: x[1], reverse=True)
+    out = {}
+    for i, (g, mp) in enumerate(cleaned):
+        if i == 0:
+            out[g] = f"{g}: {int(mp)}% and above"
+        else:
+            upper = cleaned[i - 1][1] - 0.1
+            out[g] = f"{g}: {int(mp)}% – {upper:.1f}%"
+    return out
+
+
+def _grading_policy_signature(bands: list[dict]) -> tuple:
+    """Stable compare for 'matches system default' (grade, min_pct, enabled)."""
+    norm = []
+    for b in bands or []:
+        norm.append(
+            (
+                str(b.get("grade") or "").strip().upper(),
+                int(b.get("min_pct") or 0),
+                bool(b.get("enabled", True)),
+            )
+        )
+    return tuple(sorted(norm, key=lambda x: (-x[1], x[0])))
+
+
+@admin_required
+@require_http_methods(["GET", "POST"])
+def school_grading_settings(request):
+    """School admin: configure grade boundaries (percent-based)."""
+    school = getattr(request.user, "school", None)
+    if not school:
+        add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
+        return redirect("core:admin_dashboard")
+
+    default_bands = _default_grade_policy()
+    bands = _get_grade_policy_for_school(school)
+    is_default = _grading_policy_signature(bands) == _grading_policy_signature(default_bands)
+
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip()
+        if action == "reset_default":
+            new_bands = [dict(b) for b in default_bands]
+        else:
+            grades = request.POST.getlist("grade")
+            mins = request.POST.getlist("min_pct")
+            new_bands = []
+            for i, (g, m) in enumerate(zip(grades, mins, strict=False)):
+                gg = (g or "").strip()
+                if not gg:
+                    continue
+                try:
+                    mp = int(str(m).strip())
+                except Exception:
+                    mp = 0
+                mp = max(0, min(100, mp))
+                enabled = request.POST.get(f"enabled_{i}") == "1"
+                new_bands.append({"grade": gg, "min_pct": mp, "enabled": enabled})
+            if not new_bands:
+                new_bands = [dict(b) for b in default_bands]
+            if all(int(b.get("min_pct") or 0) != 0 for b in new_bands):
+                new_bands.append({"grade": "F", "min_pct": 0, "enabled": True})
+            if not any(b.get("enabled", True) for b in new_bands):
+                messages.error(request, "Enable at least one grade.")
+                return redirect("core:school_grading_settings")
+            new_bands.sort(key=lambda x: int(x.get("min_pct") or 0), reverse=True)
+
+        try:
+            from apps.customers.models import PlatformSettings
+
+            PlatformSettings.objects.update_or_create(
+                key=_grade_policy_key_for_school(school),
+                defaults={"value": {"bands": new_bands}},
+            )
+            messages.success(request, "Grading system updated.")
+        except Exception:
+            messages.error(request, "Could not save grading settings. Please try again.")
+        return redirect("core:school_grading_settings")
+
+    return render(
+        request,
+        "core/school/settings/grading.html",
+        {
+            "bands": bands,
+            "is_default": is_default,
+            "preview": _grade_tooltip_map(bands),
+        },
+    )
+
+
 def _build_attendance_heatmap(records, start_date, end_date):
     """Build heatmap day cells between start_date and end_date (inclusive)."""
     by_date = {r.date: r.status for r in records}
@@ -2474,7 +2663,7 @@ def student_attendance(request):
     records = list(attendance_page.object_list)
     heatmap_days = _build_attendance_heatmap(list(reversed(records)), from_dt, to_dt)
     calendar_cells = (
-        _build_calendar_data(records, year_int, month_int, highlight_today=date.today())
+        _build_calendar_data(records, year_int, month_int, highlight_today=timezone.localdate())
         if view_type == "monthly"
         else []
     )
@@ -2612,6 +2801,7 @@ def _student_exam_summaries(student):
     Build summary list for the student: one row per exam *session* (all subjects aggregated),
     plus one row per legacy standalone exam paper (no session).
     """
+    bands = _get_grade_policy_for_school(getattr(getattr(student, "user", None), "school", None))
     exams = []
     exam_marks = (
         Marks.objects.filter(student=student, exam__isnull=False)
@@ -2658,8 +2848,10 @@ def _student_exam_summaries(student):
             "date_min": dmin,
             "date_max": dmax,
             "total_subjects": len({x.subject_id for x in marks}),
+            "total_obtained": total_o,
+            "total_marks": total_m,
             "overall_pct": pct,
-            "grade": _grade_from_pct(pct),
+            "grade": _grade_from_pct_with_policy(pct, bands),
             "has_marks": total_m > 0,
         })
 
@@ -2680,8 +2872,10 @@ def _student_exam_summaries(student):
             "date_min": ex.date,
             "date_max": ex.date,
             "total_subjects": len(marks),
+            "total_obtained": total_o,
+            "total_marks": total_m,
             "overall_pct": pct,
-            "grade": _grade_from_pct(pct),
+            "grade": _grade_from_pct_with_policy(pct, bands),
             "has_marks": total_m > 0,
         })
 
@@ -2714,6 +2908,8 @@ def _student_exam_summaries(student):
                 "date_min": sess.dmin,
                 "date_max": sess.dmax,
                 "total_subjects": sess.paper_count,
+                "total_obtained": None,
+                "total_marks": None,
                 "overall_pct": None,
                 "grade": "—",
                 "has_marks": False,
@@ -2785,7 +2981,36 @@ def student_exams_list(request):
     if not student:
         return render(request, "core/student/exams_list.html", {"exams": []})
     exams = _student_exam_summaries(student)
-    return render(request, "core/student/exams_list.html", {"exams": exams})
+    bands = _get_grade_policy_for_school(getattr(request.user, "school", None))
+    tooltip_map = _grade_tooltip_map(bands)
+    # Overall should be based on published marks only (pending sessions are skipped).
+    agg = (
+        Marks.objects.filter(student=student, exam__isnull=False)
+        .aggregate(
+            total_obtained=Sum("marks_obtained"),
+            total_marks=Sum("total_marks"),
+        )
+    )
+    total_o = float(agg.get("total_obtained") or 0)
+    total_m = float(agg.get("total_marks") or 0)
+    overall_pct = round((total_o / total_m * 100), 1) if total_m else 0.0
+    for e in exams:
+        g = e.get("grade")
+        e["grade_tooltip"] = tooltip_map.get(g or "", "")
+    skipped = sum(1 for e in exams if e.get("overall_pct") is None)
+    return render(
+        request,
+        "core/student/exams_list.html",
+        {
+            "exams": exams,
+            "overall_pct": overall_pct,
+            "overall_grade": _grade_from_pct_with_policy(overall_pct, bands),
+            "overall_grade_tooltip": tooltip_map.get(_grade_from_pct_with_policy(overall_pct, bands), ""),
+            "overall_skipped_count": skipped,
+            "overall_has_any_result": bool(total_m),
+            "grade_tooltips": tooltip_map,
+        },
+    )
 
 
 def _examsession_queryset():
@@ -2835,6 +3060,8 @@ def student_exam_session_detail(request, session_id):
     }
     schedule_rows = []
     total_o = total_m = 0
+    bands = _get_grade_policy_for_school(getattr(request.user, "school", None))
+    tooltip_map = _grade_tooltip_map(bands)
     for p in papers:
         mk = marks_by_exam_id.get(p.id)
         if mk:
@@ -2845,6 +3072,7 @@ def student_exam_session_detail(request, session_id):
             if mk and mk.total_marks
             else None
         )
+        g = _grade_from_pct_with_policy(pct, bands) if pct is not None else "—"
         schedule_rows.append({
             "paper": p,
             "subject": p.subject.name if p.subject else "—",
@@ -2853,9 +3081,11 @@ def student_exam_session_detail(request, session_id):
             "end_time": p.end_time,
             "mark": mk,
             "pct": pct,
-            "grade": _grade_from_pct(pct) if pct is not None else "—",
+            "grade": g,
+            "grade_tooltip": tooltip_map.get(g, ""),
         })
     overall_pct = round((total_o / total_m * 100), 1) if total_m else None
+    overall_grade = _grade_from_pct_with_policy(overall_pct, bands) if overall_pct is not None else "—"
     return render(
         request,
         "core/student/exam_session_detail.html",
@@ -2863,7 +3093,9 @@ def student_exam_session_detail(request, session_id):
             "session": session_obj,
             "schedule_rows": schedule_rows,
             "overall_pct": overall_pct,
-            "grade": _grade_from_pct(overall_pct) if overall_pct is not None else "—",
+            "grade": overall_grade,
+            "overall_grade_tooltip": tooltip_map.get(overall_grade, ""),
+            "grade_tooltips": tooltip_map,
         },
     )
 
@@ -4618,6 +4850,7 @@ def school_teacher_edit(request, teacher_id):
             teacher.user.first_name = data.get("first_name") or ""
             teacher.user.last_name = data.get("last_name") or ""
             teacher.user.email = (data.get("email") or "").strip()
+            teacher.user.username = (data.get("username") or "").strip()
             teacher.user.role = data.get("role")
             teacher.user.is_active = is_active
             pwd = (data.get("password") or "").strip()
@@ -6180,7 +6413,7 @@ def homework_list(request):
                 "homework_list": homework_list,
                 "classrooms": classrooms,
                 "filters": {"classroom": classroom_filter},
-                "today": date.today(),
+                "today": timezone.localdate(),
             },
         )
 
@@ -7685,6 +7918,9 @@ def school_exam_create(request):
                             date=dt,
                             start_time=single_form.cleaned_data.get("start_time"),
                             end_time=single_form.cleaned_data.get("end_time"),
+                            room=(single_form.cleaned_data.get("room") or "").strip()[:120],
+                            details=(single_form.cleaned_data.get("details") or "").strip(),
+                            topics=(single_form.cleaned_data.get("topics") or "").strip(),
                             subject=subj,
                             total_marks=tm,
                             teacher=paper_teacher,
@@ -8087,8 +8323,18 @@ def _exam_enter_marks_view(request, exam_id, *, acting_as_admin):
             user__school=school,
         )
         .select_related("user")
-        .order_by("roll_number")
+        .order_by("roll_number", "user__first_name", "user__last_name", "user__username")
     )
+
+    # Roll number is stored as text in some setups; always sort numerically when possible.
+    # Do it in Python to avoid DB-specific regex/cast behavior.
+    def _roll_sort_key(s):
+        raw = (getattr(s, "roll_number", "") or "").strip()
+        if raw.isdigit():
+            return (0, int(raw), raw)
+        return (1, 10**18, raw)
+
+    students.sort(key=_roll_sort_key)
     subject = None
     if subject_id:
         subject = subjects.filter(id=subject_id).first()
@@ -8589,7 +8835,7 @@ def mark_attendance(request):
             att.save()
             return redirect("core:teacher_dashboard")
     else:
-        form = AttendanceForm(initial={"date": date.today()})
+        form = AttendanceForm(initial={"date": timezone.localdate()})
         if allowed_pairs_raw:
             students_q = Q()
             for class_name, section_name in allowed_pairs_raw:
@@ -9139,6 +9385,9 @@ def school_staff_attendance_detail(request, teacher_id):
                    "HALF_DAY": "half_day", "HOLIDAY": "holiday"}.get(rec.status, "other")
             summary[key] = summary.get(key, 0) + 1
 
+    marked_days = sum(summary.values())
+    not_marked_days = max(0, working_days - marked_days)
+
     return render(request, "core/staff_attendance/detail.html", {
         "teacher": teacher,
         "calendar_cells": cells,
@@ -9147,6 +9396,7 @@ def school_staff_attendance_detail(request, teacher_id):
         "next_month": next_month,
         "summary": summary,
         "working_days": working_days,
+        "not_marked_days": not_marked_days,
         "today": today,
     })
 
@@ -9158,11 +9408,11 @@ def school_staff_attendance_mark(request):
     if not school:
         return redirect("core:admin_dashboard")
     teachers = Teacher.objects.filter(user__school=school).select_related("user").order_by("user__first_name", "user__last_name")
-    att_date_str = request.POST.get("date") or request.GET.get("date", date.today().isoformat())
+    att_date_str = request.POST.get("date") or request.GET.get("date", timezone.localdate().isoformat())
     try:
         att_date = date.fromisoformat(att_date_str)
     except (ValueError, TypeError):
-        att_date = date.today()
+        att_date = timezone.localdate()
         att_date_str = att_date.isoformat()
 
     from apps.school_data.calendar_policy import academic_year_for_date, resolve_day
@@ -9280,6 +9530,9 @@ def school_calendar_holidays(request):
 
     year = _parse_int(request.GET.get("year")) or today.year
     month = _parse_int(request.GET.get("month")) or today.month
+    view_mode = (request.GET.get("view") or "month").strip().lower()
+    if view_mode not in ("month", "year"):
+        view_mode = "month"
     if month < 1:
         month = 1
     if month > 12:
@@ -9321,8 +9574,12 @@ def school_calendar_holidays(request):
                 audience = pa
 
         def _hol_redirect():
+            view_mode_post = (request.POST.get("planner_view") or "").strip().lower()
+            if view_mode_post in ("month", "year"):
+                nonlocal view_mode
+                view_mode = view_mode_post
             return redirect(
-                f"{reverse('core:school_calendar_holidays')}?{urlencode({'ay': ay.id, 'year': year, 'month': month, 'audience': audience})}"
+                f"{reverse('core:school_calendar_holidays')}?{urlencode({'ay': ay.id, 'year': year, 'month': month, 'audience': audience, 'view': view_mode})}"
             )
 
         form_type = (request.POST.get("form_type") or "").strip()
@@ -9402,6 +9659,18 @@ def school_calendar_holidays(request):
     month_cells_teacher = build_month_cells(year, month, cal, audience="teacher")
     month_cells = month_cells_teacher if audience == "teacher" else month_cells_student
 
+    year_months_student = []
+    year_months_teacher = []
+    if view_mode == "year":
+        for m in range(1, 13):
+            year_months_student.append(
+                {"month": m, "label": date(year, m, 1).strftime("%b"), "cells": build_month_cells(year, m, cal, audience="student")}
+            )
+            year_months_teacher.append(
+                {"month": m, "label": date(year, m, 1).strftime("%b"), "cells": build_month_cells(year, m, cal, audience="teacher")}
+            )
+    year_months = year_months_teacher if audience == "teacher" else year_months_student
+
     prev_m, prev_y = (month - 1, year) if month > 1 else (12, year - 1)
     next_m, next_y = (month + 1, year) if month < 12 else (1, year + 1)
 
@@ -9423,6 +9692,8 @@ def school_calendar_holidays(request):
             "month_cells": month_cells,
             "month_cells_student": month_cells_student,
             "month_cells_teacher": month_cells_teacher,
+            "view_mode": view_mode,
+            "year_months": year_months,
             "audience": audience,
             "prev_month": prev_m,
             "prev_year": prev_y,
@@ -9448,6 +9719,24 @@ def school_inventory_index(request):
     items = InventoryItem.objects.all()
     purchases = Purchase.objects.all().select_related("inventory_item").order_by("-purchase_date")[:15]
     return render(request, "core/inventory/index.html", {"items": items, "purchases": purchases})
+
+
+@login_required
+def school_inventory_removed(request):
+    """
+    Inventory module entrypoint (removed).
+    Keep a friendly screen instead of Django technical 404 for old bookmarks/links.
+    """
+    return render(
+        request,
+        "core/errors/module_removed.html",
+        {
+            "title": "Inventory",
+            "message": "This module is not available in this ERP.",
+            "back_url_name": "core:admin_dashboard",
+        },
+        status=410,
+    )
 
 
 @admin_required
@@ -9750,7 +10039,7 @@ def school_library_return(request, issue_id):
     issue = get_object_or_404(BookIssue, id=issue_id)
     if request.method == "POST":
         from decimal import Decimal
-        ret_date = date.today()
+        ret_date = timezone.localdate()
         issue.return_date = ret_date
         if ret_date > issue.due_date:
             days_late = (ret_date - issue.due_date).days
@@ -9855,8 +10144,28 @@ def school_transport_index(request):
         return redirect("core:admin_dashboard")
     routes = Route.objects.all()
     vehicles = Vehicle.objects.all().select_related("route")
-    assignments = StudentRouteAssignment.objects.all().select_related("student__user", "route")
-    return render(request, "core/transport/index.html", {"routes": routes, "vehicles": vehicles, "assignments": assignments})
+    assignments = StudentRouteAssignment.objects.all().select_related("student__user", "route", "vehicle")
+    return render(
+        request,
+        "core/transport/index.html",
+        {
+            "routes": routes,
+            "vehicles": vehicles,
+            "assignments": assignments,
+            "routes_count": routes.count(),
+            "vehicles_count": vehicles.count(),
+            "assignments_count": assignments.count(),
+        },
+    )
+
+
+@admin_required
+def school_transport_routes(request):
+    school = _school_module_check(request, "transport")
+    if not school:
+        return redirect("core:admin_dashboard")
+    routes = Route.objects.all().order_by("name")
+    return render(request, "core/transport/routes_list.html", {"routes": routes})
 
 
 @admin_required
@@ -9870,10 +10179,51 @@ def school_transport_route_add(request):
         if form.is_valid():
             obj = form.save(commit=False)
             obj.save_with_audit(request.user)
-            return redirect("core:school_transport_index")
+            return redirect("core:school_transport_routes")
     else:
         form = RouteForm()
     return render(request, "core/transport/route_form.html", {"form": form})
+
+
+@admin_required
+def school_transport_route_view(request, route_id):
+    school = _school_module_check(request, "transport")
+    if not school:
+        return redirect("core:admin_dashboard")
+    route = get_object_or_404(Route, pk=route_id)
+    vehicles = list(Vehicle.objects.filter(route=route).order_by("registration_number"))
+    assignments = list(
+        StudentRouteAssignment.objects.filter(route=route).select_related("student__user", "vehicle").order_by("student__user__first_name")
+    )
+    return render(request, "core/transport/route_view.html", {"route": route, "vehicles": vehicles, "assignments": assignments})
+
+
+@admin_required
+def school_transport_route_edit(request, route_id):
+    school = _school_module_check(request, "transport")
+    if not school:
+        return redirect("core:admin_dashboard")
+    from .forms import RouteForm
+
+    route = get_object_or_404(Route, pk=route_id)
+    form = RouteForm(request.POST or None, instance=route)
+    if request.method == "POST" and form.is_valid():
+        obj = form.save(commit=False)
+        obj.save_with_audit(request.user)
+        return redirect("core:school_transport_route_view", route_id=obj.id)
+    return render(request, "core/transport/route_form.html", {"form": form, "route": route})
+
+
+@admin_required
+def school_transport_route_delete(request, route_id):
+    school = _school_module_check(request, "transport")
+    if not school:
+        return redirect("core:admin_dashboard")
+    route = get_object_or_404(Route, pk=route_id)
+    if request.method == "POST":
+        route.delete()
+        return redirect("core:school_transport_routes")
+    return redirect("core:school_transport_route_view", route_id=route.id)
 
 
 @admin_required
@@ -9887,11 +10237,72 @@ def school_transport_vehicle_add(request):
         if form.is_valid():
             obj = form.save(commit=False)
             obj.save_with_audit(request.user)
-            return redirect("core:school_transport_index")
+            return redirect("core:school_transport_vehicles")
     else:
         form = VehicleForm()
         form.fields["route"].queryset = Route.objects.all()
     return render(request, "core/transport/vehicle_form.html", {"form": form})
+
+ 
+@admin_required
+def school_transport_vehicles(request):
+    school = _school_module_check(request, "transport")
+    if not school:
+        return redirect("core:admin_dashboard")
+    vehicles = Vehicle.objects.select_related("route").order_by("registration_number")
+    return render(request, "core/transport/vehicles_list.html", {"vehicles": vehicles})
+
+
+@admin_required
+def school_transport_vehicle_view(request, vehicle_id):
+    school = _school_module_check(request, "transport")
+    if not school:
+        return redirect("core:admin_dashboard")
+    vehicle = get_object_or_404(Vehicle.objects.select_related("route"), pk=vehicle_id)
+    assignments = list(
+        StudentRouteAssignment.objects.filter(vehicle=vehicle).select_related("student__user", "route").order_by("student__user__first_name")
+    )
+    return render(request, "core/transport/vehicle_view.html", {"vehicle": vehicle, "assignments": assignments})
+
+
+@admin_required
+def school_transport_vehicle_edit(request, vehicle_id):
+    school = _school_module_check(request, "transport")
+    if not school:
+        return redirect("core:admin_dashboard")
+    from .forms import VehicleForm
+
+    vehicle = get_object_or_404(Vehicle, pk=vehicle_id)
+    form = VehicleForm(request.POST or None, instance=vehicle)
+    form.fields["route"].queryset = Route.objects.all()
+    if request.method == "POST" and form.is_valid():
+        obj = form.save(commit=False)
+        obj.save_with_audit(request.user)
+        return redirect("core:school_transport_vehicle_view", vehicle_id=obj.id)
+    return render(request, "core/transport/vehicle_form.html", {"form": form, "vehicle": vehicle})
+
+
+@admin_required
+def school_transport_vehicle_delete(request, vehicle_id):
+    school = _school_module_check(request, "transport")
+    if not school:
+        return redirect("core:admin_dashboard")
+    vehicle = get_object_or_404(Vehicle, pk=vehicle_id)
+    if request.method == "POST":
+        vehicle.delete()
+        return redirect("core:school_transport_vehicles")
+    return redirect("core:school_transport_vehicle_view", vehicle_id=vehicle.id)
+
+
+@admin_required
+def school_transport_assignments(request):
+    school = _school_module_check(request, "transport")
+    if not school:
+        return redirect("core:admin_dashboard")
+    assignments = StudentRouteAssignment.objects.select_related("student__user", "route", "vehicle").order_by(
+        "route__name", "student__user__first_name"
+    )
+    return render(request, "core/transport/assignments_list.html", {"assignments": assignments})
 
 
 @admin_required
@@ -9916,11 +10327,58 @@ def school_transport_assign(request):
                 )
             except (Route.DoesNotExist, Student.DoesNotExist):
                 pass
-        return redirect("core:school_transport_index")
+        return redirect("core:school_transport_assignments")
     routes = Route.objects.all()
     students = Student.objects.all()
     vehicles = Vehicle.objects.all()
     return render(request, "core/transport/assign.html", {"routes": routes, "students": students, "vehicles": vehicles})
+
+
+@admin_required
+def school_transport_assignment_view(request, assignment_id):
+    school = _school_module_check(request, "transport")
+    if not school:
+        return redirect("core:admin_dashboard")
+    assignment = get_object_or_404(
+        StudentRouteAssignment.objects.select_related("student__user", "route", "vehicle"), pk=assignment_id
+    )
+    return render(request, "core/transport/assignment_view.html", {"assignment": assignment})
+
+
+@admin_required
+def school_transport_assignment_edit(request, assignment_id):
+    school = _school_module_check(request, "transport")
+    if not school:
+        return redirect("core:admin_dashboard")
+    assignment = get_object_or_404(StudentRouteAssignment.objects.select_related("student__user", "route", "vehicle"), pk=assignment_id)
+    if request.method == "POST":
+        route_id = request.POST.get("route_id")
+        vehicle_id = request.POST.get("vehicle_id")
+        pickup = request.POST.get("pickup_point", "")
+        if route_id:
+            try:
+                assignment.route = Route.objects.get(id=route_id)
+            except Route.DoesNotExist:
+                pass
+        assignment.vehicle = Vehicle.objects.filter(id=vehicle_id).first() if vehicle_id else None
+        assignment.pickup_point = pickup or ""
+        assignment.save_with_audit(request.user)
+        return redirect("core:school_transport_assignment_view", assignment_id=assignment.id)
+    routes = Route.objects.all()
+    vehicles = Vehicle.objects.all()
+    return render(request, "core/transport/assignment_form.html", {"assignment": assignment, "routes": routes, "vehicles": vehicles})
+
+
+@admin_required
+def school_transport_assignment_delete(request, assignment_id):
+    school = _school_module_check(request, "transport")
+    if not school:
+        return redirect("core:admin_dashboard")
+    assignment = get_object_or_404(StudentRouteAssignment, pk=assignment_id)
+    if request.method == "POST":
+        assignment.delete()
+        return redirect("core:school_transport_assignments")
+    return redirect("core:school_transport_assignment_view", assignment_id=assignment.id)
 
 
 # ======================

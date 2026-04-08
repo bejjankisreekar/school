@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Route | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0" style="max-width: 1200px; margin: 0 auto;">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_transport_index' %}">Transport</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_transport_routes' %}">Routes</a></li>
+      <li class="breadcrumb-item active">{{ route.name }}</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div>
+      <h1 class="h4 fw-bold mb-1">{{ route.name }}</h1>
+      <p class="text-muted small mb-0">{{ route.description|default:"—" }}</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-outline-secondary btn-sm" href="{% url 'core:school_transport_routes' %}"><i class="bi bi-arrow-left me-1"></i>Back</a>
+      <a class="btn btn-outline-primary btn-sm" href="{% url 'core:school_transport_route_edit' route.id %}"><i class="bi bi-pencil me-1"></i>Edit</a>
+      <form method="post" action="{% url 'core:school_transport_route_delete' route.id %}" class="d-inline" onsubmit="return confirm('Delete this route?');">
+        {% csrf_token %}
+        <button class="btn btn-outline-danger btn-sm" type="submit"><i class="bi bi-trash me-1"></i>Delete</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-header bg-transparent border-0 py-3 px-3 px-lg-4"><strong>Vehicles on this route</strong></div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light"><tr><th>Registration</th><th>Capacity</th></tr></thead>
+            <tbody>
+              {% for v in vehicles %}
+              <tr>
+                <td><a class="text-decoration-none fw-semibold" href="{% url 'core:school_transport_vehicle_view' v.id %}"><code>{{ v.registration_number }}</code></a></td>
+                <td>{{ v.capacity }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="2" class="text-muted text-center py-4">No vehicles assigned.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-header bg-transparent border-0 py-3 px-3 px-lg-4"><strong>Student assignments</strong></div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light"><tr><th>Student</th><th>Vehicle</th><th>Pickup</th></tr></thead>
+            <tbody>
+              {% for a in assignments %}
+              <tr>
+                <td class="fw-semibold">{{ a.student.user.get_full_name|default:a.student.user.username }}</td>
+                <td class="text-muted">{{ a.vehicle.registration_number|default:"—" }}</td>
+                <td class="text-muted">{{ a.pickup_point|default:"—" }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="3" class="text-muted text-center py-4">No students assigned.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

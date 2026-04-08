@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Routes | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0" style="max-width: 1400px; margin: 0 auto;">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_transport_index' %}">Transport</a></li>
+      <li class="breadcrumb-item active">Routes</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div>
+      <h1 class="h4 fw-bold mb-1">Routes</h1>
+      <p class="text-muted small mb-0">Create, view, edit, and delete transport routes.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-outline-secondary btn-sm" href="{% url 'core:school_transport_index' %}"><i class="bi bi-arrow-left me-1"></i>Back</a>
+      <a class="btn btn-primary btn-sm" href="{% url 'core:school_transport_route_add' %}"><i class="bi bi-plus-lg me-1"></i>Add route</a>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Name</th>
+            <th>Description</th>
+            <th class="text-end" style="width: 160px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in routes %}
+          <tr>
+            <td class="fw-semibold">{{ r.name }}</td>
+            <td class="text-muted">{{ r.description|default:"—" }}</td>
+            <td class="text-end">
+              <a class="btn btn-sm btn-outline-secondary rounded-pill px-2" href="{% url 'core:school_transport_route_view' r.id %}" title="View">
+                <i class="bi bi-eye"></i>
+              </a>
+              <a class="btn btn-sm btn-outline-primary rounded-pill px-2" href="{% url 'core:school_transport_route_edit' r.id %}" title="Edit">
+                <i class="bi bi-pencil"></i>
+              </a>
+              <form method="post" action="{% url 'core:school_transport_route_delete' r.id %}" class="d-inline" onsubmit="return confirm('Delete this route?');">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger rounded-pill px-2" type="submit" title="Delete">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3" class="text-muted text-center py-4">No routes yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

@@ -2,7 +2,70 @@
 {% load nav_tags %}
 {% block title %}Salary Structure | School ERP{% endblock %}
 {% block content %}
-<div class="container-fluid px-0">
+<style>
+  .ss-list-shell { max-width: 1400px; margin: 0 auto; }
+  .ss-list-hero {
+    border-radius: 1rem;
+    padding: 1.1rem 1.25rem;
+    background: linear-gradient(135deg, rgba(13, 148, 136, 0.12), rgba(99, 102, 241, 0.10));
+    border: 1px solid rgba(148, 163, 184, 0.22);
+  }
+  html.dark .ss-list-hero {
+    background: linear-gradient(135deg, rgba(13, 148, 136, 0.18), rgba(99, 102, 241, 0.14));
+    border-color: rgba(148, 163, 184, 0.18);
+  }
+  .ss-list-hero h1 { margin: 0; }
+  .ss-table thead th {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+    border-bottom: 1px solid var(--bs-border-color);
+  }
+  .ss-table tbody td { padding-top: 0.85rem; padding-bottom: 0.85rem; }
+  .ss-pill {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 0.25rem 0.55rem;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: rgba(148, 163, 184, 0.10);
+    color: var(--bs-body-color);
+    white-space: nowrap;
+  }
+  html.dark .ss-pill { border-color: rgba(148, 163, 184, 0.20); background: rgba(148, 163, 184, 0.14); }
+  .ss-actions .btn {
+    border-radius: 999px;
+    padding: 0.25rem 0.55rem;
+  }
+  .ss-filters {
+    padding: 0.9rem 1rem;
+    border-bottom: 1px solid var(--bs-border-color);
+    background: rgba(148, 163, 184, 0.06);
+  }
+  html.dark .ss-filters { background: rgba(148, 163, 184, 0.10); }
+  .ss-pager {
+    padding: 0.85rem 1rem;
+    border-top: 1px solid var(--bs-border-color);
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    background: rgba(148, 163, 184, 0.04);
+  }
+  html.dark .ss-pager { background: rgba(148, 163, 184, 0.08); }
+  .ss-mini-label { font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--bs-secondary-color); font-weight: 700; }
+  .ss-empty {
+    border: 1px dashed rgba(148, 163, 184, 0.45);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    text-align: center;
+    background: rgba(148, 163, 184, 0.06);
+  }
+  html.dark .ss-empty { background: rgba(148, 163, 184, 0.10); border-color: rgba(148, 163, 184, 0.30); }
+</style>
+<div class="container-fluid px-0 ss-list-shell">
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
@@ -11,14 +74,50 @@
     </ol>
   </nav>
 
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-    <h1 class="h4 fw-bold mb-0">Salary Structure</h1>
-    <a href="{% url 'payroll:salary_structure_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Add Structure</a>
+  <div class="ss-list-hero mb-4">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+      <div>
+        <h1 class="h4 fw-bold mb-1">Salary Structure</h1>
+        <p class="small text-muted mb-0">Manage basic salary, allowances, deductions, and net pay per employee.</p>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <a href="{% url 'payroll:payroll_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+          <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
+        <a href="{% url 'payroll:salary_structure_add' %}" class="btn btn-primary btn-sm rounded-pill px-3">
+          <i class="bi bi-plus-lg me-1"></i>Add Structure
+        </a>
+      </div>
+    </div>
   </div>
 
   <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+    <div class="ss-filters">
+      <form method="get" class="row g-2 align-items-center">
+        <div class="col-12 col-md-5 col-lg-4">
+          <input type="text" name="q" value="{{ filters.q }}" class="form-control form-control-sm rounded-pill"
+                 placeholder="Search by name, employee id, designation, department">
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <select name="page_size" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
+            {% for n in page_size_options %}
+              <option value="{{ n }}" {% if filters.page_size == n %}selected{% endif %}>{{ n }} / page</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-md-auto">
+          <button class="btn btn-sm btn-primary rounded-pill px-3" type="submit">
+            <i class="bi bi-search me-1"></i>Filter
+          </button>
+          {% if filters.q %}
+            <a class="btn btn-sm btn-outline-secondary rounded-pill px-3 ms-1" href="?page_size={{ filters.page_size }}">Clear</a>
+          {% endif %}
+        </div>
+        <input type="hidden" name="page" value="1">
+      </form>
+    </div>
     <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
+      <table class="table table-hover align-middle mb-0 ss-table">
         <thead class="table-light">
           <tr>
             <th>Employee Name</th>
@@ -34,16 +133,23 @@
         <tbody>
           {% for s in structures %}
           <tr>
-            <td>{{ s.teacher.user.get_full_name|default:s.teacher.user.username }}</td>
-            <td>{{ s.teacher.employee_id|default:"—" }}</td>
-            <td>{{ s.designation|default:"—" }}</td>
-            <td>&#8377;{{ s.basic_salary|inr:0 }}</td>
-            <td>&#8377;{{ s.total_allowances|inr:0 }}</td>
-            <td>&#8377;{{ s.total_deductions|inr:0 }}</td>
-            <td>&#8377;{{ s.net_salary|inr:0 }}</td>
-            <td class="text-end">
-              <a href="{% url 'payroll:salary_structure_edit' s.pk %}" class="btn btn-link btn-sm p-1 text-primary" title="Edit"><i class="bi bi-pencil"></i></a>
-              <button type="button" class="btn btn-link btn-sm p-1 text-danger" data-bs-toggle="modal" data-bs-target="#delStruct{{ s.pk }}" title="Delete"><i class="bi bi-trash"></i></button>
+            <td>
+              <div class="fw-semibold">{{ s.teacher.user.get_full_name|default:s.teacher.user.username }}</div>
+              <div class="text-muted small">{{ s.department|default:"—" }}</div>
+            </td>
+            <td><span class="ss-pill">{{ s.teacher.employee_id|default:"—" }}</span></td>
+            <td class="text-muted">{{ s.designation|default:"—" }}</td>
+            <td class="fw-semibold">&#8377;{{ s.basic_salary|inr:0 }}</td>
+            <td class="text-success fw-semibold">&#8377;{{ s.total_allowances|inr:0 }}</td>
+            <td class="text-danger fw-semibold">&#8377;{{ s.total_deductions|inr:0 }}</td>
+            <td class="fw-bold">&#8377;{{ s.net_salary|inr:0 }}</td>
+            <td class="text-end ss-actions">
+              <a href="{% url 'payroll:salary_structure_edit' s.pk %}" class="btn btn-outline-primary btn-sm" title="Edit">
+                <i class="bi bi-pencil"></i>
+              </a>
+              <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#delStruct{{ s.pk }}" title="Delete">
+                <i class="bi bi-trash"></i>
+              </button>
             </td>
           </tr>
           <div class="modal fade" id="delStruct{{ s.pk }}" tabindex="-1">
@@ -62,11 +168,38 @@
             </div>
           </div>
           {% empty %}
-          <tr><td colspan="8" class="text-center text-muted py-4">No salary structures. <a href="{% url 'payroll:salary_structure_add' %}">Add one</a>.</td></tr>
+          <tr>
+            <td colspan="8" class="p-4">
+              <div class="ss-empty">
+                <div class="fw-semibold mb-1">No salary structures yet</div>
+                <div class="text-muted small mb-3">Create the first salary structure to start payroll calculations.</div>
+                <a class="btn btn-primary btn-sm rounded-pill px-3" href="{% url 'payroll:salary_structure_add' %}">
+                  <i class="bi bi-plus-lg me-1"></i>Add Structure
+                </a>
+              </div>
+            </td>
+          </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
+    {% if structures.paginator.num_pages > 1 %}
+    <div class="ss-pager">
+      <span class="ss-mini-label me-auto">Page {{ structures.number }} of {{ structures.paginator.num_pages }}</span>
+      {% if structures.has_previous %}
+        <a class="btn btn-sm btn-outline-secondary rounded-pill px-3"
+           href="?q={{ filters.q|urlencode }}&page_size={{ filters.page_size }}&page={{ structures.previous_page_number }}">Previous</a>
+      {% else %}
+        <button class="btn btn-sm btn-outline-secondary rounded-pill px-3" disabled>Previous</button>
+      {% endif %}
+      {% if structures.has_next %}
+        <a class="btn btn-sm btn-outline-secondary rounded-pill px-3"
+           href="?q={{ filters.q|urlencode }}&page_size={{ filters.page_size }}&page={{ structures.next_page_number }}">Next</a>
+      {% else %}
+        <button class="btn btn-sm btn-outline-secondary rounded-pill px-3" disabled>Next</button>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

@@ -232,6 +232,14 @@ class School(TenantMixin):
         help_text="Layout for employee payslips (on-screen view and PDF).",
     )
 
+    # Timetable: one published schedule profile (tenant-scoped profile id).
+    # Stored in public schema so teacher/student portals consistently pick one profile.
+    timetable_current_profile_id = models.BigIntegerField(
+        null=True,
+        blank=True,
+        help_text="ScheduleProfile id to treat as the currently published timetable (optional).",
+    )
+
     custom_domain = models.CharField(max_length=255, blank=True)
     # Dedicated hosting
     is_single_tenant = models.BooleanField(default=False)

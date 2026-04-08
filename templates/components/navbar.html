@@ -106,7 +106,7 @@
             {% if request.user.school and request.user.role != "SUPERADMIN" and request|feature_access:"attendance" %}
             <li><a class="dropdown-item app-header-dropdown-item" href="{% url 'core:school_calendar_holidays' %}"><i class="bi bi-calendar2-week me-2 text-body-secondary"></i>School calendar</a></li>
             {% endif %}
-            <li><a class="dropdown-item app-header-dropdown-item" href="{% url 'accounts:change_password' %}"><i class="bi bi-gear me-2 text-body-secondary"></i>Settings</a></li>
+            <li><a class="dropdown-item app-header-dropdown-item" href="{% url 'accounts:account_settings' %}"><i class="bi bi-gear me-2 text-body-secondary"></i>Settings</a></li>
             <li><hr class="dropdown-divider my-2 opacity-25" /></li>
             <li><a class="dropdown-item app-header-dropdown-item text-danger" href="{% url 'accounts:logout' %}"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
           </ul>

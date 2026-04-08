@@ -47,6 +47,85 @@
     border-color: var(--bs-primary);
     color: #fff;
   }
+  .exam-create-page .ec-switcher {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(10px);
+  }
+  html.dark .exam-create-page .ec-switcher,
+  body.dark-mode .exam-create-page .ec-switcher {
+    background: rgba(15, 23, 42, 0.55);
+  }
+  .exam-create-page .ec-seg {
+    --seg-bg: rgba(2, 6, 23, 0.04);
+    --seg-border: rgba(148, 163, 184, 0.35);
+    --seg-active: rgba(var(--bs-primary-rgb), 1);
+    --seg-active-shadow: 0 10px 26px -18px rgba(37, 99, 235, 0.65);
+    display: inline-flex;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    border-radius: 999px;
+    background: var(--seg-bg);
+    border: 1px solid var(--seg-border);
+  }
+  html.dark .exam-create-page .ec-seg,
+  body.dark-mode .exam-create-page .ec-seg {
+    --seg-bg: rgba(148, 163, 184, 0.08);
+    --seg-border: rgba(148, 163, 184, 0.22);
+  }
+  .exam-create-page .ec-seg .btn {
+    border: 0 !important;
+    border-radius: 999px !important;
+    padding: 0.5rem 0.9rem;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--bs-secondary-color);
+    background: transparent;
+    transition: background 140ms ease, color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    white-space: nowrap;
+  }
+  .exam-create-page .ec-seg .btn i { opacity: 0.9; }
+  .exam-create-page .ec-mode .btn-check:checked + .btn {
+    background: var(--seg-active);
+    color: #fff;
+    box-shadow: var(--seg-active-shadow);
+    transform: translateY(-1px);
+  }
+  .exam-create-page .ec-mode .btn:hover {
+    background: rgba(var(--bs-primary-rgb), 0.08);
+    color: var(--bs-body-color);
+  }
+  .exam-create-page .ec-panel {
+    animation: ecFadeIn 160ms ease-out;
+  }
+  .exam-create-page .ec-panel.is-hidden {
+    display: none !important;
+  }
+  @keyframes ecFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .exam-create-page .ec-mode-hint {
+    font-size: 0.85rem;
+    color: var(--bs-secondary-color);
+    margin: 0;
+    max-width: 38rem;
+  }
+  @media (max-width: 576px) {
+    .exam-create-page .ec-switcher { padding: 0.85rem 0.9rem; }
+    .exam-create-page .ec-seg { width: 100%; justify-content: space-between; }
+    .exam-create-page .ec-seg .btn { flex: 1; justify-content: center; }
+  }
   .exam-create-page .ec-section-title {
     font-size: 0.8125rem;
     font-weight: 600;
@@ -106,18 +185,25 @@
 
   <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-5">
     <div class="card-body p-4 p-lg-5">
-      <div class="mb-4 pb-2 border-bottom">
-        <span class="ec-section-title mb-0 d-block border-0 pb-0">Creation mode</span>
-        <div class="btn-group ec-mode flex-wrap" role="group" aria-label="Creation mode">
-          <input type="radio" class="btn-check" name="exam_mode_ui" id="mode_single" value="single" checked autocomplete="off">
-          <label class="btn btn-outline-primary px-4 rounded-start-pill" for="mode_single"><i class="bi bi-file-earmark-plus me-1"></i>Single exam</label>
-          <input type="radio" class="btn-check" name="exam_mode_ui" id="mode_multiple" value="multiple" autocomplete="off">
-          <label class="btn btn-outline-primary px-4 rounded-end-pill" for="mode_multiple"><i class="bi bi-calendar3-range me-1"></i>Bulk scheduler</label>
+      <div class="mb-4">
+        <div class="ec-switcher">
+          <div>
+            <div class="ec-section-title mb-1 border-0 pb-0">Creation mode</div>
+            <p class="ec-mode-hint mb-0" id="modeHint">
+              Create one paper quickly, or schedule many subject papers across classes.
+            </p>
+          </div>
+          <div class="ec-seg ec-mode" role="group" aria-label="Creation mode">
+            <input type="radio" class="btn-check" name="exam_mode_ui" id="mode_single" value="single" checked autocomplete="off">
+            <label class="btn" for="mode_single"><i class="bi bi-file-earmark-plus"></i>Single exam</label>
+            <input type="radio" class="btn-check" name="exam_mode_ui" id="mode_multiple" value="multiple" autocomplete="off">
+            <label class="btn" for="mode_multiple"><i class="bi bi-calendar3-range"></i>Bulk scheduler</label>
+          </div>
         </div>
       </div>
 
       {# Single exam #}
-      <form method="post" id="form-single" class="exam-mode-panel">
+      <form method="post" id="form-single" class="exam-mode-panel ec-panel" aria-label="Single exam form">
         {% csrf_token %}
         <input type="hidden" name="create_mode" value="single">
         {% if single_form.non_field_errors %}
@@ -170,6 +256,11 @@
               {{ single_form.end_time }}
               {% if single_form.end_time.errors %}<div class="text-danger small mt-1">{{ single_form.end_time.errors.0 }}</div>{% endif %}
             </div>
+            <div class="col-md-12 col-lg-4">
+              <label class="form-label fw-semibold small" for="{{ single_form.room.id_for_label }}">Room / hall <span class="text-muted fw-normal">(optional)</span></label>
+              {{ single_form.room }}
+              {% if single_form.room.errors %}<div class="text-danger small mt-1">{{ single_form.room.errors.0 }}</div>{% endif %}
+            </div>
             <div class="col-12">
               <p class="ec-time-hint mb-0"><i class="bi bi-info-circle me-1"></i>Leave times empty for an all-day entry on the calendar. If you set one, set both; end must be after start.</p>
             </div>
@@ -177,6 +268,16 @@
               <label class="form-label fw-semibold small" for="{{ single_form.total_marks.id_for_label }}">Total marks</label>
               {{ single_form.total_marks }}
               {% if single_form.total_marks.errors %}<div class="text-danger small mt-1">{{ single_form.total_marks.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold small" for="{{ single_form.details.id_for_label }}">Exam details <span class="text-muted fw-normal">(optional)</span></label>
+              {{ single_form.details }}
+              {% if single_form.details.errors %}<div class="text-danger small mt-1">{{ single_form.details.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold small" for="{{ single_form.topics.id_for_label }}">Exam topics <span class="text-muted fw-normal">(optional)</span></label>
+              {{ single_form.topics }}
+              {% if single_form.topics.errors %}<div class="text-danger small mt-1">{{ single_form.topics.errors.0 }}</div>{% endif %}
             </div>
           </div>
 
@@ -198,7 +299,7 @@
       </form>
 
       {# Bulk scheduler #}
-      <form method="post" id="form-scheduler" class="exam-mode-panel d-none">
+      <form method="post" id="form-scheduler" class="exam-mode-panel ec-panel is-hidden" aria-label="Bulk scheduler form">
         {% csrf_token %}
         <input type="hidden" name="create_mode" value="multiple">
 
@@ -555,10 +656,16 @@
   var modeMulti = document.getElementById("mode_multiple");
   var panelSingle = document.getElementById("form-single");
   var panelSched = document.getElementById("form-scheduler");
+  var modeHint = document.getElementById("modeHint");
   function setMode() {
     var multi = modeMulti && modeMulti.checked;
-    if (panelSingle) panelSingle.classList.toggle("d-none", multi);
-    if (panelSched) panelSched.classList.toggle("d-none", !multi);
+    if (panelSingle) panelSingle.classList.toggle("is-hidden", multi);
+    if (panelSched) panelSched.classList.toggle("is-hidden", !multi);
+    if (modeHint) {
+      modeHint.textContent = multi
+        ? "Schedule multiple subjects with a date and optional time per paper."
+        : "Create one exam paper quickly with optional time, room, details and topics.";
+    }
   }
   if (modeSingle) modeSingle.addEventListener("change", setMode);
   if (modeMulti) modeMulti.addEventListener("change", setMode);

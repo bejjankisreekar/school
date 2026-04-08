@@ -56,7 +56,7 @@
     {% endif %}
     <a href="{% if request.user.role == 'ADMIN' %}{% url 'core:school_teachers_list' %}{% else %}{% url 'core:teachers_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'school_teachers_list' 'teachers_list' 'school_teacher_add' 'school_teacher_edit' 'school_teacher_view' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-person-badge"></i></span>
-      <span class="sidebar-nav-text">Teachers</span>
+      <span class="sidebar-nav-text">Faculty</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
     {% if request.user.role == 'ADMIN' %}
@@ -81,7 +81,28 @@
     {% if request|feature_access:"attendance" %}
     <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_attendance' %}{% elif request.user.role == 'TEACHER' %}{% url 'core:bulk_attendance' %}{% else %}{% url 'core:attendance_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'student_attendance' 'bulk_attendance' 'attendance_list' 'mark_attendance' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-calendar-check"></i></span>
-      <span class="sidebar-nav-text">Attendance</span>
+      <span class="sidebar-nav-text">{% if request.user.role == 'STUDENT' %}My Attendance{% else %}Student Attendance{% endif %}</span>
+      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+    </a>
+    <a href="{% url 'core:school_calendar_holidays' %}" class="sidebar-nav-item {% nav_active_names request 'school_calendar_holidays' %}">
+      <span class="sidebar-nav-icon"><i class="bi bi-calendar-event"></i></span>
+      <span class="sidebar-nav-text">School Calendar</span>
+      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+    </a>
+    {% endif %}
+
+    {% if request.user.role == 'ADMIN' %}
+    <a href="{% url 'core:school_staff_attendance' %}" class="sidebar-nav-item {% nav_active_names request 'school_staff_attendance' 'school_staff_attendance_detail' 'school_staff_attendance_mark' %}">
+      <span class="sidebar-nav-icon"><i class="bi bi-person-check"></i></span>
+      <span class="sidebar-nav-text">Faculty Attendance</span>
+      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+    </a>
+    {% endif %}
+
+    {% if request|feature_access:"timetable" %}
+    <a href="{% if request.user.role == 'ADMIN' %}{% url 'timetable:school_timetable_index' %}{% elif request.user.role == 'TEACHER' %}{% url 'timetable:teacher_timetable' %}{% elif request.user.role == 'STUDENT' %}{% url 'timetable:student_timetable' %}{% else %}{% url 'timetable:school_timetable_index' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'school_timetable_index' 'school_timetable' 'school_timeslots' 'teacher_timetable' 'student_timetable' %}">
+      <span class="sidebar-nav-icon"><i class="bi bi-calendar3"></i></span>
+      <span class="sidebar-nav-text">Schedules</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
     {% endif %}
@@ -90,14 +111,6 @@
     <a href="{% if request.user.role == 'STUDENT' %}{% url 'core:student_exams_list' %}{% elif request.user.role == 'TEACHER' %}{% url 'core:teacher_exams' %}{% else %}{% url 'core:school_exams_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'student_exams_list' 'teacher_exams' 'teacher_exam_create' 'teacher_exam_summary' 'teacher_exam_enter_marks' 'teacher_exam_session_detail' 'school_exams_list' 'school_exam_create' 'school_exam_session_detail' 'school_exam_session_edit' 'school_exam_session_delete' 'school_exam_session_set_all_marks_lock' 'school_exam_paper_enter_marks' 'school_exam_paper_set_marks_lock' 'student_exam_detail' 'student_exam_detail_by_id' 'student_exam_session_detail' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-clipboard-check"></i></span>
       <span class="sidebar-nav-text">Exams</span>
-      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-    </a>
-    {% endif %}
-    
-    {% if request|feature_access:"timetable" %}
-    <a href="{% if request.user.role == 'ADMIN' %}{% url 'timetable:school_timetable_index' %}{% elif request.user.role == 'TEACHER' %}{% url 'timetable:teacher_timetable' %}{% elif request.user.role == 'STUDENT' %}{% url 'timetable:student_timetable' %}{% else %}{% url 'timetable:school_timetable_index' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'school_timetable_index' 'school_timetable' 'school_timeslots' 'teacher_timetable' 'student_timetable' %}">
-      <span class="sidebar-nav-icon"><i class="bi bi-calendar3"></i></span>
-      <span class="sidebar-nav-text">Schedules</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
     {% endif %}
@@ -139,11 +152,6 @@
     </a>
     {% endif %}
     {% if request.user.role == 'ADMIN' %}
-    <a href="{% url 'core:school_staff_attendance' %}" class="sidebar-nav-item {% nav_active_names request 'school_staff_attendance' 'school_staff_attendance_detail' 'school_staff_attendance_mark' %}">
-      <span class="sidebar-nav-icon"><i class="bi bi-person-check"></i></span>
-      <span class="sidebar-nav-text">Faculty Attendance</span>
-      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-    </a>
     {% if request|feature_access:"sms" %}
     <a href="{% url 'notifications:school_notifications' %}" class="sidebar-nav-item {% nav_active_names request 'school_notifications' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-chat-dots"></i></span>
@@ -151,18 +159,7 @@
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
     {% endif %}
-    {% if request|school_has_feature:'inventory' %}
-    <a href="{% url 'core:school_inventory_index' %}" class="sidebar-nav-item {% nav_active_names request 'school_inventory_index' 'school_inventory_item_add' 'school_purchase_add' 'school_invoices_list' %}">
-      <span class="sidebar-nav-icon"><i class="bi bi-box-seam"></i></span>
-      <span class="sidebar-nav-text">Inventory</span>
-      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-    </a>
-    {% endif %}
-    <a href="{% url 'core:school_support_create' %}" class="sidebar-nav-item {% nav_active_names request 'school_support_create' %}">
-      <span class="sidebar-nav-icon"><i class="bi bi-headset"></i></span>
-      <span class="sidebar-nav-text">Support</span>
-      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-    </a>
+    {# Inventory removed #}
     {% if request|school_has_feature:'library' %}
     <a href="{% url 'core:school_library_index' %}" class="sidebar-nav-item {% nav_active_names request 'school_library_index' 'school_library_book_add' 'school_library_issue' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-book"></i></span>
@@ -191,6 +188,11 @@
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
     {% endif %}
+    <a href="{% url 'core:school_support_create' %}" class="sidebar-nav-item {% nav_active_names request 'school_support_create' %}">
+      <span class="sidebar-nav-icon"><i class="bi bi-headset"></i></span>
+      <span class="sidebar-nav-text">Support</span>
+      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+    </a>
     {% endif %}
     {% endif %}
   </nav>

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ title|default:"Not available" }} | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0" style="max-width: 920px;">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">{{ title|default:"Not available" }}</li>
+    </ol>
+  </nav>
+
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body p-4 p-lg-5">
+      <div class="d-flex align-items-start gap-3">
+        <div class="rounded-4 d-inline-flex align-items-center justify-content-center"
+             style="width:3.25rem;height:3.25rem;background:rgba(99,102,241,0.12);color:#4f46e5;">
+          <i class="bi bi-info-circle fs-3"></i>
+        </div>
+        <div class="min-w-0">
+          <h1 class="h4 fw-bold mb-1">{{ title|default:"Not available" }}</h1>
+          <p class="text-muted mb-3">{{ message|default:"This page is not available." }}</p>
+          <div class="d-flex flex-wrap gap-2">
+            <a href="{% url back_url_name|default:'core:admin_dashboard' %}" class="btn btn-primary rounded-pill px-4">
+              <i class="bi bi-arrow-left me-2"></i>Back to dashboard
+            </a>
+          </div>
+          <div class="text-muted small mt-3">
+            If you used an old bookmark, you can safely remove it.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
