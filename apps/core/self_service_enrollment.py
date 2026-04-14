@@ -8,6 +8,7 @@ import logging
 from datetime import date, timedelta
 from typing import Any
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import connection
 from django.db.utils import IntegrityError
@@ -177,11 +178,13 @@ def provision_school_and_admin_user(cleaned_data: dict[str, Any]) -> tuple[Schoo
 
     try:
         school.save()
-    except Exception:
+    except Exception as exc:
         logger.exception("School.save() failed during self-service enrollment")
-        raise SelfServiceEnrollmentError(
-            "We could not finish creating your school workspace. Please try again or contact support."
-        ) from None
+        msg = "We could not finish creating your school workspace. Please try again or contact support."
+        if settings.DEBUG:
+            detail = str(exc).strip() or exc.__class__.__name__
+            msg = f"{msg} (debug: {detail})"
+        raise SelfServiceEnrollmentError(msg) from None
 
     if not Domain.objects.filter(tenant=school).exists():
         Domain.objects.create(

@@ -222,6 +222,16 @@ textarea.form-control {
   border: 1px solid var(--border-color);
 }
 
+/* Toast placement: always top-right across the app (some pages/themes override) */
+.toast-container {
+  position: fixed !important;
+  top: 1rem !important;
+  right: 1rem !important;
+  bottom: auto !important;
+  left: auto !important;
+  z-index: 9999;
+}
+
 .list-group-item {
   background-color: var(--bs-list-group-bg, var(--bg-card));
   color: var(--bs-list-group-color, var(--text-primary));

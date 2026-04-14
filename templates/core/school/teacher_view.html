@@ -68,6 +68,49 @@
     font-weight: 600; border-radius: 0.65rem; padding: 0.45rem 0.85rem; text-decoration: none;
   }
   .teacher-profile-dash .tp-btn-ghost:hover { border-color: var(--tp-primary); color: var(--tp-primary); }
+  .teacher-profile-dash .tp-account-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    border-radius: 999px;
+    padding: 0.45rem 0.95rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    border: 1px solid rgba(15, 23, 42, 0.14);
+    background: rgba(255, 255, 255, 0.65);
+    color: var(--tp-value);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+    transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+    white-space: nowrap;
+  }
+  html.dark .teacher-profile-dash .tp-account-action {
+    background: rgba(15, 23, 42, 0.35);
+    border-color: rgba(148, 163, 184, 0.22);
+    color: #e2e8f0;
+  }
+  .teacher-profile-dash .tp-account-action:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
+    border-color: rgba(79, 70, 229, 0.35);
+  }
+  .teacher-profile-dash .tp-account-action--danger {
+    border-color: rgba(239, 68, 68, 0.28);
+    background: rgba(254, 242, 242, 0.75);
+    color: #991b1b;
+  }
+  html.dark .teacher-profile-dash .tp-account-action--danger {
+    background: rgba(127, 29, 29, 0.18);
+    color: #fecaca;
+  }
+  .teacher-profile-dash .tp-account-action--success {
+    border-color: rgba(16, 185, 129, 0.26);
+    background: rgba(236, 253, 245, 0.8);
+    color: #065f46;
+  }
+  html.dark .teacher-profile-dash .tp-account-action--success {
+    background: rgba(6, 95, 70, 0.22);
+    color: #bbf7d0;
+  }
   .teacher-profile-dash .tp-divider {
     height: 1px;
     background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.35), transparent);
@@ -110,7 +153,22 @@
           <span class="badge rounded-pill px-3 py-2" style="background: var(--tp-primary-soft); color: var(--tp-primary); font-weight: 600;">
             <i class="bi bi-person-badge me-1"></i> {{ teacher.employee_id|default:"No employee ID" }}
           </span>
-          {% if teacher.user.is_active %}<span class="badge rounded-pill text-bg-success">Active</span>{% else %}<span class="badge rounded-pill text-bg-secondary">Inactive</span>{% endif %}
+          <span class="badge rounded-pill {% if teacher.user.is_active %}text-bg-success{% else %}text-bg-secondary{% endif %}" id="tpAccountStatusBadge">
+            {% if teacher.user.is_active %}Active{% else %}Inactive{% endif %}
+          </span>
+          <button
+            type="button"
+            class="tp-account-action {% if teacher.user.is_active %}tp-account-action--danger{% else %}tp-account-action--success{% endif %}"
+            id="tpToggleAccountBtn"
+            data-teacher-id="{{ teacher.id }}"
+            data-next-active="{% if teacher.user.is_active %}0{% else %}1{% endif %}"
+          >
+            {% if teacher.user.is_active %}
+              <i class="bi bi-slash-circle"></i> Deactivate account
+            {% else %}
+              <i class="bi bi-check-circle"></i> Activate account
+            {% endif %}
+          </button>
         </div>
         <div class="small text-muted">Username <span class="fw-semibold font-monospace text-body">{{ teacher.user.username }}</span></div>
       </div>
@@ -210,4 +268,40 @@
     </div>
   </div>
 </div>
+
+<script>
+  (function () {
+    function getCSRF() {
+      var inp = document.querySelector('input[name="csrfmiddlewaretoken"]');
+      if (inp && inp.value) return inp.value;
+      var m = (document.cookie || "").match(/(?:^|;\s*)csrftoken=([^;]+)/);
+      return m ? decodeURIComponent(m[1]) : "";
+    }
+    var btn = document.getElementById("tpToggleAccountBtn");
+    if (!btn) return;
+    btn.addEventListener("click", async function () {
+      var teacherId = btn.getAttribute("data-teacher-id");
+      var nextActive = btn.getAttribute("data-next-active") === "1";
+      var msg = nextActive
+        ? "Are you sure you want to activate this teacher account?\nThe teacher will be able to log in."
+        : "Are you sure you want to deactivate this teacher account?\nThe teacher will no longer be able to log in.";
+      if (!window.confirm(msg)) return;
+      var resp = await fetch("/school/teachers/" + teacherId + "/set-active/", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCSRF(),
+          "X-Requested-With": "XMLHttpRequest"
+        },
+        body: JSON.stringify({ is_active: nextActive })
+      });
+      if (!resp.ok) {
+        alert("Could not update status. (" + resp.status + ")");
+        return;
+      }
+      window.location.reload();
+    });
+  })();
+</script>
 {% endblock %}

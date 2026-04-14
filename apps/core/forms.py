@@ -53,6 +53,7 @@ from apps.school_data.models import (
     StudentPromotion,
     HolidayEvent,
     WorkingSundayOverride,
+    MasterDataOption,
 )
 from .models import ContactEnquiry, SchoolEnrollmentRequest
 
@@ -617,8 +618,8 @@ class SchoolEnrollmentSignupForm(forms.ModelForm):
                     "placeholder": "e.g. NHS123",
                     "autocomplete": "off",
                     "maxlength": "6",
-                    "pattern": "[A-Z]{3}[0-9]{3}",
-                    "title": "ABC123 — 3 uppercase letters + 3 digits",
+                    "pattern": "[A-Za-z]{3}[0-9]{3}",
+                    "title": "3 letters + 3 digits (e.g. NHS123 or nhs123)",
                 }
             ),
             "contact_name": forms.TextInput(
@@ -959,25 +960,15 @@ class StudentAddForm(forms.Form):
             },
         ),
     )
-    gender = forms.ChoiceField(
-        choices=[("", "— Not specified —")] + list(Student.Gender.choices),
+    gender = forms.CharField(
+        max_length=60,
         required=False,
-        widget=forms.Select(attrs={"class": BS_INPUT}),
+        widget=forms.Select(attrs={"class": BS_INPUT, "data-master-key": "gender"}),
     )
-    blood_group = forms.ChoiceField(
-        choices=[
-            ("", "— Not specified —"),
-            ("A+", "A+"),
-            ("A-", "A-"),
-            ("B+", "B+"),
-            ("B-", "B-"),
-            ("AB+", "AB+"),
-            ("AB-", "AB-"),
-            ("O+", "O+"),
-            ("O-", "O-"),
-        ],
+    blood_group = forms.CharField(
+        max_length=60,
         required=False,
-        widget=forms.Select(attrs={"class": BS_INPUT}),
+        widget=forms.Select(attrs={"class": BS_INPUT, "data-master-key": "blood_group"}),
     )
     id_number = forms.CharField(
         max_length=50,
@@ -985,9 +976,21 @@ class StudentAddForm(forms.Form):
         label="Aadhar / ID Number",
         widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Aadhar / National ID"}),
     )
-    nationality = forms.CharField(max_length=60, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
-    religion = forms.CharField(max_length=60, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
-    mother_tongue = forms.CharField(max_length=60, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    nationality = forms.CharField(
+        max_length=60,
+        required=False,
+        widget=forms.Select(attrs={"class": BS_INPUT, "data-master-key": "nationality"}),
+    )
+    religion = forms.CharField(
+        max_length=60,
+        required=False,
+        widget=forms.Select(attrs={"class": BS_INPUT, "data-master-key": "religion"}),
+    )
+    mother_tongue = forms.CharField(
+        max_length=60,
+        required=False,
+        widget=forms.Select(attrs={"class": BS_INPUT, "data-master-key": "mother_tongue"}),
+    )
     profile_image = forms.ImageField(
         required=False,
         label="Student photo",
@@ -1196,6 +1199,16 @@ class StudentAddForm(forms.Form):
 
     def __init__(self, school, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        def _master_choices(master_key: str, empty_label: str = "— Select —"):
+            qs = MasterDataOption.objects.filter(key=master_key, is_active=True).order_by("name")
+            return [("", empty_label)] + [(o.name, o.name) for o in qs.only("name")]
+
+        # Master dropdowns (tenant-scoped)
+        self.fields["gender"].widget.choices = _master_choices("gender", "— Not specified —")
+        self.fields["blood_group"].widget.choices = _master_choices("blood_group", "— Not specified —")
+        self.fields["nationality"].widget.choices = _master_choices("nationality")
+        self.fields["religion"].widget.choices = _master_choices("religion")
+        self.fields["mother_tongue"].widget.choices = _master_choices("mother_tongue")
         self.school = school
         self.fields["classroom"].queryset = (
             ClassRoom.objects.select_related("academic_year")
@@ -1279,10 +1292,10 @@ class StudentEditForm(forms.Form):
     roll_number = forms.CharField(max_length=50, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
     admission_number = forms.CharField(max_length=50, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
     date_of_birth = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}))
-    gender = forms.ChoiceField(
-        choices=[("", "— Not specified —")] + list(Student.Gender.choices),
+    gender = forms.CharField(
+        max_length=60,
         required=False,
-        widget=forms.Select(attrs={"class": BS_INPUT}),
+        widget=forms.Select(attrs={"class": BS_INPUT, "data-master-key": "gender"}),
     )
     parent_name = forms.CharField(max_length=150, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
     parent_phone = forms.CharField(max_length=20, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
@@ -1293,6 +1306,8 @@ class StudentEditForm(forms.Form):
         self.student = student
         self.fields["classroom"].queryset = ClassRoom.objects.select_related("academic_year").order_by("academic_year", "name")
         self.fields["section"].queryset = Section.objects.order_by("name")
+        qs = MasterDataOption.objects.filter(key="gender", is_active=True).order_by("name")
+        self.fields["gender"].widget.choices = [("", "— Not specified —")] + [(o.name, o.name) for o in qs.only("name")]
 
     def clean_email(self):
         email = (self.cleaned_data.get("email") or "").strip()
@@ -1446,24 +1461,46 @@ class AcademicYearForm(forms.ModelForm):
 
     class Meta:
         model = AcademicYear
-        fields = ["name", "start_date", "end_date", "is_active"]
+        fields = ["name", "start_date", "end_date", "is_active", "description"]
         widgets = {
             "name": forms.TextInput(
                 attrs={
                     "class": INPUT_CLASS,
-                    "placeholder": "e.g. 2025–2026",
+                    "placeholder": "e.g. 2026-2027",
                     "autocomplete": "off",
+                }
+            ),
+            "description": forms.Textarea(
+                attrs={
+                    "class": INPUT_CLASS,
+                    "rows": 3,
+                    "placeholder": "Optional internal notes for administrators…",
                 }
             ),
             "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
         help_texts = {
-            "name": "Shown across the app (reports, fees, student records).",
+            "name": "Shown across the app (reports, fees, student records). Must be unique.",
+            "description": "Optional notes visible to school staff on this record.",
             "is_active": "Default year for enrolments and filters. Saving as active automatically clears other active years.",
         }
 
+    def clean_name(self):
+        name = (self.cleaned_data.get("name") or "").strip()
+        if not name:
+            return name
+        qs = AcademicYear.objects.filter(name__iexact=name)
+        if self.instance and self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError("An academic year with this name already exists.")
+        return name
+
     def clean(self):
         from datetime import date
+
+        from apps.core.academic_year_wizard import ranges_overlap
+
         data = super().clean()
         start = data.get("start_date")
         end = data.get("end_date")
@@ -1471,6 +1508,16 @@ class AcademicYearForm(forms.ModelForm):
             raise forms.ValidationError("End date must be after start date.")
         if self.instance and self.instance.pk and end and end < date.today():
             raise forms.ValidationError("Cannot edit an academic year that has already ended.")
+        if start and end:
+            oq = AcademicYear.objects.all()
+            if self.instance and self.instance.pk:
+                oq = oq.exclude(pk=self.instance.pk)
+            for other in oq.only("id", "name", "start_date", "end_date"):
+                if ranges_overlap(start, end, other.start_date, other.end_date):
+                    raise forms.ValidationError(
+                        f"This date range overlaps with “{other.name}” "
+                        f"({other.start_date} to {other.end_date})."
+                    )
         return data
 
 

@@ -7,9 +7,10 @@ Optional: python manage.py ensure_exam_start_date_column -s <schema_name>
 
 Idempotent. Safe to run before/after migrate_schemas (migration 0038 is a no-op if column exists).
 """
+from django.apps import apps
 from django.core.management.base import BaseCommand
 from django.db import connections
-from django_tenants.utils import get_tenant_database_alias, get_tenant_model, get_public_schema_name
+from django_tenants.utils import get_tenant_database_alias, get_public_schema_name
 
 
 def _restore_exam_start_date(cursor, schema_name: str) -> str:
@@ -65,8 +66,10 @@ class Command(BaseCommand):
         db_alias = get_tenant_database_alias()
         connection = connections[db_alias]
         public = get_public_schema_name()
-        Tenant = get_tenant_model()
         schema_filter = options.get("schema_name")
+        School = apps.get_model("customers", "School")
+        school_table = connection.ops.quote_name(School._meta.db_table)
+        connection.set_schema_to_public()
 
         if schema_filter:
             if schema_filter == public:
@@ -74,21 +77,20 @@ class Command(BaseCommand):
                     self.style.WARNING("school_data_exam is tenant-only; skipping public schema.")
                 )
                 return
-            tenants = list(Tenant.objects.filter(schema_name=schema_filter))
-            if not tenants:
-                self.stdout.write(
-                    self.style.ERROR(f"No tenant with schema_name={schema_filter!r}.")
-                )
-                return
+            tenant_schemas = [schema_filter]
         else:
-            tenants = list(Tenant.objects.exclude(schema_name=public))
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"SELECT schema_name FROM {school_table} WHERE schema_name <> %s ORDER BY schema_name",
+                    [public],
+                )
+                tenant_schemas = [row[0] for row in cursor.fetchall()]
 
-        if not tenants:
+        if not tenant_schemas:
             self.stdout.write(self.style.WARNING("No tenant schemas found."))
             return
 
-        for tenant in tenants:
-            name = tenant.schema_name
+        for name in tenant_schemas:
             self.stdout.write(f"Schema: {name}")
             connection.set_schema(name, include_public=False)
             try:

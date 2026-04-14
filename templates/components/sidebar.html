@@ -9,12 +9,45 @@
     </div>
   </div>
   <nav class="sidebar-nav-list">
+    {% if sidebar_menu_tree %}
+      {% for item in sidebar_menu_tree %}
+        {% if item.has_children %}
+          <details class="sidebar-nav-group" {% if item.active %}open{% endif %}>
+            <summary class="sidebar-nav-item {% if item.active %}sidebar-nav-active{% endif %}">
+              <span class="sidebar-nav-icon"><i class="{% if item.icon %}{{ item.icon }}{% else %}bi bi-dot{% endif %}"></i></span>
+              <span class="sidebar-nav-text">{{ item.label }}</span>
+              <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+            </summary>
+            <div class="sidebar-nav-sublist">
+              {% for child in item.children %}
+                <a href="{{ child.href }}" class="sidebar-nav-item sidebar-nav-subitem {% if child.active %}sidebar-nav-active{% endif %}">
+                  <span class="sidebar-nav-icon"><i class="{% if child.icon %}{{ child.icon }}{% else %}bi bi-dot{% endif %}"></i></span>
+                  <span class="sidebar-nav-text">{{ child.label }}</span>
+                  <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+                </a>
+              {% endfor %}
+            </div>
+          </details>
+        {% else %}
+          <a href="{{ item.href }}" class="sidebar-nav-item {% if item.active %}sidebar-nav-active{% endif %}">
+            <span class="sidebar-nav-icon"><i class="{% if item.icon %}{{ item.icon }}{% else %}bi bi-dot{% endif %}"></i></span>
+            <span class="sidebar-nav-text">{{ item.label }}</span>
+            <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+          </a>
+        {% endif %}
+      {% endfor %}
+    {% else %}
     <a href="{% if request.user.role == 'SUPERADMIN' %}{% url 'core:super_admin_dashboard' %}{% elif request.user.role == 'ADMIN' %}{% url 'core:admin_dashboard' %}{% elif request.user.role == 'TEACHER' %}{% url 'core:teacher_dashboard' %}{% elif request.user.role == 'PARENT' %}{% url 'core:parent_dashboard' %}{% else %}{% url 'core:student_dashboard' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'super_admin_dashboard' 'admin_dashboard' 'teacher_dashboard' 'student_dashboard' 'parent_dashboard' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-grid-1x2"></i></span>
       <span class="sidebar-nav-text">Dashboard</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
     {% if request.user.role == 'SUPERADMIN' %}
+    <a href="{% url 'core:superadmin_control_center' %}" class="sidebar-nav-item {% nav_active_names request 'superadmin_control_center' %}">
+      <span class="sidebar-nav-icon"><i class="bi bi-sliders2"></i></span>
+      <span class="sidebar-nav-text">Control Center</span>
+      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+    </a>
     <a href="{% url 'admin_manage:schools_list' %}" class="sidebar-nav-item {% nav_active_names request 'schools_list' 'school_create' 'school_edit' 'school_view' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-building"></i></span>
       <span class="sidebar-nav-text">Schools</span>
@@ -193,6 +226,7 @@
       <span class="sidebar-nav-text">Support</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
+    {% endif %}
     {% endif %}
     {% endif %}
   </nav>

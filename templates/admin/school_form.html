@@ -1,70 +1,453 @@
 {% extends "base.html" %}
 {% block title %}{{ title }} | Admin{% endblock %}
+{% block extra_head %}
+<style>
+  .school-admin-form-page {
+    --school-card-radius: 15px;
+    --school-card-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 12px 32px -8px rgba(15, 23, 42, 0.1);
+    --school-input-radius: 11px;
+    --school-border: rgba(15, 23, 42, 0.08);
+    --school-muted: #64748b;
+    max-width: 920px;
+    margin-inline: auto;
+  }
+  .dark .school-admin-form-page {
+    --school-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 16px 40px -12px rgba(0, 0, 0, 0.45);
+    --school-border: rgba(148, 163, 184, 0.18);
+    --school-muted: #94a3b8;
+  }
+  .school-admin-form-page .school-page-breadcrumb {
+    font-size: 0.8125rem;
+  }
+  .school-admin-form-page .school-page-breadcrumb .breadcrumb-item + .breadcrumb-item::before {
+    content: "›";
+    font-weight: 500;
+    opacity: 0.45;
+  }
+  .school-admin-form-page .school-hero-title {
+    font-family: "Poppins", system-ui, sans-serif;
+    letter-spacing: -0.02em;
+  }
+  .school-admin-form-page .school-code-pill {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 0.35rem 0.65rem;
+    border-radius: 8px;
+    background: rgba(99, 102, 241, 0.1);
+    color: #4338ca;
+    border: 1px solid rgba(99, 102, 241, 0.2);
+  }
+  .dark .school-admin-form-page .school-code-pill {
+    background: rgba(129, 140, 248, 0.12);
+    color: #a5b4fc;
+    border-color: rgba(129, 140, 248, 0.25);
+  }
+  .school-admin-form-page .school-premium-card {
+    border-radius: var(--school-card-radius);
+    border: 1px solid var(--school-border);
+    box-shadow: var(--school-card-shadow);
+    background: #fff;
+    overflow: hidden;
+  }
+  .dark .school-admin-form-page .school-premium-card {
+    background: rgba(15, 23, 42, 0.65);
+  }
+  .school-admin-form-page .school-card-head {
+    padding: 1.1rem 1.35rem;
+    border-bottom: 1px solid var(--school-border);
+    background: linear-gradient(180deg, rgba(248, 250, 252, 0.9) 0%, rgba(255, 255, 255, 0.5) 100%);
+  }
+  .dark .school-admin-form-page .school-card-head {
+    background: linear-gradient(180deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.3) 100%);
+  }
+  .school-admin-form-page .school-card-body {
+    padding: 1.35rem 1.35rem 1.5rem;
+  }
+  .school-admin-form-page .school-summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 0.85rem 0;
+    border-bottom: 1px solid var(--school-border);
+    font-size: 0.9375rem;
+  }
+  .school-admin-form-page .school-summary-row:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+  .school-admin-form-page .school-summary-row:first-child {
+    padding-top: 0;
+  }
+  .school-admin-form-page .school-summary-label {
+    color: var(--school-muted);
+    font-weight: 500;
+    flex: 0 0 42%;
+    max-width: 12rem;
+  }
+  .school-admin-form-page .school-summary-value {
+    font-weight: 600;
+    text-align: right;
+    color: inherit;
+  }
+  /*
+   DaisyUI (Tailwind dist) sets `.tab-content { display: none }` for its own tabs.
+   Bootstrap nests `.tab-pane` elements *inside* `.tab-content`, so the entire panel
+   (section headers + inputs) was invisible while the nav pills still showed.
+   Same pattern as templates/core/school/student_add.html and teacher_master_form.html.
+  */
+  .school-admin-form-page .tab-content {
+    display: block !important;
+    height: auto !important;
+    margin: 0 !important;
+    order: unset !important;
+    border-width: 0 !important;
+    border-color: transparent !important;
+  }
+  .school-admin-form-page .nav-school-tabs {
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--school-border);
+    padding-bottom: 0.5rem;
+    margin-bottom: 0;
+  }
+  .school-admin-form-page .nav-school-tabs .nav-link {
+    border-radius: 10px;
+    padding: 0.55rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--school-muted);
+    border: 1px solid transparent;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+  .school-admin-form-page .nav-school-tabs .nav-link:hover {
+    color: #334155;
+    background: rgba(15, 23, 42, 0.04);
+  }
+  .dark .school-admin-form-page .nav-school-tabs .nav-link:hover {
+    color: #e2e8f0;
+    background: rgba(148, 163, 184, 0.08);
+  }
+  .school-admin-form-page .nav-school-tabs .nav-link.active {
+    color: #fff;
+    background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+    border-color: transparent;
+    box-shadow: 0 4px 14px -4px rgba(79, 70, 229, 0.55);
+  }
+  .school-admin-form-page .school-field {
+    margin-bottom: 1.25rem;
+  }
+  .school-admin-form-page .school-field:last-child {
+    margin-bottom: 0;
+  }
+  .school-admin-form-page .school-field label.form-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 0.45rem;
+    letter-spacing: 0.01em;
+  }
+  .dark .school-admin-form-page .school-field label.form-label {
+    color: #e2e8f0;
+  }
+  .school-admin-form-page .school-field .form-control,
+  .school-admin-form-page .school-field .form-select,
+  .school-admin-form-page .school-field select {
+    border-radius: var(--school-input-radius);
+    min-height: 2.75rem;
+    padding: 0.55rem 0.85rem;
+    font-size: 0.9375rem;
+    border-color: var(--school-border);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .school-admin-form-page .school-field textarea.form-control {
+    min-height: 5rem;
+  }
+  .school-admin-form-page .school-field .form-control:focus,
+  .school-admin-form-page .school-field .form-select:focus,
+  .school-admin-form-page .school-field select:focus {
+    border-color: rgba(99, 102, 241, 0.65);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+  }
+  .school-admin-form-page .school-field-hint {
+    font-size: 0.8125rem;
+    color: var(--school-muted);
+    margin-top: 0.4rem;
+    line-height: 1.45;
+  }
+  .school-admin-form-page .school-form-sticky-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 6;
+    margin-top: 1.75rem;
+    margin-left: -0.25rem;
+    margin-right: -0.25rem;
+    padding: 1rem 1.25rem;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--school-border);
+    border-radius: var(--school-card-radius);
+    box-shadow: 0 -8px 32px -12px rgba(15, 23, 42, 0.12);
+  }
+  .dark .school-admin-form-page .school-form-sticky-footer {
+    background: rgba(15, 23, 42, 0.92);
+    box-shadow: 0 -8px 32px -12px rgba(0, 0, 0, 0.35);
+  }
+  .school-admin-form-page .btn-school-cancel {
+    border-radius: 11px;
+    padding: 0.55rem 1.25rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+  }
+  .school-admin-form-page .btn-school-save {
+    border-radius: 11px;
+    padding: 0.55rem 1.5rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+    border: none;
+    box-shadow: 0 4px 14px -4px rgba(79, 70, 229, 0.55);
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+  .school-admin-form-page .btn-school-save:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 22px -6px rgba(79, 70, 229, 0.55);
+    background: linear-gradient(135deg, #4338ca 0%, #4f46e5 100%);
+    color: #fff;
+  }
+  .school-admin-form-page .school-info-panel {
+    border-radius: var(--school-input-radius);
+    border: 1px dashed var(--school-border);
+    padding: 1.1rem 1.25rem;
+    background: rgba(248, 250, 252, 0.65);
+    font-size: 0.875rem;
+    color: var(--school-muted);
+    line-height: 1.55;
+  }
+  .dark .school-admin-form-page .school-info-panel {
+    background: rgba(30, 41, 59, 0.35);
+  }
+  .school-admin-form-page .school-settings-dl dt {
+    color: var(--school-muted);
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+  .school-admin-form-page .school-settings-dl dd {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    margin-bottom: 0.85rem;
+  }
+  .school-admin-form-page .school-settings-dl dd:last-child {
+    margin-bottom: 0;
+  }
+</style>
+{% endblock %}
 {% block content %}
-<div class="container-fluid px-0">
-  <nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb">
-      <li class="breadcrumb-item"><a href="{% url 'core:super_admin_dashboard' %}">Dashboard</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'admin_manage:schools_list' %}">Schools</a></li>
-      <li class="breadcrumb-item active">{{ title }}</li>
+<div class="school-admin-form-page">
+  <nav aria-label="breadcrumb" class="school-page-breadcrumb mb-3">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'core:super_admin_dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'admin_manage:schools_list' %}" class="text-decoration-none">School management</a></li>
+      {% if school %}
+        <li class="breadcrumb-item"><a href="{% url 'admin_manage:school_view' school.code %}" class="text-decoration-none">{{ school.code }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Edit school</li>
+      {% else %}
+        <li class="breadcrumb-item active" aria-current="page">Create school</li>
+      {% endif %}
     </ol>
   </nav>
 
-  <div class="card border-0 shadow-sm rounded-3" style="max-width: 36rem;">
-    <div class="card-body">
-      <h2 class="h5 fw-bold mb-4">{{ title }}</h2>
-      {% if school %}<p class="text-muted small">Code: <strong>{{ school.code }}</strong> (auto-generated, read-only)</p>{% endif %}
-      {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
-      <form method="post">
-        {% csrf_token %}
-        <div class="mb-3">
-          <label class="form-label">Plan</label>
-          {{ form.saas_plan }}
-          {% if form.saas_plan.errors %}<div class="text-danger small">{{ form.saas_plan.errors.0 }}</div>{% endif %}
-          <small class="text-muted d-block mt-1">Starter (₹39/student/month) or Enterprise (₹59/student/month) — controls which modules are available.</small>
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Institution Name</label>
-          {{ form.name }}
-          {% if form.name.errors %}<div class="text-danger small">{{ form.name.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Institution type</label>
-          {{ form.institution_type }}
-          {% if form.institution_type.errors %}<div class="text-danger small">{{ form.institution_type.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Contact person</label>
-          {{ form.contact_person }}
-          {% if form.contact_person.errors %}<div class="text-danger small">{{ form.contact_person.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Status</label>
-          {{ form.school_status }}
-          {% if form.school_status.errors %}<div class="text-danger small">{{ form.school_status.errors.0 }}</div>{% endif %}
-          <small class="text-muted d-block mt-1">Inactive / Suspended disables tenant access (<code>is_active</code>).</small>
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Address</label>
-          {{ form.address }}
-          {% if form.address.errors %}<div class="text-danger small">{{ form.address.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Contact Email</label>
-          {{ form.contact_email }}
-          {% if form.contact_email.errors %}<div class="text-danger small">{{ form.contact_email.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Phone</label>
-          {{ form.phone }}
-          {% if form.phone.errors %}<div class="text-danger small">{{ form.phone.errors.0 }}</div>{% endif %}
-        </div>
-        <div class="d-flex gap-2">
-          <button type="submit" class="btn btn-primary">Save</button>
-          <a href="{% url 'admin_manage:schools_list' %}" class="btn btn-outline-secondary">Cancel</a>
-        </div>
-      </form>
+  <header class="mb-4 pb-2">
+    <p class="text-uppercase small fw-semibold text-muted mb-2" style="letter-spacing: 0.08em;">{% if school %}Edit{% else %}Create{% endif %}</p>
+    <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+      <div>
+        <h1 class="school-hero-title h3 fw-bold mb-2">
+          {% if school %}{{ school.name }}{% else %}New school{% endif %}
+        </h1>
+        <p class="text-muted mb-0" style="max-width: 36rem;">
+          {% if school %}
+            Manage school profile, primary contact, and subscription access. Changes apply to the tenant immediately after save.
+          {% else %}
+            Add an institution to the platform. A dedicated database schema will be created when you save.
+          {% endif %}
+        </p>
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        {% if school %}
+          <span class="school-code-pill">Code {{ school.code }}</span>
+          {% if school.school_status == "suspended" %}
+            <span class="badge rounded-pill text-bg-danger px-3 py-2">Suspended</span>
+          {% elif school.school_status == "inactive" %}
+            <span class="badge rounded-pill text-bg-secondary px-3 py-2">Inactive</span>
+          {% elif school.is_active %}
+            <span class="badge rounded-pill text-bg-success px-3 py-2">Active</span>
+          {% else %}
+            <span class="badge rounded-pill text-bg-warning text-dark px-3 py-2">Access limited</span>
+          {% endif %}
+        {% endif %}
+      </div>
     </div>
-  </div>
+  </header>
+
+  {% if school %}
+  <section class="school-premium-card mb-4" aria-label="School summary">
+    <div class="school-card-head">
+      <h2 class="h6 fw-bold mb-0 d-flex align-items-center gap-2">
+        <i class="bi bi-building-check text-primary"></i> School summary
+      </h2>
+    </div>
+    <div class="school-card-body">
+      <div class="school-summary-row">
+        <span class="school-summary-label">School name</span>
+        <span class="school-summary-value">{{ school.name }}</span>
+      </div>
+      <div class="school-summary-row">
+        <span class="school-summary-label">School code</span>
+        <span class="school-summary-value font-monospace">{{ school.code }}</span>
+      </div>
+      <div class="school-summary-row">
+        <span class="school-summary-label">Primary contact</span>
+        <span class="school-summary-value">{{ school.contact_person|default:"—" }}</span>
+      </div>
+      <div class="school-summary-row">
+        <span class="school-summary-label">Plan</span>
+        <span class="school-summary-value">{{ school.saas_plan.name|default:"—" }}</span>
+      </div>
+      <div class="school-summary-row">
+        <span class="school-summary-label">Status</span>
+        <span class="school-summary-value">{{ school.get_school_status_display }}</span>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if form.non_field_errors %}
+    <div class="alert alert-danger rounded-3 border-0 shadow-sm mb-4">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <form method="post" id="admin-school-form" novalidate>
+    {% csrf_token %}
+
+    <div class="school-premium-card mb-3">
+      <div class="school-card-body pb-0">
+        <ul class="nav nav-school-tabs" id="schoolEditTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-general" data-bs-toggle="tab" data-bs-target="#pane-general" type="button" role="tab" aria-controls="pane-general" aria-selected="true">General</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-admin" data-bs-toggle="tab" data-bs-target="#pane-admin" type="button" role="tab" aria-controls="pane-admin" aria-selected="false">Admin &amp; contact</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-access" data-bs-toggle="tab" data-bs-target="#pane-access" type="button" role="tab" aria-controls="pane-access" aria-selected="false">Subscription &amp; access</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-branding" data-bs-toggle="tab" data-bs-target="#pane-branding" type="button" role="tab" aria-controls="pane-branding" aria-selected="false">Branding</button>
+          </li>
+          {% if school %}
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-settings" data-bs-toggle="tab" data-bs-target="#pane-settings" type="button" role="tab" aria-controls="pane-settings" aria-selected="false">Settings</button>
+          </li>
+          {% endif %}
+        </ul>
+      </div>
+      <div class="tab-content school-card-body pt-3 border-top" id="schoolEditTabContent" style="border-color: var(--school-border) !important;">
+        <div class="tab-pane fade show active" id="pane-general" role="tabpanel" aria-labelledby="tab-general" tabindex="0">
+          <section class="mb-0">
+            <h3 class="h6 fw-bold text-body-secondary mb-3">School information</h3>
+            <div class="school-field">
+              <label class="form-label" for="{{ form.name.id_for_label }}">Institution name</label>
+              {{ form.name }}
+              {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="school-field">
+              <label class="form-label" for="{{ form.institution_type.id_for_label }}">Institution type</label>
+              {{ form.institution_type }}
+              {% if form.institution_type.errors %}<div class="text-danger small mt-1">{{ form.institution_type.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="school-field">
+              <label class="form-label" for="{{ form.address.id_for_label }}">Address</label>
+              {{ form.address }}
+              {% if form.address.errors %}<div class="text-danger small mt-1">{{ form.address.errors.0 }}</div>{% endif %}
+            </div>
+          </section>
+        </div>
+
+        <div class="tab-pane fade" id="pane-admin" role="tabpanel" aria-labelledby="tab-admin" tabindex="0">
+          <section class="mb-0">
+            <h3 class="h6 fw-bold text-body-secondary mb-3">Admin &amp; contact details</h3>
+            <div class="school-field">
+              <label class="form-label" for="{{ form.contact_person.id_for_label }}">Contact person</label>
+              {{ form.contact_person }}
+              {% if form.contact_person.errors %}<div class="text-danger small mt-1">{{ form.contact_person.errors.0 }}</div>{% endif %}
+              <p class="school-field-hint mb-0">Primary billing or administrative contact for this institution.</p>
+            </div>
+            <div class="school-field">
+              <label class="form-label" for="{{ form.contact_email.id_for_label }}">Contact email</label>
+              {{ form.contact_email }}
+              {% if form.contact_email.errors %}<div class="text-danger small mt-1">{{ form.contact_email.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="school-field">
+              <label class="form-label" for="{{ form.phone.id_for_label }}">Phone</label>
+              {{ form.phone }}
+              {% if form.phone.errors %}<div class="text-danger small mt-1">{{ form.phone.errors.0 }}</div>{% endif %}
+            </div>
+          </section>
+        </div>
+
+        <div class="tab-pane fade" id="pane-access" role="tabpanel" aria-labelledby="tab-access" tabindex="0">
+          <section class="mb-0">
+            <h3 class="h6 fw-bold text-body-secondary mb-3">Subscription &amp; access</h3>
+            <div class="school-field">
+              <label class="form-label" for="{{ form.school_status.id_for_label }}">Status</label>
+              {{ form.school_status }}
+              {% if form.school_status.errors %}<div class="text-danger small mt-1">{{ form.school_status.errors.0 }}</div>{% endif %}
+              <p class="school-field-hint mb-0">Inactive or suspended disables tenant access (<code class="small">is_active</code> is synced from this).</p>
+            </div>
+            <div class="school-field">
+              <label class="form-label" for="{{ form.saas_plan.id_for_label }}">Plan</label>
+              {{ form.saas_plan }}
+              {% if form.saas_plan.errors %}<div class="text-danger small mt-1">{{ form.saas_plan.errors.0 }}</div>{% endif %}
+              <p class="school-field-hint mb-0">Starter or Enterprise — controls which modules are available to this school.</p>
+            </div>
+          </section>
+        </div>
+
+        <div class="tab-pane fade" id="pane-branding" role="tabpanel" aria-labelledby="tab-branding" tabindex="0">
+          <section class="mb-0">
+            <h3 class="h6 fw-bold text-body-secondary mb-3">Branding</h3>
+            <div class="school-info-panel">
+              <strong class="text-body d-block mb-2">Logo, theme &amp; public profile</strong>
+              Visual branding (logo, theme color, website, and header text) is managed by the school from the <strong>account profile</strong> area when signed in as a school admin — not on this super-admin screen. The fields on this page focus on platform access and billing contact details.
+            </div>
+          </section>
+        </div>
+
+        {% if school %}
+        <div class="tab-pane fade" id="pane-settings" role="tabpanel" aria-labelledby="tab-settings" tabindex="0">
+          <section class="mb-0">
+            <h3 class="h6 fw-bold text-body-secondary mb-3">Tenant settings</h3>
+            <p class="school-field-hint mb-3">Read-only reference for support and operations. Editable fields are on the other tabs.</p>
+            <dl class="school-settings-dl mb-0">
+              <dt>Schema name</dt>
+              <dd class="font-monospace">{{ school.schema_name }}</dd>
+              <dt>School code</dt>
+              <dd class="font-monospace">{{ school.code }}</dd>
+              <dt>Trial end date</dt>
+              <dd>{% if school.trial_end_date %}{{ school.trial_end_date|date:"M j, Y" }}{% else %}—{% endif %}</dd>
+              <dt>Created</dt>
+              <dd>{{ school.created_on|date:"M j, Y H:i" }}</dd>
+            </dl>
+          </section>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="school-form-sticky-footer d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <a href="{% url 'admin_manage:schools_list' %}" class="btn btn-outline-secondary btn-school-cancel">Cancel</a>
+      <button type="submit" class="btn btn-primary btn-school-save">{% if school %}Save changes{% else %}Create school{% endif %}</button>
+    </div>
+  </form>
 </div>
 {% endblock %}

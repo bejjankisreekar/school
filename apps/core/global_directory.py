@@ -115,6 +115,8 @@ class GlobalStudentRow:
     school_code: str
     school_name: str
     student_pk: int
+    user_id: int
+    username: str
     student_public_id: str
     name: str
     class_name: str
@@ -205,6 +207,8 @@ def collect_global_students(
                                 school_code=school.code,
                                 school_name=school.name,
                                 student_pk=st.pk,
+                                user_id=st.user_id,
+                                username=(st.user.username or ""),
                                 student_public_id=f"{school.code}-{st.pk}",
                                 name=name,
                                 class_name=st.classroom.name if st.classroom else "—",
@@ -250,6 +254,8 @@ class GlobalTeacherRow:
     school_code: str
     school_name: str
     teacher_pk: int
+    user_id: int
+    username: str
     name: str
     email: str
     phone: str
@@ -308,6 +314,8 @@ def collect_global_teachers(
                                 school_code=school.code,
                                 school_name=school.name,
                                 teacher_pk=t.pk,
+                                user_id=t.user_id,
+                                username=(t.user.username or ""),
                                 name=(t.user.get_full_name() or t.user.username or "").strip(),
                                 email=t.user.email or "",
                                 phone=t.phone_number or "",

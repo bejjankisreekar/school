@@ -56,6 +56,38 @@
     border-color: #6366f1;
     box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.2);
   }
+  .teacher-master-qa-btn {
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    background: rgba(99, 102, 241, 0.08);
+    color: #4f46e5;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+  }
+  .teacher-master-qa-btn:hover {
+    transform: translateY(-1px);
+    background: rgba(99, 102, 241, 0.14);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+  }
+  html.dark .teacher-master-qa-btn {
+    border-color: rgba(129, 140, 248, 0.35);
+    background: rgba(129, 140, 248, 0.12);
+    color: #a5b4fc;
+  }
+  .teacher-master-input-plus {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .teacher-master-input-plus > :first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
   .teacher-master-wizard select[multiple] {
     min-height: 7rem;
   }
@@ -79,6 +111,100 @@
     color: #a5b4fc;
     background: rgba(99, 102, 241, 0.15);
     border-color: rgba(129, 140, 248, 0.35);
+  }
+
+  /* Select2: match rounded ERP inputs */
+  .teacher-master-wizard .select2-container--default .select2-selection--single,
+  .teacher-master-wizard .select2-container--default .select2-selection--multiple {
+    min-height: 2.5rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.5rem;
+    padding: 0.35rem 0.75rem;
+    display: flex;
+    align-items: center;
+  }
+  .teacher-master-wizard .select2-container--default .select2-selection--single .select2-selection__rendered {
+    padding-left: 0;
+    color: #0f172a;
+  }
+  .teacher-master-wizard .select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 2.5rem;
+    right: 10px;
+  }
+  .teacher-master-wizard .select2-container--default .select2-selection--multiple .select2-search__field {
+    margin-top: 0;
+  }
+  .teacher-master-wizard .select2-container--default.select2-container--focus .select2-selection--single,
+  .teacher-master-wizard .select2-container--default.select2-container--focus .select2-selection--multiple,
+  .teacher-master-wizard .select2-container--default.select2-container--open .select2-selection--single,
+  .teacher-master-wizard .select2-container--default.select2-container--open .select2-selection--multiple {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.18);
+  }
+  html.dark .teacher-master-wizard .select2-container--default .select2-selection--single,
+  html.dark .teacher-master-wizard .select2-container--default .select2-selection--multiple {
+    border-color: #475569;
+    background-color: #1e293b;
+  }
+  html.dark .teacher-master-wizard .select2-container--default .select2-selection--single .select2-selection__rendered {
+    color: #f1f5f9;
+  }
+  .teacher-master-wizard .select2-dropdown {
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+  }
+
+  /*
+   * Bootstrap modal safety overrides:
+   * DaisyUI also defines `.modal` and can hide/disable Bootstrap's modal.
+   * Scope to THIS modal only, so the backdrop doesn't "freeze" the page.
+   */
+  #tmQuickAddBackdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    z-index: 1040;
+    opacity: 0;
+    transition: opacity 0.16s ease;
+    pointer-events: none;
+  }
+  #tmQuickAddBackdrop.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  #tmQuickAddModal.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1050;
+    display: none;
+    width: 100%;
+    height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    outline: 0;
+    pointer-events: auto;
+    background: transparent;
+  }
+  #tmQuickAddModal.modal.show {
+    display: block;
+  }
+  #tmQuickAddModal:not(.show) {
+    pointer-events: none;
+  }
+  #tmQuickAddModal .modal-dialog {
+    pointer-events: auto;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  #tmQuickAddModal .modal-content {
+    pointer-events: auto;
+    background-color: #fff;
+  }
+  html.dark #tmQuickAddModal .modal-content {
+    background-color: #0f172a;
   }
 </style>
 {% endblock %}
@@ -174,12 +300,42 @@
               <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.employee_id.id_for_label }}">Employee ID</label>{{ form.employee_id }}{% if form.employee_id.errors %}<div class="text-danger small mt-1">{{ form.employee_id.errors.0 }}</div>{% endif %}</div>
               <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.phone_number.id_for_label }}">Phone</label>{{ form.phone_number }}</div>
               <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.date_of_birth.id_for_label }}">Date of birth</label>{{ form.date_of_birth }}</div>
-              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.gender.id_for_label }}">Gender</label>{{ form.gender }}</div>
-              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.blood_group.id_for_label }}">Blood group</label>{{ form.blood_group }}</div>
+              <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label" for="{{ form.gender.id_for_label }}">Gender</label>
+                <div class="teacher-master-input-plus">
+                  {{ form.gender }}
+                  <button type="button" class="teacher-master-qa-btn tm-quickadd-btn" data-target="#{{ form.gender.id_for_label }}" data-title="Add gender" data-placeholder="e.g. Non-binary" aria-label="Add gender"><i class="bi bi-plus-lg"></i></button>
+                </div>
+              </div>
+              <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label" for="{{ form.blood_group.id_for_label }}">Blood group</label>
+                <div class="teacher-master-input-plus">
+                  {{ form.blood_group }}
+                  <button type="button" class="teacher-master-qa-btn tm-quickadd-btn" data-target="#{{ form.blood_group.id_for_label }}" data-title="Add blood group" data-placeholder="e.g. A+, O-" aria-label="Add blood group"><i class="bi bi-plus-lg"></i></button>
+                </div>
+              </div>
               <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.id_number.id_for_label }}">Aadhar / ID</label>{{ form.id_number }}</div>
-              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.nationality.id_for_label }}">Nationality</label>{{ form.nationality }}</div>
-              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.religion.id_for_label }}">Religion</label>{{ form.religion }}</div>
-              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.mother_tongue.id_for_label }}">Mother tongue</label>{{ form.mother_tongue }}</div>
+              <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label" for="{{ form.nationality.id_for_label }}">Nationality</label>
+                <div class="teacher-master-input-plus">
+                  {{ form.nationality }}
+                  <button type="button" class="teacher-master-qa-btn tm-quickadd-btn" data-target="#{{ form.nationality.id_for_label }}" data-title="Add nationality" data-placeholder="e.g. Indian" aria-label="Add nationality"><i class="bi bi-plus-lg"></i></button>
+                </div>
+              </div>
+              <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label" for="{{ form.religion.id_for_label }}">Religion</label>
+                <div class="teacher-master-input-plus">
+                  {{ form.religion }}
+                  <button type="button" class="teacher-master-qa-btn tm-quickadd-btn" data-target="#{{ form.religion.id_for_label }}" data-title="Add religion" data-placeholder="Optional" aria-label="Add religion"><i class="bi bi-plus-lg"></i></button>
+                </div>
+              </div>
+              <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label" for="{{ form.mother_tongue.id_for_label }}">Mother tongue</label>
+                <div class="teacher-master-input-plus">
+                  {{ form.mother_tongue }}
+                  <button type="button" class="teacher-master-qa-btn tm-quickadd-btn" data-target="#{{ form.mother_tongue.id_for_label }}" data-title="Add mother tongue" data-placeholder="e.g. Telugu" aria-label="Add mother tongue"><i class="bi bi-plus-lg"></i></button>
+                </div>
+              </div>
               <div class="col-12 col-md-6"><label class="form-label" for="{{ form.profile_image.id_for_label }}">Photo</label>{{ form.profile_image }}</div>
             </div>
           </div>
@@ -188,11 +344,29 @@
         <div class="teacher-master-pane" id="tpane-2" role="tabpanel">
           <div class="teacher-master-section-card">
             <div class="row g-3">
-              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.qualification.id_for_label }}">Qualification</label>{{ form.qualification }}</div>
+              <div class="col-12 col-md-6">
+                <label class="form-label" for="{{ form.qualification.id_for_label }}">Qualification</label>
+                <div class="teacher-master-input-plus">
+                  {{ form.qualification }}
+                  <button type="button" class="teacher-master-qa-btn tm-quickadd-btn" data-target="#{{ form.qualification.id_for_label }}" data-title="Add qualification" data-placeholder="e.g. M.Ed, B.Sc" aria-label="Add qualification"><i class="bi bi-plus-lg"></i></button>
+                </div>
+              </div>
               <div class="col-12 col-md-6"><label class="form-label" for="{{ form.experience.id_for_label }}">Experience</label>{{ form.experience }}</div>
               <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.joining_date.id_for_label }}">Joining date</label>{{ form.joining_date }}</div>
-              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.designation.id_for_label }}">Designation</label>{{ form.designation }}</div>
-              <div class="col-12 col-md-6 col-lg-4"><label class="form-label" for="{{ form.department.id_for_label }}">Department</label>{{ form.department }}</div>
+              <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label" for="{{ form.designation.id_for_label }}">Designation</label>
+                <div class="teacher-master-input-plus">
+                  {{ form.designation }}
+                  <button type="button" class="teacher-master-qa-btn tm-quickadd-btn" data-target="#{{ form.designation.id_for_label }}" data-title="Add designation" data-placeholder="e.g. Senior teacher" aria-label="Add designation"><i class="bi bi-plus-lg"></i></button>
+                </div>
+              </div>
+              <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label" for="{{ form.department.id_for_label }}">Department</label>
+                <div class="teacher-master-input-plus">
+                  {{ form.department }}
+                  <button type="button" class="teacher-master-qa-btn tm-quickadd-btn" data-target="#{{ form.department.id_for_label }}" data-title="Add department" data-placeholder="e.g. Sciences" aria-label="Add department"><i class="bi bi-plus-lg"></i></button>
+                </div>
+              </div>
               {% if teacher %}<div class="col-12"><label class="form-label" for="{{ form.role.id_for_label }}">Portal role</label>{{ form.role }}</div>{% endif %}
               <div class="col-12"><label class="form-label" for="{{ form.subjects.id_for_label }}">Subjects</label>{{ form.subjects }}</div>
               <div class="col-12"><label class="form-label" for="{{ form.classrooms.id_for_label }}">Assigned classes</label>{{ form.classrooms }}</div>
@@ -238,7 +412,39 @@
               <div class="col-12 col-md-6"><label class="form-label" for="{{ form.ifsc.id_for_label }}">IFSC</label>{{ form.ifsc }}</div>
               <div class="col-12 col-md-6"><label class="form-label" for="{{ form.uan_number.id_for_label }}">UAN / PF</label>{{ form.uan_number }}</div>
               <div class="col-12 col-md-6"><label class="form-label" for="{{ form.salary_payment_method.id_for_label }}">Salary payment mode</label>{{ form.salary_payment_method }}{% if form.salary_payment_method.help_text %}<div class="form-text">{{ form.salary_payment_method.help_text }}</div>{% endif %}</div>
-              <div class="col-12 col-md-6"><label class="form-label" for="{{ form.record_status.id_for_label }}">Record status</label>{{ form.record_status }}</div>
+              <div class="col-12">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+                  <div class="fw-semibold text-body">Login &amp; Access Control</div>
+                  <span class="small text-muted">Controls whether this teacher can sign in.</span>
+                </div>
+                <div class="p-3 rounded-4 border" style="border-color: rgba(15,23,42,0.08); background: rgba(248,250,252,0.75);">
+                  <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                    <div>
+                      <div class="small text-muted">Account status</div>
+                      <div class="fw-semibold"><span id="tmStatusText">—</span></div>
+                    </div>
+                    <div class="form-check form-switch m-0">
+                      <input class="form-check-input" type="checkbox" role="switch" id="tmAccountActiveSwitch">
+                      <label class="form-check-label fw-semibold" for="tmAccountActiveSwitch">Allow login</label>
+                    </div>
+                  </div>
+
+                  <div class="mt-3 d-none">
+                    {{ form.record_status }}
+                  </div>
+
+                  <div class="row g-3 mt-1" id="tmDeactivationFields" style="display:none;">
+                    <div class="col-12 col-md-6">
+                      <label class="form-label" for="{{ form.reason_for_deactivation.id_for_label }}">Reason for deactivation</label>
+                      {{ form.reason_for_deactivation }}
+                    </div>
+                    <div class="col-12 col-md-6">
+                      <label class="form-label" for="{{ form.relieved_date.id_for_label }}">Relieved / left school date</label>
+                      {{ form.relieved_date }}
+                    </div>
+                  </div>
+                </div>
+              </div>
               {% if teacher %}
               <div class="col-12 col-md-6"><label class="form-label" for="{{ form.password.id_for_label }}">New password</label>{{ form.password }}<div class="form-text">Optional — leave blank to keep current.</div></div>
               {% endif %}
@@ -256,10 +462,67 @@
     </div>
   </form>
 </div>
+
+<div id="tmQuickAddBackdrop" aria-hidden="true"></div>
+
+<div class="modal fade" id="tmQuickAddModal" tabindex="-1" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="tmQuickAddTitle">
+  <div class="modal-dialog modal-dialog-centered" style="max-width: 420px;">
+    <div class="modal-content border-0 shadow rounded-4">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold" id="tmQuickAddTitle">Add</h5>
+        <button type="button" class="btn-close" data-tm-close aria-label="Close"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <label class="form-label small fw-semibold" for="tmQuickAddValue">Name</label>
+        <input type="text" class="form-control" id="tmQuickAddValue" autocomplete="off" placeholder="">
+        <div class="text-danger small mt-2 d-none" id="tmQuickAddError">Please enter a value.</div>
+        <div class="form-text">This adds a new option for this form and selects it.</div>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-tm-close>Cancel</button>
+        <button type="button" class="btn btn-primary rounded-pill px-4" id="tmQuickAddSave">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 (function() {
+  function getCookie(name) {
+    var v = document.cookie || "";
+    var parts = v.split(";").map(function(s){ return s.trim(); });
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i].startsWith(name + "=")) return decodeURIComponent(parts[i].slice(name.length + 1));
+    }
+    return "";
+  }
+  function getCSRFToken() {
+    // Prefer cookie; fallback to hidden input inside the main form.
+    var c = getCookie("csrftoken");
+    if (c) return c;
+    var inp = document.querySelector('input[name="csrfmiddlewaretoken"]');
+    return (inp && inp.value) ? inp.value : "";
+  }
+
+  function labelForSelect(sel) {
+    if (!sel) return "";
+    try {
+      var id = sel.getAttribute("id");
+      if (!id) return "";
+      var lbl = document.querySelector('label[for="' + CSS.escape(id) + '"]');
+      return (lbl && (lbl.textContent || "").trim()) || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function searchPlaceholder(sel) {
+    var label = labelForSelect(sel);
+    if (!label) return "Search…";
+    return "Search " + label.replace(/\*+$/, "").trim().toLowerCase();
+  }
+
   function initSelect2() {
     if (!window.jQuery) return;
     var $ = window.jQuery;
@@ -267,6 +530,30 @@
     if ($s.length) {
       $s.select2({ width: "100%" });
     }
+
+    var $masters = $("[data-master-key]");
+    $masters.each(function() {
+      var $el = $(this);
+      $el.select2({
+        width: "100%",
+        // IMPORTANT: master fields should be search-and-select only.
+        // New values must be added via the inline "+" modal.
+        tags: false,
+        placeholder: searchPlaceholder($el.get(0)),
+        allowClear: true
+      });
+    });
+
+    var $searchable = $("#"+ "{{ form.gender.id_for_label }}").add("#"+ "{{ form.blood_group.id_for_label }}");
+    $searchable.each(function() {
+      var $el = $(this);
+      $el.select2({
+        width: "100%",
+        tags: false,
+        placeholder: searchPlaceholder($el.get(0)),
+        allowClear: true
+      });
+    });
   }
   const panes = ["#tpane-1", "#tpane-2", "#tpane-3", "#tpane-4", "#tpane-5"];
   let idx = 0;
@@ -314,6 +601,204 @@
     document.addEventListener("DOMContentLoaded", bindWizard);
   } else {
     bindWizard();
+  }
+
+  function bindQuickAdd() {
+    var modalEl = document.getElementById("tmQuickAddModal");
+    if (!modalEl) return;
+    var backdropEl = document.getElementById("tmQuickAddBackdrop");
+    var titleEl = document.getElementById("tmQuickAddTitle");
+    var inputEl = document.getElementById("tmQuickAddValue");
+    var errEl = document.getElementById("tmQuickAddError");
+    var saveBtn = document.getElementById("tmQuickAddSave");
+    var currentSelector = null;
+    var currentKey = null;
+    var lastFocusEl = null;
+
+    function cleanupBootstrapLeftovers() {
+      // If Bootstrap created a backdrop earlier, remove it so it never blocks clicks.
+      document.querySelectorAll(".modal-backdrop").forEach(function(el) {
+        try { el.remove(); } catch (e) {}
+      });
+      document.body.classList.remove("modal-open");
+      document.body.style.removeProperty("overflow");
+      document.body.style.removeProperty("padding-right");
+    }
+
+    function openModal() {
+      cleanupBootstrapLeftovers();
+      lastFocusEl = document.activeElement;
+      modalEl.classList.add("show");
+      modalEl.style.display = "block";
+      modalEl.setAttribute("aria-hidden", "false");
+      if (backdropEl) backdropEl.classList.add("show");
+      document.body.style.overflow = "hidden";
+      window.setTimeout(function(){ inputEl && inputEl.focus(); }, 50);
+    }
+
+    function closeModal() {
+      modalEl.classList.remove("show");
+      modalEl.style.display = "none";
+      modalEl.setAttribute("aria-hidden", "true");
+      if (backdropEl) backdropEl.classList.remove("show");
+      cleanupBootstrapLeftovers();
+      document.body.style.removeProperty("overflow");
+      if (lastFocusEl && typeof lastFocusEl.focus === "function") {
+        window.setTimeout(function(){ try { lastFocusEl.focus(); } catch (e) {} }, 0);
+      }
+    }
+
+    document.querySelectorAll(".tm-quickadd-btn").forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        currentSelector = btn.getAttribute("data-target");
+        var sel = currentSelector ? document.querySelector(currentSelector) : null;
+        currentKey = (sel && sel.getAttribute("data-master-key")) || null;
+        var title = btn.getAttribute("data-title") || "Add";
+        var ph = btn.getAttribute("data-placeholder") || "";
+        if (titleEl) titleEl.textContent = title;
+        if (inputEl) {
+          inputEl.value = "";
+          inputEl.setAttribute("placeholder", ph);
+        }
+        if (errEl) errEl.classList.add("d-none");
+        openModal();
+      });
+    });
+
+    // Close handlers: X, Cancel, Esc, click outside (backdrop).
+    modalEl.querySelectorAll("[data-tm-close]").forEach(function(btn) {
+      btn.addEventListener("click", function(e) {
+        e.preventDefault();
+        closeModal();
+      });
+    });
+    if (backdropEl) {
+      backdropEl.addEventListener("click", function() { closeModal(); });
+    }
+    document.addEventListener("keydown", function(e) {
+      if (e.key === "Escape" && modalEl.classList.contains("show")) {
+        e.preventDefault();
+        closeModal();
+      }
+    });
+
+    function setError(msg) {
+      if (!errEl) return;
+      errEl.textContent = msg || "Please enter a valid value.";
+      errEl.classList.remove("d-none");
+    }
+
+    async function refreshSelectOptions(sel, key, selectValue) {
+      var res = await fetch("/api/master-data/" + encodeURIComponent(key) + "/list/", {
+        headers: { "X-Requested-With": "XMLHttpRequest" }
+      });
+      var data = await res.json();
+      var placeholder = sel.options.length ? sel.options[0].textContent : "— Select —";
+      sel.innerHTML = "";
+      sel.add(new Option(placeholder, "", false, false));
+      (data.options || []).forEach(function(o) {
+        sel.add(new Option(o.name, o.name, false, false));
+      });
+      if (selectValue) {
+        sel.value = selectValue;
+      }
+      if (window.jQuery) window.jQuery(sel).trigger("change");
+    }
+
+    async function commit() {
+      if (!currentSelector || !inputEl) return;
+      var v = (inputEl.value || "").trim();
+      if (!v) {
+        setError("Please enter a valid value.");
+        inputEl.focus();
+        return;
+      }
+      var sel = document.querySelector(currentSelector);
+      if (!sel) return;
+      var key = currentKey || sel.getAttribute("data-master-key");
+      if (!key) {
+        // Safety fallback (should not happen): local-only add.
+        var optLocal = new Option(v, v, true, true);
+        sel.add(optLocal);
+        if (window.jQuery) window.jQuery(sel).trigger("change");
+        closeModal();
+        return;
+      }
+
+      try {
+        if (errEl) errEl.classList.add("d-none");
+        if (saveBtn) saveBtn.disabled = true;
+        var csrf = getCSRFToken();
+        var resp = await fetch("/api/master-data/" + encodeURIComponent(key) + "/create/", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrf,
+            "X-Requested-With": "XMLHttpRequest"
+          },
+          body: JSON.stringify({ name: v })
+        });
+        var payload = await resp.json().catch(function(){ return {}; });
+        if (resp.status === 409) {
+          setError(payload.error || "This option already exists.");
+          if (saveBtn) saveBtn.disabled = false;
+          inputEl.focus();
+          return;
+        }
+        if (!resp.ok) {
+          setError(payload.error || ("Could not save. Please try again. (" + resp.status + ")"));
+          if (saveBtn) saveBtn.disabled = false;
+          return;
+        }
+        await refreshSelectOptions(sel, key, payload.name || v);
+        closeModal();
+      } catch (e) {
+        setError("Could not save. Please try again.");
+      } finally {
+        if (saveBtn) saveBtn.disabled = false;
+      }
+    }
+
+    if (saveBtn) saveBtn.addEventListener("click", commit);
+    if (inputEl) inputEl.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") { e.preventDefault(); commit(); }
+    });
+  }
+
+  function bindAccountStatusToggle() {
+    var sw = document.getElementById("tmAccountActiveSwitch");
+    var recordSel = document.getElementById("{{ form.record_status.id_for_label }}");
+    var txt = document.getElementById("tmStatusText");
+    var fields = document.getElementById("tmDeactivationFields");
+    if (!sw || !recordSel) return;
+
+    function applyState(isActive) {
+      sw.checked = !!isActive;
+      recordSel.value = isActive ? "ACTIVE" : "INACTIVE";
+      if (txt) txt.textContent = isActive ? "Active" : "Inactive";
+      if (fields) fields.style.display = isActive ? "none" : "flex";
+    }
+
+    // initial from select
+    var v = (recordSel.value || "ACTIVE").toUpperCase();
+    applyState(v === "ACTIVE");
+
+    sw.addEventListener("change", function() {
+      applyState(sw.checked);
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bindQuickAdd);
+  } else {
+    bindQuickAdd();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bindAccountStatusToggle);
+  } else {
+    bindAccountStatusToggle();
   }
 })();
 </script>

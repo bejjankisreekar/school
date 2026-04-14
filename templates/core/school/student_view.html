@@ -185,6 +185,49 @@
     border-color: var(--sp-primary);
     color: var(--sp-primary);
   }
+  .student-profile-dash .sp-account-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    border-radius: 999px;
+    padding: 0.45rem 0.9rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    border: 1px solid rgba(15, 23, 42, 0.14);
+    background: rgba(255, 255, 255, 0.65);
+    color: var(--sp-value);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+    transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+    white-space: nowrap;
+  }
+  html.dark .student-profile-dash .sp-account-action {
+    background: rgba(15, 23, 42, 0.35);
+    border-color: rgba(148, 163, 184, 0.22);
+    color: #e2e8f0;
+  }
+  .student-profile-dash .sp-account-action:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
+    border-color: rgba(79, 70, 229, 0.35);
+  }
+  .student-profile-dash .sp-account-action--danger {
+    border-color: rgba(239, 68, 68, 0.28);
+    background: rgba(254, 242, 242, 0.75);
+    color: #991b1b;
+  }
+  html.dark .student-profile-dash .sp-account-action--danger {
+    background: rgba(127, 29, 29, 0.18);
+    color: #fecaca;
+  }
+  .student-profile-dash .sp-account-action--success {
+    border-color: rgba(16, 185, 129, 0.26);
+    background: rgba(236, 253, 245, 0.8);
+    color: #065f46;
+  }
+  html.dark .student-profile-dash .sp-account-action--success {
+    background: rgba(6, 95, 70, 0.22);
+    color: #bbf7d0;
+  }
   .student-profile-dash .sp-stat-row { margin-top: 0.35rem; }
   .student-profile-dash .sp-stat-card-link {
     display: block;
@@ -385,17 +428,45 @@
           </div>
         </div>
       </div>
-      <div class="col-12 col-lg-auto text-lg-end">
-        <div class="d-flex flex-column gap-2 align-items-lg-end">
-          {% if student.user.is_active %}
-            <span class="badge rounded-pill text-bg-success px-3 py-2">Record active</span>
-          {% else %}
-            <span class="badge rounded-pill text-bg-secondary px-3 py-2">Record inactive</span>
-          {% endif %}
-          <span class="badge rounded-pill bg-light text-dark border px-3 py-2">Account: {% if student.user.is_active %}Active{% else %}Inactive{% endif %}</span>
-          <div class="small">
-            <span class="text-muted d-block sp-label" style="margin-bottom:0;">Username</span>
-            <span class="fw-semibold font-monospace" style="color: var(--sp-value);">{{ student.user.username }}</span>
+      <div class="col-12 col-lg-auto">
+        <div class="sp-subcard" style="min-width: 240px;">
+          <div class="d-flex align-items-start justify-content-between gap-2">
+            <div class="min-w-0">
+              <div class="sp-label mb-1">Account status</div>
+              <div class="d-flex flex-wrap gap-2 align-items-center">
+                <span class="badge rounded-pill px-3 py-2 {% if student.user.is_active %}text-bg-success{% else %}text-bg-secondary{% endif %}" id="spAccountStatusBadge">
+                  {% if student.user.is_active %}Active{% else %}Inactive{% endif %}
+                </span>
+                <span class="badge rounded-pill bg-light text-dark border px-3 py-2">
+                  <span class="text-muted">Record</span> {% if student.user.is_active %}active{% else %}inactive{% endif %}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              class="sp-account-action {% if student.user.is_active %}sp-account-action--danger{% else %}sp-account-action--success{% endif %} flex-shrink-0"
+              id="spToggleAccountBtn"
+              data-student-id="{{ student.id }}"
+              data-next-active="{% if student.user.is_active %}0{% else %}1{% endif %}"
+            >
+              {% if student.user.is_active %}
+                <i class="bi bi-slash-circle"></i> Deactivate
+              {% else %}
+                <i class="bi bi-check-circle"></i> Activate
+              {% endif %}
+            </button>
+          </div>
+
+          <div class="sp-divider"></div>
+
+          <div class="d-flex align-items-center justify-content-between gap-2">
+            <div class="min-w-0">
+              <div class="sp-label mb-1">Username</div>
+              <div class="sp-value font-monospace text-truncate">{{ student.user.username }}</div>
+            </div>
+            <span class="badge rounded-pill" style="background: var(--sp-primary-soft); color: var(--sp-primary); font-weight: 700;">
+              <i class="bi bi-shield-lock me-1"></i> Login
+            </span>
           </div>
         </div>
       </div>
@@ -596,4 +667,40 @@
     </div>
   </div>
 </div>
+
+<script>
+  (function () {
+    function getCSRF() {
+      var inp = document.querySelector('input[name="csrfmiddlewaretoken"]');
+      if (inp && inp.value) return inp.value;
+      var m = (document.cookie || "").match(/(?:^|;\s*)csrftoken=([^;]+)/);
+      return m ? decodeURIComponent(m[1]) : "";
+    }
+    var btn = document.getElementById("spToggleAccountBtn");
+    if (!btn) return;
+    btn.addEventListener("click", async function () {
+      var studentId = btn.getAttribute("data-student-id");
+      var nextActive = btn.getAttribute("data-next-active") === "1";
+      var msg = nextActive
+        ? "Are you sure you want to activate this student account?\nThe student will be able to log in."
+        : "Are you sure you want to deactivate this student account?\nThe student will no longer be able to log in.";
+      if (!window.confirm(msg)) return;
+      var resp = await fetch("/school/students/" + studentId + "/set-active/", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCSRF(),
+          "X-Requested-With": "XMLHttpRequest"
+        },
+        body: JSON.stringify({ is_active: nextActive })
+      });
+      if (!resp.ok) {
+        alert("Could not update status. (" + resp.status + ")");
+        return;
+      }
+      window.location.reload();
+    });
+  })();
+</script>
 {% endblock %}

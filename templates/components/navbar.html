@@ -39,6 +39,9 @@
       <!-- RIGHT: notification + theme + profile -->
       <div class="topbar-right">
         {% if request.user.role == "SUPERADMIN" %}
+        <a href="{% url 'core:superadmin_control_center' %}" class="btn btn-link app-header-icon-slot text-body text-decoration-none app-header-icon-btn" title="Super Admin Control Center" aria-label="Control Center">
+          <i class="bi bi-sliders2 app-header-toolbar-icon"></i>
+        </a>
         <a href="{% url 'core:superadmin_financials' %}" class="btn btn-link app-header-icon-slot text-body text-decoration-none app-header-icon-btn" title="Platform financials" aria-label="Financials">
           <i class="bi bi-currency-exchange app-header-toolbar-icon"></i>
         </a>

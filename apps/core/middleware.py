@@ -11,6 +11,7 @@ Trial expiry: redirects school users (non-superadmin) to dashboard when trial ex
 
 Feature middleware: loads school_features onto request for feature-based access control.
 """
+from django.contrib import messages
 from django.utils.deprecation import MiddlewareMixin
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -116,6 +117,38 @@ class TenantSchemaFinalEnsureMiddleware(MiddlewareMixin):
 
     def process_request(self, request):
         ensure_tenant_for_request(request)
+
+
+class PlatformLoginLockMiddleware(MiddlewareMixin):
+    """
+    If platform_control_meta.disable_login is true for the user's school, sign them out
+    and send them to login (superadmin exempt).
+    """
+
+    def process_request(self, request):
+        if not hasattr(request, "user") or not request.user.is_authenticated:
+            return
+        if getattr(request.user, "role", None) == User.Roles.SUPERADMIN:
+            return
+        school = getattr(request.user, "school", None)
+        if not school:
+            return
+        path = request.path or ""
+        if path.startswith("/accounts/"):
+            return
+        if path.startswith("/static/") or path.startswith("/media/"):
+            return
+        meta = getattr(school, "platform_control_meta", None) or {}
+        if not isinstance(meta, dict) or not meta.get("disable_login"):
+            return
+        from django.contrib.auth import logout
+
+        logout(request)
+        messages.error(
+            request,
+            "Your school login has been disabled by the platform administrator. Contact support.",
+        )
+        return redirect(reverse("accounts:login"))
 
 
 class TrialExpiryMiddleware(MiddlewareMixin):

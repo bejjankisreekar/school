@@ -2,6 +2,79 @@
 
 {% block title %}Students | Teacher | School ERP{% endblock %}
 
+{% block extra_head %}
+<style>
+  .ts-filter-wrap {
+    width: 70%;
+    max-width: 70%;
+  }
+  @media (max-width: 1024px) {
+    .ts-filter-wrap {
+      width: 100%;
+      max-width: 100%;
+    }
+  }
+
+  .ts-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 14px;
+    padding: 0.55rem 1rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+    text-decoration: none;
+  }
+  .ts-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.12);
+  }
+  .ts-btn:focus-visible {
+    outline: 2px solid rgba(99, 102, 241, 0.65);
+    outline-offset: 2px;
+  }
+  .ts-btn--apply {
+    background: linear-gradient(135deg, #4f46e5, #6366f1);
+    color: #fff;
+  }
+  .ts-btn--apply:hover {
+    background: linear-gradient(135deg, #4338ca, #4f46e5);
+  }
+  .ts-btn--clear {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    color: #334155;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+  }
+  :is(html.dark, html[data-bs-theme="dark"]) .ts-btn--clear {
+    background: rgba(15, 23, 42, 0.35);
+    border-color: rgba(148, 163, 184, 0.25);
+    color: #e2e8f0;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
+  }
+
+  .ts-row {
+    transition: background-color 0.16s ease, transform 0.16s ease;
+  }
+  .ts-row:hover {
+    background: linear-gradient(90deg, rgba(99, 102, 241, 0.10), rgba(79, 70, 229, 0.04));
+    transform: translateX(2px);
+  }
+  :is(html.dark, html[data-bs-theme="dark"]) .ts-row:hover {
+    background: linear-gradient(90deg, rgba(129, 140, 248, 0.14), rgba(99, 102, 241, 0.08));
+  }
+  .ts-row td:first-child {
+    border-left: 3px solid transparent;
+  }
+  .ts-row:hover td:first-child {
+    border-left-color: #6366f1;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="space-y-6">
   <div>
@@ -14,7 +87,7 @@
   </div>
 
   {% if class_options %}
-  <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-900/40 p-4">
+  <div class="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-white dark:bg-slate-900/40 p-4 ts-filter-wrap">
     <form method="get" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12 lg:items-end">
       <div class="sm:col-span-1 lg:col-span-3">
         <label for="f-class" class="block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Class</label>
@@ -39,8 +112,12 @@
         <input type="search" name="q" id="f-q" value="{{ filters.q }}" placeholder="Name or username" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100" autocomplete="off">
       </div>
       <div class="flex flex-wrap gap-2 lg:col-span-2">
-        <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Apply</button>
-        <a href="{% url 'core:teacher_students_list' %}" class="inline-flex items-center justify-center rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">Clear</a>
+        <button type="submit" class="ts-btn ts-btn--apply text-sm">
+          <i class="bi bi-funnel-fill"></i> Apply
+        </button>
+        <a href="{% url 'core:teacher_students_list' %}" class="ts-btn ts-btn--clear text-sm">
+          <i class="bi bi-x-circle"></i> Clear
+        </a>
       </div>
     </form>
   </div>
@@ -60,7 +137,7 @@
         </thead>
         <tbody class="divide-y divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-900/50">
           {% for student in students %}
-            <tr>
+            <tr class="ts-row">
               <td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">{{ forloop.counter }}</td>
               <td class="px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-50">{{ student.user.get_full_name|default:student.user.username }}</td>
               <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{{ student.roll_number }}</td>

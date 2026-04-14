@@ -100,6 +100,8 @@
           <div class="col-auto d-flex gap-1">
             <button type="submit" class="btn btn-sm btn-primary">Apply</button>
             <a href="{% url 'core:superadmin_global_teachers' %}" class="btn btn-sm btn-outline-secondary">Reset</a>
+            <a href="?{% if filter_query %}{{ filter_query }}&{% endif %}status=" class="btn btn-sm btn-outline-dark {% if not status %}active{% endif %}">All</a>
+            <a href="?{% if filter_query %}{{ filter_query }}&{% endif %}status=active" class="btn btn-sm btn-outline-success {% if status == 'active' %}active{% endif %}">Active</a>
           </div>
         </div>
       </div>
@@ -117,6 +119,7 @@
             <th>Subjects</th>
             <th class="text-center">Classes</th>
             <th>Status</th>
+            <th class="text-end">Action</th>
             <th>Email</th>
             <th>Phone</th>
           </tr>
@@ -129,12 +132,27 @@
             <td class="small">{{ r.subjects }}</td>
             <td class="text-center font-monospace">{{ r.classes_count }}</td>
             <td>{% if r.is_active %}<span class="badge text-bg-success">Active</span>{% else %}<span class="badge text-bg-secondary">Inactive</span>{% endif %}</td>
+            <td class="text-end">
+              <form method="post" action="{% url 'core:superadmin_set_teacher_active' %}" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="school_id" value="{{ r.school_id }}">
+                <input type="hidden" name="teacher_pk" value="{{ r.teacher_pk }}">
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                {% if r.is_active %}
+                  <input type="hidden" name="active" value="0">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">Deactivate</button>
+                {% else %}
+                  <input type="hidden" name="active" value="1">
+                  <button type="submit" class="btn btn-sm btn-outline-success">Activate</button>
+                {% endif %}
+              </form>
+            </td>
             <td class="small text-muted">{{ r.email|default:"—" }}</td>
             <td class="small">{{ r.phone|default:"—" }}</td>
           </tr>
           {% empty %}
           <tr>
-            <td colspan="8" class="text-center text-muted py-5">
+            <td colspan="9" class="text-center text-muted py-5">
               No teachers found for selected filters.
               <a href="{% url 'core:superadmin_global_teachers' %}" class="btn btn-sm btn-outline-primary ms-2">Reset filters</a>
             </td>

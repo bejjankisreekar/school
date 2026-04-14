@@ -11,6 +11,8 @@ from django.db.models import Count, Prefetch, Q
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.urls import reverse
+from django.views.decorators.http import require_POST
+from django_tenants.utils import get_public_schema_name, schema_context
 
 from apps.accounts.decorators import superadmin_required
 from apps.core.tenant_provisioning import (
@@ -160,6 +162,47 @@ def admin_school_edit(request, school_code):
         school.save()
         return redirect("admin_manage:schools_list")
     return render(request, "admin/school_form.html", {"form": form, "school": school, "title": "Edit School"})
+
+
+@superadmin_required
+@require_POST
+def admin_school_delete(request, school_code):
+    """
+    Permanently remove a tenant school: public-schema row, related platform records (CASCADE),
+    and the PostgreSQL schema (DROP … CASCADE) via TenantMixin.delete(force_drop=True).
+
+    Requires typing DELETE in the confirmation form — never a one-click delete.
+    """
+    public = get_public_schema_name()
+    with schema_context(public):
+        school = get_object_or_404(School, code=school_code)
+        if school.schema_name == public:
+            messages.error(request, "The platform public tenant cannot be deleted.")
+            return redirect("admin_manage:schools_list")
+
+        phrase = (request.POST.get("confirmation_phrase") or "").strip().upper()
+        if phrase != "DELETE":
+            messages.error(
+                request,
+                "Deletion cancelled: type DELETE in the confirmation box to permanently remove a school.",
+            )
+            return redirect("admin_manage:schools_list")
+
+        name, code = school.name, school.code
+        try:
+            school.delete(force_drop=True)
+        except Exception as exc:
+            messages.error(
+                request,
+                f"Could not delete school {code}: {exc}",
+            )
+            return redirect("admin_manage:schools_list")
+
+    messages.success(
+        request,
+        f"School “{name}” ({code}) was deleted successfully, including its database schema and related platform data.",
+    )
+    return redirect("admin_manage:schools_list")
 
 
 @superadmin_required

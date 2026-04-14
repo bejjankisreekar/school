@@ -157,6 +157,40 @@ body {
   color: var(--sidebar-text-muted);
 }
 
+/* Data-driven nested nav */
+.sidebar-nav-group {
+  margin: 0;
+  padding: 0;
+}
+
+.sidebar-nav-group > summary.sidebar-nav-item {
+  list-style: none;
+  cursor: pointer;
+}
+
+.sidebar-nav-group > summary.sidebar-nav-item::-webkit-details-marker {
+  display: none;
+}
+
+.sidebar-nav-sublist {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 0 6px;
+}
+
+.sidebar-nav-subitem {
+  margin-left: 28px !important;
+}
+
+.sidebar-nav-group[open] > summary.sidebar-nav-item .sidebar-nav-arrow i {
+  transform: rotate(90deg);
+}
+
+.sidebar-nav-group > summary.sidebar-nav-item .sidebar-nav-arrow i {
+  transition: transform 0.18s ease;
+}
+
 /* Product name (APP_PRODUCT_NAME) — premium brand strip, top of sidebar */
 .sidebar-product-brand {
   display: flex;

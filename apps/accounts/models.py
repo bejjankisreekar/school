@@ -183,3 +183,35 @@ class UserProfile(models.Model):
         if self.display_name.strip():
             return self.display_name.strip()
         return self.user.get_full_name() or self.user.username
+
+
+class BlockedLoginAttempt(models.Model):
+    """Audit log for blocked logins (e.g. inactive teacher/student). Stored in public schema."""
+
+    username = models.CharField(max_length=150, db_index=True)
+    role = models.CharField(max_length=20, blank=True, db_index=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    reason = models.CharField(max_length=120, db_index=True, default="inactive_account")
+    attempted_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    school = models.ForeignKey(
+        "customers.School",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="blocked_login_attempts",
+        to_field="code",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="blocked_login_attempts",
+    )
+
+    class Meta:
+        ordering = ["-attempted_at", "-id"]
+
+    def __str__(self) -> str:
+        return f"Blocked login: {self.username} ({self.role})"

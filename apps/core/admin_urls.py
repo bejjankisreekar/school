@@ -11,6 +11,7 @@ urlpatterns = [
     path("schools/create/", admin_views.admin_school_create, name="school_create"),
     path("schools/<str:school_code>/view/", admin_views.admin_school_view, name="school_view"),
     path("schools/<str:school_code>/edit/", admin_views.admin_school_edit, name="school_edit"),
+    path("schools/<str:school_code>/delete/", admin_views.admin_school_delete, name="school_delete"),
     path("school-plans/", admin_views.admin_school_plans_list, name="school_plans_list"),
     path("school-plans/<str:school_code>/change-plan/", admin_views.admin_school_change_plan, name="school_change_plan"),
     path("school-plans/<str:school_code>/manage-features/", admin_views.admin_school_manage_features, name="school_manage_features"),

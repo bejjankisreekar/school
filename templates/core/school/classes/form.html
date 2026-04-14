@@ -1,110 +1,274 @@
 {% extends "base.html" %}
 {% block title %}{{ title }} | School ERP{% endblock %}
+
+{% block extra_head %}
+<style>
+  .sc-class-page {
+    max-width: 52rem;
+  }
+  .sc-hero {
+    background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 50%, #f1f5f9 100%);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    border-radius: 20px;
+    padding: 1.5rem 1.35rem;
+    margin-bottom: 1.25rem;
+  }
+  html.dark .sc-hero {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.92) 0%, rgba(49, 46, 129, 0.28) 100%);
+    border-color: rgba(148, 163, 184, 0.12);
+  }
+  .sc-hero-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #0f172a;
+    margin-bottom: 0.35rem;
+  }
+  html.dark .sc-hero-title { color: #f8fafc; }
+  .sc-hero-lead {
+    font-size: 0.9rem;
+    color: #64748b;
+    margin: 0;
+    max-width: 36rem;
+  }
+  html.dark .sc-hero-lead { color: #94a3b8; }
+  .sc-card {
+    background: #fff;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+    padding: 1.35rem 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+  html.dark .sc-card {
+    background: rgba(30, 41, 59, 0.85);
+    border-color: rgba(148, 163, 184, 0.15);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+  }
+  .sc-card-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #64748b;
+    margin-bottom: 1rem;
+  }
+  html.dark .sc-card-title { color: #94a3b8; }
+  .sc-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 0.35rem;
+  }
+  html.dark .sc-label { color: #cbd5e1; }
+  .sc-section-card {
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+    user-select: none;
+    background: rgba(248, 250, 252, 0.6);
+    min-height: 3.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.5rem 0.65rem;
+  }
+  html.dark .sc-section-card {
+    background: rgba(15, 23, 42, 0.45);
+    border-color: rgba(148, 163, 184, 0.18);
+  }
+  .sc-section-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(79, 70, 229, 0.45);
+    box-shadow: 0 10px 28px rgba(79, 70, 229, 0.12);
+  }
+  html.dark .sc-section-card:hover {
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+    border-color: rgba(129, 140, 248, 0.45);
+  }
+  .sc-section-card.selected {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.1), rgba(99, 102, 241, 0.08));
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  }
+  html.dark .sc-section-card.selected {
+    background: rgba(99, 102, 241, 0.18);
+    border-color: #818cf8;
+    box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.2);
+  }
+  .sc-section-card label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #0f172a;
+    cursor: pointer;
+    margin: 0 !important;
+  }
+  html.dark .sc-section-card label { color: #f1f5f9; }
+  .sc-section-card input.form-check-input {
+    margin: 0;
+    flex-shrink: 0;
+  }
+  .sc-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  }
+  html.dark .sc-toolbar { border-color: rgba(148, 163, 184, 0.12); }
+  .sc-count-pill {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    background: rgba(79, 70, 229, 0.1);
+    color: #4338ca;
+  }
+  html.dark .sc-count-pill {
+    background: rgba(129, 140, 248, 0.15);
+    color: #c7d2fe;
+  }
+  .sc-empty-state {
+    border: 1px dashed rgba(15, 23, 42, 0.15);
+    border-radius: 14px;
+    padding: 2rem 1.25rem;
+    text-align: center;
+    color: #64748b;
+    background: rgba(248, 250, 252, 0.5);
+  }
+  html.dark .sc-empty-state {
+    border-color: rgba(148, 163, 184, 0.2);
+    color: #94a3b8;
+    background: rgba(15, 23, 42, 0.35);
+  }
+  .sc-sticky-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 40;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    padding: 1rem 1.25rem;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 16px;
+    box-shadow: 0 -8px 32px rgba(15, 23, 42, 0.06);
+  }
+  html.dark .sc-sticky-actions {
+    background: rgba(15, 23, 42, 0.92);
+    border-color: rgba(148, 163, 184, 0.15);
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container-fluid px-0">
+<div class="container-fluid px-0 sc-class-page">
   <nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb">
-      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'core:school_classes' %}">Classes</a></li>
-      <li class="breadcrumb-item active">{{ title }}</li>
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_classes' %}" class="text-decoration-none">Classes</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{{ title }}</li>
     </ol>
   </nav>
 
-  <div class="card border-0 shadow-sm rounded-4 p-4">
-    <h2 class="h5 fw-bold mb-4">{{ title }}</h2>
-    {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="sc-hero">
+    <h1 class="sc-hero-title">{{ title }}</h1>
+    <p class="sc-hero-lead">
+      {% if classroom %}
+      Update grade details, capacity, academic year, and linked sections. Changes apply to timetables and enrolments that use this class.
+      {% else %}
+      Create a grade or class for an academic year and attach sections (A, B, C…) for roll lists and attendance.
+      {% endif %}
+    </p>
+  </div>
 
-    <form method="post">
-      {% csrf_token %}
+  <form method="post" id="sc-class-form">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+    <div class="alert alert-danger rounded-3 border-0 shadow-sm mb-3">{{ form.non_field_errors }}</div>
+    {% endif %}
 
-      <!-- Row layout - side-by-side fields -->
+    <div class="sc-card">
+      <div class="sc-card-title"><i class="bi bi-info-circle me-1"></i> Class details</div>
       <div class="row g-4">
         <div class="col-md-6">
-          <label class="form-label fw-semibold">Class Name</label>
+          <label class="sc-label d-block" for="{{ form.name.id_for_label }}">Class name <span class="text-danger">*</span></label>
           {{ form.name }}
           {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>{% endif %}
         </div>
         <div class="col-md-6">
-          <div class="d-flex justify-content-between align-items-center">
-            <label class="form-label fw-semibold mb-0">Academic Year</label>
-            <a href="{% url 'core:school_academic_years' %}" class="btn btn-sm btn-outline-primary">
-              <i class="bi bi-plus-lg"></i> Add Academic Year
+          <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap mb-1">
+            <label class="sc-label mb-0" for="{{ form.academic_year.id_for_label }}">Academic year</label>
+            <a href="{% url 'core:school_academic_years' %}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+              <i class="bi bi-calendar3 me-1"></i>Academic years
             </a>
           </div>
           {{ form.academic_year }}
+          {% if form.academic_year.help_text %}<div class="form-text small">{{ form.academic_year.help_text }}</div>{% endif %}
           {% if form.academic_year.errors %}<div class="text-danger small mt-1">{{ form.academic_year.errors.0 }}</div>{% endif %}
         </div>
         <div class="col-md-6">
-          <label class="form-label fw-semibold">Description</label>
+          <label class="sc-label d-block" for="{{ form.description.id_for_label }}">Description</label>
           {{ form.description }}
           {% if form.description.errors %}<div class="text-danger small mt-1">{{ form.description.errors.0 }}</div>{% endif %}
         </div>
         <div class="col-md-6">
-          <label class="form-label fw-semibold">Capacity</label>
+          <label class="sc-label d-block" for="{{ form.capacity.id_for_label }}">Capacity</label>
           {{ form.capacity }}
+          {% if form.capacity.help_text %}<div class="form-text small">{{ form.capacity.help_text }}</div>{% endif %}
           {% if form.capacity.errors %}<div class="text-danger small mt-1">{{ form.capacity.errors.0 }}</div>{% endif %}
         </div>
       </div>
+    </div>
 
-      <!-- Sections - checkbox cards -->
-      <div class="mt-4">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
-          <label class="form-label fw-semibold mb-0">Select Sections</label>
-          <span class="text-muted small" id="selectedCount">0 section(s) selected</span>
+    <div class="sc-card">
+      <div class="sc-card-title"><i class="bi bi-grid-3x3-gap me-1"></i> Sections</div>
+      <div class="sc-toolbar">
+        <div class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" role="switch" id="selectAllSections">
+          <label class="form-check-label small fw-semibold" for="selectAllSections">Select all sections</label>
         </div>
-        <div class="form-check mb-3">
-          <input class="form-check-input" type="checkbox" value="" id="selectAllSections">
-          <label class="form-check-label" for="selectAllSections">Select All</label>
-        </div>
-        {% if form.sections.errors %}<div class="text-danger small mb-2">{{ form.sections.errors.0 }}</div>{% endif %}
-
-        <div class="row g-2" id="sectionsGrid">
-          {% for checkbox in form.sections %}
-          <div class="col-6 col-md-4 col-lg-3 col-xl-2">
-            <div class="section-card p-2 rounded text-center" role="button" tabindex="0" aria-label="Toggle section {{ checkbox.choice_label }}">
-              {{ checkbox.tag }}
-              <label class="ms-1 mb-0" for="{{ checkbox.id_for_label }}">{{ checkbox.choice_label }}</label>
-            </div>
-          </div>
-          {% empty %}
-          <div class="col-12">
-            <div class="text-muted py-4 text-center border rounded">
-              No sections available. <a href="{% url 'core:school_sections' %}">Add sections</a> first.
-            </div>
-          </div>
-          {% endfor %}
-        </div>
+        <span class="sc-count-pill" id="selectedCount">0 selected</span>
       </div>
+      {% if form.sections.errors %}<div class="text-danger small mb-3">{{ form.sections.errors.0 }}</div>{% endif %}
 
-      <!-- Buttons -->
-      <div class="d-flex justify-content-end gap-2 mt-4">
-        <a href="{% url 'core:school_classes' %}" class="btn btn-light">Cancel</a>
-        <button type="submit" class="btn btn-primary">Save</button>
+      <div class="row g-2 g-md-3" id="sectionsGrid">
+        {% for checkbox in form.sections %}
+        <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+          <div class="sc-section-card section-card text-center" role="button" tabindex="0" aria-label="Toggle section {{ checkbox.choice_label }}">
+            {{ checkbox.tag }}
+            <label class="mb-0" for="{{ checkbox.id_for_label }}">{{ checkbox.choice_label }}</label>
+          </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+          <div class="sc-empty-state">
+            <i class="bi bi-inbox d-block fs-2 mb-2 opacity-50"></i>
+            <p class="mb-2 small">No sections defined yet.</p>
+            <a href="{% url 'core:school_sections' %}" class="btn btn-sm btn-primary rounded-pill px-4">Manage sections</a>
+          </div>
+        </div>
+        {% endfor %}
       </div>
-    </form>
-  </div>
+    </div>
+
+    <div class="sc-sticky-actions">
+      <a href="{% url 'core:school_classes' %}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
+      <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold">
+        <i class="bi bi-check-lg me-1"></i>{% if classroom %}Save changes{% else %}Create class{% endif %}
+      </button>
+    </div>
+  </form>
 </div>
-
-<style>
-.section-card {
-  border: 1px solid #dee2e6;
-  cursor: pointer;
-  transition: 0.2s;
-  user-select: none;
-}
-.section-card:hover {
-  background-color: #f8f9fa;
-  border-color: #0d6efd;
-}
-.section-card.selected {
-  background-color: #e7f1ff;
-  border-color: #0d6efd;
-  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.12);
-}
-.section-card input {
-  margin-right: 5px;
-}
-</style>
 
 <script>
 (function () {
@@ -119,7 +283,9 @@
 
   function updateUI() {
     var selected = checkboxes.filter(function (cb) { return cb.checked; }).length;
-    if (countEl) countEl.textContent = selected + " section(s) selected";
+    if (countEl) {
+      countEl.textContent = selected === 1 ? "1 section selected" : selected + " sections selected";
+    }
     cards.forEach(function (card) {
       var cb = card.querySelector("input[type='checkbox']");
       if (!cb) return;

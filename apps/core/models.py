@@ -73,6 +73,68 @@ class Plan(models.Model):
         return module in mods or not mods
 
 
+class SidebarMenuItem(BaseModel):
+    """
+    Public-schema sidebar menu configuration (managed by Super Admin).
+
+    Rendered for tenant users based on their role. Parent/child relationships
+    enable nested submenus; ordering is per role + parent.
+    """
+
+    class Role(models.TextChoices):
+        SUPERADMIN = "SUPERADMIN", "Super Admin"
+        ADMIN = "ADMIN", "School Admin"
+        TEACHER = "TEACHER", "Teacher"
+        STUDENT = "STUDENT", "Student"
+        PARENT = "PARENT", "Parent"
+
+    role = models.CharField(max_length=20, choices=Role.choices, db_index=True)
+    label = models.CharField(max_length=80)
+    route_name = models.CharField(
+        max_length=120,
+        blank=True,
+        default="",
+        help_text="Django URL name, e.g. core:school_students_list",
+    )
+    href = models.CharField(
+        max_length=240,
+        blank=True,
+        default="",
+        help_text="Optional fallback URL if route_name is empty or cannot be reversed.",
+    )
+    icon = models.CharField(
+        max_length=60,
+        blank=True,
+        default="",
+        help_text='Bootstrap icon class, e.g. "bi bi-people".',
+    )
+    display_order = models.PositiveIntegerField(default=0, db_index=True)
+    is_visible = models.BooleanField(default=True, db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    parent = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="children",
+    )
+    feature_code = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text="Optional feature gate code (matches has_feature_access).",
+    )
+
+    class Meta:
+        ordering = ["role", "parent_id", "display_order", "id"]
+        indexes = [
+            models.Index(fields=["role", "parent", "display_order"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.role}: {self.label}"
+
+
 class SubscriptionPlan(models.Model):
     """
     Subscription plan with pricing and features.

@@ -9,9 +9,11 @@ from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
-from django_tenants.utils import tenant_context
+from django.db import connection
+from django_tenants.utils import get_public_schema_name, schema_context, tenant_context
 
 from apps.customers.models import School
+from apps.notifications.db_bootstrap import ensure_notifications_public_tables
 from apps.school_data.models import ClassRoom, Exam, Section, Student, Subject, Teacher
 
 User = get_user_model()
@@ -35,6 +37,11 @@ class Command(BaseCommand):
             if verbosity >= level:
                 self.stdout.write(msg)
 
+        if connection.vendor == "postgresql":
+            with schema_context(get_public_schema_name()):
+                for line in ensure_notifications_public_tables():
+                    log(f"Notifications (public): {line}", level=1)
+
         # 1. Super Admin
         if User.objects.filter(username="superadmin").exists() and not force:
             log("SuperAdmin already exists, skipping.")
@@ -57,12 +64,14 @@ class Command(BaseCommand):
             {
                 "code": "GVS001",
                 "name": "Green Valley School",
+                "schema_name": "gvs001",
                 "address": "",
                 "prefix": "gvs",
             },
             {
                 "code": "BRS001",
                 "name": "Blue Ridge School",
+                "schema_name": "brs001",
                 "address": "",
                 "prefix": "brs",
             },
@@ -73,7 +82,11 @@ class Command(BaseCommand):
         for spec in schools_spec:
             school, school_created = School.objects.get_or_create(
                 code=spec["code"],
-                defaults={"name": spec["name"], "address": spec["address"]},
+                defaults={
+                    "name": spec["name"],
+                    "schema_name": spec["schema_name"],
+                    "address": spec["address"],
+                },
             )
             if school_created:
                 log(f"School: Created ({spec['name']}, {spec['code']})")

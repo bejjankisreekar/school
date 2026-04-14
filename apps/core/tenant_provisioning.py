@@ -2,7 +2,7 @@
 Create School tenants (PostgreSQL schema + django-tenants migrations) from public schema.
 Used by super-admin UI after a public enrollment signup.
 
-School code format: exactly 6 characters — 3 uppercase letters + 3 digits (e.g. NHS123).
+School code format: exactly 6 characters — 3 letters + 3 digits (e.g. NHS123); input may be lowercase and is normalized to uppercase.
 Schema name = lowercase code (e.g. nhs123). Academic tables exist only in tenant schemas.
 """
 from __future__ import annotations
@@ -23,10 +23,10 @@ SCHOOL_CODE_PATTERN = re.compile(r"^[A-Z]{3}[0-9]{3}$")
 
 def validate_school_code_format(code: str) -> str:
     """
-    Return school code as entered (must already be 3 uppercase letters + 3 digits).
-    No auto-uppercase: lowercase e.g. nhs123 is invalid per product rules.
+    Return normalized school code: strip whitespace, uppercase letters, then validate
+    ABC123 (3 letters + 3 digits). Lowercase input (e.g. nhs123) is accepted.
     """
-    c = (code or "").strip()
+    c = (code or "").strip().upper()
     if not SCHOOL_CODE_PATTERN.fullmatch(c):
         raise ValidationError(
             "School code must be in format ABC123 (3 letters + 3 numbers)."

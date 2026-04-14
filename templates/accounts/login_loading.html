@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% block title %}Signing you in… | School ERP{% endblock %}
+
+{% block extra_head %}
+<style>
+  .ll-root {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 2rem 1rem;
+    background: radial-gradient(1200px 600px at 20% 10%, rgba(99, 102, 241, 0.25), transparent 60%),
+                radial-gradient(900px 520px at 80% 30%, rgba(124, 58, 237, 0.22), transparent 55%),
+                linear-gradient(135deg, #1e3a8a 0%, #4f46e5 45%, #7c3aed 100%);
+    overflow: hidden;
+    position: relative;
+  }
+
+  .ll-particles {
+    position: absolute;
+    inset: -20%;
+    background:
+      radial-gradient(circle at 15% 20%, rgba(255,255,255,0.12) 0 2px, transparent 3px),
+      radial-gradient(circle at 55% 35%, rgba(255,255,255,0.10) 0 2px, transparent 3px),
+      radial-gradient(circle at 78% 62%, rgba(255,255,255,0.10) 0 2px, transparent 3px),
+      radial-gradient(circle at 28% 72%, rgba(255,255,255,0.08) 0 2px, transparent 3px);
+    filter: blur(0.3px);
+    opacity: 0.9;
+    animation: ll-drift 10s linear infinite;
+  }
+
+  @keyframes ll-drift {
+    from { transform: translate3d(0,0,0); }
+    to { transform: translate3d(-3%, 2%, 0); }
+  }
+
+  .ll-card {
+    width: min(560px, 100%);
+    border-radius: 22px;
+    padding: 1.6rem 1.6rem 1.4rem;
+    color: rgba(255,255,255,0.92);
+    background: rgba(255,255,255,0.14);
+    border: 1px solid rgba(255,255,255,0.18);
+    box-shadow: 0 30px 80px rgba(0,0,0,0.35);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    position: relative;
+  }
+
+  .ll-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(135deg, rgba(255,255,255,0.22), transparent 55%);
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .ll-top {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.2rem;
+    position: relative;
+  }
+
+  .ll-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    display: grid;
+    place-items: center;
+    background: rgba(255,255,255,0.16);
+    border: 1px solid rgba(255,255,255,0.22);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.25);
+    animation: ll-float 2.6s ease-in-out infinite;
+  }
+  .ll-icon i { font-size: 1.55rem; color: #fff; }
+
+  @keyframes ll-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+
+  .ll-title {
+    margin: 0;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    font-size: 1.25rem;
+    line-height: 1.2;
+    color: #fff;
+  }
+
+  .ll-sub {
+    margin: 0.25rem 0 0;
+    font-size: 0.9rem;
+    color: rgba(255,255,255,0.78);
+  }
+
+  .ll-welcome {
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.80);
+    margin: 0 0 1rem;
+    position: relative;
+  }
+
+  .ll-progress {
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.16);
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.18);
+    position: relative;
+  }
+
+  .ll-progress > span {
+    display: block;
+    height: 100%;
+    width: 42%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.35), rgba(255,255,255,0.95), rgba(255,255,255,0.35));
+    filter: drop-shadow(0 0 10px rgba(255,255,255,0.45));
+    animation: ll-bar 1.2s ease-in-out infinite;
+  }
+
+  @keyframes ll-bar {
+    0% { transform: translateX(-110%); }
+    100% { transform: translateX(260%); }
+  }
+
+  .ll-step {
+    margin-top: 1rem;
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.80);
+    min-height: 1.4rem;
+    transition: opacity 220ms ease;
+  }
+
+  .ll-foot {
+    margin-top: 1.15rem;
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.70);
+  }
+
+  .ll-spinner-dots {
+    display: inline-flex;
+    gap: 6px;
+    vertical-align: middle;
+    margin-left: 0.35rem;
+  }
+  .ll-spinner-dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.85);
+    animation: ll-bounce 900ms ease-in-out infinite;
+  }
+  .ll-spinner-dots span:nth-child(2) { animation-delay: 120ms; opacity: 0.75; }
+  .ll-spinner-dots span:nth-child(3) { animation-delay: 240ms; opacity: 0.6; }
+
+  @keyframes ll-bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ll-root" data-target="{{ target|escape }}">
+  <div class="ll-particles" aria-hidden="true"></div>
+
+  <div class="ll-card" role="status" aria-live="polite" aria-label="Logging in">
+    <div class="ll-top">
+      <div class="ll-icon" aria-hidden="true">
+        <i class="bi bi-mortarboard-fill"></i>
+      </div>
+      <div class="min-w-0">
+        <p class="ll-title" id="llTitle">Signing you in</p>
+        <p class="ll-sub" id="llSub">Please wait while we securely prepare your dashboard</p>
+      </div>
+    </div>
+
+    {% if full_name or username %}
+    <p class="ll-welcome" id="llWelcome">
+      Welcome back, <strong>{{ full_name|default:username }}</strong>.
+    </p>
+    {% endif %}
+
+    <div class="ll-progress" aria-hidden="true"><span></span></div>
+    <div class="ll-step" id="llStep">
+      Verifying credentials
+      <span class="ll-spinner-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+    </div>
+    <div class="ll-foot">If this takes more than a few seconds, please refresh and try again.</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block after_bootstrap %}
+<script>
+(function () {
+  var root = document.querySelector(".ll-root");
+  if (!root) return;
+  var target = root.getAttribute("data-target") || "/";
+
+  var role = "{{ role|default:''|escapejs }}";
+  var titleEl = document.getElementById("llTitle");
+  var subEl = document.getElementById("llSub");
+  var stepEl = document.getElementById("llStep");
+
+  function roleTitle(r) {
+    if (r === "ADMIN") return "Logging into School Dashboard…";
+    if (r === "TEACHER") return "Preparing Teacher Workspace…";
+    if (r === "STUDENT") return "Loading Student Portal…";
+    if (r === "PARENT") return "Opening Parent Dashboard…";
+    if (r === "SUPERADMIN") return "Opening Control Center…";
+    return "Signing you in…";
+  }
+
+  if (titleEl) titleEl.textContent = roleTitle(role);
+  if (subEl) subEl.textContent = "Please wait while we securely prepare your dashboard";
+
+  var steps = [
+    "Verifying credentials",
+    "Loading academic data",
+    "Fetching permissions",
+    "Preparing dashboard",
+    "Almost ready…"
+  ];
+  var i = 0;
+  function setStep(txt) {
+    if (!stepEl) return;
+    stepEl.style.opacity = "0";
+    window.setTimeout(function () {
+      stepEl.textContent = txt;
+      stepEl.style.opacity = "1";
+    }, 180);
+  }
+
+  var stepTimer = window.setInterval(function () {
+    i = (i + 1) % steps.length;
+    setStep(steps[i]);
+  }, 1000);
+
+  // Lightweight delay so the screen is visible but still fast.
+  window.setTimeout(function () {
+    try { window.clearInterval(stepTimer); } catch (e) {}
+    window.location.replace(target);
+  }, 1400);
+})();
+</script>
+{% endblock %}
+

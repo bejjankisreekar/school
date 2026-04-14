@@ -84,6 +84,7 @@ from apps.school_data.models import (
     HolidayCalendar,
     HolidayEvent,
     WorkingSundayOverride,
+    MasterDataOption,
 )
 User = get_user_model()
 from .utils import (
@@ -240,6 +241,62 @@ def enquiries_unread_count(request):
         return JsonResponse({"unread_count": 0}, status=403)
     unread = ContactEnquiry.objects.filter(is_read=False).count()
     return JsonResponse({"unread_count": unread})
+
+
+# ======================
+# School Admin: Master Data APIs (tenant-scoped)
+# ======================
+
+
+@admin_required
+@require_GET
+def master_data_list(request, key: str):
+    """
+    GET /api/master-data/<key>/list/ -> {"options": [{"id": 1, "name": "X"}]}
+
+    Tenant-scoped by schema; only active options are returned.
+    """
+    school = request.user.school
+    if not school:
+        return JsonResponse({"options": []}, status=403)
+    key = (key or "").strip()
+    if key not in {k for k, _ in MasterDataOption.Key.choices}:
+        return JsonResponse({"error": "Invalid master key."}, status=400)
+    opts = (
+        MasterDataOption.objects.filter(key=key, is_active=True)
+        .order_by("name")
+        .values("id", "name")
+    )
+    return JsonResponse({"options": list(opts)})
+
+
+@admin_required
+@require_POST
+def master_data_create(request, key: str):
+    """
+    POST /api/master-data/<key>/create/ (JSON: {"name": "X"}) ->
+      201 {"id": 1, "name": "X"}
+      409 {"error": "This option already exists."}
+    """
+    school = request.user.school
+    if not school:
+        return JsonResponse({"error": "Unauthorized."}, status=403)
+    key = (key or "").strip()
+    if key not in {k for k, _ in MasterDataOption.Key.choices}:
+        return JsonResponse({"error": "Invalid master key."}, status=400)
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except Exception:
+        payload = {}
+    name = (payload.get("name") or "").strip()
+    if not name:
+        return JsonResponse({"error": "Please enter a valid value."}, status=400)
+    name_norm = name.lower()
+    if MasterDataOption.objects.filter(key=key, name_normalized=name_norm).exists():
+        return JsonResponse({"error": "This option already exists."}, status=409)
+    obj = MasterDataOption(key=key, name=name)
+    obj.save_with_audit(request.user)
+    return JsonResponse({"id": obj.id, "name": obj.name}, status=201)
 
 
 @superadmin_required
@@ -406,6 +463,7 @@ def super_admin_dashboard(request):
     from apps.customers.models import Plan
 
     from .platform_financials import build_super_admin_platform_snapshot, summarize_billing_rows
+    from .platform_footprint import build_footprint_school_rows
 
     snap = build_super_admin_platform_snapshot()
     billing_summary = summarize_billing_rows(snap["billing_rows"])
@@ -413,6 +471,7 @@ def super_admin_dashboard(request):
     pending_enrollments = SchoolEnrollmentRequest.objects.filter(
         status=SchoolEnrollmentRequest.Status.PENDING
     ).count()
+    _t, _s, _c, footprint_school_rows = build_footprint_school_rows(q=None)
     return render(
         request,
         "core/dashboards/super_admin_dashboard.html",
@@ -421,6 +480,7 @@ def super_admin_dashboard(request):
             "total_teachers": snap["total_teachers"],
             "total_students": snap["total_students"],
             "total_classes": snap["total_classes"],
+            "footprint_school_rows": footprint_school_rows,
             "plans": plans,
             "pending_enrollments": pending_enrollments,
             "billing_summary": billing_summary,
@@ -468,6 +528,95 @@ def superadmin_platform_footprint(request):
             "search_q": q,
             "mode": mode,
             "school_options": school_options,
+        },
+    )
+
+
+@transaction.non_atomic_requests
+@superadmin_required
+def superadmin_schools_overview(request):
+    """Card-style per-school overview (click into students/teachers)."""
+    from .platform_footprint import build_footprint_school_rows
+
+    q = (request.GET.get("q") or "").strip() or None
+    _t, _s, _c, school_rows = build_footprint_school_rows(q=q)
+
+    return render(
+        request,
+        "superadmin/schools_overview.html",
+        {
+            "school_rows": school_rows,
+            "search_q": q or "",
+        },
+    )
+
+
+@transaction.non_atomic_requests
+@superadmin_required
+def superadmin_school_students(request, school_id: int):
+    """Per-school students list (card view) for super admin."""
+    from .global_directory import collect_global_students, sort_student_rows
+
+    school = get_object_or_404(School.objects.exclude(schema_name="public"), pk=school_id)
+    status = (request.GET.get("status") or "").strip().lower()
+    if status not in ("", "active", "inactive"):
+        status = ""
+    search = (request.GET.get("q") or "").strip()
+
+    rows = collect_global_students(
+        school_id=school_id,
+        classroom_id=None,
+        section_id=None,
+        academic_year_name="",
+        status=status,
+        search=search,
+        fee_filter="",
+        today=timezone.localdate(),
+    )
+    sort_student_rows(rows, "name")
+    paginator = Paginator(rows, 30)
+    page = paginator.get_page(request.GET.get("page", 1))
+    return render(
+        request,
+        "superadmin/school_students.html",
+        {
+            "school": school,
+            "page_obj": page,
+            "status": status,
+            "search_q": search,
+        },
+    )
+
+
+@transaction.non_atomic_requests
+@superadmin_required
+def superadmin_school_teachers(request, school_id: int):
+    """Per-school teachers list (card view) for super admin."""
+    from .global_directory import collect_global_teachers, sort_teacher_rows
+
+    school = get_object_or_404(School.objects.exclude(schema_name="public"), pk=school_id)
+    status = (request.GET.get("status") or "").strip().lower()
+    if status not in ("", "active", "inactive"):
+        status = ""
+    search = (request.GET.get("q") or "").strip()
+
+    rows = collect_global_teachers(
+        school_id=school_id,
+        subject_q="",
+        status=status,
+        search=search,
+    )
+    sort_teacher_rows(rows, "name")
+    paginator = Paginator(rows, 30)
+    page = paginator.get_page(request.GET.get("page", 1))
+    return render(
+        request,
+        "superadmin/school_teachers.html",
+        {
+            "school": school,
+            "page_obj": page,
+            "status": status,
+            "search_q": search,
         },
     )
 
@@ -684,6 +833,74 @@ def superadmin_global_teachers(request):
             "filter_query": filter_query,
         },
     )
+
+
+@transaction.non_atomic_requests
+@superadmin_required
+@require_http_methods(["POST"])
+def superadmin_set_student_active(request):
+    """Toggle a student user's active status within the selected tenant school."""
+    from django_tenants.utils import tenant_context
+
+    connection.set_schema_to_public()
+    school_id = _parse_optional_int(request.POST.get("school_id"))
+    student_pk = _parse_optional_int(request.POST.get("student_pk"))
+    active = (request.POST.get("active") or "").strip().lower() == "1"
+    next_url = (request.POST.get("next") or "").strip()
+    if not school_id or not student_pk:
+        messages.error(request, "Invalid request.")
+        return redirect(next_url or "core:superadmin_global_students")
+
+    school = get_object_or_404(School.objects.exclude(schema_name="public"), pk=school_id)
+    try:
+        with tenant_context(school):
+            with transaction.atomic():
+                from apps.school_data.models import Student
+
+                st = Student.objects.select_related("user").filter(pk=student_pk).first()
+                if not st or not st.user_id:
+                    messages.error(request, "Student not found.")
+                else:
+                    st.user.is_active = active
+                    st.user.save(update_fields=["is_active"])
+                    messages.success(request, f"Student account set to {'Active' if active else 'Inactive'}.")
+    except Exception as exc:
+        messages.error(request, f"Could not update status: {exc}")
+    return redirect(next_url or f"{reverse('core:superadmin_global_students')}?school={school_id}")
+
+
+@transaction.non_atomic_requests
+@superadmin_required
+@require_http_methods(["POST"])
+def superadmin_set_teacher_active(request):
+    """Toggle a teacher user's active status within the selected tenant school."""
+    from django_tenants.utils import tenant_context
+
+    connection.set_schema_to_public()
+    school_id = _parse_optional_int(request.POST.get("school_id"))
+    teacher_pk = _parse_optional_int(request.POST.get("teacher_pk"))
+    active = (request.POST.get("active") or "").strip().lower() == "1"
+    next_url = (request.POST.get("next") or "").strip()
+    if not school_id or not teacher_pk:
+        messages.error(request, "Invalid request.")
+        return redirect(next_url or "core:superadmin_global_teachers")
+
+    school = get_object_or_404(School.objects.exclude(schema_name="public"), pk=school_id)
+    try:
+        with tenant_context(school):
+            with transaction.atomic():
+                from apps.school_data.models import Teacher
+
+                t = Teacher.objects.select_related("user").filter(pk=teacher_pk).first()
+                if not t or not t.user_id:
+                    messages.error(request, "Teacher not found.")
+                else:
+                    t.user.is_active = active
+                    t.user.save(update_fields=["is_active"])
+                    messages.success(request, f"Teacher account set to {'Active' if active else 'Inactive'}.")
+    except Exception as exc:
+        messages.error(request, f"Could not update status: {exc}")
+    return redirect(next_url or f"{reverse('core:superadmin_global_teachers')}?school={school_id}")
 
 
 def _parse_optional_int(raw: str | None) -> int | None:
@@ -4549,6 +4766,45 @@ def school_student_edit(request, student_id):
 
 
 @admin_required
+@require_POST
+def school_student_set_active(request, student_id: int):
+    """AJAX/POST: toggle student login access (User.is_active)."""
+    school = request.user.school
+    if not school:
+        return JsonResponse({"error": "Unauthorized."}, status=403)
+    student = get_object_or_404(Student.objects.select_related("user"), id=student_id)
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except Exception:
+        payload = {}
+    is_active = payload.get("is_active")
+    if isinstance(is_active, str):
+        is_active = is_active.strip().lower() in ("1", "true", "yes", "active", "on")
+    if not isinstance(is_active, bool):
+        return JsonResponse({"error": "Invalid is_active."}, status=400)
+
+    reason = (payload.get("reason") or "").strip()
+    relieved_date = (payload.get("relieved_date") or "").strip()
+
+    student.user.is_active = is_active
+    student.user.save(update_fields=["is_active"])
+
+    extra = student.extra_data or {}
+    status_block = extra.get("status") or {}
+    status_block["record_status"] = "ACTIVE" if is_active else "INACTIVE"
+    if not is_active:
+        if reason:
+            status_block["reason_for_deactivation"] = reason
+        if relieved_date:
+            status_block["relieved_date"] = relieved_date
+    extra["status"] = status_block
+    student.extra_data = extra
+    student.save_with_audit(request.user)
+
+    return JsonResponse({"ok": True, "is_active": is_active})
+
+
+@admin_required
 @feature_required("students")
 @require_POST
 def school_student_delete(request, student_id):
@@ -4879,6 +5135,46 @@ def school_teacher_edit(request, teacher_id):
 
 
 @admin_required
+@require_POST
+def school_teacher_set_active(request, teacher_id: int):
+    """AJAX/POST: toggle teacher login access (User.is_active)."""
+    school = request.user.school
+    if not school:
+        return JsonResponse({"error": "Unauthorized."}, status=403)
+    teacher = get_object_or_404(Teacher.objects.select_related("user"), id=teacher_id)
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except Exception:
+        payload = {}
+    is_active = payload.get("is_active")
+    if isinstance(is_active, str):
+        is_active = is_active.strip().lower() in ("1", "true", "yes", "active", "on")
+    if not isinstance(is_active, bool):
+        return JsonResponse({"error": "Invalid is_active."}, status=400)
+
+    reason = (payload.get("reason") or "").strip()
+    relieved_date = (payload.get("relieved_date") or "").strip()  # YYYY-MM-DD (optional)
+
+    teacher.user.is_active = is_active
+    teacher.user.save(update_fields=["is_active"])
+
+    # Mirror into teacher.extra_data.status for HR/audit UI (no schema change).
+    extra = teacher.extra_data or {}
+    status_block = extra.get("status") or {}
+    status_block["record_status"] = "ACTIVE" if is_active else "INACTIVE"
+    if not is_active:
+        if reason:
+            status_block["reason_for_deactivation"] = reason
+        if relieved_date:
+            status_block["relieved_date"] = relieved_date
+    extra["status"] = status_block
+    teacher.extra_data = extra
+    teacher.save_with_audit(request.user)
+
+    return JsonResponse({"ok": True, "is_active": is_active})
+
+
+@admin_required
 def school_teacher_delete(request, teacher_id):
     """Delete teacher (block if in timetable)."""
     school = request.user.school
@@ -5063,15 +5359,65 @@ def school_academic_year_add(request):
     if not school:
         return redirect("core:admin_dashboard")
     ensure_tenant_for_request(request)
+    from .academic_year_wizard import apply_wizard_after_year_created, sanitize_wizard, validate_wizard_payload
     from .forms import AcademicYearForm
+
+    previous_years = list(AcademicYear.objects.order_by("-start_date"))
+    class_names = list(
+        ClassRoom.objects.filter(academic_year__isnull=False)
+        .order_by("academic_year__start_date", "name")
+        .values_list("name", flat=True)
+        .distinct()
+    )
+    class_names = sorted(set(class_names), key=lambda x: x.lower())
+    ay_weekday_choices = [
+        (1, "Monday"),
+        (2, "Tuesday"),
+        (3, "Wednesday"),
+        (4, "Thursday"),
+        (5, "Friday"),
+        (6, "Saturday"),
+        (7, "Sunday"),
+    ]
 
     if request.method == "POST":
         form = AcademicYearForm(request.POST)
+        raw_wizard = request.POST.get("wizard_settings_json") or "{}"
+        try:
+            wizard_raw = json.loads(raw_wizard)
+        except json.JSONDecodeError:
+            wizard_raw = {}
+        wizard_sanitized = sanitize_wizard(wizard_raw if isinstance(wizard_raw, dict) else {})
+
         if form.is_valid():
-            obj = form.save(commit=False)
-            obj.save_with_audit(request.user)
-            messages.success(request, f'Academic year "{obj.name}" was created successfully.')
-            return redirect("core:school_academic_years")
+            v_err = validate_wizard_payload(
+                name=form.cleaned_data["name"],
+                start_date=form.cleaned_data["start_date"],
+                end_date=form.cleaned_data["end_date"],
+                wizard=wizard_sanitized,
+                exclude_year_id=None,
+            )
+            if v_err:
+                form.add_error(None, v_err)
+            else:
+                obj = form.save(commit=False)
+                obj.wizard_settings = wizard_sanitized
+                obj.save_with_audit(request.user)
+                try:
+                    extra_logs = apply_wizard_after_year_created(obj, request.user, wizard_sanitized)
+                except Exception as exc:
+                    messages.warning(
+                        request,
+                        f'Academic year "{obj.name}" was saved, but some optional setup steps failed: {exc}',
+                    )
+                else:
+                    messages.success(
+                        request,
+                        f'Academic year "{obj.name}" was created successfully.',
+                    )
+                    for line in extra_logs[:6]:
+                        messages.info(request, line)
+                return redirect("core:school_academic_years")
     else:
         form = AcademicYearForm()
     return render(
@@ -5082,6 +5428,10 @@ def school_academic_year_add(request):
             "title": "Add Academic Year",
             "academic_year": None,
             "is_add": True,
+            "previous_years": previous_years,
+            "promotion_class_names": class_names,
+            "promotion_classes_json": json.dumps(class_names),
+            "ay_weekday_choices": ay_weekday_choices,
         },
     )
 
@@ -5124,6 +5474,8 @@ def school_academic_year_edit(request, year_id):
             "academic_year": ay,
             "title": "Edit Academic Year",
             "is_add": False,
+            "previous_years": [],
+            "promotion_class_names": [],
         },
     )
 

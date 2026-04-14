@@ -46,6 +46,15 @@
       background-color: rgba(99, 102, 241, 0.22) !important;
       box-shadow: inset 3px 0 0 #818cf8;
     }
+    /* No table-hover: Bootstrap 5.3 uses a huge inset box-shadow on cells; mixed with
+       app-theme-global td backgrounds it can look “stuck” after pointer leave. */
+    .students-module .students-table tbody tr:not(:hover) {
+      box-shadow: none;
+    }
+    .students-module .students-table tbody tr > * {
+      box-shadow: none !important;
+      background-color: transparent !important;
+    }
   </style>
 
   <nav aria-label="breadcrumb" class="mb-3">
@@ -181,27 +190,28 @@
 
   <div class="card border-0 shadow-sm rounded-3 overflow-hidden mb-0">
     <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0 students-table erp-data-table erp-data-table--premium">
+      <table class="table align-middle mb-0 students-table erp-data-table erp-data-table--premium">
         <thead class="table-light sticky-top">
           <tr>
             <th>Admission No</th>
+            <th style="width: 88px;">Roll No</th>
             <th>Name</th>
             <th>Class</th>
             <th>Section</th>
             <th>Parent contact</th>
             <th>Status</th>
-            <th class="text-center" style="width: 72px;">Actions</th>
+            <th class="text-center" style="width: 140px;">Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for s in students %}
             <tr>
               <td class="font-monospace small fw-semibold">{{ s.admission_number|default:"—" }}</td>
+              <td class="font-monospace small fw-semibold" style="max-width: 88px; white-space: normal; overflow-wrap: anywhere;">{{ s.roll_number|default:"—" }}</td>
               <td>
                 <a class="erp-table-link" href="{% url 'core:school_student_view' s.id %}">
                   {{ s.user.get_full_name|default:s.user.username }}
                 </a>
-                {% if s.roll_number %}<div class="small mt-1" style="color: var(--erp-text-muted);">Roll {{ s.roll_number }}</div>{% endif %}
               </td>
               <td>{{ s.classroom|default:"—" }}</td>
               <td>
@@ -227,32 +237,30 @@
                 {% endif %}
               </td>
               <td class="text-center">
-                <div class="dropdown">
-                  <button class="erp-row-action-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Student actions">
-                    <i class="bi bi-gear"></i>
+                <div class="d-inline-flex align-items-center justify-content-center gap-2">
+                  <a href="{% url 'core:school_student_view' s.id %}" class="erp-row-action-btn text-decoration-none text-body" title="View" aria-label="View student">
+                    <i class="bi bi-eye"></i>
+                  </a>
+                  <a href="{% url 'core:school_student_edit' s.id %}" class="erp-row-action-btn text-decoration-none text-body" title="Edit" aria-label="Edit student">
+                    <i class="bi bi-pencil"></i>
+                  </a>
+                  <button
+                    type="button"
+                    class="erp-row-action-btn text-danger"
+                    title="Delete"
+                    aria-label="Delete student"
+                    data-bs-toggle="modal"
+                    data-bs-target="#deleteStudentModal"
+                    data-delete-url="{% url 'core:school_student_delete' s.id %}"
+                    data-student-name="{{ s.user.get_full_name|default:s.user.username }}"
+                  >
+                    <i class="bi bi-trash"></i>
                   </button>
-                  <ul class="dropdown-menu dropdown-menu-end erp-dropdown-menu">
-                    <li><a class="dropdown-item" href="{% url 'core:school_student_view' s.id %}"><i class="bi bi-eye me-2"></i>View</a></li>
-                    <li><a class="dropdown-item" href="{% url 'core:school_student_edit' s.id %}"><i class="bi bi-pencil me-2"></i>Edit</a></li>
-                    <li><button class="dropdown-item" type="button" disabled><i class="bi bi-mortarboard me-2"></i>Promote</button></li>
-                    <li><button class="dropdown-item" type="button" disabled><i class="bi bi-receipt me-2"></i>Fee details</button></li>
-                    <li><hr class="dropdown-divider"></li>
-                    <li>
-                      <button
-                        type="button"
-                        class="dropdown-item text-danger"
-                        data-bs-toggle="modal"
-                        data-bs-target="#deleteStudentModal"
-                        data-delete-url="{% url 'core:school_student_delete' s.id %}"
-                        data-student-name="{{ s.user.get_full_name|default:s.user.username }}"
-                      ><i class="bi bi-trash me-2"></i>Delete</button>
-                    </li>
-                  </ul>
                 </div>
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="7" class="text-center py-5" style="color: var(--erp-text-muted);">No students match these filters. <a href="{% url 'core:school_students_list' %}">Clear filters</a>.</td></tr>
+            <tr><td colspan="8" class="text-center py-5" style="color: var(--erp-text-muted);">No students match these filters. <a href="{% url 'core:school_students_list' %}">Clear filters</a>.</td></tr>
           {% endfor %}
         </tbody>
       </table>

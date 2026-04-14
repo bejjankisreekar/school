@@ -549,7 +549,7 @@
               <div class="col-12 col-md-6">
                 <label class="form-label small fw-semibold" for="{{ form.institution_code.id_for_label }}">{{ form.institution_code.label }} <span class="text-danger">*</span></label>
                 {{ form.institution_code }}
-                <div class="form-text small text-muted">Uppercase letters + digits, e.g. <strong>NHS123</strong> (unique across the platform).</div>
+                <div class="form-text small text-muted">3 letters + 3 digits, e.g. <strong>NHS123</strong> (lowercase is fine — we save as uppercase). Unique across the platform.</div>
                 {% if form.institution_code.errors %}<div class="text-danger small">{{ form.institution_code.errors.0 }}</div>{% endif %}
                 <div class="enroll-field-error d-none" id="err_institution_code"></div>
               </div>
@@ -744,6 +744,13 @@
     el.classList.add("enroll-input");
   });
 
+  var codeInput = document.getElementById("id_institution_code");
+  if (codeInput) {
+    codeInput.addEventListener("blur", function () {
+      this.value = this.value.trim().toUpperCase();
+    });
+  }
+
   function updateChars() {
     if (!ta || !countEl) return;
     var len = ta.value.length;
@@ -821,8 +828,8 @@
     if (!code) {
       showFieldErr("err_institution_code", "School code is required.");
       ok = false;
-    } else if (!/^[A-Z]{3}[0-9]{3}$/.test(code)) {
-      showFieldErr("err_institution_code", "Use format ABC123 (3 uppercase letters + 3 digits).");
+    } else if (!/^[A-Za-z]{3}[0-9]{3}$/.test(code)) {
+      showFieldErr("err_institution_code", "Use format ABC123 (3 letters + 3 digits).");
       ok = false;
     }
     if (!email) {
@@ -938,6 +945,7 @@
   }
 
   form.addEventListener("submit", function (e) {
+    if (codeInput) codeInput.value = codeInput.value.trim().toUpperCase();
     if (!valSchool()) {
       e.preventDefault();
       var first = form.querySelector(".enroll-field-error:not(.d-none)");

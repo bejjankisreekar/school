@@ -127,7 +127,96 @@
   .tt-time-hint { font-size: 0.65rem; color: var(--bs-secondary-color); margin-top: 0.35rem; font-variant-numeric: tabular-nums; }
   .tt-break-cell { text-align: center; color: var(--bs-secondary-color); font-size: 0.78rem; padding: 0.5rem; }
   .tt-edit-cell .form-select { font-size: 0.8rem; }
-  .tt-mode-pill { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+  .tt-mode-pill { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
+
+  /* "View / Editing" indicator: ensure contrast in all themes */
+  .tt-mode-pill--view {
+    background: rgba(16, 185, 129, 0.14) !important;
+    color: #065f46 !important;
+    border-color: rgba(16, 185, 129, 0.35) !important;
+  }
+  .tt-mode-pill--edit {
+    background: rgba(245, 158, 11, 0.18) !important;
+    color: #7c2d12 !important;
+    border-color: rgba(245, 158, 11, 0.42) !important;
+  }
+  :is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"], body.dark-mode) .tt-mode-pill--view {
+    background: rgba(16, 185, 129, 0.22) !important;
+    color: #d1fae5 !important;
+    border-color: rgba(16, 185, 129, 0.4) !important;
+  }
+  :is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"], body.dark-mode) .tt-mode-pill--edit {
+    background: rgba(245, 158, 11, 0.22) !important;
+    color: #ffedd5 !important;
+    border-color: rgba(245, 158, 11, 0.45) !important;
+  }
+
+  /* Period editor UI (subject + teachers) */
+  .tt-edit-cell {
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    background: linear-gradient(135deg, rgba(255,255,255,0.82) 0%, rgba(248,250,252,0.95) 100%);
+    padding: 0.55rem;
+    box-shadow: 0 6px 18px -12px rgba(15, 23, 42, 0.18);
+  }
+  :is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"], body.dark-mode) .tt-edit-cell {
+    border-color: rgba(71, 85, 105, 0.55);
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.72) 0%, rgba(15, 23, 42, 0.9) 100%);
+    box-shadow: 0 10px 26px -14px rgba(0, 0, 0, 0.55);
+  }
+
+  .tt-edit-cell .form-select {
+    font-size: 0.82rem;
+    border-radius: 10px;
+    border-color: rgba(148, 163, 184, 0.45);
+    background-color: rgba(255, 255, 255, 0.95);
+  }
+  .tt-edit-cell .form-select:focus {
+    border-color: rgba(79, 70, 229, 0.55);
+    box-shadow: 0 0 0 0.2rem rgba(79, 70, 229, 0.18);
+  }
+  :is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"], body.dark-mode) .tt-edit-cell .form-select {
+    background-color: rgba(30, 41, 59, 0.92);
+    border-color: rgba(71, 85, 105, 0.6);
+    color: #e2e8f0;
+  }
+
+  /* Select2 (teacher multi-select) – match the design system */
+  .tt-edit-cell .select2-container--default .select2-selection--multiple {
+    min-height: 36px;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    background: rgba(255, 255, 255, 0.95);
+    padding: 0.2rem 0.35rem;
+  }
+  .tt-edit-cell .select2-container--default.select2-container--focus .select2-selection--multiple {
+    border-color: rgba(79, 70, 229, 0.55);
+    box-shadow: 0 0 0 0.2rem rgba(79, 70, 229, 0.18);
+  }
+  .tt-edit-cell .select2-container--default .select2-selection--multiple .select2-selection__choice {
+    background: rgba(79, 70, 229, 0.12);
+    border: 1px solid rgba(79, 70, 229, 0.25);
+    border-radius: 999px;
+    padding: 2px 8px;
+    margin-top: 4px;
+    color: #3730a3;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .tt-edit-cell .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+    margin-right: 6px;
+    color: inherit;
+    opacity: 0.8;
+  }
+  :is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"], body.dark-mode) .tt-edit-cell .select2-container--default .select2-selection--multiple {
+    background: rgba(30, 41, 59, 0.92);
+    border-color: rgba(71, 85, 105, 0.6);
+  }
+  :is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"], body.dark-mode) .tt-edit-cell .select2-container--default .select2-selection--multiple .select2-selection__choice {
+    background: rgba(129, 140, 248, 0.16);
+    border-color: rgba(129, 140, 248, 0.3);
+    color: #e0e7ff;
+  }
 </style>
 {% endblock %}
 
@@ -174,9 +263,9 @@
             {% endif %}
             Profile: <strong>{{ active_profile.name }}</strong>
             {% if not edit_mode %}
-              <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 tt-badge ms-1 tt-mode-pill">View</span>
+              <span class="badge tt-badge ms-1 tt-mode-pill tt-mode-pill--view">View</span>
             {% else %}
-              <span class="badge bg-warning bg-opacity-15 text-warning border border-warning border-opacity-35 tt-badge ms-1 tt-mode-pill">Editing</span>
+              <span class="badge tt-badge ms-1 tt-mode-pill tt-mode-pill--edit">Editing</span>
             {% endif %}
           </div>
         </div>

@@ -1,0 +1,87 @@
+{% extends "accounts/base_saas_auth.html" %}
+{% load static %}
+
+{% block title %}Access Restricted | Campus ERP{% endblock %}
+
+{% block body %}
+<div class="min-h-screen w-full bg-slate-950">
+  <div class="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950"></div>
+  <div class="absolute inset-0 opacity-40" aria-hidden="true">
+    <div class="absolute -left-24 top-20 h-72 w-72 rounded-full bg-amber-500/20 blur-[90px]"></div>
+    <div class="absolute -right-20 bottom-10 h-72 w-72 rounded-full bg-red-500/15 blur-[90px]"></div>
+  </div>
+
+  <div class="relative mx-auto flex min-h-screen max-w-6xl items-center justify-center px-4 py-10">
+    <div class="w-full max-w-xl">
+      <div class="rounded-3xl border border-white/10 bg-white/10 p-8 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.55)] backdrop-blur-xl sm:p-10">
+        <div class="flex items-start gap-4">
+          <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-200 ring-1 ring-amber-400/25">
+            <i class="bi bi-shield-lock text-2xl"></i>
+          </div>
+          <div class="flex-1">
+            <h1 class="text-2xl font-bold tracking-tight text-white sm:text-3xl">Account Access Restricted</h1>
+            <p class="mt-2 text-sm leading-relaxed text-white/80">
+              This account has been marked as inactive by your school administrator.
+            </p>
+            <p class="mt-3 text-sm text-white/65">
+              Please contact your school administration for assistance and account reactivation.
+            </p>
+          </div>
+        </div>
+
+        {% if school %}
+        <div class="mt-8 rounded-2xl border border-white/10 bg-white/5 p-5">
+          <div class="text-xs font-semibold uppercase tracking-wide text-white/70">Contact</div>
+          <div class="mt-2 text-sm text-white/90">
+            <div class="font-semibold">{{ school.name }}</div>
+            <div class="mt-2 space-y-1 text-white/75">
+              {% if school.contact_email %}<div><i class="bi bi-envelope me-1"></i> {{ school.contact_email }}</div>{% endif %}
+              {% if school.phone %}<div><i class="bi bi-telephone me-1"></i> {{ school.phone }}</div>{% endif %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+          {% if school and school.contact_email %}
+          <a
+            href="mailto:{{ school.contact_email }}"
+            class="inline-flex flex-1 items-center justify-center rounded-2xl bg-amber-500 px-5 py-3 text-sm font-semibold text-slate-950 shadow-sm hover:bg-amber-400 transition"
+          >
+            <i class="bi bi-envelope-paper me-2"></i> Contact School Admin
+          </a>
+          {% elif school and school.phone %}
+          <a
+            href="tel:{{ school.phone }}"
+            class="inline-flex flex-1 items-center justify-center rounded-2xl bg-amber-500 px-5 py-3 text-sm font-semibold text-slate-950 shadow-sm hover:bg-amber-400 transition"
+          >
+            <i class="bi bi-telephone me-2"></i> Contact School Admin
+          </a>
+          {% else %}
+          <a
+            href="{% url 'core:contact' %}"
+            class="inline-flex flex-1 items-center justify-center rounded-2xl bg-amber-500 px-5 py-3 text-sm font-semibold text-slate-950 shadow-sm hover:bg-amber-400 transition"
+          >
+            <i class="bi bi-life-preserver me-2"></i> Help / Support
+          </a>
+          {% endif %}
+
+          <a
+            href="{{ return_to_login_url }}"
+            class="inline-flex flex-1 items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10 transition"
+          >
+            <i class="bi bi-arrow-left me-2"></i> Return to Login
+          </a>
+        </div>
+
+        <div class="mt-6 text-xs text-white/55">
+          If you believe this is an error, ask the School Admin to set your account status back to <span class="font-semibold text-white/70">Active</span>.
+        </div>
+      </div>
+
+      <div class="mt-6 text-center text-xs text-white/45">© {% now "Y" %} Campus ERP · Secure access</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

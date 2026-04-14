@@ -244,6 +244,12 @@ class School(TenantMixin):
     # Dedicated hosting
     is_single_tenant = models.BooleanField(default=False)
 
+    platform_control_meta = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Super Admin Control Center: limits, plan duration, disable_login, role_permissions JSON, etc.",
+    )
+
     auto_create_schema = True
     auto_drop_schema = False
 

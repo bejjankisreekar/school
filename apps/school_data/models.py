@@ -16,12 +16,63 @@ from django.db.models import Q
 from apps.core.models import BaseModel
 
 
+class MasterDataOption(BaseModel):
+    """
+    Tenant-scoped master data options for dropdowns (gender, department, etc.).
+
+    Stored per-tenant (schema) so values are automatically school-specific.
+    """
+
+    class Key(models.TextChoices):
+        GENDER = "gender", "Gender"
+        BLOOD_GROUP = "blood_group", "Blood group"
+        NATIONALITY = "nationality", "Nationality"
+        RELIGION = "religion", "Religion"
+        MOTHER_TONGUE = "mother_tongue", "Mother tongue"
+        DESIGNATION = "designation", "Designation"
+        DEPARTMENT = "department", "Department"
+        QUALIFICATION = "qualification", "Qualification"
+
+    key = models.CharField(max_length=40, choices=Key.choices, db_index=True)
+    name = models.CharField(max_length=160, db_index=True)
+    name_normalized = models.CharField(
+        max_length=180,
+        db_index=True,
+        help_text="Lowercased + trimmed for duplicate prevention.",
+    )
+    is_active = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        ordering = ["key", "name"]
+        constraints = [
+            models.UniqueConstraint(fields=["key", "name_normalized"], name="uniq_masterdata_key_name_norm"),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.name = (self.name or "").strip()
+        self.name_normalized = self.name.lower()
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return f"{self.key}: {self.name}"
+
+
 class AcademicYear(BaseModel):
     """Academic year (e.g. 2025-2026). When saving as active, other years are cleared first (app-level)."""
     name = models.CharField(max_length=50, db_index=True)
     start_date = models.DateField()
     end_date = models.DateField()
     is_active = models.BooleanField(default=False, db_index=True)
+    description = models.TextField(
+        blank=True,
+        default="",
+        help_text="Internal notes for staff (not shown on student-facing screens by default).",
+    )
+    wizard_settings = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Structured setup from the academic year wizard (terms, working days, copy flags, etc.).",
+    )
 
     class Meta:
         ordering = ["start_date"]

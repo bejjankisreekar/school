@@ -18,7 +18,7 @@ from .forms import (
     UserProfilePreferencesForm,
     UserProfileSecurityPrefsForm,
 )
-from .models import User, UserProfile
+from .models import BlockedLoginAttempt, User, UserProfile
 
 
 def _dashboard_redirect_for_user(user):
@@ -308,6 +308,45 @@ def change_password_first(request):
 
 def login_view(request, login_type: str = "portal"):
     if request.method == "POST":
+        # Security requirement:
+        # - Only show the "inactive account" screen when credentials are correct.
+        # - Do NOT leak whether a username/email exists or is inactive.
+        raw_login = (request.POST.get("username") or "").strip()
+        raw_password = request.POST.get("password") or ""
+        if raw_login and raw_password:
+            try:
+                cand = (
+                    User.objects.filter(username__iexact=raw_login)
+                    .only("id", "username", "email", "role", "is_active", "school_id")
+                    .first()
+                    or User.objects.filter(email__iexact=raw_login)
+                    .only("id", "username", "email", "role", "is_active", "school_id")
+                    .first()
+                )
+                if cand and cand.check_password(raw_password):
+                    role = getattr(cand, "role", "") or ""
+                    # Admin/Superadmin login should not be affected.
+                    if role in (User.Roles.TEACHER, User.Roles.STUDENT) and not cand.is_active:
+                        # Audit log
+                        ip = request.META.get("HTTP_X_FORWARDED_FOR") or request.META.get("REMOTE_ADDR")
+                        ip = (ip.split(",")[0].strip() if isinstance(ip, str) and ip else None)
+                        try:
+                            BlockedLoginAttempt.objects.create(
+                                username=cand.username or raw_login,
+                                role=role,
+                                ip_address=ip,
+                                reason="inactive_account",
+                                school=getattr(cand, "school", None),
+                                user=cand,
+                            )
+                        except Exception:
+                            pass
+                        return redirect(
+                            f"{reverse('accounts:access_restricted')}?type=inactive&role={role}&login_type={login_type}"
+                        )
+            except Exception:
+                pass
+
         form = AuthenticationForm(request, data=request.POST)
         if form.is_valid():
             user = form.get_user()
@@ -330,7 +369,17 @@ def login_view(request, login_type: str = "portal"):
                 allowed_hosts={request.get_host()},
                 require_https=request.is_secure(),
             ):
-                return redirect(next_url)
+                target = next_url
+                return render(
+                    request,
+                    "accounts/login_loading.html",
+                    {
+                        "target": target,
+                        "role": getattr(user, "role", "") or "",
+                        "username": getattr(user, "username", "") or "",
+                        "full_name": getattr(user, "get_full_name", lambda: "")() or "",
+                    },
+                )
 
             role = getattr(user, "role", None)
             if role == "SUPERADMIN":
@@ -346,7 +395,16 @@ def login_view(request, login_type: str = "portal"):
             else:
                 target = reverse("core:student_dashboard")
 
-            return redirect(target)
+            return render(
+                request,
+                "accounts/login_loading.html",
+                {
+                    "target": target,
+                    "role": role or "",
+                    "username": getattr(user, "username", "") or "",
+                    "full_name": getattr(user, "get_full_name", lambda: "")() or "",
+                },
+            )
     else:
         form = AuthenticationForm(request)
 
@@ -357,5 +415,33 @@ def login_view(request, login_type: str = "portal"):
             "form": form,
             "login_type": login_type,
             "next": request.GET.get("next", "") or "",
+        },
+    )
+
+
+def access_restricted(request):
+    """
+    Full-screen blocked access screen for inactive teacher/student.
+    This is intentionally generic and does not confirm identity beyond the message.
+    """
+    login_type = (request.GET.get("login_type") or "portal").strip().lower()
+    role = (request.GET.get("role") or "").strip().upper()
+    blocked_type = (request.GET.get("type") or "inactive").strip().lower()
+
+    # Optional contact info (if user is logged in somehow, use their school; else best-effort from session)
+    school = getattr(getattr(request, "user", None), "school", None) if getattr(request, "user", None) and request.user.is_authenticated else None
+    if login_type == "school":
+        return_to = reverse("accounts:school_login")
+    else:
+        return_to = reverse("accounts:portal_login")
+
+    return render(
+        request,
+        "accounts/access_restricted.html",
+        {
+            "blocked_type": blocked_type,
+            "blocked_role": role,
+            "school": school,
+            "return_to_login_url": return_to,
         },
     )

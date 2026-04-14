@@ -4,7 +4,7 @@ from django import forms
 from django.contrib.auth import get_user_model
 
 from apps.payroll.models import Payslip
-from apps.school_data.models import ClassRoom, Subject, Teacher
+from apps.school_data.models import ClassRoom, Subject, Teacher, MasterDataOption
 
 from .forms import BS_INPUT, INPUT_CLASS
 
@@ -32,31 +32,31 @@ class TeacherMasterForm(forms.Form):
     email = forms.EmailField(required=False, widget=forms.EmailInput(attrs={"class": INPUT_CLASS}))
     employee_id = forms.CharField(max_length=50, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
     phone_number = forms.CharField(max_length=20, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
-    qualification = forms.CharField(max_length=200, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    qualification = forms.CharField(
+        max_length=200,
+        required=False,
+        widget=forms.Select(
+            attrs={
+                "class": BS_INPUT,
+                "data-master-key": "qualification",
+                "data-master-tags": "1",
+            }
+        ),
+    )
     experience = forms.CharField(max_length=100, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
     date_of_birth = forms.DateField(
         required=False,
         widget=forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
     )
-    gender = forms.ChoiceField(
-        choices=[("", "— Not specified —")] + list(Teacher.Gender.choices),
+    gender = forms.CharField(
+        max_length=60,
         required=False,
-        widget=forms.Select(attrs={"class": BS_INPUT}),
+        widget=forms.Select(attrs={"class": BS_INPUT, "data-master-key": "gender"}),
     )
-    blood_group = forms.ChoiceField(
-        choices=[
-            ("", "— Not specified —"),
-            ("A+", "A+"),
-            ("A-", "A-"),
-            ("B+", "B+"),
-            ("B-", "B-"),
-            ("AB+", "AB+"),
-            ("AB-", "AB-"),
-            ("O+", "O+"),
-            ("O-", "O-"),
-        ],
+    blood_group = forms.CharField(
+        max_length=60,
         required=False,
-        widget=forms.Select(attrs={"class": BS_INPUT}),
+        widget=forms.Select(attrs={"class": BS_INPUT, "data-master-key": "blood_group"}),
     )
     id_number = forms.CharField(
         max_length=50,
@@ -64,9 +64,37 @@ class TeacherMasterForm(forms.Form):
         label="Aadhar / ID number",
         widget=forms.TextInput(attrs={"class": INPUT_CLASS}),
     )
-    nationality = forms.CharField(max_length=60, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
-    religion = forms.CharField(max_length=60, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
-    mother_tongue = forms.CharField(max_length=60, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    nationality = forms.CharField(
+        max_length=60,
+        required=False,
+        widget=forms.Select(
+            attrs={
+                "class": BS_INPUT,
+                "data-master-key": "nationality",
+            }
+        ),
+    )
+    religion = forms.CharField(
+        max_length=60,
+        required=False,
+        widget=forms.Select(
+            attrs={
+                "class": BS_INPUT,
+                "data-master-key": "religion",
+                "data-master-tags": "1",
+            }
+        ),
+    )
+    mother_tongue = forms.CharField(
+        max_length=60,
+        required=False,
+        widget=forms.Select(
+            attrs={
+                "class": BS_INPUT,
+                "data-master-key": "mother_tongue",
+            }
+        ),
+    )
     profile_image = forms.ImageField(
         required=False,
         label="Photo",
@@ -98,8 +126,26 @@ class TeacherMasterForm(forms.Form):
     )
 
     joining_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}))
-    designation = forms.CharField(max_length=120, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
-    department = forms.CharField(max_length=120, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    designation = forms.CharField(
+        max_length=120,
+        required=False,
+        widget=forms.Select(
+            attrs={
+                "class": BS_INPUT,
+                "data-master-key": "designation",
+            }
+        ),
+    )
+    department = forms.CharField(
+        max_length=120,
+        required=False,
+        widget=forms.Select(
+            attrs={
+                "class": BS_INPUT,
+                "data-master-key": "department",
+            }
+        ),
+    )
 
     spouse_name = forms.CharField(max_length=150, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
     spouse_phone = forms.CharField(max_length=20, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
@@ -128,6 +174,15 @@ class TeacherMasterForm(forms.Form):
         widget=forms.Select(attrs={"class": BS_INPUT}),
         initial="ACTIVE",
     )
+    reason_for_deactivation = forms.CharField(
+        max_length=255,
+        required=False,
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Optional reason (e.g. Relieved / long leave)"}),
+    )
+    relieved_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
+    )
 
     def __init__(self, school, teacher=None, *args, **kwargs):
         self.school = school
@@ -137,6 +192,22 @@ class TeacherMasterForm(forms.Form):
         self.fields["classrooms"].queryset = ClassRoom.objects.select_related("academic_year").order_by(
             "academic_year__start_date", "name"
         )
+
+        def _master_choices(master_key: str, empty_label: str = "— Select —"):
+            qs = MasterDataOption.objects.filter(key=master_key, is_active=True).order_by("name")
+            items = [(o.name, o.name) for o in qs.only("name")]
+            return [("", empty_label)] + items
+
+        # All master-like dropdowns are stored as plain strings (Teacher fields / extra_data),
+        # but their options come from tenant-scoped MasterDataOption.
+        self.fields["gender"].widget.choices = _master_choices("gender", "— Not specified —")
+        self.fields["blood_group"].widget.choices = _master_choices("blood_group", "— Not specified —")
+        self.fields["designation"].widget.choices = _master_choices("designation")
+        self.fields["department"].widget.choices = _master_choices("department")
+        self.fields["mother_tongue"].widget.choices = _master_choices("mother_tongue")
+        self.fields["nationality"].widget.choices = _master_choices("nationality")
+        self.fields["religion"].widget.choices = _master_choices("religion")
+        self.fields["qualification"].widget.choices = _master_choices("qualification")
 
         ph = {
             "first_name": "e.g. Priya",
@@ -188,6 +259,8 @@ class TeacherMasterForm(forms.Form):
             medical = extra.get("medical") or {}
             payroll = extra.get("payroll") or {}
             status_block = extra.get("status") or {}
+            self.initial.setdefault("reason_for_deactivation", status_block.get("reason_for_deactivation") or "")
+            self.initial.setdefault("relieved_date", status_block.get("relieved_date") or None)
             addr_lines = (teacher.address or "").split("\n") if teacher.address else []
             self.initial.setdefault("first_name", teacher.user.first_name)
             self.initial.setdefault("last_name", teacher.user.last_name)
@@ -331,5 +404,7 @@ class TeacherMasterForm(forms.Form):
             },
             "status": {
                 "record_status": (data.get("record_status") or "ACTIVE").strip().upper(),
+                "reason_for_deactivation": (data.get("reason_for_deactivation") or "").strip(),
+                "relieved_date": str(data.get("relieved_date") or "").strip(),
             },
         }

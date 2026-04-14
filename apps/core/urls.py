@@ -1,7 +1,7 @@
 from django.urls import include, path
 from django.views.generic import RedirectView
 
-from . import billing_views, views
+from . import billing_views, control_center_views, views
 
 app_name = "core"
 
@@ -16,12 +16,47 @@ urlpatterns = [
     # Role-based dashboard URLs (for login redirect)
     path("superadmin/dashboard/", views.super_admin_dashboard, name="super_admin_dashboard"),
     path(
+        "super-admin/control-center/",
+        control_center_views.superadmin_control_center,
+        name="superadmin_control_center",
+    ),
+    path(
+        "super-admin/control-center/sidebar/",
+        control_center_views.superadmin_sidebar_management,
+        name="superadmin_sidebar_management",
+    ),
+    path(
         "superadmin/platform/footprint/",
         views.superadmin_platform_footprint,
         name="superadmin_platform_footprint",
     ),
+    path(
+        "superadmin/schools/overview/",
+        views.superadmin_schools_overview,
+        name="superadmin_schools_overview",
+    ),
+    path(
+        "superadmin/schools/<int:school_id>/students/",
+        views.superadmin_school_students,
+        name="superadmin_school_students",
+    ),
+    path(
+        "superadmin/schools/<int:school_id>/teachers/",
+        views.superadmin_school_teachers,
+        name="superadmin_school_teachers",
+    ),
     path("superadmin/students/", views.superadmin_global_students, name="superadmin_global_students"),
+    path(
+        "superadmin/students/set-active/",
+        views.superadmin_set_student_active,
+        name="superadmin_set_student_active",
+    ),
     path("superadmin/teachers/", views.superadmin_global_teachers, name="superadmin_global_teachers"),
+    path(
+        "superadmin/teachers/set-active/",
+        views.superadmin_set_teacher_active,
+        name="superadmin_set_teacher_active",
+    ),
     path(
         "superadmin/schools/<int:school_id>/financial/",
         views.superadmin_school_financial,
@@ -91,6 +126,10 @@ urlpatterns = [
 
     # Public APIs (super admin)
     path("api/enquiries/unread-count/", views.enquiries_unread_count, name="enquiries_unread_count_api"),
+
+    # School Admin: Master data APIs (tenant-scoped)
+    path("api/master-data/<str:key>/list/", views.master_data_list, name="master_data_list"),
+    path("api/master-data/<str:key>/create/", views.master_data_create, name="master_data_create"),
 
     # Legacy/alias dashboard URLs
     path("super-admin/", views.super_admin_dashboard, name="super_admin_dashboard_legacy"),
@@ -179,6 +218,7 @@ urlpatterns = [
     path("school/students/<int:student_id>/view/", views.school_student_view, name="school_student_view"),
     path("school/students/<int:student_id>/profile/pdf/", views.school_student_profile_pdf, name="school_student_profile_pdf"),
     path("school/students/<int:student_id>/edit/", views.school_student_edit, name="school_student_edit"),
+    path("school/students/<int:student_id>/set-active/", views.school_student_set_active, name="school_student_set_active"),
     path("school/students/<int:student_id>/delete/", views.school_student_delete, name="school_student_delete"),
     path("school/students/import/", views.school_students_import, name="school_students_import"),
     # School Admin: Teacher management
@@ -186,6 +226,7 @@ urlpatterns = [
     path("school/teachers/add/", views.school_teacher_add, name="school_teacher_add"),
     path("school/teachers/<int:teacher_id>/view/", views.school_teacher_view, name="school_teacher_view"),
     path("school/teachers/<int:teacher_id>/edit/", views.school_teacher_edit, name="school_teacher_edit"),
+    path("school/teachers/<int:teacher_id>/set-active/", views.school_teacher_set_active, name="school_teacher_set_active"),
     path("school/teachers/<int:teacher_id>/delete/", views.school_teacher_delete, name="school_teacher_delete"),
     # School Admin: Academic years, classes, sections, subjects
     path("school/academic-years/", views.school_academic_years, name="school_academic_years"),

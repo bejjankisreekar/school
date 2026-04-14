@@ -13,6 +13,7 @@ urlpatterns = [
     path("school-login/", views.login_view, {"login_type": "school"}, name="school_login"),
     # Student / teacher login entry
     path("portal-login/", views.login_view, {"login_type": "portal"}, name="portal_login"),
+    path("access-restricted/", views.access_restricted, name="access_restricted"),
     # Logout
     path("logout/", views.logout_view, name="logout"),
     path("account/profile/", views.account_profile, name="account_profile"),

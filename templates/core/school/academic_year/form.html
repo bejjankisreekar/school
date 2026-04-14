@@ -1,7 +1,81 @@
 {% extends "base.html" %}
 {% block title %}{{ title }} | School ERP{% endblock %}
+
+{% block extra_head %}
+<style>
+  .ay-section-card {
+    background: #fff;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+    padding: 1.35rem 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+  html.dark .ay-section-card {
+    background: rgba(30, 41, 59, 0.85);
+    border-color: rgba(148, 163, 184, 0.15);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+  }
+  .ay-section-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.25rem;
+    color: #0f172a;
+  }
+  html.dark .ay-section-title { color: #f8fafc; }
+  .ay-section-lead {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-bottom: 1rem;
+  }
+  html.dark .ay-section-lead { color: #94a3b8; }
+  .ay-divider {
+    height: 1px;
+    background: rgba(15, 23, 42, 0.08);
+    margin: 1rem 0;
+  }
+  html.dark .ay-divider { background: rgba(148, 163, 184, 0.12); }
+  .ay-sticky-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 50;
+    margin-top: 1.5rem;
+    padding: 1rem 1.25rem;
+    margin-left: -0.25rem;
+    margin-right: -0.25rem;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 16px;
+    box-shadow: 0 -8px 32px rgba(15, 23, 42, 0.08);
+  }
+  html.dark .ay-sticky-actions {
+    background: rgba(15, 23, 42, 0.92);
+    border-color: rgba(148, 163, 184, 0.15);
+  }
+  .ay-term-row, .ay-holiday-row, .ay-promo-row {
+    background: rgba(248, 250, 252, 0.8);
+    border-radius: 12px;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid rgba(15, 23, 42, 0.06);
+  }
+  html.dark .ay-term-row, html.dark .ay-holiday-row, html.dark .ay-promo-row {
+    background: rgba(15, 23, 42, 0.5);
+    border-color: rgba(148, 163, 184, 0.12);
+  }
+  .ay-table-head {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    color: #64748b;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container-fluid px-0" style="max-width: 42rem;">
+<div class="container-fluid px-0 ay-wizard-root" style="max-width: 52rem;">
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
@@ -10,57 +84,377 @@
     </ol>
   </nav>
 
-  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
     <div>
       <h1 class="h4 fw-bold mb-1">{{ title }}</h1>
       <p class="text-muted small mb-0">
         {% if is_add %}
-        Define the label and date range for a school year. You can mark one year as <strong>active</strong> for new enrolments and defaults.
+        Configure the academic year, terms, working week, and optional imports from a previous year. Core fields are saved with the academic year record; advanced options are stored for attendance, fees, and promotions.
         {% else %}
-        Update dates or name. Changes apply to classes and records linked to this year.
+        Update dates, name, or notes. Changes apply to classes and records linked to this year.
         {% endif %}
       </p>
     </div>
   </div>
 
-  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  {% if form.non_field_errors %}<div class="alert alert-danger rounded-3">{{ form.non_field_errors }}</div>{% endif %}
 
-  <form method="post" novalidate>
+  <form method="post" novalidate id="ay-form" class="{% if is_add %}ay-add-form{% endif %}">
     {% csrf_token %}
-    <div class="card border-0 shadow-sm rounded-4">
-      <div class="card-body p-4">
-        <div class="mb-3">
-          <label class="form-label fw-semibold" for="{{ form.name.id_for_label }}">Year name</label>
-          {{ form.name }}
-          {% if form.name.help_text %}<div class="form-text">{{ form.name.help_text }}</div>{% endif %}
-          {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>{% endif %}
+    {% if is_add %}<input type="hidden" name="wizard_settings_json" id="id_wizard_settings_json" value="{}">{% endif %}
+
+    <div class="ay-section-card">
+      <div class="ay-section-title">Academic Year Details</div>
+      <p class="ay-section-lead mb-3">Required information used across enrolments, fees, and reports.</p>
+      <div class="mb-3">
+        <label class="form-label fw-semibold" for="{{ form.name.id_for_label }}">Academic year name <span class="text-danger">*</span></label>
+        {{ form.name }}
+        {% if form.name.help_text %}<div class="form-text">{{ form.name.help_text }}</div>{% endif %}
+        {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold" for="{{ form.start_date.id_for_label }}">Start date <span class="text-danger">*</span></label>
+          {{ form.start_date }}
+          {% if form.start_date.errors %}<div class="text-danger small mt-1">{{ form.start_date.errors.0 }}</div>{% endif %}
         </div>
-        <div class="row g-3 mb-3">
-          <div class="col-md-6">
-            <label class="form-label fw-semibold" for="{{ form.start_date.id_for_label }}">Start date</label>
-            {{ form.start_date }}
-            {% if form.start_date.help_text %}<div class="form-text">{{ form.start_date.help_text }}</div>{% endif %}
-            {% if form.start_date.errors %}<div class="text-danger small mt-1">{{ form.start_date.errors.0 }}</div>{% endif %}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label fw-semibold" for="{{ form.end_date.id_for_label }}">End date</label>
-            {{ form.end_date }}
-            {% if form.end_date.help_text %}<div class="form-text">{{ form.end_date.help_text }}</div>{% endif %}
-            {% if form.end_date.errors %}<div class="text-danger small mt-1">{{ form.end_date.errors.0 }}</div>{% endif %}
-          </div>
-        </div>
-        <div class="form-check mb-0 pt-2 border-top border-opacity-50">
-          {{ form.is_active }}
-          <label class="form-check-label" for="{{ form.is_active.id_for_label }}">{{ form.is_active.label }}</label>
-          {% if form.is_active.help_text %}<div class="form-text ms-1 mb-0">{{ form.is_active.help_text }}</div>{% endif %}
-          {% if form.is_active.errors %}<div class="text-danger small mt-1">{{ form.is_active.errors.0 }}</div>{% endif %}
+        <div class="col-md-6">
+          <label class="form-label fw-semibold" for="{{ form.end_date.id_for_label }}">End date <span class="text-danger">*</span></label>
+          {{ form.end_date }}
+          {% if form.end_date.errors %}<div class="text-danger small mt-1">{{ form.end_date.errors.0 }}</div>{% endif %}
         </div>
       </div>
-      <div class="card-footer bg-transparent border-0 pt-0 px-4 pb-4">
-        <button type="submit" class="btn btn-primary rounded-pill px-4">{% if is_add %}Create academic year{% else %}Save changes{% endif %}</button>
-        <a href="{% url 'core:school_academic_years' %}" class="btn btn-outline-secondary ms-2 rounded-pill">Cancel</a>
+      <div class="mb-0">
+        <label class="form-label fw-semibold" for="{{ form.description.id_for_label }}">Description / notes</label>
+        {{ form.description }}
+        {% if form.description.help_text %}<div class="form-text">{{ form.description.help_text }}</div>{% endif %}
+        {% if form.description.errors %}<div class="text-danger small mt-1">{{ form.description.errors.0 }}</div>{% endif %}
       </div>
+    </div>
+
+    <div class="ay-section-card">
+      <div class="ay-section-title">Current active year</div>
+      <p class="ay-section-lead mb-2">Only one year should be active. Saving with this checked automatically deactivates other years.</p>
+      <div class="form-check form-switch">
+        {{ form.is_active }}
+        <label class="form-check-label" for="{{ form.is_active.id_for_label }}">Set as current active academic year</label>
+      </div>
+      {% if form.is_active.help_text %}<div class="form-text">{{ form.is_active.help_text }}</div>{% endif %}
+      {% if form.is_active.errors %}<div class="text-danger small mt-1">{{ form.is_active.errors.0 }}</div>{% endif %}
+    </div>
+
+    {% if is_add %}
+
+    <div class="ay-section-card" id="ay-terms-section">
+      <div class="ay-section-title">Terms / semesters</div>
+      <p class="ay-section-lead">Define terms inside the academic year range. Dates are validated on save.</p>
+      <div class="row g-2 mb-2 d-none d-md-flex small ay-table-head px-1">
+        <div class="col-md-4">Term name</div>
+        <div class="col-md-4">Start date</div>
+        <div class="col-md-3">End date</div>
+        <div class="col-md-1"></div>
+      </div>
+      <div id="ay-terms-container" class="d-flex flex-column gap-2"></div>
+      <button type="button" class="btn btn-sm btn-outline-primary rounded-pill mt-3" id="ay-add-term"><i class="bi bi-plus-lg me-1"></i>Add term</button>
+    </div>
+
+    <div class="ay-section-card">
+      <div class="ay-section-title">Working days &amp; weekly off</div>
+      <p class="ay-section-lead">Used for attendance and payroll planning (stored with this academic year).</p>
+      <div class="row g-2" id="ay-working-days">
+        {% for val, label in ay_weekday_choices %}
+        <div class="col-6 col-sm-4 col-md-3">
+          <div class="form-check">
+            <input class="form-check-input ay-wd-cb" type="checkbox" value="{{ val }}" id="ay-wd-{{ val }}" {% if val != 7 %}checked{% endif %}>
+            <label class="form-check-label small" for="ay-wd-{{ val }}">{{ label }}</label>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="ay-section-card" id="ay-holidays-section">
+      <div class="ay-section-title">Holiday / vacation calendar</div>
+      <p class="ay-section-lead">Multi-day breaks are expanded into single-day calendar entries (school calendar model). Very long spans are truncated with a notice after save.</p>
+      <div id="ay-holidays-container" class="d-flex flex-column gap-2"></div>
+      <button type="button" class="btn btn-sm btn-outline-primary rounded-pill mt-3" id="ay-add-holiday"><i class="bi bi-plus-lg me-1"></i>Add holiday</button>
+    </div>
+
+    <div class="ay-section-card" id="ay-promo-section">
+      <div class="ay-section-title">Class promotion mapping</div>
+      <p class="ay-section-lead">Planned promotions at year-end (stored as reference; execution uses your promotion workflow).</p>
+      <div id="ay-promo-container" class="d-flex flex-column gap-2"></div>
+      <button type="button" class="btn btn-sm btn-outline-primary rounded-pill mt-3" id="ay-add-promo"><i class="bi bi-plus-lg me-1"></i>Add mapping</button>
+    </div>
+
+    <div class="ay-section-card">
+      <div class="ay-section-title">Import previous academic year</div>
+      <p class="ay-section-lead">Optionally duplicate structure after this year is created. “Copy classes” is required for fee copy to map correctly.</p>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Copy from</label>
+        <select class="form-select form-select-sm" id="ay-copy-from-year">
+          <option value="">— Select year —</option>
+          {% for y in previous_years %}
+          <option value="{{ y.pk }}">{{ y.name }} ({{ y.start_date|date:"M j, Y" }} – {{ y.end_date|date:"M j, Y" }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="row g-2">
+        <div class="col-md-6">
+          <div class="form-check"><input class="form-check-input ay-copy-flag" type="checkbox" value="classes" id="ay-cf-classes" checked><label class="form-check-label small" for="ay-cf-classes">Copy classes</label></div>
+          <div class="form-check"><input class="form-check-input ay-copy-flag" type="checkbox" value="sections" id="ay-cf-sections"><label class="form-check-label small" for="ay-cf-sections">Copy sections (with classes)</label></div>
+          <div class="form-check"><input class="form-check-input ay-copy-flag" type="checkbox" value="subjects" id="ay-cf-subjects"><label class="form-check-label small" for="ay-cf-subjects">Copy subjects</label></div>
+          <div class="form-check"><input class="form-check-input ay-copy-flag" type="checkbox" value="timetable" id="ay-cf-timetable"><label class="form-check-label small" for="ay-cf-timetable">Copy timetable (schedule profiles)</label></div>
+        </div>
+        <div class="col-md-6">
+          <div class="form-check"><input class="form-check-input ay-copy-flag" type="checkbox" value="fee_structure" id="ay-cf-fee"><label class="form-check-label small" for="ay-cf-fee">Copy fee structure</label></div>
+          <div class="form-check"><input class="form-check-input ay-copy-flag" type="checkbox" value="exam_structure" id="ay-cf-exam"><label class="form-check-label small" for="ay-cf-exam">Copy exam structure</label></div>
+          <div class="form-check"><input class="form-check-input ay-copy-flag" type="checkbox" value="payroll_rules" id="ay-cf-payroll"><label class="form-check-label small" for="ay-cf-payroll">Copy payroll rules</label></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ay-section-card">
+      <div class="ay-section-title">Exam setup</div>
+      <p class="ay-section-lead">Track which exam cycles this school uses (stored for reporting configuration).</p>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="form-check"><input class="form-check-input ay-exam-cb" type="checkbox" id="ay-ex-unit" data-exam="unit_tests"><label class="form-check-label small" for="ay-ex-unit">Unit tests</label></div>
+          <div class="form-check"><input class="form-check-input ay-exam-cb" type="checkbox" id="ay-ex-mid" data-exam="midterm"><label class="form-check-label small" for="ay-ex-mid">Midterm</label></div>
+          <div class="form-check"><input class="form-check-input ay-exam-cb" type="checkbox" id="ay-ex-half" data-exam="half_yearly"><label class="form-check-label small" for="ay-ex-half">Half yearly</label></div>
+          <div class="form-check"><input class="form-check-input ay-exam-cb" type="checkbox" id="ay-ex-final" data-exam="final"><label class="form-check-label small" for="ay-ex-final">Final exams</label></div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small">Optional window (start)</label>
+          <input type="date" class="form-control form-control-sm mb-2" id="ay-exam-start">
+          <label class="form-label small">Optional window (end)</label>
+          <input type="date" class="form-control form-control-sm" id="ay-exam-end">
+        </div>
+      </div>
+    </div>
+
+    <div class="ay-section-card">
+      <div class="ay-section-title">Fee cycle</div>
+      <p class="ay-section-lead">Preferred billing rhythm for this year (reference for fee structures).</p>
+      <select class="form-select form-select-sm" id="ay-fee-cycle" style="max-width: 16rem;">
+        <option value="monthly">Monthly</option>
+        <option value="quarterly">Quarterly</option>
+        <option value="term_wise">Term-wise</option>
+        <option value="yearly">Yearly</option>
+      </select>
+    </div>
+
+    {% endif %}
+
+    <div class="ay-sticky-actions d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <a href="{% url 'core:school_academic_years' %}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
+      <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold" id="ay-submit-btn">
+        {% if is_add %}Save academic year{% else %}Save changes{% endif %}
+      </button>
     </div>
   </form>
 </div>
+
+{% if is_add %}
+<script>
+(function () {
+  var form = document.getElementById("ay-form");
+  var jsonField = document.getElementById("id_wizard_settings_json");
+  if (!form || !jsonField) return;
+
+  var classOptions = {{ promotion_classes_json|safe }};
+  if (!Array.isArray(classOptions)) classOptions = [];
+
+  function esc(s) {
+    var d = document.createElement("div");
+    d.textContent = s == null ? "" : String(s);
+    return d.innerHTML;
+  }
+
+  function classSelect(cls, val) {
+    var o = '<option value="">— Class —</option>';
+    classOptions.forEach(function (c) {
+      o += '<option value="' + esc(c) + '"' + (c === val ? " selected" : "") + ">" + esc(c) + "</option>";
+    });
+    return '<select class="form-select form-select-sm ' + cls + '">' + o + "</select>";
+  }
+
+  function addTermRow(data) {
+    data = data || {};
+    var wrap = document.createElement("div");
+    wrap.className = "ay-term-row row g-2 align-items-end";
+    wrap.innerHTML =
+      '<div class="col-md-4"><label class="form-label small d-md-none">Name</label><input type="text" class="form-control form-control-sm ay-term-name" placeholder="e.g. Term 1" value="' + esc(data.name || "") + '"></div>' +
+      '<div class="col-md-4"><label class="form-label small d-md-none">Start</label><input type="date" class="form-control form-control-sm ay-term-start" value="' + esc(data.start || "") + '"></div>' +
+      '<div class="col-md-3"><label class="form-label small d-md-none">End</label><input type="date" class="form-control form-control-sm ay-term-end" value="' + esc(data.end || "") + '"></div>' +
+      '<div class="col-md-1 text-end"><button type="button" class="btn btn-sm btn-outline-danger border-0 ay-remove-row" title="Remove">&times;</button></div>';
+    document.getElementById("ay-terms-container").appendChild(wrap);
+  }
+
+  function addHolidayRow(data) {
+    data = data || {};
+    var wrap = document.createElement("div");
+    wrap.className = "ay-holiday-row row g-2 align-items-end";
+    wrap.innerHTML =
+      '<div class="col-md-4"><label class="form-label small d-md-none">Holiday name</label><input type="text" class="form-control form-control-sm ay-hol-name" placeholder="e.g. Summer vacation" value="' + esc(data.name || "") + '"></div>' +
+      '<div class="col-md-4"><label class="form-label small d-md-none">Start</label><input type="date" class="form-control form-control-sm ay-hol-start" value="' + esc(data.start || "") + '"></div>' +
+      '<div class="col-md-3"><label class="form-label small d-md-none">End</label><input type="date" class="form-control form-control-sm ay-hol-end" value="' + esc(data.end || "") + '"></div>' +
+      '<div class="col-md-1 text-end"><button type="button" class="btn btn-sm btn-outline-danger border-0 ay-remove-row" title="Remove">&times;</button></div>';
+    document.getElementById("ay-holidays-container").appendChild(wrap);
+  }
+
+  function addPromoRow(data) {
+    data = data || {};
+    var wrap = document.createElement("div");
+    wrap.className = "ay-promo-row row g-2 align-items-end";
+    wrap.innerHTML =
+      '<div class="col-md-5"><label class="form-label small">From class</label>' + classSelect("ay-promo-from", data.from || "") + "</div>" +
+      '<div class="col-md-1 text-center pt-4 small text-muted">→</div>' +
+      '<div class="col-md-5"><label class="form-label small">To class</label>' + classSelect("ay-promo-to", data.to || "") + "</div>" +
+      '<div class="col-md-1 text-end"><button type="button" class="btn btn-sm btn-outline-danger border-0 ay-remove-row" title="Remove">&times;</button></div>';
+    document.getElementById("ay-promo-container").appendChild(wrap);
+  }
+
+  document.getElementById("ay-add-term").addEventListener("click", function () { addTermRow({ name: "Term " + (document.querySelectorAll(".ay-term-row").length + 1) }); });
+  document.getElementById("ay-add-holiday").addEventListener("click", function () { addHolidayRow({}); });
+  document.getElementById("ay-add-promo").addEventListener("click", function () { addPromoRow({}); });
+
+  form.addEventListener("click", function (e) {
+    if (e.target.classList.contains("ay-remove-row")) {
+      var row = e.target.closest(".ay-term-row, .ay-holiday-row, .ay-promo-row");
+      if (row) row.remove();
+    }
+  });
+
+  addTermRow({ name: "Term 1" });
+  addTermRow({ name: "Term 2" });
+  addTermRow({ name: "Term 3" });
+
+  function collectWizard() {
+    var terms = [];
+    document.querySelectorAll(".ay-term-row").forEach(function (row) {
+      var n = (row.querySelector(".ay-term-name") || {}).value || "";
+      var s = (row.querySelector(".ay-term-start") || {}).value || "";
+      var e = (row.querySelector(".ay-term-end") || {}).value || "";
+      if (n.trim() || s || e) terms.push({ name: n.trim(), start: s, end: e });
+    });
+
+    var working_days = [];
+    document.querySelectorAll(".ay-wd-cb:checked").forEach(function (cb) {
+      working_days.push(parseInt(cb.value, 10));
+    });
+
+    var holidays = [];
+    document.querySelectorAll(".ay-holiday-row").forEach(function (row) {
+      var n = (row.querySelector(".ay-hol-name") || {}).value || "";
+      var s = (row.querySelector(".ay-hol-start") || {}).value || "";
+      var e = (row.querySelector(".ay-hol-end") || {}).value || "";
+      if (n.trim() || s || e) holidays.push({ name: n.trim(), start: s, end: e || s });
+    });
+
+    var promotion_map = [];
+    document.querySelectorAll(".ay-promo-row").forEach(function (row) {
+      var fs = row.querySelector(".ay-promo-from");
+      var ts = row.querySelector(".ay-promo-to");
+      var f = fs ? fs.value : "";
+      var t = ts ? ts.value : "";
+      if (f && t) promotion_map.push({ from: f, to: t });
+    });
+
+    var exam_cycle = {};
+    document.querySelectorAll(".ay-exam-cb:checked").forEach(function (cb) {
+      exam_cycle[cb.getAttribute("data-exam")] = true;
+    });
+    var es = document.getElementById("ay-exam-start");
+    var ee = document.getElementById("ay-exam-end");
+    if (es && es.value) exam_cycle.window_start = es.value;
+    if (ee && ee.value) exam_cycle.window_end = ee.value;
+
+    var feeEl = document.getElementById("ay-fee-cycle");
+    var fee_cycle = feeEl ? feeEl.value : "monthly";
+
+    var copyFrom = document.getElementById("ay-copy-from-year");
+    var fromId = copyFrom && copyFrom.value ? copyFrom.value : "";
+    var flags = {};
+    document.querySelectorAll(".ay-copy-flag:checked").forEach(function (cb) {
+      flags[cb.value] = true;
+    });
+
+    return {
+      terms: terms,
+      working_days: working_days,
+      holidays: holidays,
+      promotion_map: promotion_map,
+      exam_cycle: exam_cycle,
+      fee_cycle: fee_cycle,
+      copy: { from_year_id: fromId, flags: flags }
+    };
+  }
+
+  function parseYMD(s) {
+    if (!s) return null;
+    var p = String(s).split("-");
+    if (p.length !== 3) return null;
+    var d = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  form.addEventListener("submit", function (e) {
+    var activeCb = document.getElementById("{{ form.is_active.id_for_label }}");
+    if (activeCb && activeCb.checked) {
+      if (!window.confirm("Set this as the active academic year? Any other active year will be deactivated automatically.")) {
+        e.preventDefault();
+        return;
+      }
+    }
+    var ayS = parseYMD((form.querySelector("[name=start_date]") || {}).value);
+    var ayE = parseYMD((form.querySelector("[name=end_date]") || {}).value);
+    if (ayS && ayE && ayE <= ayS) {
+      e.preventDefault();
+      alert("Academic year end date must be after the start date.");
+      return;
+    }
+    var badTerms = false;
+    document.querySelectorAll(".ay-term-row").forEach(function (row) {
+      var s = parseYMD((row.querySelector(".ay-term-start") || {}).value);
+      var en = parseYMD((row.querySelector(".ay-term-end") || {}).value);
+      if (!s && !en) return;
+      if (s && en && en < s) badTerms = true;
+      if (ayS && ayE && s && en && (s < ayS || en > ayE)) badTerms = true;
+    });
+    if (badTerms) {
+      e.preventDefault();
+      alert("Each term must have a valid date range inside the academic year (end on or after start).");
+      return;
+    }
+    var badHol = false;
+    document.querySelectorAll(".ay-holiday-row").forEach(function (row) {
+      var s = parseYMD((row.querySelector(".ay-hol-start") || {}).value);
+      var en = parseYMD((row.querySelector(".ay-hol-end") || {}).value) || s;
+      if (!s && !en) return;
+      if (s && en && en < s) badHol = true;
+      if (ayS && ayE && s && en && (s < ayS || en > ayE)) badHol = true;
+    });
+    if (badHol) {
+      e.preventDefault();
+      alert("Each holiday must fall within the academic year dates (end on or after start).");
+      return;
+    }
+    var feeOn = document.getElementById("ay-cf-fee") && document.getElementById("ay-cf-fee").checked;
+    var clsOn = document.getElementById("ay-cf-classes") && document.getElementById("ay-cf-classes").checked;
+    if (feeOn && !clsOn) {
+      e.preventDefault();
+      alert("To copy fee structures, also enable “Copy classes” so amounts map to the new year’s classes.");
+      return;
+    }
+    try {
+      jsonField.value = JSON.stringify(collectWizard());
+    } catch (err) {
+      e.preventDefault();
+      alert("Could not prepare form data. Please try again.");
+    }
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}
