@@ -8,6 +8,7 @@ from datetime import date, datetime, timedelta
 from django.db.models import Q
 from django.utils import timezone
 
+from apps.school_data.classroom_ordering import ORDER_GRADE_NAME
 from apps.school_data.models import AcademicYear, ClassRoom, Section, Student
 
 
@@ -93,7 +94,7 @@ def build_analytics_scope_for_request(request, school) -> dict:
             if Section.objects.filter(pk=sid).exists():
                 section_id = sid
 
-    classrooms = ClassRoom.objects.order_by("name")
+    classrooms = ClassRoom.objects.order_by(*ORDER_GRADE_NAME)
     if academic_year_id:
         classroom_ids = list(
             Student.objects.filter(
@@ -105,9 +106,7 @@ def build_analytics_scope_for_request(request, school) -> dict:
             .distinct()
         )
         if classroom_ids:
-            classrooms = ClassRoom.objects.filter(pk__in=classroom_ids).order_by(
-                "name"
-            )
+            classrooms = ClassRoom.objects.filter(pk__in=classroom_ids).order_by(*ORDER_GRADE_NAME)
 
     sections = Section.objects.order_by("name")
     if classroom_id:

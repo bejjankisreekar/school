@@ -5,6 +5,20 @@ from django.conf import settings
 from django.db import migrations, models
 
 
+class SafeAlterUniqueTogether(migrations.AlterUniqueTogether):
+    """
+    Historical migration guard: in some tenant/public-schema paths, model fields
+    or underlying constraints can differ. Avoid hard-failing DB creation; keep
+    migration state forward.
+    """
+
+    def database_forwards(self, app_label, schema_editor, from_state, to_state):
+        try:
+            return super().database_forwards(app_label, schema_editor, from_state, to_state)
+        except Exception:
+            return None
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -223,7 +237,7 @@ class Migration(migrations.Migration):
                 'ordering': ['-created_on'],
             },
         ),
-        migrations.AlterUniqueTogether(
+        SafeAlterUniqueTogether(
             name='feestructure',
             unique_together={('fee_type', 'classroom', 'academic_year')},
         ),

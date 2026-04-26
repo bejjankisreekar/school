@@ -1,0 +1,154 @@
+{% extends "core/billing/base_billing.html" %}
+{% load humanize nav_tags %}
+{% block billing_title %}Create fee structure | School ERP{% endblock %}
+{% block billing_extra_head %}
+<style>
+  /* Full-width layout: no negative margins (they fought the shell and left uneven side gaps) */
+  .cfs-create-page {
+    --cfs-brand: #4f46e5;
+    --cfs-accent: #0ea5e9;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    min-height: 0;
+  }
+  .cfs-create-page .breadcrumb {
+    font-size: 0.8125rem;
+    padding: 0.35rem 0;
+  }
+  .cfs-create-topbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+    margin-bottom: 1rem;
+  }
+  .cfs-create-topbar .btn {
+    border-radius: 999px;
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  }
+  .cfs-create-hero {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(125deg, #1e1b4b 0%, var(--cfs-brand) 38%, #6366f1 68%, var(--cfs-accent) 115%);
+    border-radius: 1.15rem;
+    padding: 1.25rem 1.35rem 1.35rem;
+    color: #fff;
+    box-shadow:
+      0 4px 6px -1px rgba(79, 70, 229, 0.12),
+      0 18px 44px -12px rgba(79, 70, 229, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+  .cfs-create-hero::after {
+    content: "";
+    position: absolute;
+    right: -20%;
+    top: -60%;
+    width: 55%;
+    height: 200%;
+    background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.14), transparent 62%);
+    pointer-events: none;
+  }
+  .cfs-create-hero-inner {
+    position: relative;
+    z-index: 1;
+    max-width: 42rem;
+  }
+  .cfs-create-hero .cfs-create-kicker {
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.85;
+    margin-bottom: 0.35rem;
+  }
+  .cfs-create-hero h1 {
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    margin-bottom: 0.35rem;
+  }
+  @media (min-width: 768px) {
+    .cfs-create-hero h1 { font-size: 1.5rem; }
+  }
+  .cfs-create-hero .lead {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    opacity: 0.92;
+    margin: 0;
+  }
+  .cfs-page-batch-form .cfs-form-layout {
+    max-width: 100%;
+  }
+</style>
+{% include "core/billing/includes/fee_structure_batch_form_styles.html" %}
+{% endblock %}
+
+{% block billing_main %}
+<div class="cfs-create-page">
+  <nav aria-label="breadcrumb" class="mb-0">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:billing_dashboard' %}">Fees &amp; billing</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:billing_fee_structure' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}">Class fee structure</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Create</li>
+    </ol>
+  </nav>
+
+  <div class="cfs-create-topbar">
+    <a href="{{ fee_structure_list_url }}" class="btn btn-outline-secondary btn-sm px-3">
+      <i class="bi bi-arrow-left me-1" aria-hidden="true"></i> Back to class fee structure
+    </a>
+  </div>
+
+  <div class="cfs-create-hero mb-3 mb-md-4">
+    <div class="cfs-create-hero-inner">
+      <div class="cfs-create-kicker">Fees &amp; billing</div>
+      <h1 class="text-white" id="cfs-create-title">Create class fee structure</h1>
+      <p class="lead text-white">Pick class, sections, and fee categories — totals update as you enter amounts. Save to assign student dues.</p>
+    </div>
+  </div>
+
+  {# Success/info toasts only (see base.html); inline alerts for validation issues #}
+  {% for message in messages %}
+    {% if message.tags == 'error' %}
+    <div class="alert alert-danger rounded-3 border-0 shadow-sm mb-2" role="alert">{{ message }}</div>
+    {% elif message.tags == 'warning' %}
+    <div class="alert alert-warning rounded-3 border-0 shadow-sm mb-2" role="alert">{{ message }}</div>
+    {% endif %}
+  {% endfor %}
+
+  {% include "core/billing/includes/fee_structure_batch_form.html" with fee_structure_page=True fee_structure_form_action=fee_structure_form_action fee_structure_list_url=fee_structure_list_url %}
+
+  <span id="cfs-impacted-url" class="d-none">{{ impacted_count_url }}</span>
+  <span id="cfs-batch-detail-url" class="d-none" data-base="{% url 'core:billing_fee_structure_batch' batch_key='00000000-0000-4000-8000-000000000000' %}"></span>
+</div>
+{% endblock %}
+
+{% block modals %}
+{% include "core/billing/includes/fee_type_add_modal_create.html" %}
+{% endblock %}
+
+{% block after_bootstrap %}
+{% include "core/billing/includes/fee_structure_batch_form_scripts.html" %}
+{% if show_add_fee_modal %}
+<script>
+(function () {
+  function showAddFeeModal() {
+    var el = document.getElementById("cfsAddFeeTypeModal");
+    if (!el || !window.bootstrap || !bootstrap.Modal) return;
+    bootstrap.Modal.getOrCreateInstance(el).show();
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", showAddFeeModal);
+  } else {
+    showAddFeeModal();
+  }
+})();
+</script>
+{% endif %}
+{% endblock %}

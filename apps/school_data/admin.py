@@ -8,6 +8,7 @@ from .models import (
     Teacher,
     Subject,
     Exam,
+    ExamMarkComponent,
     ClassSectionSubjectTeacher,
     Attendance,
     Marks,
@@ -17,6 +18,8 @@ from .models import (
     FeeStructure,
     Fee,
     Payment,
+    PaymentBatch,
+    PaymentBatchTender,
     PaymentReceipt,
     Parent,
     StudentParent,
@@ -74,7 +77,7 @@ class AcademicYearAdmin(admin.ModelAdmin):
 
 @admin.register(ClassRoom)
 class ClassRoomAdmin(admin.ModelAdmin):
-    list_display = ("name", "academic_year", "capacity")
+    list_display = ("name", "grade_order", "academic_year", "capacity")
     list_filter = ("academic_year",)
     search_fields = ("name",)
 
@@ -88,8 +91,9 @@ class SectionAdmin(admin.ModelAdmin):
 
 @admin.register(Subject)
 class SubjectAdmin(admin.ModelAdmin):
-    list_display = ("name", "code", "created_on")
+    list_display = ("name", "code", "display_order", "created_on")
     search_fields = ("name", "code")
+    ordering = ("display_order", "name")
 
 
 @admin.register(Teacher)
@@ -105,10 +109,17 @@ class StudentAdmin(admin.ModelAdmin):
     search_fields = ("user__username", "roll_number", "admission_number")
 
 
+class ExamMarkComponentInline(admin.TabularInline):
+    model = ExamMarkComponent
+    extra = 0
+    fields = ("component_name", "max_marks", "sort_order")
+
+
 @admin.register(Exam)
 class ExamAdmin(admin.ModelAdmin):
     list_display = ("name", "class_name", "section", "date", "created_by")
     list_filter = ("class_name", "section", "date")
+    inlines = (ExamMarkComponentInline,)
 
 
 @admin.register(ClassSectionSubjectTeacher)
@@ -172,9 +183,23 @@ class FeeAdmin(admin.ModelAdmin):
     list_filter = ("status", "concession_kind")
 
 
+class PaymentBatchTenderInline(admin.TabularInline):
+    model = PaymentBatchTender
+    extra = 0
+
+
+@admin.register(PaymentBatch)
+class PaymentBatchAdmin(admin.ModelAdmin):
+    list_display = ("id", "student", "total_amount", "payment_date", "payment_method", "created_at")
+    list_filter = ("payment_date", "payment_method")
+    raw_id_fields = ("student", "academic_year", "received_by")
+    search_fields = ("receipt_number", "transaction_reference", "notes")
+    inlines = [PaymentBatchTenderInline]
+
+
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
-    list_display = ("fee", "amount", "payment_date", "payment_method", "transaction_reference")
+    list_display = ("fee", "batch", "amount", "payment_date", "payment_method", "transaction_reference")
 
 
 @admin.register(Parent)

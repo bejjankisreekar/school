@@ -31,6 +31,7 @@ superadmin_required = role_required(User.Roles.SUPERADMIN)
 # School admin UI; platform superadmin may open the same routes (full visibility, no plan gate).
 admin_required = role_required(User.Roles.ADMIN, User.Roles.SUPERADMIN)
 teacher_required = role_required(User.Roles.TEACHER)
+teacher_or_admin_required = role_required(User.Roles.TEACHER, User.Roles.ADMIN, User.Roles.SUPERADMIN)
 student_required = role_required(User.Roles.STUDENT)
 parent_required = role_required(User.Roles.PARENT)
 

@@ -1,7 +1,72 @@
 {% extends "base.html" %}
+{% load nav_tags %}
 {% block title %}Enter Marks — {{ exam.name }} | School ERP{% endblock %}
 
 {% block content %}
+<style>
+  /* Compact, modern marks table */
+  .marks-table-wrap { border-radius: 1rem; overflow: hidden; }
+  .marks-table { table-layout: fixed; }
+  .marks-table thead th {
+    text-align: center;
+    vertical-align: middle;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    padding: 0.55rem 0.65rem !important;
+    white-space: nowrap;
+  }
+  .marks-table tbody td {
+    vertical-align: middle;
+    padding: 0.45rem 0.65rem !important;
+  }
+  .marks-table tbody tr:nth-child(even) { background: rgba(2, 6, 23, 0.02); }
+  html.dark .marks-table tbody tr:nth-child(even) { background: rgba(148, 163, 184, 0.06); }
+  .marks-table tbody tr:hover { background: rgba(var(--bs-primary-rgb), 0.06); }
+  html.dark .marks-table tbody tr:hover { background: rgba(var(--bs-primary-rgb), 0.12); }
+
+  .marks-name { text-align: left !important; }
+  .marks-num { text-align: center; }
+
+  .marks-th {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.15;
+    gap: 0.15rem;
+  }
+  .marks-th small {
+    font-size: 0.75em;
+    font-weight: 600;
+    color: var(--bs-secondary-color);
+  }
+
+  /* Inputs: modern + compact + no spinners */
+  input.marks-input::-webkit-outer-spin-button,
+  input.marks-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input.marks-input { -moz-appearance: textfield; appearance: textfield; }
+  .marks-input {
+    height: 32px;
+    padding: 4px 8px !important;
+    border: 1px solid #d1d5db;
+    border-radius: 8px !important;
+    text-align: center;
+    transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    font-variant-numeric: tabular-nums;
+  }
+  html.dark .marks-input { border-color: rgba(148, 163, 184, 0.35); }
+  .marks-input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+    outline: none;
+  }
+  .marks-input.is-invalid:focus { box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.12); }
+  .marks-input--cmp { width: 82px; }
+  .marks-input--total { width: 96px; }
+  .marks-input--max { width: 78px; background: #f8fafc; color: var(--bs-secondary-color); }
+  html.dark .marks-input--max { background: rgba(148, 163, 184, 0.08); }
+
+  .marks-invalid-hint { font-size: 0.7rem; line-height: 1.1; }
+</style>
 <div class="container-fluid px-0">
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
@@ -50,39 +115,89 @@
 
   {% if subject and students_with_marks %}
   <div class="card border-0 shadow-sm rounded-4">
-    <div class="card-header bg-white border-0 pt-4 d-flex justify-content-between align-items-center">
+    <div class="card-header bg-white border-0 pt-4 d-flex flex-column align-items-stretch gap-2">
+      <div class="d-flex justify-content-between align-items-center">
       <h5 class="mb-0">{{ subject.name }}</h5>
       {% if not marks_readonly %}
       <button type="button" class="btn btn-primary" id="saveMarksBtn">
         <i class="bi bi-check-lg me-1"></i> Save marks
       </button>
       {% endif %}
+      </div>
+      {% if exam_mark_components %}
+      <div class="alert alert-light border small mb-0 py-2">
+        <span class="fw-semibold">Max marks breakdown:</span>
+        {% for c in exam_mark_components %}
+          <span class="ms-1">{{ c.component_name }} {{ c.max_marks }}</span>{% if not forloop.last %}<span class="text-muted">·</span>{% endif %}
+        {% endfor %}
+        <span class="text-muted ms-2">(enter each component; total is auto-calculated up to {{ exam.total_marks|default:100 }})</span>
+      </div>
+      {% endif %}
     </div>
     <form method="post" action="{{ enter_marks_url }}" id="marksForm">
       {% csrf_token %}
       <input type="hidden" name="subject" value="{{ subject.id }}">
       <div class="card-body p-0">
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
+        <div class="table-responsive marks-table-wrap">
+          <table class="table table-sm table-hover align-middle mb-0 marks-table">
             <thead class="table-light sticky-top">
               <tr>
-                <th class="rounded-start">Roll No</th>
-                <th>Student name</th>
-                <th>Marks obtained</th>
-                <th class="rounded-end">Total marks</th>
+                <th class="rounded-start marks-num" style="width: 5.5rem;">Roll No</th>
+                <th class="marks-name" style="width: 18rem;">Student name</th>
+                {% if exam_mark_components %}
+                  {% for c in exam_mark_components %}
+                  <th class="marks-num" style="width: 6.25rem;">
+                    <span class="marks-th">
+                      <span>{{ c.component_name }}</span>
+                      <small>/ {{ c.max_marks }}</small>
+                    </span>
+                  </th>
+                  {% endfor %}
+                  <th class="marks-num" style="width: 7.25rem;">Total</th>
+                  <th class="rounded-end marks-num" style="width: 6.25rem;">Max</th>
+                {% else %}
+                  <th class="marks-num">Marks obtained</th>
+                  <th class="rounded-end marks-num">Total marks</th>
+                {% endif %}
               </tr>
             </thead>
             <tbody>
               {% for item in students_with_marks %}
               <tr>
-                <td>{{ item.student.roll_number }}</td>
-                <td>{{ item.student.user.get_full_name|default:item.student.user.username }}</td>
-                <td>
-                  <input type="number" name="obtained_{{ item.student.id }}" value="{{ item.obtained }}" min="0" class="form-control form-control-sm" style="max-width: 100px;" {% if marks_readonly %}readonly{% endif %}>
-                </td>
-                <td>
-                  <input type="number" name="total_{{ item.student.id }}" value="{{ item.total }}" min="1" class="form-control form-control-sm" style="max-width: 100px;" {% if marks_readonly %}readonly{% endif %}>
-                </td>
+                <td class="marks-num">{{ item.student.roll_number }}</td>
+                <td class="marks-name">{{ item.student.user.get_full_name|default:item.student.user.username }}</td>
+                {% if exam_mark_components %}
+                  {% for c in exam_mark_components %}
+                  <td class="marks-num">
+                    <input
+                      type="number"
+                      name="cmp_{{ item.student.id }}_{{ c.id }}"
+                      value="{{ item.components|get_item:c.component_name|default_if_none:'' }}"
+                      min="0"
+                      max="{{ c.max_marks }}"
+                      class="form-control form-control-sm js-mc marks-input marks-input--cmp"
+                      data-student="{{ item.student.id }}"
+                      data-max="{{ c.max_marks }}"
+                      placeholder="—"
+                      {% if marks_readonly %}readonly{% endif %}
+                    >
+                    <div class="invalid-feedback marks-invalid-hint">Max {{ c.max_marks }}</div>
+                  </td>
+                  {% endfor %}
+                  <td class="marks-num">
+                    <input type="number" value="{{ item.obtained }}" class="form-control form-control-sm marks-input marks-input--total js-total" data-student="{{ item.student.id }}" readonly>
+                  </td>
+                  <td class="marks-num">
+                    <input type="number" value="{{ exam.total_marks|default:100 }}" class="form-control form-control-sm marks-input marks-input--max" readonly>
+                  </td>
+                {% else %}
+                  <td>
+                    <input type="number" name="obtained_{{ item.student.id }}" value="{{ item.obtained }}" min="0" class="form-control form-control-sm" style="max-width: 100px;" placeholder="—" {% if marks_readonly %}readonly{% endif %}>
+                  </td>
+                  <td>
+                    <input type="number" name="total_{{ item.student.id }}" value="{{ item.total }}" min="1" class="form-control form-control-sm" style="max-width: 100px;" {% if marks_readonly %}readonly{% endif %}>
+                  </td>
+                {% endif %}
               </tr>
               {% endfor %}
             </tbody>
@@ -94,9 +209,124 @@
 
   {% if not marks_readonly %}
   <script>
+  (function () {
+    function validateInput(el) {
+      var max = parseInt(el.getAttribute('data-max') || '', 10);
+      var v = parseInt(el.value || '0', 10);
+      if (isNaN(v)) v = 0;
+      var bad = (!isNaN(max) && v > max);
+      el.classList.toggle('is-invalid', bad);
+      return !bad;
+    }
+    function recalc(studentId) {
+      var inputs = document.querySelectorAll('input.js-mc[data-student=\"' + studentId + '\"]');
+      var total = 0;
+      inputs.forEach(function (el) {
+        validateInput(el);
+        var v = parseInt(el.value || '0', 10);
+        if (!isNaN(v)) total += v;
+      });
+      var out = document.querySelector('input.js-total[data-student=\"' + studentId + '\"]');
+      if (out) out.value = total;
+    }
+    document.querySelectorAll('input.js-mc').forEach(function (el) {
+      el.addEventListener('input', function () {
+        recalc(el.getAttribute('data-student'));
+      });
+      // initial
+      recalc(el.getAttribute('data-student'));
+    });
+  })();
+
   document.getElementById('saveMarksBtn').addEventListener('click', function() {
-    if (confirm('Save marks for all students?')) {
-      document.getElementById('marksForm').submit();
+    // Block save if any component exceeds max.
+    var invalid = document.querySelector('input.js-mc.is-invalid');
+    if (invalid) {
+      alert('Some component marks exceed their max. Please correct the red fields.');
+      invalid.focus();
+      return;
+    }
+
+    var form = document.getElementById('marksForm');
+    if (!form) return;
+
+    // Count filled marks (per student).
+    var studentIds = {};
+    document.querySelectorAll('input[data-student]').forEach(function (el) {
+      var sid = el.getAttribute('data-student');
+      if (sid) studentIds[sid] = true;
+    });
+    var totalStudents = Object.keys(studentIds).length;
+
+    function isEnteredValue(v) {
+      if (v == null) return false;
+      var s = String(v).trim();
+      if (!s.length) return false;
+      // Treat "0" as not entered for this confirmation UX (common workflow: only count meaningful entries).
+      // If 0 marks is a valid use-case for your school, remove this check.
+      if (s === "0") return false;
+      return true;
+    }
+
+    var entered = 0;
+    // Components mode: prefer totals (one per student).
+    var totals = document.querySelectorAll('input.js-total[data-student]');
+    if (totals && totals.length) {
+      totals.forEach(function (el) {
+        if (isEnteredValue(el.value)) entered += 1;
+      });
+    } else {
+      // Legacy mode: count obtained_* inputs.
+      Object.keys(studentIds).forEach(function (sid) {
+        var inp = form.querySelector('input[name="obtained_' + sid + '"]');
+        if (inp && isEnteredValue(inp.value)) entered += 1;
+      });
+    }
+
+    var msg = "";
+    if (!entered) {
+      msg = "No marks entered. Do you still want to proceed?";
+    } else if (entered === totalStudents) {
+      msg = "All students have marks entered. Proceed to save?";
+    } else {
+      msg = "You have entered marks for <strong>" + entered + "</strong> out of <strong>" + totalStudents + "</strong> students. Do you want to save?";
+    }
+
+    var msgEl = document.getElementById('marksConfirmMessage');
+    if (msgEl) msgEl.innerHTML = msg;
+
+    var layer = document.getElementById("marksxConfirm");
+    if (!layer) {
+      if (confirm(msgEl ? msgEl.textContent : "Proceed to save?")) form.submit();
+      return;
+    }
+    function openLayer() {
+      layer.classList.add("marksx-open");
+      layer.setAttribute("aria-hidden", "false");
+      document.body.style.overflow = "hidden";
+    }
+    function closeLayer() {
+      layer.classList.remove("marksx-open");
+      layer.setAttribute("aria-hidden", "true");
+      document.body.style.overflow = "";
+    }
+    openLayer();
+    layer.querySelectorAll("[data-marksx-close]").forEach(function (el) {
+      el.onclick = function (e) { e.preventDefault(); closeLayer(); };
+    });
+    document.addEventListener("keydown", function escOnce(e) {
+      if (e.key === "Escape" && layer.classList.contains("marksx-open")) {
+        e.preventDefault();
+        closeLayer();
+        document.removeEventListener("keydown", escOnce);
+      }
+    });
+    var submitBtn = document.getElementById("marksConfirmSubmitBtn");
+    if (submitBtn) {
+      submitBtn.onclick = function () {
+        closeLayer();
+        form.submit();
+      };
     }
   });
   </script>
@@ -107,4 +337,82 @@
   <div class="alert alert-secondary">Select a subject and click Load students.</div>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block modals %}
+{% if not marks_readonly %}
+<style>
+  /* Full-screen overlay modal (fixed to viewport). */
+  .marksx-layer {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .marksx-layer.marksx-open { display: flex; }
+  .marksx-scrim {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .marksx-panel {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 36rem;
+    border-radius: 1rem;
+    overflow: hidden;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color-translucent);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  }
+  .marksx-head {
+    padding: 0.95rem 1.15rem;
+    background: #fff3cd; /* light orange */
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+  }
+  .marksx-title { margin: 0; font-weight: 800; letter-spacing: -0.02em; }
+  .marksx-subtitle { color: rgba(0,0,0,0.65); }
+  html.dark .marksx-head { color: #0f172a; } /* keep readable on dark */
+  .marksx-body { padding: 1rem 1.15rem; }
+  .marksx-foot {
+    padding: 0.85rem 1.15rem;
+    border-top: 1px solid var(--bs-border-color-translucent);
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+</style>
+
+<div id="marksxConfirm" class="marksx-layer" aria-hidden="true">
+  <div class="marksx-scrim" data-marksx-close="1" role="presentation"></div>
+  <div class="marksx-panel" role="dialog" aria-modal="true" aria-labelledby="marksxTitle">
+    <div class="marksx-head d-flex justify-content-between align-items-start gap-2">
+      <div>
+        <h5 class="marksx-title mb-1" id="marksxTitle">Confirm Save</h5>
+        <div class="small marksx-subtitle">Double-check before submitting.</div>
+      </div>
+      <button type="button" class="btn-close" aria-label="Close" data-marksx-close="1"></button>
+    </div>
+    <div class="marksx-body">
+      <div class="alert alert-light border rounded-3 mb-0">
+        <div id="marksConfirmMessage" class="mb-0"></div>
+      </div>
+    </div>
+    <div class="marksx-foot">
+      <button type="button" class="btn btn-secondary" data-marksx-close="1">Cancel</button>
+      <button type="button" class="btn btn-primary" id="marksConfirmSubmitBtn">
+        <i class="bi bi-check-lg me-1"></i>Save
+      </button>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

@@ -10,6 +10,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 
 from apps.accounts.decorators import admin_required, student_required
+from apps.school_data.classroom_ordering import ORDER_GRADE_NAME
 from apps.school_data.models import Student, ClassRoom, Section, Parent, StudentParent
 from .models import (
     NotificationLog,
@@ -76,7 +77,7 @@ class NotificationForm(forms.Form):
         school = kwargs.pop("school", None)
         super().__init__(*args, **kwargs)
         if school:
-            self.fields["classroom"].queryset = ClassRoom.objects.all().order_by("name")
+            self.fields["classroom"].queryset = ClassRoom.objects.all().order_by(*ORDER_GRADE_NAME)
             self.fields["section"].queryset = Section.objects.all().order_by("name")
             self.fields["student"].queryset = Student.objects.select_related("user").order_by(
                 "user__first_name", "user__last_name"

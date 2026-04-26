@@ -1,0 +1,394 @@
+{% extends "base.html" %}
+{% block title %}Student Attendance | School ERP{% endblock %}
+{% block content %}
+<style>
+  .sa-shell { max-width: 1400px; margin: 0 auto; }
+  .sa-hero {
+    border-radius: 1rem;
+    padding: 0.9rem 1.05rem;
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.10), rgba(14, 165, 233, 0.08));
+    border: 1px solid rgba(148, 163, 184, 0.22);
+  }
+  html.dark .sa-hero {
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.16), rgba(14, 165, 233, 0.12));
+    border-color: rgba(148, 163, 184, 0.18);
+  }
+  .sa-hero-title { font-weight: 800; letter-spacing: -0.02em; }
+  .sa-hero-sub { color: var(--bs-secondary-color); }
+  .sa-btn { border-radius: 999px; padding: 0.55rem 0.95rem; transition: transform .18s ease, box-shadow .18s ease; }
+  .sa-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(15, 23, 42, 0.10); }
+
+  .sa-card { border: 1px solid rgba(148, 163, 184, 0.22) !important; border-radius: 1rem; }
+  html.dark .sa-card { border-color: rgba(148, 163, 184, 0.18) !important; }
+
+  .sa-kpi {
+    background: rgba(255,255,255,0.8);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 1rem;
+    padding: 0.9rem 1rem;
+    height: 100%;
+  }
+  html.dark .sa-kpi { background: rgba(15, 23, 42, 0.35); border-color: rgba(148, 163, 184, 0.18); }
+  .sa-kpi .k-label { font-size: 0.8rem; color: var(--bs-secondary-color); }
+  .sa-kpi .k-val { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em; }
+  .sa-kpi .k-icon {
+    width: 40px; height: 40px; border-radius: 14px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: rgba(37, 99, 235, 0.10); color: #2563eb;
+  }
+  .sa-kpi.present .k-icon { background: rgba(5, 150, 105, 0.12); color: #059669; }
+  .sa-kpi.absent .k-icon { background: rgba(220, 38, 38, 0.10); color: #dc2626; }
+  .sa-kpi.leave .k-icon { background: rgba(234, 179, 8, 0.14); color: #a16207; }
+  .sa-kpi.pct .k-icon { background: rgba(14, 165, 233, 0.12); color: #0284c7; }
+
+  .sa-filter-bar .form-control, .sa-filter-bar .form-select { border-radius: 999px; }
+  .sa-table thead th {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+    background: rgba(148, 163, 184, 0.08);
+    border-bottom: 1px solid var(--bs-border-color);
+    white-space: nowrap;
+  }
+  html.dark .sa-table thead th { background: rgba(148, 163, 184, 0.10); }
+  .sa-table tbody td { padding-top: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--bs-border-color); vertical-align: middle; }
+
+  .sa-badge { border-radius: 999px; font-weight: 700; letter-spacing: 0.02em; }
+  .sa-badge.present { background: rgba(5,150,105,0.12); color: #059669; }
+  .sa-badge.absent { background: rgba(220,38,38,0.10); color: #dc2626; }
+  .sa-badge.leave { background: rgba(234,179,8,0.14); color: #a16207; }
+  .sa-badge.not { background: rgba(148,163,184,0.18); color: #475569; }
+</style>
+
+<div class="container-fluid px-0 sa-shell">
+  <nav aria-label="breadcrumb" class="mb-2">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% if is_admin %}{% url 'core:admin_dashboard' %}{% else %}{% url 'core:teacher_dashboard' %}{% endif %}">Dashboard</a></li>
+      <li class="breadcrumb-item active">Student Attendance</li>
+    </ol>
+  </nav>
+
+  <div class="sa-hero mb-3">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+      <div>
+        <h1 class="h3 sa-hero-title mb-1">Student Attendance</h1>
+        <p class="sa-hero-sub small mb-0">Summary dashboard for daily and range attendance.</p>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        {% if is_admin %}
+        <a
+          class="btn btn-outline-secondary sa-btn"
+          href="?{{ request.GET.urlencode }}&export=csv"
+          title="Export CSV"
+        ><i class="bi bi-filetype-csv me-1"></i>Export</a>
+        {% endif %}
+        <a class="btn btn-primary sa-btn" href="{% url 'core:attendance_list' %}">
+          <i class="bi bi-calendar-check me-2"></i>Mark / View attendance
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <form method="get" class="card border-0 shadow-sm mb-3 sa-card sa-filter-bar" data-erp-loading="Loading summary...">
+    <div class="card-body p-3">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-3 col-lg-2">
+          <label class="form-label">Date</label>
+          <input type="date" name="date" class="form-control form-control-sm" value="{{ day|date:'Y-m-d' }}">
+        </div>
+        <div class="col-md-3 col-lg-2">
+          <label class="form-label">Month</label>
+          <input type="month" name="month" class="form-control form-control-sm" value="{{ filters.month }}">
+        </div>
+        <div class="col-md-3 col-lg-2">
+          <label class="form-label">Start</label>
+          <input type="date" name="start_date" class="form-control form-control-sm" value="{{ filters.start_date|date:'Y-m-d' }}">
+        </div>
+        <div class="col-md-3 col-lg-2">
+          <label class="form-label">End</label>
+          <input type="date" name="end_date" class="form-control form-control-sm" value="{{ filters.end_date|date:'Y-m-d' }}">
+        </div>
+        <div class="col-md-3 col-lg-2">
+          <label class="form-label">Class</label>
+          <select name="classroom_id" class="form-select form-select-sm" {% if is_teacher and not is_admin %}required{% endif %}>
+            <option value="">All</option>
+            {% for c in filter_choices.classes %}
+              <option value="{{ c.id }}" {% if filters.classroom_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3 col-lg-2">
+          <label class="form-label">Section</label>
+          <select name="section_id" class="form-select form-select-sm" {% if is_teacher and not is_admin %}required{% endif %}>
+            <option value="">All</option>
+            {% for s in filter_choices.sections %}
+              <option value="{{ s.id }}" {% if filters.section_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3 col-lg-2">
+          <button type="submit" class="btn btn-primary btn-sm sa-btn w-100">
+            <i class="bi bi-funnel me-1"></i>Filter
+          </button>
+        </div>
+      </div>
+      <p class="text-muted small mb-0 mt-2">
+        Showing range: {{ range_start|date:"d M Y" }} - {{ range_end|date:"d M Y" }} · Day: {{ day|date:"d M Y" }}
+      </p>
+    </div>
+  </form>
+
+  <div class="row g-3 mb-3">
+    <div class="col-6 col-lg-2">
+      <div class="sa-kpi">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="k-label">Total Students</div>
+            <div class="k-val">{{ kpis.total_students }}</div>
+          </div>
+          <div class="k-icon"><i class="bi bi-people"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="sa-kpi present">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="k-label">Present</div>
+            <div class="k-val">{{ kpis.present }}</div>
+          </div>
+          <div class="k-icon"><i class="bi bi-check2-circle"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="sa-kpi absent">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="k-label">Absent</div>
+            <div class="k-val">{{ kpis.absent }}</div>
+          </div>
+          <div class="k-icon"><i class="bi bi-x-circle"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="sa-kpi leave">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="k-label">Leave</div>
+            <div class="k-val">{{ kpis.leave }}</div>
+          </div>
+          <div class="k-icon"><i class="bi bi-calendar-minus"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="sa-kpi">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="k-label">Late / Half Day</div>
+            <div class="k-val">{{ kpis.late_half }}</div>
+          </div>
+          <div class="k-icon"><i class="bi bi-clock"></i></div>
+        </div>
+        <div class="text-muted small mt-1">Not tracked (yet)</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="sa-kpi pct">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="k-label">Attendance %</div>
+            <div class="k-val">{{ kpis.attendance_pct }}%</div>
+          </div>
+          <div class="k-icon"><i class="bi bi-percent"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-lg-4">
+      <div class="card border-0 shadow-sm sa-card h-100">
+        <div class="card-header bg-transparent border-0 py-2 px-3">
+          <div class="fw-bold">Present vs Absent</div>
+          <div class="text-muted small">For {{ day|date:"d M Y" }}</div>
+        </div>
+        <div class="card-body">
+          <canvas id="saPie" height="220"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-8">
+      <div class="card border-0 shadow-sm sa-card h-100">
+        <div class="card-header bg-transparent border-0 py-2 px-3">
+          <div class="fw-bold">Weekly trend</div>
+          <div class="text-muted small">Last 7 days</div>
+        </div>
+        <div class="card-body">
+          <canvas id="saWeek" height="110"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-lg-8">
+      <div class="card border-0 shadow-sm sa-card h-100">
+        <div class="card-header bg-transparent border-0 py-2 px-3">
+          <div class="fw-bold">Monthly (range) attendance %</div>
+          <div class="text-muted small">Per-day present % (marked)</div>
+        </div>
+        <div class="card-body">
+          <canvas id="saMonth" height="110"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-4">
+      <div class="card border-0 shadow-sm sa-card h-100">
+        <div class="card-header bg-transparent border-0 py-2 px-3">
+          <div class="fw-bold">Quick insights</div>
+          <div class="text-muted small">Based on selected range</div>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <div class="text-muted small">Highest attendance class</div>
+            {% if widgets.best_class %}
+              <div class="fw-semibold">{{ widgets.best_class.name }} <span class="text-muted">·</span> {{ widgets.best_class.pct }}%</div>
+            {% else %}
+              <div class="text-muted">—</div>
+            {% endif %}
+          </div>
+          <div class="mb-3">
+            <div class="text-muted small">Absent 3+ days (range)</div>
+            <div class="fw-semibold">{{ widgets.absent_3p_ids|length }}</div>
+          </div>
+          <div>
+            <div class="text-muted small">Low attendance students</div>
+            <div class="small mt-1">
+              {% for item in widgets.low_students %}
+                <div class="d-flex justify-content-between gap-2">
+                  <span class="text-truncate">{{ item.student.user.get_full_name|default:item.student.user.username }}</span>
+                  <span class="font-monospace">{{ item.pct }}%</span>
+                </div>
+              {% empty %}
+                <div class="text-muted">—</div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm sa-card">
+    <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center flex-wrap gap-2 py-2 px-3">
+      <div>
+        <div class="fw-bold">Students ({{ day|date:"d M Y" }})</div>
+        <div class="text-muted small">Shows current day status (marked + not marked).</div>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0 sa-table">
+        <thead class="table-light">
+          <tr>
+            <th>Student Name</th>
+            <th>Admission Number</th>
+            <th>Class</th>
+            <th>Section</th>
+            <th>Status</th>
+            <th>Marked By</th>
+            <th>Time</th>
+            <th>Remarks</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in table_rows %}
+          {% with s=r.student %}
+          <tr>
+            <td class="fw-semibold">{{ s.user.get_full_name|default:s.user.username }}</td>
+            <td class="font-monospace small">{{ s.admission_number|default:"—" }}</td>
+            <td>{{ s.classroom.name|default:"—" }}</td>
+            <td>{{ s.section.name|default:"—" }}</td>
+            <td>
+              {% if r.status == 'PRESENT' %}
+                <span class="badge sa-badge present">Present</span>
+              {% elif r.status == 'ABSENT' %}
+                <span class="badge sa-badge absent">Absent</span>
+              {% elif r.status == 'LEAVE' %}
+                <span class="badge sa-badge leave">Leave</span>
+              {% else %}
+                <span class="badge sa-badge not">Not marked</span>
+              {% endif %}
+            </td>
+            <td class="small text-muted">{{ r.marked_by.get_full_name|default:r.marked_by.username|default:"—" }}</td>
+            <td class="font-monospace small">{{ r.time|default:"—" }}</td>
+            <td class="text-muted small">{{ r.remarks|default:"—" }}</td>
+          </tr>
+          {% endwith %}
+          {% empty %}
+          <tr><td colspan="8" class="text-muted text-center py-4">No students found for this scope.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function() {
+    if (!window.Chart) return;
+    const pieEl = document.getElementById("saPie");
+    const weekEl = document.getElementById("saWeek");
+    const monthEl = document.getElementById("saMonth");
+
+    const pie = {{ charts.pie|safe|default:"{}" }};
+    const week = {{ charts.week|safe|default:"{}" }};
+    const rangeDaily = {{ charts.range_daily_pct|safe|default:"{}" }};
+
+    if (pieEl) {
+      new Chart(pieEl, {
+        type: "doughnut",
+        data: {
+          labels: ["Present", "Absent", "Leave", "Not marked"],
+          datasets: [{
+            data: [pie.present || 0, pie.absent || 0, pie.leave || 0, pie.not_marked || 0],
+            backgroundColor: ["rgba(5,150,105,0.75)","rgba(220,38,38,0.75)","rgba(234,179,8,0.75)","rgba(148,163,184,0.6)"],
+            borderWidth: 0
+          }]
+        },
+        options: { cutout: "68%", plugins: { legend: { position: "bottom" } } }
+      });
+    }
+    if (weekEl) {
+      new Chart(weekEl, {
+        type: "line",
+        data: {
+          labels: (week.labels || []).map(x => x.slice(5)),
+          datasets: [
+            { label: "Present", data: week.present || [], borderColor: "rgba(5,150,105,0.9)", backgroundColor: "rgba(5,150,105,0.15)", tension: 0.35, fill: true },
+            { label: "Absent", data: week.absent || [], borderColor: "rgba(220,38,38,0.9)", backgroundColor: "rgba(220,38,38,0.12)", tension: 0.35, fill: true },
+          ]
+        },
+        options: { plugins: { legend: { position: "bottom" } }, scales: { y: { beginAtZero: true } } }
+      });
+    }
+    if (monthEl) {
+      new Chart(monthEl, {
+        type: "bar",
+        data: {
+          labels: rangeDaily.labels || [],
+          datasets: [
+            { label: "Present %", data: rangeDaily.pct || [], backgroundColor: "rgba(37,99,235,0.25)", borderColor: "rgba(37,99,235,0.55)", borderWidth: 1 }
+          ]
+        },
+        options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 100 } } }
+      });
+    }
+  })();
+</script>
+{% endblock %}
+

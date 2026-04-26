@@ -125,6 +125,11 @@
     pointer-events: auto !important;
     cursor: default;
   }
+  /* Children with pointer-events:auto ignore parent pointer-events:none — disable hit-testing when modal closed */
+  .ftx-layer:not(.ftx-open) .ftx-scrim,
+  .ftx-layer:not(.ftx-open) .ftx-panel {
+    pointer-events: none !important;
+  }
   .ftx-layer .ftx-panel {
     position: relative !important;
     z-index: 1 !important;
@@ -165,6 +170,459 @@
     background: rgba(15, 23, 42, 0.55) !important;
     border-color: rgba(148, 163, 184, 0.25) !important;
   }
+
+  /* Modals on this page — Add / Delete (compact hub style) */
+  #ftxAdd .ftx-panel,
+  #ftxDelete .ftx-panel {
+    display: flex;
+    flex-direction: column;
+  }
+  #ftxAdd .ftx-panel::before,
+  #ftxDelete .ftx-panel::before {
+    content: "";
+    display: block;
+    height: 3px;
+    flex-shrink: 0;
+    border-radius: 1rem 1rem 0 0;
+    background: linear-gradient(90deg, #4f46e5, #0ea5e9);
+  }
+  #ftxAdd .ftx-modal-head,
+  #ftxDelete .ftx-modal-head {
+    padding: 1rem 1.25rem !important;
+    border-bottom: 1px solid var(--ft-border) !important;
+    background: linear-gradient(180deg, rgba(79, 70, 229, 0.06), transparent);
+  }
+  html.dark #ftxAdd .ftx-modal-head,
+  html.dark #ftxDelete .ftx-modal-head,
+  body.dark-mode #ftxAdd .ftx-modal-head,
+  body.dark-mode #ftxDelete .ftx-modal-head {
+    background: linear-gradient(180deg, rgba(79, 70, 229, 0.12), transparent);
+    border-bottom-color: rgba(148, 163, 184, 0.22) !important;
+  }
+  #ftxAdd .ftx-panel > form,
+  #ftxDelete #ftDeleteForm {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+  #ftxAdd .ftx-modal-body,
+  #ftxDelete .ftx-modal-body {
+    flex: 1;
+    overflow-y: auto;
+  }
+  #ftxAdd .ftx-modal-footer,
+  #ftxDelete .ftx-modal-footer {
+    padding: 0.875rem 1.25rem !important;
+    border-top: 1px solid var(--ft-border) !important;
+    background: rgba(248, 250, 252, 0.65) !important;
+  }
+  html.dark #ftxAdd .ftx-modal-footer,
+  html.dark #ftxDelete .ftx-modal-footer,
+  body.dark-mode #ftxAdd .ftx-modal-footer,
+  body.dark-mode #ftxDelete .ftx-modal-footer {
+    background: rgba(15, 23, 42, 0.55) !important;
+    border-top-color: rgba(148, 163, 184, 0.22) !important;
+  }
+
+  /* ========== View / Edit — modern modal (fee categories) ========== */
+  #ftxEdit.ftx-layer,
+  #ftxView.ftx-layer {
+    display: flex !important;
+    opacity: 0;
+    visibility: hidden !important;
+    transition: opacity 0.28s ease, visibility 0.28s ease;
+  }
+  #ftxEdit.ftx-layer.ftx-open,
+  #ftxView.ftx-layer.ftx-open {
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+  #ftxEdit .ftx-scrim.modal-overlay,
+  #ftxView .ftx-scrim.modal-overlay {
+    background: rgba(0, 0, 0, 0.5) !important;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+  #ftxEdit .ftx-panel.modal-modern,
+  #ftxView .ftx-panel.modal-modern {
+    display: flex !important;
+    flex-direction: column !important;
+    max-height: min(90vh, 720px) !important;
+    padding: 0 !important;
+    border-radius: 12px !important;
+    border: 1px solid rgba(15, 23, 42, 0.08) !important;
+    box-shadow:
+      0 10px 30px rgba(0, 0, 0, 0.1),
+      0 25px 50px -12px rgba(0, 0, 0, 0.18) !important;
+    overflow: hidden !important;
+    transform: scale(0.96);
+    opacity: 0;
+    transition:
+      transform 0.3s cubic-bezier(0.34, 1.2, 0.64, 1),
+      opacity 0.28s ease,
+      box-shadow 0.28s ease;
+  }
+  #ftxEdit.ftx-open .ftx-panel.modal-modern,
+  #ftxView.ftx-open .ftx-panel.modal-modern {
+    transform: scale(1);
+    opacity: 1;
+  }
+  #ftxEdit .ftx-panel.modal-modern {
+    max-width: min(500px, 90vw) !important;
+  }
+  #ftxView .ftx-panel.modal-modern {
+    max-width: min(52rem, 94vw) !important;
+  }
+  html.dark #ftxEdit .ftx-panel.modal-modern,
+  html.dark #ftxView .ftx-panel.modal-modern,
+  body.dark-mode #ftxEdit .ftx-panel.modal-modern,
+  body.dark-mode #ftxView .ftx-panel.modal-modern {
+    border-color: rgba(148, 163, 184, 0.28) !important;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45) !important;
+  }
+  #ftxEdit form#ftEditForm {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+  #ftxEdit .ftx-modal-body,
+  #ftxView .ftx-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.25rem !important;
+  }
+  #ftxEdit .modal-header-modern,
+  #ftxView .modal-header-modern {
+    position: relative;
+    padding: 1.25rem 3rem 1rem 1.25rem !important;
+    margin: 0 !important;
+    border-bottom: 1px solid #eee !important;
+    background: #fff !important;
+  }
+  html.dark #ftxEdit .modal-header-modern,
+  html.dark #ftxView .modal-header-modern,
+  body.dark-mode #ftxEdit .modal-header-modern,
+  body.dark-mode #ftxView .modal-header-modern {
+    border-bottom-color: rgba(148, 163, 184, 0.22) !important;
+    background: #1e293b !important;
+  }
+  #ftxEdit .modal-header-modern .modal-header-modern-title,
+  #ftxView .modal-header-modern .modal-header-modern-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #1f2937;
+    letter-spacing: -0.01em;
+  }
+  html.dark #ftxEdit .modal-header-modern .modal-header-modern-title,
+  html.dark #ftxView .modal-header-modern .modal-header-modern-title,
+  body.dark-mode #ftxEdit .modal-header-modern .modal-header-modern-title,
+  body.dark-mode #ftxView .modal-header-modern .modal-header-modern-title {
+    color: #f1f5f9 !important;
+  }
+  #ftxEdit .modal-close,
+  #ftxView .modal-close {
+    position: absolute;
+    right: 0.85rem;
+    top: 0.85rem;
+    z-index: 2;
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    margin: 0;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #6b7280;
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, color 0.2s;
+  }
+  #ftxEdit .modal-close:hover,
+  #ftxView .modal-close:hover {
+    background: rgba(0, 0, 0, 0.06);
+    color: #111827;
+  }
+  html.dark #ftxEdit .modal-close:hover,
+  html.dark #ftxView .modal-close:hover,
+  body.dark-mode #ftxEdit .modal-close:hover,
+  body.dark-mode #ftxView .modal-close:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #e2e8f0;
+  }
+  #ftxEdit .modal-icon-wrap,
+  #ftxView .modal-icon-wrap {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(14, 165, 233, 0.12));
+    color: #2563eb;
+    flex-shrink: 0;
+  }
+  html.dark #ftxEdit .modal-icon-wrap,
+  html.dark #ftxView .modal-icon-wrap,
+  body.dark-mode #ftxEdit .modal-icon-wrap,
+  body.dark-mode #ftxView .modal-icon-wrap {
+    background: rgba(59, 130, 246, 0.15);
+    color: #93c5fd;
+  }
+  #ftxEdit .input-modern,
+  #ftxEdit textarea.input-modern {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+    margin-top: 0.25rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    font-size: 0.9375rem;
+    background: #fff;
+    color: #111827;
+  }
+  html.dark #ftxEdit .input-modern,
+  html.dark #ftxEdit textarea.input-modern,
+  body.dark-mode #ftxEdit .input-modern,
+  body.dark-mode #ftxEdit textarea.input-modern {
+    background: #0f172a;
+    border-color: rgba(148, 163, 184, 0.35);
+    color: #f1f5f9;
+  }
+  #ftxEdit .input-modern:focus {
+    border-color: #2563eb;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+  }
+  #ftxEdit .form-label-modern {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0;
+  }
+  html.dark #ftxEdit .form-label-modern,
+  body.dark-mode #ftxEdit .form-label-modern {
+    color: #cbd5e1;
+  }
+  #ftxEdit .ft-field-stack > * + * {
+    margin-top: 1rem;
+  }
+  #ftxEdit .ft-edit-status-row {
+    border-top: 1px solid #eee;
+    margin-top: 0.25rem;
+  }
+  html.dark #ftxEdit .ft-edit-status-row,
+  body.dark-mode #ftxEdit .ft-edit-status-row {
+    border-top-color: rgba(148, 163, 184, 0.22);
+  }
+  #ftxEdit .form-check-input {
+    width: 2.5rem;
+    height: 1.25rem;
+    margin-top: 0.15rem;
+    cursor: pointer;
+  }
+  #ftxEdit .form-check-label {
+    padding-left: 0.35rem;
+    cursor: pointer;
+  }
+  #ftxEdit .ftx-modal-footer.modal-footer-modern,
+  #ftxView .ftx-modal-footer.modal-footer-modern {
+    padding: 1rem 1.25rem !important;
+    border-top: 1px solid #eee !important;
+    background: #f9fafb !important;
+    gap: 0.75rem;
+  }
+  html.dark #ftxEdit .ftx-modal-footer.modal-footer-modern,
+  html.dark #ftxView .ftx-modal-footer.modal-footer-modern,
+  body.dark-mode #ftxEdit .ftx-modal-footer.modal-footer-modern,
+  body.dark-mode #ftxView .ftx-modal-footer.modal-footer-modern {
+    border-top-color: rgba(148, 163, 184, 0.22) !important;
+    background: rgba(15, 23, 42, 0.65) !important;
+  }
+  #ftxEdit .btn-primary-modern {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #2563eb;
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    transition: background 0.2s, transform 0.15s;
+  }
+  #ftxEdit .btn-primary-modern:hover {
+    background: #1d4ed8;
+    color: #fff;
+  }
+  #ftxEdit .btn-primary-modern:active {
+    transform: translateY(1px);
+  }
+  #ftxEdit .btn-secondary-modern {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #f3f4f6;
+    color: #374151;
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  #ftxEdit .btn-secondary-modern:hover {
+    background: #e5e7eb;
+    color: #1f2937;
+  }
+  html.dark #ftxEdit .btn-secondary-modern,
+  body.dark-mode #ftxEdit .btn-secondary-modern {
+    background: rgba(30, 41, 59, 0.9);
+    border-color: rgba(148, 163, 184, 0.25);
+    color: #e2e8f0;
+  }
+  html.dark #ftxEdit .btn-secondary-modern:hover,
+  body.dark-mode #ftxEdit .btn-secondary-modern:hover {
+    background: rgba(51, 65, 85, 0.95);
+  }
+  #ftxView .view-mode {
+    background: #f9fafb;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+  }
+  html.dark #ftxView .view-mode,
+  body.dark-mode #ftxView .view-mode {
+    background: rgba(15, 23, 42, 0.55);
+    border-color: rgba(148, 163, 184, 0.22);
+  }
+  #ftxView .ftx-view-detail {
+    border: none !important;
+    border-radius: 12px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+  #ftxView .ftx-view-detail .row {
+    --bs-gutter-y: 1rem;
+  }
+  #ftxView .view-mode .vm-label {
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+    color: #6b7280;
+    margin-bottom: 0.35rem;
+  }
+  html.dark #ftxView .view-mode .vm-label,
+  body.dark-mode #ftxView .view-mode .vm-label {
+    color: #94a3b8;
+  }
+  #ftxView .view-mode .vm-value {
+    font-size: 0.9375rem;
+    color: #111827;
+    line-height: 1.45;
+  }
+  html.dark #ftxView .view-mode .vm-value,
+  body.dark-mode #ftxView .view-mode .vm-value {
+    color: #f1f5f9;
+  }
+  #ftxView .view-mode .vm-value.vm-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.875rem;
+  }
+  #ftxView .section-label {
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #6b7280;
+    margin-bottom: 0.65rem;
+  }
+  html.dark #ftxView .section-label,
+  body.dark-mode #ftxView .section-label {
+    color: #94a3b8;
+  }
+  #ftxView .ftx-usage-wrap {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+    max-height: min(360px, 45vh);
+  }
+  html.dark #ftxView .ftx-usage-wrap,
+  body.dark-mode #ftxView .ftx-usage-wrap {
+    border-color: rgba(148, 163, 184, 0.22);
+  }
+  #ftxView .ftx-usage-wrap table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: #f9fafb !important;
+    border-bottom: 1px solid #e5e7eb !important;
+    color: #6b7280 !important;
+  }
+  html.dark #ftxView .ftx-usage-wrap table thead th,
+  body.dark-mode #ftxView .ftx-usage-wrap table thead th {
+    background: rgba(30, 41, 59, 0.98) !important;
+    border-bottom-color: rgba(148, 163, 184, 0.22) !important;
+    color: #94a3b8 !important;
+  }
+  #ftxView .btn-close-view {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #e5e7eb;
+    padding: 10px 22px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    transition: background 0.2s;
+  }
+  #ftxView .btn-close-view:hover {
+    background: #e5e7eb;
+    color: #1f2937;
+  }
+  html.dark #ftxView .btn-close-view,
+  body.dark-mode #ftxView .btn-close-view {
+    background: rgba(30, 41, 59, 0.9);
+    border-color: rgba(148, 163, 184, 0.25);
+    color: #e2e8f0;
+  }
+  @media (max-width: 575.98px) {
+    #ftxEdit .ftx-modal-footer.modal-footer-modern {
+      flex-direction: column !important;
+      align-items: stretch !important;
+    }
+    #ftxEdit .btn-primary-modern,
+    #ftxEdit .btn-secondary-modern {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #ftxEdit.ftx-layer,
+    #ftxView.ftx-layer,
+    #ftxEdit .ftx-panel.modal-modern,
+    #ftxView .ftx-panel.modal-modern {
+      transition: none !important;
+    }
+    #ftxEdit .ftx-panel.modal-modern,
+    #ftxView .ftx-panel.modal-modern {
+      transform: none !important;
+      opacity: 1 !important;
+    }
+  }
 </style>
 {% endblock %}
 {% block billing_main %}
@@ -184,15 +642,6 @@
         <p class="small mb-0 opacity-90">Tuition, transport, exam fees, and other heads used in class fee structures.</p>
       </div>
       <div class="d-flex flex-wrap gap-2 align-items-center">
-        <a href="{% url 'core:billing_dashboard' %}" class="btn btn-sm rounded-pill px-3 fw-semibold shadow-sm ft-hub-link">
-          <i class="bi bi-speedometer2 me-1"></i> Billing dashboard
-        </a>
-        <a href="{% url 'core:billing_fee_structure' %}" class="btn btn-sm btn-light rounded-pill px-3 fw-semibold shadow-sm">
-          <i class="bi bi-ui-checks-grid me-1"></i> Class fee structure
-        </a>
-        <a href="{% url 'core:billing_concessions' %}" class="btn btn-sm btn-light rounded-pill px-3 fw-semibold shadow-sm">
-          <i class="bi bi-percent me-1"></i> Concessions
-        </a>
         <button type="button" class="btn btn-sm btn-light rounded-pill px-4 fw-semibold shadow-sm" data-ftx-open="ftxAdd">
           <i class="bi bi-plus-lg me-1"></i> Add fee type
         </button>
@@ -237,12 +686,10 @@
   </div>
 
   <div class="ft-table-card">
-    <div class="px-3 py-3 px-lg-4 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2" style="border-color: var(--ft-border) !important;">
-      <div>
-        <span class="fw-bold">Fee categories</span>
-        <span class="small text-muted d-block d-md-inline ms-md-2">Tuition, transport, exam fees, and more.</span>
-      </div>
-      <span class="badge rounded-pill bg-body-secondary text-body border">{{ items|length }} rows</span>
+    <div class="px-4 py-4 px-lg-4 border-bottom d-flex justify-content-between align-items-center"
+    style="background: linear-gradient(90deg,rgb(238, 255, 244),rgb(248, 252, 250));>
+      <h1 class="h6 mb-0 fw-semibold text-white">Fee Types</h1>
+      <p class="small text-muted mb-0">{{ items|length }} row{{ items|length|pluralize }}</p>
     </div>
     <div class="ft-table-wrap">
       {% if items %}
@@ -279,7 +726,7 @@
               {% endif %}
             </td>
             <td class="text-end pe-3 pe-lg-4 ft-actions">
-              <button type="button" class="btn btn-sm btn-outline-primary rounded-3 ft-btn-edit" title="Edit"
+              <button type="button" class="btn btn-sm btn-outline-primary ft-btn-edit" title="Edit" aria-label="Edit fee type"
                 data-ft-id="{{ ft.id }}"
                 data-edit-url="{% url 'core:school_fee_type_update' ft.id %}"
                 data-ft-name="{{ ft.name|escape }}"
@@ -287,22 +734,22 @@
                 data-ft-active="{% if ft.is_active %}1{% else %}0{% endif %}"
                 data-ft-structs="{{ ft.structure_rows }}"
                 data-ft-mapped="{{ ft.mapped_classes }}">
-                <i class="bi bi-pencil"></i>
+                <i class="bi bi-pencil" aria-hidden="true"></i>
               </button>
-              <button type="button" class="btn btn-sm btn-outline-secondary rounded-3 ft-btn-usage" title="View details"
+              <button type="button" class="btn btn-sm btn-outline-secondary ft-btn-usage" title="View details" aria-label="View fee type details"
                 data-ft-id="{{ ft.id }}"
                 data-ft-name="{{ ft.name|escape }}"
                 data-ft-code="{{ ft.code|default:''|escape }}"
                 data-ft-active="{% if ft.is_active %}1{% else %}0{% endif %}">
-                <i class="bi bi-eye"></i>
+                <i class="bi bi-eye" aria-hidden="true"></i>
               </button>
-              <button type="button" class="btn btn-sm btn-outline-danger rounded-3 ft-btn-delete" title="Delete"
+              <button type="button" class="btn btn-sm btn-outline-danger ft-btn-delete" title="Delete" aria-label="Delete fee type"
                 data-ft-id="{{ ft.id }}"
                 data-delete-url="{% url 'core:school_fee_type_delete' ft.id %}"
                 data-ft-name="{{ ft.name|escape }}"
                 data-ft-structs="{{ ft.structure_rows }}"
                 data-ft-mapped="{{ ft.mapped_classes }}">
-                <i class="bi bi-trash"></i>
+                <i class="bi bi-trash" aria-hidden="true"></i>
               </button>
             </td>
           </tr>
@@ -331,7 +778,7 @@
 <div id="ftxAdd" class="ftx-layer" aria-hidden="true">
   <div class="ftx-scrim" data-ftx-close="ftxAdd" role="presentation"></div>
   <div class="ftx-panel" role="dialog" aria-modal="true" aria-labelledby="ftxAddTitle">
-    <div class="d-flex justify-content-between align-items-start gap-2 p-3 border-bottom">
+    <div class="d-flex justify-content-between align-items-start gap-2 ftx-modal-head">
       <div>
         <h5 class="fw-bold mb-1" id="ftxAddTitle">Add fee type</h5>
         <p class="small text-muted mb-0">New categories appear in class fee structure and billing screens.</p>
@@ -341,7 +788,7 @@
     <form method="post" action="{% url 'core:billing_fee_categories' %}">
       {% csrf_token %}
       <input type="hidden" name="save_fee_type" value="1">
-      <div class="p-3">
+      <div class="p-3 ftx-modal-body">
         {% if form_t.non_field_errors %}<div class="alert alert-danger rounded-3 small">{{ form_t.non_field_errors }}</div>{% endif %}
         <div class="mb-3">
           <label class="form-label small fw-semibold" for="{{ form_t.name.id_for_label }}">Name</label>
@@ -364,8 +811,8 @@
         </div>
         {% if form_t.is_active.errors %}<div class="text-danger small mt-1">{{ form_t.is_active.errors.0 }}</div>{% endif %}
       </div>
-      <div class="d-flex justify-content-end gap-2 p-3 border-top bg-light bg-opacity-50 rounded-bottom">
-        <button type="button" class="btn btn-light rounded-pill" data-ftx-close="ftxAdd">Cancel</button>
+      <div class="d-flex justify-content-end gap-2 ftx-modal-footer rounded-bottom">
+        <button type="button" class="btn btn-light rounded-pill border" data-ftx-close="ftxAdd">Cancel</button>
         <button type="submit" class="btn btn-primary rounded-pill px-4">Save</button>
       </div>
     </form>
@@ -373,38 +820,49 @@
 </div>
 
 <div id="ftxEdit" class="ftx-layer" aria-hidden="true">
-  <div class="ftx-scrim" data-ftx-close="ftxEdit" role="presentation"></div>
-  <div class="ftx-panel" role="dialog" aria-modal="true" aria-labelledby="ftxEditTitle">
+  <div class="ftx-scrim modal-overlay" data-ftx-close="ftxEdit" role="presentation"></div>
+  <div class="ftx-panel modal-modern" role="dialog" aria-modal="true" aria-labelledby="ftxEditTitle">
     <form method="post" id="ftEditForm" action="">
       {% csrf_token %}
-      <div class="d-flex justify-content-between align-items-start gap-2 p-3 border-bottom">
-        <div>
-          <h5 class="fw-bold mb-1" id="ftxEditTitle">Edit fee type</h5>
-          <p class="small text-muted mb-0">Update name, description, and availability.</p>
+      <div class="modal-header-modern">
+        <div class="d-flex align-items-start gap-3 pe-1">
+          <div class="modal-icon-wrap" aria-hidden="true"><i class="bi bi-pencil-square fs-5"></i></div>
+          <div class="min-w-0">
+            <h2 class="modal-header-modern-title mb-1" id="ftxEditTitle">Edit fee type</h2>
+            <p class="small text-muted mb-0">Update name, code, description, and availability.</p>
+          </div>
         </div>
-        <button type="button" class="btn-close" data-ftx-close="ftxEdit" aria-label="Close"></button>
+        <button type="button" class="modal-close" data-ftx-close="ftxEdit" aria-label="Close"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
       </div>
-      <div class="p-3">
-        <div class="mb-3">
-          <label class="form-label small fw-semibold" for="ft_edit_name">Name</label>
-          <input type="text" name="name" id="ft_edit_name" class="form-control rounded-3" required maxlength="100" autocomplete="off">
-        </div>
-        <div class="mb-3">
-          <label class="form-label small fw-semibold" for="ft_edit_code">Code <span class="text-muted fw-normal">(optional)</span></label>
-          <input type="text" name="code" id="ft_edit_code" class="form-control rounded-3" maxlength="50" autocomplete="off">
-        </div>
-        <div class="mb-3">
-          <label class="form-label small fw-semibold" for="ft_edit_description">Description</label>
-          <textarea name="description" id="ft_edit_description" class="form-control rounded-3" rows="3"></textarea>
-        </div>
-        <div class="form-check form-switch">
-          <input class="form-check-input" type="checkbox" name="is_active" id="ft_edit_active" value="on">
-          <label class="form-check-label small" for="ft_edit_active">Active</label>
+      <div class="ftx-modal-body">
+        <div class="ft-field-stack">
+          <div>
+            <label class="form-label-modern d-block" for="ft_edit_name">Name</label>
+            <input type="text" name="name" id="ft_edit_name" class="form-control input-modern" required maxlength="100" autocomplete="off">
+          </div>
+          <div>
+            <label class="form-label-modern d-block" for="ft_edit_code">Code <span class="text-muted fw-normal">(optional)</span></label>
+            <input type="text" name="code" id="ft_edit_code" class="form-control input-modern" maxlength="50" autocomplete="off">
+          </div>
+          <div>
+            <label class="form-label-modern d-block" for="ft_edit_description">Description</label>
+            <textarea name="description" id="ft_edit_description" class="form-control input-modern" rows="3" placeholder="Short note for staff (optional)"></textarea>
+          </div>
+          <div class="d-flex align-items-center justify-content-between gap-3 pt-3 ft-edit-status-row">
+            <div>
+              <div class="form-label-modern">Status</div>
+              <div class="small text-muted">Inactive types stay hidden from new structures.</div>
+            </div>
+            <div class="form-check form-switch mb-0">
+              <input class="form-check-input" type="checkbox" name="is_active" id="ft_edit_active" value="on" role="switch">
+              <label class="form-check-label fw-semibold small" for="ft_edit_active">Active</label>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="d-flex justify-content-end gap-2 p-3 border-top bg-light bg-opacity-50 rounded-bottom">
-        <button type="button" class="btn btn-light rounded-pill" data-ftx-close="ftxEdit">Cancel</button>
-        <button type="submit" class="btn btn-primary rounded-pill px-4">Save changes</button>
+      <div class="d-flex flex-column flex-sm-row justify-content-end ftx-modal-footer modal-footer-modern rounded-bottom">
+        <button type="button" class="btn-secondary-modern order-2 order-sm-1" data-ftx-close="ftxEdit">Cancel</button>
+        <button type="submit" class="btn-primary-modern order-1 order-sm-2"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Save changes</button>
       </div>
     </form>
   </div>
@@ -415,11 +873,11 @@
   <div class="ftx-panel" role="dialog" aria-modal="true" aria-labelledby="ftxDeleteTitle">
     <form method="post" id="ftDeleteForm" action="">
       {% csrf_token %}
-      <div class="d-flex justify-content-between align-items-start gap-2 p-3 border-bottom">
+      <div class="d-flex justify-content-between align-items-start gap-2 ftx-modal-head">
         <h5 class="fw-bold text-danger mb-0" id="ftxDeleteTitle">Delete fee type?</h5>
         <button type="button" class="btn-close" data-ftx-close="ftxDelete" aria-label="Close"></button>
       </div>
-      <div class="p-3">
+      <div class="p-3 ftx-modal-body">
         <p class="mb-2">You are about to delete <strong id="ft_delete_name"></strong>.</p>
         <div class="alert alert-warning border-0 rounded-3 small mb-0 d-none" id="ft_delete_warn">
           <i class="bi bi-exclamation-triangle me-1"></i>
@@ -427,8 +885,8 @@
         </div>
         <p class="small text-muted mb-0 mt-2 d-none" id="ft_delete_ok_hint">This type is not linked to any fee structure. This action cannot be undone.</p>
       </div>
-      <div class="d-flex justify-content-end gap-2 p-3 border-top bg-light bg-opacity-50 rounded-bottom">
-        <button type="button" class="btn btn-light rounded-pill" data-ftx-close="ftxDelete">Cancel</button>
+      <div class="d-flex justify-content-end gap-2 ftx-modal-footer rounded-bottom">
+        <button type="button" class="btn btn-light rounded-pill border" data-ftx-close="ftxDelete">Cancel</button>
         <button type="submit" class="btn btn-danger rounded-pill" id="ft_delete_submit">Delete</button>
       </div>
     </form>
@@ -436,40 +894,53 @@
 </div>
 
 <div id="ftxView" class="ftx-layer ftx-wide" aria-hidden="true">
-  <div class="ftx-scrim" data-ftx-close="ftxView" role="presentation"></div>
-  <div class="ftx-panel" role="dialog" aria-modal="true" aria-labelledby="ftxViewTitle">
-    <div class="d-flex justify-content-between align-items-start gap-2 p-3 border-bottom">
-      <div>
-        <h5 class="fw-bold mb-1" id="ftxViewTitle">Fee type details</h5>
-        <p class="small text-muted mb-0" id="ft_usage_subtitle">Read-only summary and structure usage</p>
+  <div class="ftx-scrim modal-overlay" data-ftx-close="ftxView" role="presentation"></div>
+  <div class="ftx-panel modal-modern" role="dialog" aria-modal="true" aria-labelledby="ftxViewTitle">
+    <div class="modal-header-modern">
+      <div class="d-flex align-items-start gap-3 pe-1">
+        <div class="modal-icon-wrap" aria-hidden="true"><i class="bi bi-eye fs-5"></i></div>
+        <div class="min-w-0">
+          <h2 class="modal-header-modern-title mb-1" id="ftxViewTitle">Fee type details</h2>
+          <p class="small text-muted mb-0" id="ft_usage_subtitle">Read-only summary and where this fee is mapped</p>
+        </div>
       </div>
-      <button type="button" class="btn-close" data-ftx-close="ftxView" aria-label="Close"></button>
+      <button type="button" class="modal-close" data-ftx-close="ftxView" aria-label="Close"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
     </div>
-    <div class="p-3">
-      <div class="rounded-3 border p-3 mb-3 ft-view-readonly">
-        <div class="row g-3 small">
+    <div class="ftx-modal-body">
+      <div class="ftx-view-detail mb-3">
+        <div class="row g-3">
           <div class="col-md-6">
-            <div class="text-muted text-uppercase fw-semibold mb-1" style="letter-spacing:.05em;">Name</div>
-            <div class="fw-semibold" id="ft_view_name">—</div>
+            <div class="view-mode h-100">
+              <div class="vm-label">Name</div>
+              <div class="vm-value fw-semibold" id="ft_view_name">—</div>
+            </div>
           </div>
           <div class="col-md-6">
-            <div class="text-muted text-uppercase fw-semibold mb-1" style="letter-spacing:.05em;">Code</div>
-            <div class="font-monospace" id="ft_view_code">—</div>
+            <div class="view-mode h-100">
+              <div class="vm-label">Code</div>
+              <div class="vm-value vm-mono" id="ft_view_code">—</div>
+            </div>
           </div>
           <div class="col-12">
-            <div class="text-muted text-uppercase fw-semibold mb-1" style="letter-spacing:.05em;">Description</div>
-            <div class="text-body" id="ft_view_description" style="white-space: pre-wrap;">—</div>
+            <div class="view-mode">
+              <div class="vm-label">Description</div>
+              <div class="vm-value" id="ft_view_description" style="white-space: pre-wrap;">—</div>
+            </div>
           </div>
           <div class="col-12">
-            <div class="text-muted text-uppercase fw-semibold mb-1" style="letter-spacing:.05em;">Status</div>
-            <div id="ft_view_status">—</div>
+            <div class="view-mode d-flex flex-wrap align-items-center justify-content-between gap-2">
+              <div>
+                <div class="vm-label mb-1">Status</div>
+                <div id="ft_view_status">—</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-      <h6 class="fw-bold small text-muted text-uppercase mb-2" style="letter-spacing:.06em;">Fee structure usage</h6>
-      <div class="table-responsive rounded-3 border" style="max-height: 360px;">
+      <div class="section-label">Fee structure usage</div>
+      <div class="table-responsive ftx-usage-wrap">
         <table class="table table-sm align-middle mb-0">
-          <thead class="table-light">
+          <thead>
             <tr>
               <th>Class</th>
               <th>Academic year</th>
@@ -483,8 +954,8 @@
       </div>
       <p class="small text-muted mt-2 mb-0 d-none" id="ft_usage_empty">No fee structures use this type yet.</p>
     </div>
-    <div class="d-flex justify-content-end gap-2 p-3 border-top bg-light bg-opacity-50 rounded-bottom">
-      <button type="button" class="btn btn-primary rounded-pill" data-ftx-close="ftxView">Close</button>
+    <div class="d-flex justify-content-end ftx-modal-footer modal-footer-modern rounded-bottom">
+      <button type="button" class="btn-close-view" data-ftx-close="ftxView"><i class="bi bi-x-lg me-1" aria-hidden="true"></i>Close</button>
     </div>
   </div>
 </div>

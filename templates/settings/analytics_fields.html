@@ -1,0 +1,46 @@
+<div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+  
+  {% if user.is_staff %}
+    <a class="btn btn-sm btn-outline-secondary rounded-pill" href="{% url 'admin:core_analyticsfield_changelist' %}">
+      <i class="bi bi-gear me-1"></i>Edit in Admin
+    </a>
+  {% endif %}
+</div>
+
+{% if not analytics_fields %}
+  <div class="border rounded-4 p-4 text-center bg-body-tertiary">
+    <div class="fw-semibold mb-1">No analytics fields yet</div>
+    <div class="text-muted small">Add global analytics fields to standardize dashboards and reports across schools.</div>
+  </div>
+{% else %}
+  <div class="table-responsive">
+    <table class="table align-middle table-hover">
+      <thead>
+        <tr class="text-muted small">
+          <th>Field Key</th>
+          <th>Label</th>
+          <th>Category</th>
+          <th>Order</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in analytics_fields %}
+          <tr>
+            <td class="fw-semibold">{{ f.field_key }}</td>
+            <td>{{ f.display_label }}</td>
+            <td class="text-muted">{{ f.category|default:"—" }}</td>
+            <td class="text-muted">{{ f.display_order }}</td>
+            <td>
+              {% if f.is_active %}
+                <span class="badge text-bg-success">Active</span>
+              {% else %}
+                <span class="badge text-bg-secondary">Inactive</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}

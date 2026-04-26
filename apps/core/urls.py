@@ -1,7 +1,7 @@
 from django.urls import include, path
 from django.views.generic import RedirectView
 
-from . import billing_views, control_center_views, views
+from . import admissions_views, billing_views, control_center_views, views
 
 app_name = "core"
 
@@ -130,6 +130,14 @@ urlpatterns = [
     # School Admin: Master data APIs (tenant-scoped)
     path("api/master-data/<str:key>/list/", views.master_data_list, name="master_data_list"),
     path("api/master-data/<str:key>/create/", views.master_data_create, name="master_data_create"),
+    path("api/master-data/<str:key>/<int:option_id>/update/", views.master_data_update, name="master_data_update"),
+    path("api/master-data/<str:key>/<int:option_id>/delete/", views.master_data_delete, name="master_data_delete"),
+    path("api/master-data/<str:key>/reorder/", views.master_data_reorder, name="master_data_reorder"),
+    # Consolidated JSON APIs (same tenant + DB behavior as /api/master-data/…)
+    path("api/master-dropdown/add-option/", views.master_dropdown_add_option, name="master_dropdown_add_option"),
+    path("api/master-dropdown/update/", views.master_dropdown_update, name="master_dropdown_update"),
+    path("api/master-dropdown/save-order/", views.master_dropdown_save_order, name="master_dropdown_save_order"),
+    path("api/exams/create/", views.api_exam_create, name="api_exam_create"),
 
     # Legacy/alias dashboard URLs
     path("super-admin/", views.super_admin_dashboard, name="super_admin_dashboard_legacy"),
@@ -143,9 +151,15 @@ urlpatterns = [
     path("student/fees/", views.student_fees, name="student_fees"),
     path("student/exams/", views.student_exams_list, name="student_exams_list"),
     path(
-        "student/exam-session/<int:session_id>/",
+        "student/exam/session/<int:session_id>/",
         views.student_exam_session_detail,
         name="student_exam_session_detail",
+    ),
+    # Backward-compatible redirect (old URL → new URL)
+    path(
+        "student/exam-session/<int:session_id>/",
+        RedirectView.as_view(pattern_name="core:student_exam_session_detail", permanent=True),
+        name="student_exam_session_detail_legacy",
     ),
     path("student/exam/<int:exam_id>/", views.student_exam_detail_by_id, name="student_exam_detail_by_id"),
     path("student/exam/legacy/<str:exam_name>/", views.student_exam_detail, name="student_exam_detail"),
@@ -248,11 +262,15 @@ urlpatterns = [
     path("school/subjects/add/", views.school_subject_add, name="school_subject_add"),
     path("school/subjects/<int:subject_id>/edit/", views.school_subject_edit, name="school_subject_edit"),
     path("school/subjects/<int:subject_id>/delete/", views.school_subject_delete, name="school_subject_delete"),
+    path("api/subjects/save-order/", views.api_subjects_save_order, name="api_subjects_save_order"),
     path("school/calendar/holidays/", views.school_calendar_holidays, name="school_calendar_holidays"),
+    path("school/settings/", views.school_settings_index, name="school_settings_index"),
     path("school/settings/grading/", views.school_grading_settings, name="school_grading_settings"),
+    path("school/settings/master-dropdowns/", views.school_master_dropdown_settings, name="school_master_dropdown_settings"),
     path("attendance/", views.attendance_list, name="attendance_list"),
     path("marks/", views.marks_list, name="marks_list"),
     path("homework/", views.homework_list, name="homework_list"),
+    path("homework/<int:pk>/submissions/", views.homework_submission_stats, name="homework_submission_stats"),
     path("school/homework/", views.school_homework_list, name="school_homework_list"),
     path("school/homework/create/", views.school_homework_create, name="school_homework_create"),
     path(
@@ -265,18 +283,26 @@ urlpatterns = [
         views.school_homework_delete,
         name="school_homework_delete",
     ),
+    path("student/homework/<int:homework_id>/", views.student_homework_detail, name="student_homework_detail"),
     path("student/homework/<int:homework_id>/submit/", views.student_homework_submit, name="student_homework_submit"),
     path("reports/", views.reports_list, name="reports_list"),
 
     # Teacher actions
     path("teacher/students/", views.teacher_students_list, name="teacher_students_list"),
     path("teacher/homework/create/", views.create_homework, name="create_homework"),
+    path("teacher/homework/<int:pk>/view/", views.teacher_homework_view, name="teacher_homework_view"),
+    path("teacher/homework/<int:pk>/edit/", views.teacher_homework_edit, name="teacher_homework_edit"),
     path("teacher/marks/enter/", views.enter_marks, name="enter_marks"),
     path("teacher/attendance/", views.bulk_attendance, name="bulk_attendance"),
     path("teacher/attendance/mark/", views.mark_attendance, name="mark_attendance"),
 
     # Fees & Billing (SaaS module)
     path("school/billing/", billing_views.billing_dashboard, name="billing_dashboard"),
+    path(
+        "school/billing/class-summary/<int:classroom_id>/",
+        billing_views.billing_class_financial_summary,
+        name="billing_class_financial_summary",
+    ),
     path(
         "school/billing/record-payment/",
         billing_views.billing_record_payment,
@@ -293,14 +319,64 @@ urlpatterns = [
         name="billing_student_collect",
     ),
     path(
+        "school/billing/receipt/batch/<int:batch_id>/",
+        billing_views.billing_receipt_batch,
+        name="billing_receipt_batch",
+    ),
+    path(
+        "school/billing/receipt/batch/<int:batch_id>/pdf/",
+        billing_views.billing_receipt_batch_pdf,
+        name="billing_receipt_batch_pdf",
+    ),
+    path(
+        "school/billing/receipt/payment/<int:payment_id>/",
+        billing_views.billing_receipt_payment,
+        name="billing_receipt_payment",
+    ),
+    path(
+        "school/billing/invoice/student/<int:student_id>/",
+        billing_views.billing_invoice_student,
+        name="billing_invoice_student",
+    ),
+    path(
+        "school/billing/invoice/student/<int:student_id>/pdf/",
+        billing_views.billing_invoice_student_pdf,
+        name="billing_invoice_student_pdf",
+    ),
+    path(
+        "school/billing/payment-batch/<int:batch_id>/edit/",
+        billing_views.billing_payment_batch_edit,
+        name="billing_payment_batch_edit",
+    ),
+    path(
+        "school/billing/payment/<int:payment_id>/edit/",
+        billing_views.billing_orphan_payment_edit,
+        name="billing_orphan_payment_edit",
+    ),
+    path(
         "school/billing/fee-structure/",
         billing_views.billing_class_fee_structure,
         name="billing_fee_structure",
     ),
     path(
+        "school/billing/fee-structure/create/",
+        billing_views.billing_fee_structure_create,
+        name="billing_fee_structure_create",
+    ),
+    path(
         "school/billing/fee-structure/impacted-count/",
         billing_views.billing_structure_impacted_count,
         name="billing_structure_impacted_count",
+    ),
+    path(
+        "school/billing/fee-structure/batch/<uuid:batch_key>/",
+        billing_views.billing_fee_structure_batch_detail,
+        name="billing_fee_structure_batch",
+    ),
+    path(
+        "school/billing/fee-structure/batch/<uuid:batch_key>/delete/",
+        billing_views.billing_fee_structure_batch_delete,
+        name="billing_fee_structure_batch_delete",
     ),
     path(
         "school/billing/fee-structure/class/<int:classroom_id>/students/",
@@ -395,7 +471,7 @@ urlpatterns = [
     ),
     path(
         "school/billing/receipt/<int:payment_id>/pdf/",
-        views.redirect_billing_dashboard,
+        billing_views.billing_receipt_payment_pdf,
         name="billing_receipt_pdf",
     ),
     path(
@@ -462,7 +538,7 @@ urlpatterns = [
     ),
     path(
         "school/fees/receipt/<int:payment_id>/pdf/",
-        views.redirect_billing_dashboard,
+        billing_views.billing_receipt_payment_pdf,
         name="school_fee_receipt_pdf",
     ),
 
@@ -480,6 +556,9 @@ urlpatterns = [
     path("school/staff-attendance/<int:teacher_id>/", views.school_staff_attendance_detail, name="school_staff_attendance_detail"),
     path("school/staff-attendance/mark/", views.school_staff_attendance_mark, name="school_staff_attendance_mark"),
 
+    # Student Attendance (summary dashboard)
+    path("school/student-attendance/", views.school_student_attendance, name="school_student_attendance"),
+
     # Inventory (removed: keep friendly screen for old links)
     path("school/inventory/", views.school_inventory_removed, name="school_inventory_removed"),
 
@@ -493,9 +572,13 @@ urlpatterns = [
     path("school/<str:school_code>/admission/apply/", views.online_admission_apply, name="online_admission_apply"),
     path("school/<str:school_code>/admission/status/", views.online_admission_status, name="online_admission_status"),
     path("school/<str:school_code>/results/", views.online_results_view, name="online_results_view"),
-    path("school/admissions/", views.school_admissions_list, name="school_admissions_list"),
-    path("school/admissions/<int:pk>/approve/", views.school_admission_approve, name="school_admission_approve"),
-    path("school/admissions/<int:pk>/reject/", views.school_admission_reject, name="school_admission_reject"),
+    # Admissions Management module (admin)
+    path("school/admissions/", admissions_views.AdmissionsDashboardView.as_view(), name="school_admissions_list"),
+    path("school/admissions/new/", admissions_views.AdmissionCreateView.as_view(), name="school_admission_create"),
+    path("school/admissions/<int:pk>/", admissions_views.AdmissionDetailView.as_view(), name="school_admission_detail"),
+    path("school/admissions/<int:pk>/edit/", admissions_views.AdmissionUpdateView.as_view(), name="school_admission_edit"),
+    path("school/admissions/<int:pk>/delete/", admissions_views.AdmissionDeleteView.as_view(), name="school_admission_delete"),
+    path("school/admissions/<int:pk>/<str:action>/", admissions_views.AdmissionSetStatusView.as_view(), name="school_admission_set_status"),
 
     # Reports module: mounted in school_erp_demo.urls as namespace `reports`
 

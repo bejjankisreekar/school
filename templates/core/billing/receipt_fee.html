@@ -1,0 +1,213 @@
+{% load nav_tags %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ receipt_title }} {{ receipt_number }}</title>
+  {% if not is_pdf %}
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  {% endif %}
+  <style>
+    @page { margin: 12mm 14mm; size: A4; }
+    body {
+      font-family: DejaVu Sans, Helvetica, Arial, sans-serif;
+      font-size: 10pt;
+      color: #0f172a;
+      line-height: 1.4;
+      margin: 0;
+      padding: 0;
+      background: {% if is_pdf %}#fff{% else %}#f1f5f9{% endif %};
+    }
+    .receipt-wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: {% if is_pdf %}0{% else %}1.5rem 1rem 2rem{% endif %};
+    }
+    .receipt-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: {% if is_pdf %}0{% else %}0.75rem{% endif %};
+      padding: 1.5rem 1.35rem;
+      box-shadow: {% if is_pdf %}none{% else %}0 4px 24px rgba(15,23,42,.06){% endif %};
+    }
+    .pdf-meta-label { font-weight: bold; }
+    .pdf-meta-table td {
+      font-size: 9.5pt;
+      vertical-align: top;
+      padding: 0 6pt 6pt 0;
+      line-height: 1.45;
+    }
+    .rh-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      color: #1e293b;
+      margin: 0.35rem 0 0;
+    }
+    .rh-muted {
+      font-size: 8.5pt;
+      color: #64748b;
+      margin: 0.15rem 0;
+    }
+    .receipt-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9.5pt;
+    }
+    .receipt-table th,
+    .receipt-table td {
+      border: 1px solid #cbd5e1;
+      padding: 0.45rem 0.55rem;
+      vertical-align: top;
+    }
+    .receipt-table.no-border th,
+    .receipt-table.no-border td { border: none !important; }
+    .receipt-table thead th {
+      background: #f1f5f9;
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 0.65rem;
+      letter-spacing: 0.06em;
+      color: #475569;
+    }
+    .receipt-table tfoot td {
+      font-weight: 700;
+      background: #f8fafc;
+    }
+    .sig-line {
+      border-top: 1px solid #94a3b8;
+      width: 200px;
+      margin: 2.5rem auto 0;
+      padding-top: 0.35rem;
+      text-align: center;
+      font-size: 8.5pt;
+      color: #64748b;
+    }
+    @media print {
+      body { background: #fff; }
+      .no-print { display: none !important; }
+      .receipt-card { box-shadow: none; border: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="receipt-wrap">
+    {% if not is_pdf %}
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 no-print">
+      <div class="small text-muted">Fee receipt</div>
+      <div class="d-flex flex-wrap gap-2">
+        {% if batch %}
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'core:billing_receipt_batch' batch.pk %}?print=1" target="_blank" rel="noopener"><i class="bi bi-printer"></i> Print</a>
+        {% elif payment %}
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'core:billing_receipt_payment' payment.pk %}?print=1" target="_blank" rel="noopener"><i class="bi bi-printer"></i> Print</a>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="receipt-card receipt-container">
+      {% include "partials/school_header.html" with doc_type="RECEIPT" document=document school=school doc_subtitle=doc_subtitle qr_data_uri=qr_data_uri %}
+
+      <table class="pdf-meta-table" width="100%" style="width:100%; border-collapse:collapse; margin-bottom:10pt; table-layout:fixed;">
+        <colgroup>
+          <col style="width:50%;">
+          <col style="width:50%;">
+        </colgroup>
+        <tr>
+          <td style="padding-right:8pt;">
+            {% if internal_receipt_note %}
+            <span class="pdf-meta-label">School voucher / internal ref:</span> {{ internal_receipt_note }}<br>
+            {% endif %}
+            {% if academic_year %}
+            <span class="pdf-meta-label">Academic year:</span> {{ academic_year.name }}<br>
+            {% endif %}
+            {% if not internal_receipt_note and not academic_year %}
+            <span style="color:#94a3b8;">—</span>
+            {% endif %}
+          </td>
+          <td style="padding-left:8pt;">
+            <span class="pdf-meta-label">Student:</span> {{ student_name }}<br>
+            <span class="pdf-meta-label">Class:</span> {{ student_class }} — <span class="pdf-meta-label">Section</span> {{ student_section }}<br>
+            <span class="pdf-meta-label">Admission No:</span> {{ admission_number }}
+          </td>
+        </tr>
+      </table>
+
+      <table class="receipt-table mb-3">
+        <thead>
+          <tr>
+            <th>Fee type</th>
+            <th style="width:32%; text-align:right;">Amount (₹)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for line in lines %}
+          <tr>
+            <td>{{ line.fee_type_name }}</td>
+            <td style="text-align:right; font-family: DejaVu Sans, monospace;">₹{{ line.amount|inr }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td>Total paid</td>
+            <td style="text-align:right; font-family: DejaVu Sans, monospace;">₹{{ total_paid|inr }}</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <div class="mb-3 small">
+        <div class="fw-bold text-uppercase mb-1" style="font-size:0.65rem; letter-spacing:0.06em; color:#64748b;">Payment details</div>
+        <ul class="list-unstyled mb-0">
+          {% for t in tenders %}
+          <li class="mb-1">
+            <strong>{{ t.payment_method }}</strong>
+            <span class="font-monospace">₹{{ t.amount|inr }}</span>
+            {% if t.transaction_reference %}<span class="text-muted">({{ t.transaction_reference }})</span>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        <div class="mt-2"><strong>Collected by:</strong> {% if collected_by %}{{ collected_by }}{% else %}—{% endif %}</div>
+        {% if batch and batch.transaction_reference %}
+        <div class="text-muted small">Batch ref: {{ batch.transaction_reference }}</div>
+        {% endif %}
+      </div>
+
+      {% if batch and batch.notes %}
+      <div class="small border rounded p-2 mb-3 bg-light"><strong>Notes:</strong> {{ batch.notes }}</div>
+      {% elif payment and payment.notes %}
+      <div class="small border rounded p-2 mb-3 bg-light"><strong>Notes:</strong> {{ payment.notes }}</div>
+      {% endif %}
+
+      <div class="border-top pt-3 mt-2 mb-2">
+        <div class="fw-bold text-uppercase mb-2 small" style="font-size:0.65rem; letter-spacing:0.06em; color:#64748b;">Summary (academic year)</div>
+        <table style="width:100%; font-size:9pt; border-collapse:collapse;">
+          <tr>
+            <td style="padding:0.25rem 0.5rem 0.25rem 0; border:none;"><span class="text-muted">Total fees</span><br><span class="fw-semibold">₹{{ summary_total_fees|inr }}</span></td>
+            <td style="padding:0.25rem 0.5rem; border:none;"><span class="text-muted">Total paid</span><br><span class="fw-semibold">₹{{ summary_total_paid|inr }}</span></td>
+            {% if summary_total_discount and summary_total_discount > 0 %}
+            <td style="padding:0.25rem 0.5rem; border:none;"><span class="text-muted">Concessions</span><br><span class="fw-semibold">₹{{ summary_total_discount|inr }}</span></td>
+            {% endif %}
+            <td style="padding:0.25rem 0 0.25rem 0.5rem; border:none;"><span class="text-muted">Pending</span><br><span class="fw-semibold">₹{{ summary_total_pending|inr }}</span></td>
+          </tr>
+        </table>
+      </div>
+
+      {% if verify_url %}
+      <p class="small text-break text-muted mb-0" style="font-size:8pt;">Verify: {{ verify_url }}</p>
+      {% endif %}
+
+      <p class="text-center small text-muted mt-4 mb-1">Thank you for your payment.</p>
+      <div class="sig-line">Authorized signature</div>
+    </div>
+  </div>
+
+  {% if not is_pdf and print_on_load %}
+  <script>
+    window.addEventListener("load", function () { window.print(); });
+  </script>
+  {% endif %}
+</body>
+</html>

@@ -21,10 +21,29 @@ _HOMEWORK_ALTER_STEPS: tuple[str, ...] = (
     "ALTER TABLE school_data_homework ADD COLUMN IF NOT EXISTS submission_required boolean NOT NULL DEFAULT true",
 )
 
+_HOMEWORK_AUDIT_ALTER_STEPS: tuple[str, ...] = (
+    "ALTER TABLE school_data_homework ADD COLUMN IF NOT EXISTS created_by_id bigint NULL",
+    "ALTER TABLE school_data_homework ADD COLUMN IF NOT EXISTS created_on timestamp with time zone NULL",
+    "ALTER TABLE school_data_homework ADD COLUMN IF NOT EXISTS modified_by_id bigint NULL",
+    "ALTER TABLE school_data_homework ADD COLUMN IF NOT EXISTS modified_on timestamp with time zone NULL",
+)
+
 _BACKFILL_ASSIGNED_DATE = """
 UPDATE school_data_homework
 SET assigned_date = (created_at)::date
 WHERE assigned_date IS NULL AND created_at IS NOT NULL
+"""
+
+_BACKFILL_CREATED_ON = """
+UPDATE school_data_homework
+SET created_on = created_at
+WHERE created_on IS NULL AND created_at IS NOT NULL
+"""
+
+_BACKFILL_MODIFIED_ON = """
+UPDATE school_data_homework
+SET modified_on = created_at
+WHERE modified_on IS NULL AND created_at IS NOT NULL
 """
 
 
@@ -67,3 +86,45 @@ def ensure_homework_enterprise_columns_if_missing(connection) -> None:
     if homework_enterprise_columns_ok(connection):
         return
     ensure_homework_enterprise_columns(connection)
+
+
+def homework_audit_columns_ok(connection) -> bool:
+    if connection.vendor != "postgresql":
+        return True
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = current_schema()
+              AND table_name = 'school_data_homework'
+              AND column_name = 'modified_by_id'
+            """
+        )
+        return cursor.fetchone() is not None
+
+
+def ensure_homework_audit_columns(connection) -> None:
+    """Add audit columns used by BaseModel on Homework (PostgreSQL)."""
+    if connection.vendor != "postgresql":
+        return
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = current_schema()
+              AND table_name = 'school_data_homework'
+            """
+        )
+        if not cursor.fetchone():
+            return
+        for sql in _HOMEWORK_AUDIT_ALTER_STEPS:
+            cursor.execute(sql)
+        cursor.execute(_BACKFILL_CREATED_ON)
+        cursor.execute(_BACKFILL_MODIFIED_ON)
+
+
+def ensure_homework_audit_columns_if_missing(connection) -> None:
+    """Fast no-op when schema is already aligned; otherwise runs DDL."""
+    if homework_audit_columns_ok(connection):
+        return
+    ensure_homework_audit_columns(connection)

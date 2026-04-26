@@ -61,13 +61,16 @@ def _compose_address(data: dict[str, Any]) -> str:
 
 def seed_tenant_bootstrap(school: School) -> None:
     """
-    New tenants start empty: no academic years, sections, classes, subjects, fees, or routes.
+    Seed tenant-scoped defaults that every school can later change in Master Dropdown Settings.
 
-    Isolation is per PostgreSQL schema (django-tenants): school_data models intentionally omit a
-    school_id FK because each school only exists in its own schema. The public School row + Domain
-    + admin User are created separately by the enrollment flow.
+    Academic structure (years, classes, subjects, fees, routes) stays empty until configured.
     """
-    del school  # provisioning only ensures schema exists via School.save(); no seed rows.
+    try:
+        from apps.school_data.master_data_defaults import ensure_master_data_defaults
+
+        ensure_master_data_defaults(school)
+    except Exception:
+        logger.exception("Master data defaults seed failed for schema %s", school.schema_name)
 
 
 def _create_audit_enrollment_row(

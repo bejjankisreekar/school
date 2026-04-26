@@ -21,6 +21,14 @@ TENANT_BIND_EXEMPT_PREFIXES = (
 
 TENANT_BIND_EXEMPT_PATHS = frozenset({"/", "/favicon.ico"})
 
+# Some /accounts/ pages are school-admin screens that must run in the user's tenant schema.
+# These are exempt from the generic "/accounts/" exemption above.
+TENANT_BIND_FORCE_PATHS = frozenset(
+    {
+        "/accounts/account/settings/",
+    }
+)
+
 TENANT_BIND_EXEMPT_MARKETING_PREFIXES = (
     "/pricing/",
     "/about/",
@@ -41,6 +49,15 @@ def path_exempts_user_tenant_bind(path: str) -> bool:
         p = "/"
     else:
         p = path if path.startswith("/") else f"/{path}"
+    if p in TENANT_BIND_FORCE_PATHS:
+        return False
+    # Tenant-scoped master dropdown APIs must run in the admin's school schema (not public).
+    if p.startswith("/api/master-data/") or p.startswith("/api/master-dropdown/"):
+        return False
+    if p.startswith("/api/exams/"):
+        return False
+    if p.startswith("/api/subjects/"):
+        return False
     if p in TENANT_BIND_EXEMPT_PATHS:
         return True
     for prefix in TENANT_BIND_EXEMPT_PREFIXES:

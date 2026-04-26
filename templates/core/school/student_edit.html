@@ -34,12 +34,12 @@
     <div class="card-body p-3 p-lg-4">
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
         <div>
-          <div class="fw-semibold">Step <span id="stepNow">1</span> of <span id="stepTotal">7</span></div>
+          <div class="fw-semibold">Step <span id="stepNow">1</span> of <span id="stepTotal">8</span></div>
           <div class="text-muted small">Update details using the tabs.</div>
         </div>
       </div>
       <div class="progress rounded-pill mb-4" style="height: 10px;">
-        <div id="wizardProgress" class="progress-bar" style="width: 14.3%;"></div>
+        <div id="wizardProgress" class="progress-bar" style="width: 12.5%;"></div>
       </div>
 
       <ul class="nav nav-tabs flex-nowrap overflow-auto wizard-tabs mb-4" id="editWizardTabs" role="tablist">
@@ -51,6 +51,11 @@
         <li class="nav-item" role="presentation">
           <button class="nav-link wiz-pill wiz-academic" id="tab-academic" data-bs-toggle="tab" data-bs-target="#pane-academic" type="button" role="tab">
             <i class="bi bi-mortarboard me-1"></i> Academic
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link wiz-pill wiz-prev-academic" id="tab-prev-academic" data-bs-toggle="tab" data-bs-target="#pane-prev-academic" type="button" role="tab">
+            <i class="bi bi-building me-1"></i> Previous Academic
           </button>
         </li>
         <li class="nav-item" role="presentation">
@@ -202,14 +207,45 @@
                   <label class="form-label fw-semibold">Semester / year</label>
                   {{ form.semester_year }}
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
+        <div class="tab-pane fade" id="pane-prev-academic" role="tabpanel" aria-labelledby="tab-prev-academic">
+          <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-3 p-lg-4">
+              <div class="d-flex align-items-center gap-2 mb-3">
+                <div class="wizard-icon bg-soft-prev-academic text-prev-academic"><i class="bi bi-building"></i></div>
+                <div>
+                  <div class="fw-bold">Previous Academic</div>
+                  <div class="text-muted small">Prior school and results — <span class="fw-semibold text-body">all optional</span>.</div>
+                </div>
+              </div>
+              <div class="row g-3">
                 <div class="col-md-6">
-                  <label class="form-label fw-semibold">Previous institution</label>
+                  <label class="form-label fw-semibold">Previous school name</label>
                   {{ form.previous_institution }}
                 </div>
-                <div class="col-md-6">
-                  <label class="form-label fw-semibold">Previous marks / GPA</label>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Academic year (at previous school)</label>
+                  {{ form.previous_school_academic_year }}
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Grade / class completed</label>
+                  {{ form.previous_grade_completed }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Board / medium</label>
+                  {{ form.previous_board }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Overall % or CGPA</label>
                   {{ form.previous_marks }}
+                </div>
+                <div class="col-12">
+                  <label class="form-label fw-semibold">Subject-wise marks &amp; other details</label>
+                  {{ form.previous_marks_breakdown }}
                 </div>
               </div>
             </div>
@@ -346,6 +382,17 @@
   .wiz-pill { border: 1px solid rgba(0,0,0,.08); border-bottom: 0; }
   .wiz-pill.active { border-color: transparent; }
 
+  .wizard-icon {
+    width: 40px; height: 40px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+  .bg-soft-prev-academic { background: rgba(99,102,241,.14); }
+  .text-prev-academic { color: #6366f1; }
+
   .student-wizard-form .card .form-control,
   .student-wizard-form .card .form-select,
   .student-wizard-form .card input[type="file"],
@@ -358,10 +405,14 @@
     visibility: visible !important;
     display: block !important;
   }
+  .student-wizard-form .card textarea.form-control {
+    min-height: 6.5rem;
+  }
   .student-wizard-form .card .form-label { font-weight: 600; }
 
   .wiz-personal.active { background: linear-gradient(135deg, #4f46e5, #6366f1); color: #fff; }
   .wiz-academic.active { background: linear-gradient(135deg, #0ea5e9, #22c55e); color: #fff; }
+  .wiz-prev-academic.active { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; }
   .wiz-parents.active { background: linear-gradient(135deg, #f59e0b, #f97316); color: #fff; }
   .wiz-contact.active { background: linear-gradient(135deg, #16a34a, #22c55e); color: #fff; }
   .wiz-medical.active { background: linear-gradient(135deg, #e11d48, #f43f5e); color: #fff; }
@@ -374,6 +425,7 @@
   const steps = [
     "tab-personal",
     "tab-academic",
+    "tab-prev-academic",
     "tab-parents",
     "tab-contact",
     "tab-medical",

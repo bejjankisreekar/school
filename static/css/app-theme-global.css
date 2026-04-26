@@ -17,6 +17,8 @@ html[data-theme="light"] {
   --text-secondary: #64748b;
   --border-color: #e2e8f0;
   --hover-bg: #f1f5f9;
+  /* Soft focus hover for rows/cards (contrasting, not same as base bg) */
+  --hover-bg-soft: #f0f7ff;
   --input-bg: #ffffff;
   --shadow-shell: 0 4px 24px rgba(15, 23, 42, 0.06);
 
@@ -38,6 +40,7 @@ html[data-theme="light"] {
   --text-secondary: #cbd5e1;
   --border-color: rgba(148, 163, 184, 0.22);
   --hover-bg: rgba(255, 255, 255, 0.06);
+  --hover-bg-soft: rgba(96, 165, 250, 0.10);
   --input-bg: rgba(30, 41, 59, 0.9);
   --shadow-shell: 0 8px 32px rgba(0, 0, 0, 0.28);
 
@@ -126,8 +129,12 @@ body.app-body-root {
   color: var(--text-primary);
 }
 
+.table-hover:not(.table-dark) > tbody > tr {
+  transition: background-color 250ms ease, box-shadow 250ms ease;
+}
+
 .table-hover:not(.table-dark) > tbody > tr:hover > * {
-  background-color: var(--hover-bg);
+  background-color: var(--hover-bg-soft);
   color: var(--text-primary);
 }
 
@@ -222,8 +229,65 @@ textarea.form-control {
   border: 1px solid var(--border-color);
 }
 
-/* Toast placement: always top-right across the app (some pages/themes override) */
-.toast-container {
+/* Top-right toast host: Django messages + JS (see templates/base.html #toastContainer) */
+#toastContainer.toast-container.erp-toast-host {
+  position: fixed !important;
+  top: 0 !important;
+  right: 0 !important;
+  left: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: min(420px, calc(100vw - 1.5rem));
+  width: auto;
+  z-index: 10000 !important;
+  pointer-events: none;
+}
+
+#toastContainer.toast-container.erp-toast-host .toast {
+  pointer-events: auto;
+  min-width: min(300px, calc(100vw - 2rem));
+  max-width: min(400px, calc(100vw - 2rem));
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.14), 0 0 0 1px rgba(15, 23, 42, 0.06);
+  animation: erp-toast-slide-in 0.3s ease-out;
+}
+
+@keyframes erp-toast-slide-in {
+  from {
+    transform: translateX(110%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #toastContainer.toast-container.erp-toast-host .toast {
+    animation: none;
+  }
+}
+
+#toastContainer.toast-container.erp-toast-host .toast .toast-body {
+  padding: 0.75rem 0.35rem 0.75rem 0.65rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+html.dark #toastContainer.toast-container.erp-toast-host .toast {
+  box-shadow: 0 14px 48px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(148, 163, 184, 0.14);
+}
+
+/* Fallback: stray toast containers without #toastContainer */
+.toast-container:not(#toastContainer) {
   position: fixed !important;
   top: 1rem !important;
   right: 1rem !important;
@@ -236,6 +300,16 @@ textarea.form-control {
   background-color: var(--bs-list-group-bg, var(--bg-card));
   color: var(--bs-list-group-color, var(--text-primary));
   border-color: var(--bs-list-group-border-color, var(--border-color));
+}
+
+.list-group-item-action {
+  transition: background-color 250ms ease, box-shadow 250ms ease, border-color 250ms ease;
+}
+
+.list-group-item-action:hover,
+.list-group-item-action:focus {
+  background-color: var(--hover-bg-soft);
+  color: inherit;
 }
 
 /* Utility text that is often hardcoded */

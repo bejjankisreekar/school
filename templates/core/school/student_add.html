@@ -37,7 +37,7 @@
       {# Wizard header #}
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
         <div>
-          <div class="fw-semibold">Step <span id="stepNow">1</span> of <span id="stepTotal">7</span></div>
+          <div class="fw-semibold">Step <span id="stepNow">1</span> of <span id="stepTotal">8</span></div>
           <div class="text-muted small">Complete the admission details using the tabs.</div>
         </div>
         <div class="text-muted small">
@@ -45,7 +45,7 @@
         </div>
       </div>
       <div class="progress rounded-pill mb-4" style="height: 10px;">
-        <div id="wizardProgress" class="progress-bar" style="width: 14.3%;"></div>
+        <div id="wizardProgress" class="progress-bar" style="width: 12.5%;"></div>
       </div>
 
       {# Wizard tabs #}
@@ -58,6 +58,11 @@
         <li class="nav-item" role="presentation">
           <button class="nav-link wiz-pill wiz-academic" id="tab-academic" data-bs-toggle="tab" data-bs-target="#pane-academic" type="button" role="tab">
             <i class="bi bi-mortarboard me-1"></i> Academic
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link wiz-pill wiz-prev-academic" id="tab-prev-academic" data-bs-toggle="tab" data-bs-target="#pane-prev-academic" type="button" role="tab">
+            <i class="bi bi-building me-1"></i> Previous Academic
           </button>
         </li>
         <li class="nav-item" role="presentation">
@@ -180,7 +185,7 @@
                 <div class="wizard-icon bg-soft-academic text-academic"><i class="bi bi-mortarboard"></i></div>
                 <div>
                   <div class="fw-bold">Academic Information</div>
-                  <div class="text-muted small">Admission identifiers, class/section, and academic context.</div>
+                  <div class="text-muted small">Class, roll, and admission details for this school.</div>
                 </div>
               </div>
               <div class="row g-3">
@@ -241,21 +246,55 @@
                   <label class="form-label fw-semibold">Semester / year</label>
                   {{ form.semester_year }}
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-                <div class="col-md-6">
-                  <label class="form-label fw-semibold">Previous institution</label>
-                  {{ form.previous_institution }}
+        {# Step 3: Previous Academic (optional) #}
+        <div class="tab-pane fade" id="pane-prev-academic" role="tabpanel" aria-labelledby="tab-prev-academic">
+          <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-3 p-lg-4">
+              <div class="d-flex align-items-center gap-2 mb-3">
+                <div class="wizard-icon bg-soft-prev-academic text-prev-academic"><i class="bi bi-building"></i></div>
+                <div>
+                  <div class="fw-bold">Previous Academic</div>
+                  <div class="text-muted small">Prior school, year, grade completed, and results — <span class="fw-semibold text-body">all optional</span>. Use when the student joins from another institution (e.g. finished Grade 9 elsewhere, enrolling in Grade 10 here).</div>
                 </div>
+              </div>
+              <div class="row g-3">
                 <div class="col-md-6">
-                  <label class="form-label fw-semibold">Previous marks / GPA</label>
+                  <label class="form-label fw-semibold">Previous school name</label>
+                  {{ form.previous_institution }}
+                  {% if form.previous_institution.errors %}<div class="text-danger small mt-1">{{ form.previous_institution.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Academic year (at previous school)</label>
+                  {{ form.previous_school_academic_year }}
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Grade / class completed</label>
+                  {{ form.previous_grade_completed }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Board / medium</label>
+                  {{ form.previous_board }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Overall % or CGPA</label>
                   {{ form.previous_marks }}
+                </div>
+                <div class="col-12">
+                  <label class="form-label fw-semibold">Subject-wise marks &amp; other details</label>
+                  {{ form.previous_marks_breakdown }}
+                  {% if form.previous_marks_breakdown.errors %}<div class="text-danger small mt-1">{{ form.previous_marks_breakdown.errors.0 }}</div>{% endif %}
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {# Step 3: Parents #}
+        {# Step 4: Parents #}
         <div class="tab-pane fade" id="pane-parents" role="tabpanel" aria-labelledby="tab-parents">
           <div class="card border-0 shadow-sm rounded-4">
             <div class="card-body p-3 p-lg-4">
@@ -329,7 +368,7 @@
           </div>
         </div>
 
-        {# Step 4: Contact #}
+        {# Step 5: Contact #}
         <div class="tab-pane fade" id="pane-contact" role="tabpanel" aria-labelledby="tab-contact">
           <div class="card border-0 shadow-sm rounded-4">
             <div class="card-body p-3 p-lg-4">
@@ -378,7 +417,7 @@
           </div>
         </div>
 
-        {# Step 5: Medical #}
+        {# Step 6: Medical #}
         <div class="tab-pane fade" id="pane-medical" role="tabpanel" aria-labelledby="tab-medical">
           <div class="card border-0 shadow-sm rounded-4">
             <div class="card-body p-3 p-lg-4">
@@ -423,7 +462,7 @@
           </div>
         </div>
 
-        {# Step 6: Documents #}
+        {# Step 7: Documents #}
         <div class="tab-pane fade" id="pane-docs" role="tabpanel" aria-labelledby="tab-docs">
           <div class="card border-0 shadow-sm rounded-4">
             <div class="card-body p-3 p-lg-4">
@@ -446,7 +485,7 @@
           </div>
         </div>
 
-        {# Step 7: Review #}
+        {# Step 8: Review #}
         <div class="tab-pane fade" id="pane-review" role="tabpanel" aria-labelledby="tab-review">
           <div class="card border-0 shadow-sm rounded-4">
             <div class="card-body p-3 p-lg-4">
@@ -540,6 +579,7 @@
   }
   .bg-soft-personal { background: rgba(79,70,229,.12); }
   .bg-soft-academic { background: rgba(14,165,233,.12); }
+  .bg-soft-prev-academic { background: rgba(99,102,241,.14); }
   .bg-soft-parents { background: rgba(245,158,11,.15); }
   .bg-soft-contact { background: rgba(34,197,94,.12); }
   .bg-soft-medical { background: rgba(244,63,94,.12); }
@@ -548,6 +588,7 @@
 
   .text-personal { color: #4f46e5; }
   .text-academic { color: #0ea5e9; }
+  .text-prev-academic { color: #6366f1; }
   .text-parents { color: #f59e0b; }
   .text-contact { color: #16a34a; }
   .text-medical { color: #e11d48; }
@@ -556,6 +597,7 @@
 
   .wiz-personal.active { background: linear-gradient(135deg, #4f46e5, #6366f1); color: #fff; }
   .wiz-academic.active { background: linear-gradient(135deg, #0ea5e9, #22c55e); color: #fff; }
+  .wiz-prev-academic.active { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; }
   .wiz-parents.active { background: linear-gradient(135deg, #f59e0b, #f97316); color: #fff; }
   .wiz-contact.active { background: linear-gradient(135deg, #16a34a, #22c55e); color: #fff; }
   .wiz-medical.active { background: linear-gradient(135deg, #e11d48, #f43f5e); color: #fff; }
@@ -575,6 +617,9 @@
     visibility: visible !important;
     display: block !important;
   }
+  .student-wizard-form .card textarea.form-control {
+    min-height: 6.5rem;
+  }
   .student-wizard-form .card .form-label { font-weight: 600; }
 </style>
 
@@ -583,6 +628,7 @@
   const steps = [
     "tab-personal",
     "tab-academic",
+    "tab-prev-academic",
     "tab-parents",
     "tab-contact",
     "tab-medical",

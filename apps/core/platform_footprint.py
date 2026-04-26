@@ -86,10 +86,11 @@ def _class_section_rows_inner() -> list[dict]:
             "classroom_id",
             "section_id",
             "classroom__name",
+            "classroom__grade_order",
             "section__name",
         )
         .annotate(student_count=Count("id"))
-        .order_by("classroom__name", "section__name")
+        .order_by("classroom__grade_order", "classroom__name", "section__name")
     )
 
     for g in groups:

@@ -47,6 +47,7 @@ def sidebar_menu(request):
             view_name = getattr(rm, "view_name", None) if rm else None
         except Exception:
             view_name = None
+        req_path = (getattr(request, "path", "") or "").rstrip("/") or "/"
 
         def allowed(it: SidebarMenuItem) -> bool:
             fc = (it.feature_code or "").strip()
@@ -60,8 +61,33 @@ def sidebar_menu(request):
                 try:
                     return reverse(rn)
                 except NoReverseMatch:
-                    return ""
+                    # Some routes require args (e.g. student exam session detail).
+                    # For those, SidebarMenuItem should provide an href prefix (e.g. "/student/exam/session/"),
+                    # so the menu still renders and highlights via path-prefix match.
+                    return (it.href or "").strip()
             return (it.href or "").strip()
+
+        def is_active_item(route_name: str, href: str) -> bool:
+            """
+            Mark menu item active for the current request.
+            Prefer resolver_match.view_name equality, but fallback to path prefix match
+            so href-only menu rows still highlight correctly after refresh.
+            """
+            rn = (route_name or "").strip()
+            if view_name and rn and view_name == rn:
+                return True
+            h = (href or "").rstrip("/")
+            if not h:
+                return False
+            # Normalize root and allow sub-paths (e.g. /school/staff-attendance/mark/ highlights /school/staff-attendance/)
+            h_norm = h or "/"
+            if req_path == h_norm or req_path.startswith(h_norm + "/"):
+                return True
+            # Student exams: keep the Exams menu highlighted on session/exam detail pages too.
+            # Works even when the menu row href is /student/exams/ and the current page is /student/exam/session/<id>/.
+            if h_norm.startswith("/student/exams") and req_path.startswith("/student/exam/"):
+                return True
+            return False
 
         # Build nodes for allowed items only (and drop broken routes).
         nodes: dict[int, dict] = {}
@@ -79,7 +105,7 @@ def sidebar_menu(request):
                 "route_name": (it.route_name or "").strip(),
                 "parent_id": it.parent_id,
                 "children": [],
-                "active": bool(view_name and (view_name == (it.route_name or "").strip())),
+                "active": is_active_item((it.route_name or "").strip(), href),
             }
 
         tree: list[dict] = []

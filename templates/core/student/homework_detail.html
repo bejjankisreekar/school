@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block title %}Homework | School ERP{% endblock %}
+
+{% block extra_head %}
+<style>
+  .shd-wrap { max-width: 1100px; }
+  .shd-hero {
+    border-radius: 1rem;
+    border: 1px solid var(--bs-border-color-translucent);
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.10) 0%, transparent 55%),
+      linear-gradient(225deg, rgba(99, 102, 241, 0.08) 0%, transparent 50%);
+    padding: 1rem 1.25rem;
+  }
+  html.dark .shd-hero {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, transparent 55%),
+      linear-gradient(225deg, rgba(96, 165, 250, 0.10) 0%, transparent 50%);
+  }
+  .shd-panel { border-radius: 1rem; border: 1px solid var(--bs-border-color-translucent); }
+  .shd-label { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bs-secondary-color); font-weight: 700; }
+  .shd-body { white-space: pre-wrap; }
+
+  /* Confirmation modal (custom overlay to avoid stacking issues) */
+  .shd-confirm-layer {
+    display: none !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 2147483640 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 1rem !important;
+    pointer-events: none !important;
+  }
+  .shd-confirm-layer.is-open {
+    display: flex !important;
+    pointer-events: auto !important;
+  }
+  .shd-confirm-scrim {
+    position: absolute !important;
+    inset: 0 !important;
+    background: rgba(15, 23, 42, 0.60) !important;
+    backdrop-filter: blur(6px);
+  }
+  .shd-confirm-panel {
+    position: relative !important;
+    width: 100% !important;
+    max-width: 28rem !important;
+    border-radius: 1rem !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border: 1px solid rgba(15, 23, 42, 0.10) !important;
+    box-shadow: 0 26px 60px rgba(0, 0, 0, 0.35) !important;
+    overflow: hidden !important;
+    transform: scale(0.96);
+    opacity: 0;
+    transition: transform 160ms ease, opacity 160ms ease;
+  }
+  html.dark .shd-confirm-panel {
+    background: #1e293b !important;
+    color: #f1f5f9 !important;
+    border-color: rgba(148, 163, 184, 0.22) !important;
+  }
+  .shd-confirm-layer.is-open .shd-confirm-panel {
+    transform: scale(1);
+    opacity: 1;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .shd-confirm-panel { transition: none; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="shd-wrap mx-auto">
+    <nav aria-label="breadcrumb" class="mb-3">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'core:student_dashboard' %}">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'core:homework_list' %}">Homework</a></li>
+        <li class="breadcrumb-item active">View</li>
+      </ol>
+    </nav>
+
+    <div class="shd-hero mb-3">
+      <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+        <div class="min-w-0">
+          <h1 class="h4 fw-bold mb-1" style="letter-spacing:-0.02em;">{{ homework.title }}</h1>
+          <div class="text-muted small">
+            {% if homework.subject %}<span class="me-2"><i class="bi bi-book me-1"></i>{{ homework.subject.name }}</span>{% endif %}
+            <span class="{% if is_overdue %}text-danger fw-semibold{% endif %}"><i class="bi bi-calendar-event me-1"></i>Due {{ homework.due_date|date:"M j, Y" }}</span>
+          </div>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+          {% if status == 'COMPLETED' %}
+            <span class="badge rounded-pill bg-success">Submitted</span>
+          {% else %}
+            <span class="badge rounded-pill bg-danger">Not submitted</span>
+          {% endif %}
+          <a href="{% url 'core:homework_list' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">Back</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-12 col-lg-8">
+        <div class="card shd-panel shadow-sm">
+          <div class="card-header bg-transparent">
+            <div class="shd-label">Description</div>
+          </div>
+          <div class="card-body">
+            <div class="shd-body">{{ homework.description|default:"—" }}</div>
+          </div>
+        </div>
+
+        <div class="card shd-panel shadow-sm mt-3">
+          <div class="card-header bg-transparent">
+            <div class="shd-label">Instructions</div>
+          </div>
+          <div class="card-body">
+            <div class="shd-body">{{ homework.instructions|default:"—" }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-4">
+        <div class="card shd-panel shadow-sm h-100">
+          <div class="card-header bg-transparent">
+            <div class="shd-label">Details</div>
+          </div>
+          <div class="card-body">
+            <dl class="mb-0">
+              <dt class="small text-muted">Subject</dt>
+              <dd class="mb-2">{{ homework.subject.name|default:"—" }}</dd>
+              <dt class="small text-muted">Class</dt>
+              <dd class="mb-2">{% for c in homework.classes.all %}{{ c.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</dd>
+              <dt class="small text-muted">Assigned date</dt>
+              <dd class="mb-2">{{ homework.assigned_date|date:"M j, Y"|default:"—" }}</dd>
+              <dt class="small text-muted">Due date</dt>
+              <dd class="mb-2">{{ homework.due_date|date:"M j, Y" }}</dd>
+              <dt class="small text-muted">Status</dt>
+              <dd class="mb-0">
+                {% if status == 'COMPLETED' %}
+                  <span class="badge rounded-pill bg-success">Submitted</span>
+                {% else %}
+                  <span class="badge rounded-pill bg-danger">Not submitted</span>
+                {% endif %}
+              </dd>
+            </dl>
+
+            <div class="mt-3">
+              {% if homework.status == 'CLOSED' %}
+                <div class="alert alert-secondary small mb-0"><i class="bi bi-lock me-1"></i>Submissions are closed for this assignment.</div>
+              {% elif is_overdue %}
+                <div class="alert alert-danger small mb-0"><i class="bi bi-exclamation-circle me-1"></i>Deadline has passed. You can’t submit now.</div>
+              {% else %}
+                <form id="shdSubmitForm" method="post" action="{% url 'core:student_homework_submit' homework.id %}">
+                  {% csrf_token %}
+                  <button id="shdSubmitBtn" class="btn btn-primary w-100 rounded-pill" type="submit">
+                    {% if status == 'COMPLETED' %}Submit again{% else %}Submit homework{% endif %}
+                  </button>
+                </form>
+                <div class="small text-muted mt-2">Submission is recorded in the system (no file upload on this screen).</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div id="shdConfirm" class="shd-confirm-layer" aria-hidden="true">
+  <div class="shd-confirm-scrim" data-shd-close="1" role="presentation"></div>
+  <div class="shd-confirm-panel" role="dialog" aria-modal="true" aria-labelledby="shdConfirmTitle" aria-describedby="shdConfirmDesc">
+    <div class="p-3 border-bottom d-flex align-items-start gap-2">
+      <div class="flex-shrink-0" aria-hidden="true">
+        <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary-subtle text-primary" style="width:2.25rem;height:2.25rem;">
+          <i class="bi bi-info-circle"></i>
+        </span>
+      </div>
+      <div class="flex-grow-1">
+        <h2 class="h6 fw-bold mb-1" id="shdConfirmTitle">Confirm Submission</h2>
+        <div class="text-muted small" id="shdConfirmDesc">
+          <div>Are you sure you want to submit this homework?</div>
+          <div>You may not be able to edit after submission.</div>
+        </div>
+      </div>
+      <button type="button" class="btn-close ms-2" data-shd-close="1" aria-label="Close"></button>
+    </div>
+    <div class="p-3 d-flex gap-2 justify-content-end bg-body-tertiary bg-opacity-25">
+      <button type="button" class="btn btn-outline-secondary rounded-pill px-4" id="shdCancelBtn" data-shd-close="1">Cancel</button>
+      <button type="button" class="btn btn-success rounded-pill px-4" id="shdYesBtn">Yes, Submit</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var layer = document.getElementById("shdConfirm");
+    var form = document.getElementById("shdSubmitForm");
+    var submitBtn = document.getElementById("shdSubmitBtn");
+    var yesBtn = document.getElementById("shdYesBtn");
+    var cancelBtn = document.getElementById("shdCancelBtn");
+    if (!layer || !form || !submitBtn || !yesBtn || !cancelBtn) return;
+
+    var lastFocus = null;
+    var submitting = false;
+
+    function openConfirm() {
+      if (layer.classList.contains("is-open")) return;
+      lastFocus = document.activeElement;
+      layer.classList.add("is-open");
+      layer.setAttribute("aria-hidden", "false");
+      // Focus the safest action first (Cancel), then user can tab to Yes.
+      setTimeout(function () { try { cancelBtn.focus(); } catch (e) {} }, 0);
+    }
+
+    function closeConfirm() {
+      if (!layer.classList.contains("is-open")) return;
+      layer.classList.remove("is-open");
+      layer.setAttribute("aria-hidden", "true");
+      setTimeout(function () {
+        try { (lastFocus && lastFocus.focus) ? lastFocus.focus() : submitBtn.focus(); } catch (e) {}
+      }, 0);
+    }
+
+    form.addEventListener("submit", function (e) {
+      if (submitting) return;
+      e.preventDefault();
+      openConfirm();
+    });
+
+    yesBtn.addEventListener("click", function () {
+      if (submitting) return;
+      submitting = true;
+      closeConfirm();
+      form.submit();
+    });
+
+    cancelBtn.addEventListener("click", function () {
+      closeConfirm();
+    });
+
+    layer.addEventListener("click", function (e) {
+      var close = e.target && e.target.closest ? e.target.closest("[data-shd-close]") : null;
+      if (close) closeConfirm();
+    });
+
+    document.addEventListener("keydown", function (e) {
+      if (!layer.classList.contains("is-open")) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeConfirm();
+      }
+    });
+  })();
+</script>
+{% endblock %}
+

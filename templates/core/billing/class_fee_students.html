@@ -8,6 +8,12 @@
   .cfs-stu-hub { background: #f1f5f9; margin: -0.5rem -1rem 0; padding: 1rem 1rem 2rem; min-height: calc(100vh - 100px); }
   @media (min-width: 992px) { .cfs-stu-hub { margin: -0.5rem -1.5rem 0; padding: 1.25rem 1.5rem 2.5rem; } }
   .cfs-stu-card { background: var(--card); border: 1px solid var(--bd); border-radius: 1.15rem; box-shadow: 0 1px 3px rgba(15,23,42,.06); }
+  .cfs-kpi { background: var(--card); border: 1px solid var(--bd); border-radius: 1rem; box-shadow: 0 1px 3px rgba(15,23,42,.06); padding: 0.95rem 1rem; height: 100%; }
+  .cfs-kpi .lbl { font-size: 0.65rem; text-transform: uppercase; letter-spacing: .08em; color: #64748b; font-weight: 800; margin-bottom: 0.25rem; }
+  html.dark .cfs-kpi .lbl { color: #94a3b8; }
+  .cfs-kpi .val { font-weight: 900; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .cfs-kpi .sub { font-size: 0.75rem; color: #64748b; margin-top: 0.15rem; }
+  html.dark .cfs-kpi .sub { color: #94a3b8; }
 </style>
 {% endblock %}
 {% block billing_main %}
@@ -28,13 +34,22 @@
     </div>
     <div class="d-flex flex-wrap gap-2 align-items-center">
       {% if academic_years %}
-      <form method="get" class="d-flex align-items-center gap-2">
+      <form method="get" class="d-flex flex-wrap align-items-center gap-2">
         <label class="small text-muted mb-0">Year</label>
         <select name="ay" class="form-select form-select-sm" style="width:auto;min-width:9rem;" onchange="this.form.submit()">
           {% for y in academic_years %}
           <option value="{{ y.id }}" {% if academic_year and academic_year.id == y.id %}selected{% endif %}>{{ y.name }}</option>
           {% endfor %}
         </select>
+        {% if sections %}
+        <label class="small text-muted mb-0 ms-1">Section</label>
+        <select name="section_id" class="form-select form-select-sm" style="width:auto;min-width:8rem;" onchange="this.form.submit()">
+          <option value="" {% if not section_id %}selected{% endif %}>All</option>
+          {% for s in sections %}
+          <option value="{{ s.id }}" {% if section_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+        {% endif %}
       </form>
       {% endif %}
       <a href="{% url 'core:billing_fee_structure' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}" class="btn btn-outline-secondary btn-sm rounded-pill">← Back to structure</a>
@@ -58,6 +73,53 @@
           </li>
           {% endfor %}
         </ul>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if class_totals %}
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-lg-2">
+      <div class="cfs-kpi">
+        <div class="lbl">Total class</div>
+        <div class="val">{{ class_totals.students|inri }}</div>
+        <div class="sub">Students</div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-2">
+      <div class="cfs-kpi">
+        <div class="lbl">Gross amount</div>
+        <div class="val text-primary">₹{{ class_totals.gross|inr }}</div>
+        <div class="sub">All fee lines</div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-2">
+      <div class="cfs-kpi">
+        <div class="lbl">Total concession</div>
+        <div class="val text-secondary">₹{{ class_totals.concession|inr }}</div>
+        <div class="sub">Discounts/waivers</div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-2">
+      <div class="cfs-kpi">
+        <div class="lbl">Total net due</div>
+        <div class="val">₹{{ class_totals.net_due|inr }}</div>
+        <div class="sub">After concessions</div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-2">
+      <div class="cfs-kpi">
+        <div class="lbl">Total paid</div>
+        <div class="val text-success">₹{{ class_totals.paid|inr }}</div>
+        <div class="sub">Collected</div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-2">
+      <div class="cfs-kpi">
+        <div class="lbl">Total pending</div>
+        <div class="val {% if class_totals.pending > 0 %}text-danger{% else %}text-success{% endif %}">₹{{ class_totals.pending|inr }}</div>
+        <div class="sub">Balance</div>
       </div>
     </div>
   </div>
@@ -94,10 +156,12 @@
             <td class="text-end font-monospace small text-secondary">₹{{ r.concession|inr }}</td>
             <td class="text-end font-monospace small">₹{{ r.net_due|inr }}</td>
             <td class="text-end font-monospace small text-success">₹{{ r.paid|inr }}</td>
-            <td class="text-end font-monospace small {% if r.pending > 0 %}text-warning fw-semibold{% else %}text-success{% endif %} pe-3">₹{{ r.pending|inr }}</td>
+            <td class="text-end font-monospace small fw-semibold pe-3"
+            style="color: {% if r.pending > 0 %}#dc2626{% else %}#16a34a{% endif %};">
+            ₹{{ r.pending|inr }}</td>
             <td class="text-end pe-3 text-nowrap">
               <a href="{% url 'core:billing_student_fee_lines' classroom.id r.student.id %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}" class="btn btn-sm btn-outline-secondary rounded-pill me-1" title="Edit fee lines"><i class="bi bi-pencil"></i></a>
-              <a href="{% url 'core:billing_student_collect' r.student.id %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}" class="btn btn-sm btn-primary rounded-pill">Collect fee</a>
+              <a href="{% url 'core:billing_student_collect' r.student.id %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}{% if section_id %}&section_id={{ section_id }}{% endif %}" class="btn btn-sm btn-primary rounded-pill">Collect fee</a>
             </td>
           </tr>
           {% empty %}

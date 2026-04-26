@@ -19,7 +19,7 @@
     </div>
   {% endif %}
 
-  <form method="post" class="space-y-4">
+  <form method="post" class="space-y-4" data-erp-loading="Saving attendance...">
     {% csrf_token %}
     {% for field in form %}
       <div class="space-y-1.5">

@@ -17,6 +17,7 @@ from django.core.exceptions import ValidationError
 from django.db.models import Q, Sum
 from django.utils import timezone
 from apps.customers.models import Coupon, Plan, SaaSPlatformPayment, School, SchoolSubscription
+from apps.school_data.classroom_ordering import ORDER_AY_PK_GRADE_NAME, ORDER_AY_START_GRADE_NAME, ORDER_GRADE_NAME
 from apps.school_data.models import (
     Homework,
     Marks,
@@ -80,6 +81,7 @@ class HomeworkCreateForm(forms.ModelForm):
         fields = [
             "title",
             "subject",
+            "teacher",
             "homework_type",
             "priority",
             "status",
@@ -102,6 +104,7 @@ class HomeworkCreateForm(forms.ModelForm):
         widgets = {
             "title": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Homework title"}),
             "subject": forms.Select(attrs={"class": BS_INPUT}),
+            "teacher": forms.Select(attrs={"class": BS_INPUT}),
             "homework_type": forms.Select(attrs={"class": BS_INPUT}),
             "priority": forms.Select(attrs={"class": BS_INPUT}),
             "status": forms.Select(attrs={"class": BS_INPUT}),
@@ -136,6 +139,7 @@ class HomeworkCreateForm(forms.ModelForm):
         }
         labels = {
             "subject": "Subject",
+            "teacher": "Assigned teacher",
             "homework_type": "Work type",
             "max_marks": "Max marks",
             "estimated_duration_minutes": "Est. time (minutes)",
@@ -175,9 +179,14 @@ class HomeworkCreateForm(forms.ModelForm):
             self.initial.setdefault("assigned_date", date_cls.today())
 
         if user and getattr(user, "role", None) == "ADMIN":
-            self.fields["subject"].queryset = Subject.objects.order_by("name")
+            self.fields["subject"].queryset = Subject.objects.order_by("display_order", "name")
+            self.fields["teacher"].required = False
+            self.fields["teacher"].empty_label = "Any (not assigned to a specific teacher)"
+            self.fields["teacher"].queryset = Teacher.objects.select_related("user").order_by(
+                "user__first_name", "user__last_name", "user__username"
+            )
             self.fields["classes"].queryset = ClassRoom.objects.select_related("academic_year").order_by(
-                "academic_year__start_date", "name"
+                *ORDER_AY_START_GRADE_NAME
             )
             self.fields["sections"].queryset = Section.objects.order_by("name")
             self.fields["assigned_by"].required = False
@@ -199,7 +208,7 @@ class HomeworkCreateForm(forms.ModelForm):
                 if teacher.subject_id:
                     subj_ids.add(teacher.subject_id)
                 self.fields["subject"].queryset = (
-                    Subject.objects.filter(id__in=subj_ids).order_by("name")
+                    Subject.objects.filter(id__in=subj_ids).order_by("display_order", "name")
                     if subj_ids
                     else Subject.objects.none()
                 )
@@ -217,7 +226,7 @@ class HomeworkCreateForm(forms.ModelForm):
                 self.fields["classes"].queryset = (
                     ClassRoom.objects.filter(id__in=class_ids)
                     .select_related("academic_year")
-                    .order_by("academic_year__start_date", "name")
+                    .order_by(*ORDER_AY_START_GRADE_NAME)
                     if class_ids
                     else ClassRoom.objects.none()
                 )
@@ -231,13 +240,14 @@ class HomeworkCreateForm(forms.ModelForm):
                 self.fields["sections"].queryset = Section.objects.none()
                 self.fields["academic_year"].queryset = AcademicYear.objects.order_by("-start_date")
         else:
-            self.fields["subject"].queryset = Subject.objects.order_by("name")
-            self.fields["classes"].queryset = ClassRoom.objects.order_by("name")
+            self.fields["subject"].queryset = Subject.objects.order_by("display_order", "name")
+            self.fields["classes"].queryset = ClassRoom.objects.order_by(*ORDER_GRADE_NAME)
             self.fields["sections"].queryset = Section.objects.order_by("name")
             self.fields["academic_year"].queryset = AcademicYear.objects.order_by("-start_date")
 
         if not user or getattr(user, "role", None) != "ADMIN":
             self.fields.pop("assigned_by", None)
+            self.fields.pop("teacher", None)
 
     def save(self, commit=True):
         obj = super().save(commit=False)
@@ -300,7 +310,7 @@ class ExamCreateForm(forms.ModelForm):
             self.fields["class_name"].choices = [("", "---------")] + [(n, n) for n in class_names]
             self.fields["section"].choices = [("", "---------")] + [(n, n) for n in section_names]
         else:
-            self.fields["class_name"].choices = [(c.name, c.name) for c in ClassRoom.objects.order_by("name")]
+            self.fields["class_name"].choices = [(c.name, c.name) for c in ClassRoom.objects.order_by(*ORDER_GRADE_NAME)]
             self.fields["section"].choices = [(s.name, s.name) for s in Section.objects.order_by("name")]
 
 
@@ -326,7 +336,7 @@ class SchoolExamSessionEditForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["classroom"].queryset = ClassRoom.objects.select_related("academic_year").order_by(
-            "academic_year__start_date", "name"
+            *ORDER_AY_START_GRADE_NAME
         )
         self.fields["classroom"].required = False
         self.fields["class_name"].required = False
@@ -335,6 +345,11 @@ class SchoolExamSessionEditForm(forms.ModelForm):
 
 class ExamSessionPaperInlineForm(forms.ModelForm):
     """One subject paper row when editing an exam session (admin)."""
+
+    mark_components_json = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(attrs={"class": "exam-paper-mark-components-json"}),
+    )
 
     class Meta:
         model = Exam
@@ -362,7 +377,7 @@ class ExamSessionPaperInlineForm(forms.ModelForm):
     def __init__(self, *args, school=None, **kwargs):
         self.school = school
         super().__init__(*args, **kwargs)
-        self.fields["subject"].queryset = Subject.objects.order_by("name")
+        self.fields["subject"].queryset = Subject.objects.order_by("display_order", "name")
         self.fields["subject"].widget.attrs.update({"class": BS_INPUT})
         self.fields["subject"].required = False
         self.fields["name"].required = False
@@ -377,6 +392,18 @@ class ExamSessionPaperInlineForm(forms.ModelForm):
         self.fields["teacher"].widget.attrs.update({"class": BS_INPUT})
         self.fields["total_marks"].required = False
         self.fields["marks_teacher_edit_locked"].required = False
+        import json as _json
+
+        if self.instance and self.instance.pk:
+            comps = list(
+                self.instance.mark_components.order_by("sort_order", "id").values(
+                    "component_name", "max_marks"
+                )
+            )
+            payload = [{"name": c["component_name"], "marks": c["max_marks"]} for c in comps]
+            self.fields["mark_components_json"].initial = _json.dumps(payload)
+        else:
+            self.fields["mark_components_json"].initial = "[]"
 
     def clean(self):
         data = super().clean()
@@ -420,6 +447,22 @@ class ExamSessionPaperInlineForm(forms.ModelForm):
             raise forms.ValidationError("This teacher already has another exam on that date.")
         if exam_views._exam_duplicate(cn, sn, dt, subj, exclude_pk=pk):
             raise forms.ValidationError("An exam already exists for this class, section, date, and subject.")
+        raw_mc = (data.get("mark_components_json") or "").strip()
+        if raw_mc:
+            from django.core.exceptions import ValidationError as DjangoValidationError
+
+            from apps.core.exam_components import parse_components_from_json, normalize_component_items
+
+            try:
+                parsed = parse_components_from_json(raw_mc)
+                if parsed is None:
+                    parsed = []
+                normalize_component_items(parsed)
+            except DjangoValidationError as e:
+                msg = e.messages[0] if getattr(e, "messages", None) else str(e)
+                raise forms.ValidationError(msg) from e
+            except Exception as exc:
+                raise forms.ValidationError(f"Invalid mark components: {exc}") from exc
         return data
 
 
@@ -453,6 +496,16 @@ ExamSessionPaperFormSet = inlineformset_factory(
 class TeacherExamSessionPaperForm(forms.Form):
     """Teacher: creates one exam session + one subject paper (real ERP structure)."""
 
+    use_mark_components = forms.BooleanField(
+        required=False,
+        initial=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input", "id": "id_teacher_use_mark_components"}),
+    )
+    mark_components_json = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(attrs={"id": "id_teacher_mark_components_json"}),
+    )
+
     session_name = forms.CharField(
         max_length=100,
         label="Exam session name",
@@ -480,11 +533,12 @@ class TeacherExamSessionPaperForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.allowed_pairs = list(allowed_pairs or [])
         self.teacher = teacher
-        self.fields["subject"].queryset = Subject.objects.order_by("name")
+        self.fields["subject"].queryset = Subject.objects.order_by("display_order", "name")
         class_names = sorted({c for c, _ in self.allowed_pairs if c})
         section_names = sorted({s for _, s in self.allowed_pairs if s})
         self.fields["class_name"].choices = [("", "Select class")] + [(n, n) for n in class_names]
         self.fields["section"].choices = [("", "Select section")] + [(n, n) for n in section_names]
+        self.fields["mark_components_json"].initial = "[]"
 
     def clean(self):
         from apps.school_data.models import ClassSectionSubjectTeacher
@@ -515,6 +569,20 @@ class TeacherExamSessionPaperForm(forms.Form):
                     raise forms.ValidationError(
                         "You are not mapped to teach this subject for the selected class and section."
                     )
+        if data.get("use_mark_components"):
+            from django.core.exceptions import ValidationError as DjangoValidationError
+
+            from apps.core.exam_components import parse_components_from_json, normalize_component_items
+
+            raw = (data.get("mark_components_json") or "").strip() or "[]"
+            try:
+                parsed = parse_components_from_json(raw)
+                if parsed is None:
+                    parsed = []
+                normalize_component_items(parsed)
+            except DjangoValidationError as e:
+                msg = e.messages[0] if getattr(e, "messages", None) else str(e)
+                raise forms.ValidationError(msg) from e
         return data
 
 
@@ -804,10 +872,10 @@ class SchoolExamSingleForm(forms.Form):
 
     def __init__(self, school, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        classrooms = ClassRoom.objects.select_related("academic_year").order_by("academic_year__start_date", "name")
+        classrooms = ClassRoom.objects.select_related("academic_year").order_by(*ORDER_AY_START_GRADE_NAME)
         self.fields["class_name"].choices = [("", "Select Class")] + [(c.name, c.name) for c in classrooms]
         self.fields["section"].choices = [("", "Select Section")] + [(s.name, s.name) for s in Section.objects.order_by("name")]
-        self.fields["subject"].queryset = Subject.objects.order_by("name")
+        self.fields["subject"].queryset = Subject.objects.order_by("display_order", "name")
         teachers = Teacher.objects.filter(user__school=school).select_related("user").order_by("user__first_name", "user__last_name")
         self.fields["teacher"].choices = [("", "No specific teacher")] + [(t.id, t.user.get_full_name() or t.user.username) for t in teachers]
 
@@ -865,7 +933,7 @@ class SchoolExamEditForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         from django import forms as dforms
 
-        classrooms = ClassRoom.objects.select_related("academic_year").order_by("academic_year__start_date", "name")
+        classrooms = ClassRoom.objects.select_related("academic_year").order_by(*ORDER_AY_START_GRADE_NAME)
         self.fields["class_name"] = dforms.ChoiceField(
             choices=[(c.name, c.name) for c in classrooms],
             widget=dforms.Select(attrs={"class": BS_INPUT}),
@@ -874,7 +942,7 @@ class SchoolExamEditForm(forms.ModelForm):
             choices=[(s.name, s.name) for s in Section.objects.order_by("name")],
             widget=dforms.Select(attrs={"class": BS_INPUT}),
         )
-        self.fields["subject"].queryset = Subject.objects.order_by("name")
+        self.fields["subject"].queryset = Subject.objects.order_by("display_order", "name")
         self.fields["subject"].required = False
         self.fields["subject"].widget.attrs.update({"class": BS_INPUT})
         self.fields["teacher"].queryset = Teacher.objects.filter(user__school=school).select_related("user").order_by(
@@ -929,6 +997,30 @@ class AttendanceForm(forms.ModelForm):
             "date": forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
             "status": forms.Select(attrs={"class": INPUT_CLASS}),
         }
+
+
+def _normalize_student_gender_to_db(value) -> str:
+    """
+    Student.gender is CharField(max_length=1) with codes M/F/O.
+    Master-data dropdowns submit full labels (e.g. "Male"); map them before save.
+    """
+    if value is None:
+        return ""
+    raw = str(value).strip()
+    if not raw:
+        return ""
+    if len(raw) == 1:
+        u = raw.upper()
+        if u in ("M", "F", "O"):
+            return u
+    low = raw.lower()
+    if low in ("f", "female", "girl") or low.startswith("female"):
+        return "F"
+    if low in ("m", "male", "boy") or low.startswith("male"):
+        return "M"
+    if low in ("o", "other") or "non-binary" in low or "nonbinary" in low:
+        return "O"
+    return ""
 
 
 # ---- School Admin: Student Add Form ----
@@ -1051,14 +1143,55 @@ class StudentAddForm(forms.Form):
     previous_institution = forms.CharField(
         max_length=200,
         required=False,
-        label="Previous school / college",
-        widget=forms.TextInput(attrs={"class": INPUT_CLASS}),
+        label="Previous school name",
+        widget=forms.TextInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "placeholder": "School where the student studied before joining here",
+            }
+        ),
+    )
+    previous_school_academic_year = forms.CharField(
+        max_length=80,
+        required=False,
+        label="Academic year (at previous school)",
+        widget=forms.TextInput(
+            attrs={"class": INPUT_CLASS, "placeholder": "e.g. 2023–24 or 2023–2024"},
+        ),
+    )
+    previous_grade_completed = forms.CharField(
+        max_length=120,
+        required=False,
+        label="Grade / class completed (elsewhere)",
+        widget=forms.TextInput(
+            attrs={"class": INPUT_CLASS, "placeholder": "e.g. Grade 9 / Class IX"},
+        ),
+    )
+    previous_board = forms.CharField(
+        max_length=120,
+        required=False,
+        label="Board / medium (optional)",
+        widget=forms.TextInput(
+            attrs={"class": INPUT_CLASS, "placeholder": "e.g. CBSE, State, ICSE"},
+        ),
     )
     previous_marks = forms.CharField(
-        max_length=50,
+        max_length=80,
         required=False,
-        label="Previous marks / GPA",
-        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. 8.6 CGPA / 92%"}),
+        label="Overall % or CGPA (previous school)",
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. 92% or 8.6 CGPA"}),
+    )
+    previous_marks_breakdown = forms.CharField(
+        required=False,
+        max_length=4000,
+        label="Subject-wise marks & remarks",
+        widget=forms.Textarea(
+            attrs={
+                "class": INPUT_CLASS,
+                "rows": 4,
+                "placeholder": "Optional: subject-wise marks, total, percentage, or other academic details from the previous school.",
+            }
+        ),
     )
     stream = forms.CharField(
         max_length=80,
@@ -1213,7 +1346,7 @@ class StudentAddForm(forms.Form):
         self.fields["classroom"].queryset = (
             ClassRoom.objects.select_related("academic_year")
             .prefetch_related("sections")
-            .order_by("academic_year", "name")
+            .order_by(*ORDER_AY_PK_GRADE_NAME)
         )
         self.fields["section"].queryset = (
             Section.objects.prefetch_related("classrooms").order_by("name")
@@ -1260,6 +1393,9 @@ class StudentAddForm(forms.Form):
             raise forms.ValidationError("Phone must contain only digits.")
         return phone
 
+    def clean_gender(self):
+        return _normalize_student_gender_to_db(self.cleaned_data.get("gender"))
+
     def clean_admission_number(self):
         adm = self.cleaned_data.get("admission_number")
         if adm is None:
@@ -1304,7 +1440,7 @@ class StudentEditForm(forms.Form):
         super().__init__(data=data, initial=initial, **kwargs)
         self.school = school
         self.student = student
-        self.fields["classroom"].queryset = ClassRoom.objects.select_related("academic_year").order_by("academic_year", "name")
+        self.fields["classroom"].queryset = ClassRoom.objects.select_related("academic_year").order_by(*ORDER_AY_PK_GRADE_NAME)
         self.fields["section"].queryset = Section.objects.order_by("name")
         qs = MasterDataOption.objects.filter(key="gender", is_active=True).order_by("name")
         self.fields["gender"].widget.choices = [("", "— Not specified —")] + [(o.name, o.name) for o in qs.only("name")]
@@ -1330,6 +1466,9 @@ class StudentEditForm(forms.Form):
         if qs.exists():
             raise forms.ValidationError("Admission number already exists.")
         return adm
+
+    def clean_gender(self):
+        return _normalize_student_gender_to_db(self.cleaned_data.get("gender"))
 
     def clean(self):
         data = super().clean()
@@ -1391,9 +1530,9 @@ class TeacherAddForm(forms.Form):
 
     def __init__(self, school, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["subjects"].queryset = Subject.objects.order_by("name")
+        self.fields["subjects"].queryset = Subject.objects.order_by("display_order", "name")
         self.fields["classrooms"].queryset = ClassRoom.objects.select_related("academic_year").order_by(
-            "academic_year", "name"
+            *ORDER_AY_PK_GRADE_NAME
         )
 
     def clean_username(self):
@@ -1427,8 +1566,8 @@ class TeacherEditForm(forms.Form):
         super().__init__(data=data, initial=initial, **kwargs)
         self.school = school
         self.teacher = teacher
-        self.fields["subjects"].queryset = Subject.objects.order_by("name")
-        self.fields["classrooms"].queryset = ClassRoom.objects.select_related("academic_year").order_by("academic_year", "name")
+        self.fields["subjects"].queryset = Subject.objects.order_by("display_order", "name")
+        self.fields["classrooms"].queryset = ClassRoom.objects.select_related("academic_year").order_by(*ORDER_AY_PK_GRADE_NAME)
         if teacher:
             self.fields["role"].initial = teacher.user.role
 
@@ -1608,7 +1747,7 @@ class PromoteStudentsFilterForm(forms.Form):
         years = AcademicYear.objects.order_by("-start_date")
         self.fields["from_year"].queryset = years
         self.fields["to_year"].queryset = years
-        self.fields["classroom"].queryset = ClassRoom.objects.select_related("academic_year").order_by("academic_year", "name")
+        self.fields["classroom"].queryset = ClassRoom.objects.select_related("academic_year").order_by(*ORDER_AY_PK_GRADE_NAME)
         self.fields["section"].queryset = Section.objects.order_by("name")
 
 
@@ -1619,7 +1758,7 @@ class PromoteStudentsActionForm(forms.Form):
 
     def __init__(self, school, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["target_classroom"].queryset = ClassRoom.objects.select_related("academic_year").order_by("academic_year", "name")
+        self.fields["target_classroom"].queryset = ClassRoom.objects.select_related("academic_year").order_by(*ORDER_AY_PK_GRADE_NAME)
         self.fields["target_section"].queryset = Section.objects.order_by("name")
 
 
@@ -1627,9 +1766,12 @@ class PromoteStudentsActionForm(forms.Form):
 class ClassRoomForm(forms.ModelForm):
     class Meta:
         model = ClassRoom
-        fields = ["name", "description", "capacity", "academic_year", "sections"]
+        fields = ["name", "grade_order", "description", "capacity", "academic_year", "sections"]
         widgets = {
             "name": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. Grade 1, Grade 10"}),
+            "grade_order": forms.NumberInput(
+                attrs={"class": INPUT_CLASS, "min": 0, "placeholder": "0 = auto from name"}
+            ),
             "description": forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 2, "placeholder": "Optional description"}),
             "capacity": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 1, "placeholder": "Optional"}),
             "academic_year": forms.Select(attrs={"class": BS_INPUT}),
@@ -1680,6 +1822,18 @@ class SubjectForm(forms.ModelForm):
         self.school = school
         self.fields["name"].required = True
         self.fields["code"].required = True
+
+    def save(self, commit=True):
+        from django.db.models import Max
+
+        SubjectModel = self._meta.model
+        obj = super().save(commit=False)
+        if not obj.pk:
+            m = SubjectModel.objects.aggregate(Max("display_order")).get("display_order__max") or 0
+            obj.display_order = int(m) + 10
+        if commit:
+            obj.save()
+        return obj
 
 
 # ---- Admin Frontend: School / Teacher / Student (SuperAdmin) ----
@@ -2029,7 +2183,7 @@ class FeeStructureForm(forms.ModelForm):
     def __init__(self, school, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["fee_type"].queryset = FeeType.objects.filter(is_active=True).order_by("name")
-        self.fields["classroom"].queryset = ClassRoom.objects.all()
+        self.fields["classroom"].queryset = ClassRoom.objects.all().order_by(*ORDER_GRADE_NAME)
         self.fields["section"].queryset = Section.objects.all().order_by("name")
         self.fields["section"].required = False
         self.fields["academic_year"].queryset = AcademicYear.objects.order_by("-start_date")
@@ -2088,8 +2242,23 @@ class PaymentForm(forms.ModelForm):
             "payment_method": "Payment mode",
         }
         widgets = {
-            "amount": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 0, "step": "0.01"}),
-            "payment_date": forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
+            "amount": forms.NumberInput(
+                attrs={
+                    "class": INPUT_CLASS + " no-spinner",
+                    "min": 0,
+                    "step": "0.01",
+                    "inputmode": "decimal",
+                }
+            ),
+            "payment_date": forms.DateInput(
+                format="%Y-%m-%d",
+                attrs={
+                    "type": "text",
+                    "class": INPUT_CLASS + " fc-payment-datepicker",
+                    "autocomplete": "off",
+                    "placeholder": "Select date",
+                },
+            ),
             "receipt_number": forms.TextInput(
                 attrs={"class": INPUT_CLASS, "placeholder": "Optional — internal receipt no."}
             ),
@@ -2108,6 +2277,10 @@ class PaymentForm(forms.ModelForm):
         self.fields["receipt_number"].required = False
         self.fields["transaction_reference"].required = False
         self.fields["notes"].required = False
+        pd_field = self.fields["payment_date"]
+        prev = list(pd_field.input_formats) if pd_field.input_formats else []
+        if "%Y-%m-%d" not in prev:
+            pd_field.input_formats = ["%Y-%m-%d"] + prev
 
     def clean_amount(self):
         amount = self.cleaned_data.get("amount")
@@ -2122,6 +2295,125 @@ class PaymentForm(forms.ModelForm):
                 f"Amount cannot exceed balance due ({remaining})."
             )
         return amount
+
+
+class PaymentHeaderForm(forms.Form):
+    """Shared payment metadata for multi-line fee collection (no per-line amount)."""
+
+    payment_date = forms.DateField(
+        widget=forms.DateInput(
+            format="%Y-%m-%d",
+            attrs={
+                "type": "text",
+                "class": INPUT_CLASS + " fc-payment-datepicker",
+                "autocomplete": "off",
+                "placeholder": "Select date",
+            },
+        )
+    )
+    receipt_number = forms.CharField(
+        required=False,
+        label="Internal receipt no. (optional)",
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Optional — internal receipt no."}),
+    )
+    notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 2}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        pd_field = self.fields["payment_date"]
+        prev = list(pd_field.input_formats) if pd_field.input_formats else []
+        if "%Y-%m-%d" not in prev:
+            pd_field.input_formats = ["%Y-%m-%d"] + prev
+
+
+class FeePaymentMetadataForm(forms.Form):
+    """Edit receipt metadata for a recorded payment (batch or single-line)."""
+
+    payment_date = forms.DateField(
+        widget=forms.DateInput(
+            format="%Y-%m-%d",
+            attrs={
+                "type": "text",
+                "class": INPUT_CLASS + " fc-payment-datepicker",
+                "autocomplete": "off",
+                "placeholder": "Payment date",
+            },
+        )
+    )
+    receipt_number = forms.CharField(
+        required=False,
+        label="School voucher / internal receipt no.",
+        widget=forms.TextInput(
+            attrs={"class": INPUT_CLASS, "placeholder": "Optional internal voucher number"}
+        ),
+    )
+    transaction_reference = forms.CharField(
+        required=False,
+        label="Transaction reference",
+        widget=forms.TextInput(
+            attrs={"class": INPUT_CLASS, "placeholder": "UPI / bank ref. (optional)"}
+        ),
+    )
+    notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 3, "placeholder": "Notes (optional)"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        pd_field = self.fields["payment_date"]
+        prev = list(pd_field.input_formats) if pd_field.input_formats else []
+        if "%Y-%m-%d" not in prev:
+            pd_field.input_formats = ["%Y-%m-%d"] + prev
+
+
+class OrphanPaymentEditForm(FeePaymentMetadataForm):
+    """Single-line (non-batch) payment: amount + voucher metadata."""
+
+    amount = forms.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        min_value=Decimal("0.01"),
+        label="Amount (₹)",
+        widget=forms.NumberInput(
+            attrs={
+                "class": INPUT_CLASS + " pe-no-spin",
+                "step": "0.01",
+                "min": "0.01",
+                "inputmode": "decimal",
+                "autocomplete": "off",
+            }
+        ),
+    )
+
+    def __init__(self, *args, max_amount: Decimal | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._max_amount = max_amount
+        if max_amount is not None:
+            self.fields["amount"].help_text = (
+                f"Maximum ₹{max_amount} (cannot exceed balance due on this fee)."
+            )
+        from collections import OrderedDict
+
+        order = [
+            "amount",
+            "payment_date",
+            "receipt_number",
+            "transaction_reference",
+            "notes",
+        ]
+        self.fields = OrderedDict((k, self.fields[k]) for k in order if k in self.fields)
+
+    def clean_amount(self):
+        amt = self.cleaned_data["amount"]
+        if self._max_amount is not None and amt > self._max_amount:
+            raise ValidationError(
+                f"Amount cannot exceed ₹{self._max_amount} (balance due on this fee line)."
+            )
+        return amt
 
 
 class FeeConcessionForm(forms.ModelForm):
@@ -2280,7 +2572,7 @@ class OnlineAdmissionForm(forms.Form):
 
     def __init__(self, school, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["applied_class"].queryset = ClassRoom.objects.all().order_by("name")
+        self.fields["applied_class"].queryset = ClassRoom.objects.all().order_by(*ORDER_GRADE_NAME)
 
 
 class BookForm(forms.ModelForm):

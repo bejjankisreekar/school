@@ -239,6 +239,7 @@ def _copy_classrooms(from_ay: AcademicYear, to_ay: AcademicYear, user) -> dict[i
     for old in ClassRoom.objects.filter(academic_year=from_ay).prefetch_related("sections"):
         new = ClassRoom(
             name=old.name,
+            grade_order=old.grade_order,
             description=old.description,
             capacity=old.capacity,
             academic_year=to_ay,

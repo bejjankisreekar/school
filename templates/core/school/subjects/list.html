@@ -1,5 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Subjects | School ERP{% endblock %}
+{% block extra_head %}
+{% if can_reorder %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+{% endif %}
+{% endblock %}
 {% block content %}
 <div class="container-fluid px-0">
   <nav aria-label="breadcrumb" class="mb-3">
@@ -15,7 +20,14 @@
       <p class="text-muted small mb-0">Define each subject once for your school (master list).</p>
     </div>
     {% if total_subjects %}
-      <a href="{% url 'core:school_subject_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Subject</a>
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        {% if can_reorder %}
+        <button type="button" class="btn btn-primary btn-sm" id="btnSaveSubjectOrder" disabled>
+          <i class="bi bi-check2-circle me-1"></i> Save display order
+        </button>
+        {% endif %}
+        <a href="{% url 'core:school_subject_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Subject</a>
+      </div>
     {% endif %}
   </div>
 
@@ -23,16 +35,40 @@
     {% url 'core:school_subject_add' as subject_add_url %}
     {% include "core/school/includes/empty_module_state.html" with em_title="No subjects created yet" em_body="Add subjects for exams, marks, and assignments. Your school workspace is isolated — nothing is shared with other schools." em_icon="bi-journal-text" em_cta_label="+ Create first subject" em_url=subject_add_url %}
   {% else %}
+  {% if can_reorder %}
+  <div class="alert alert-light border rounded-3 small mb-3 py-2">
+    <i class="bi bi-grip-vertical me-1 text-primary"></i>
+    <strong>Display order:</strong> drag rows using the handle. This order is used on this page, in subject dropdowns, and wherever subjects are listed. Click <strong>Save display order</strong> when finished.
+  </div>
+  {% elif filters.q %}
+  <p class="small text-muted mb-3">Clear the search box to reorder subjects with drag-and-drop.</p>
+  {% endif %}
+
   <div class="card border-0 shadow-sm rounded-3 mb-4">
     <div class="card-body">
-      <form method="get" class="row g-3 g-lg-2 align-items-end erp-filter-toolbar">
-        <div class="col-md-4">
-          <label class="form-label small">Search</label>
-          <input type="text" name="q" class="form-control" placeholder="Name or code" value="{{ filters.q }}">
-        </div>
-        <div class="col-md-3 d-flex align-items-end gap-2">
-          <button type="submit" class="btn btn-sm btn-primary">Search</button>
-          <a href="{% url 'core:school_subjects' %}" class="btn btn-sm btn-erp-secondary">Clear</a>
+      <form method="get" class="erp-filter-toolbar">
+        <div class="row g-3 align-items-end">
+          <div class="col-md-4 col-lg-5">
+            <label class="form-label small mb-1">Search</label>
+            <input type="text" name="q" class="form-control" placeholder="Name or code" value="{{ filters.q }}">
+          </div>
+          <div class="col-md-4 col-lg-3 d-flex align-items-end gap-2 flex-wrap">
+            <button type="submit" class="btn btn-sm btn-primary">Search</button>
+            <a href="{% url 'core:school_subjects' %}" class="btn btn-sm btn-erp-secondary">Clear</a>
+          </div>
+          <div class="col-md-4 col-lg-4 ms-lg-auto">
+            <div class="card border shadow-sm rounded-3 bg-body-secondary bg-opacity-35 py-2 px-3 text-md-end">
+              <div class="text-uppercase text-muted" style="font-size: 0.65rem; letter-spacing: 0.04em;">Count</div>
+              <div class="d-flex flex-wrap align-items-baseline justify-content-md-end gap-2">
+                <span class="fs-5 fw-bold text-body lh-1">{{ filtered_count }}</span>
+                {% if filters.q %}
+                <span class="small text-muted">of {{ total_subjects }} subject{% if total_subjects != 1 %}s{% endif %} (search)</span>
+                {% else %}
+                <span class="small text-muted">subject{% if filtered_count != 1 %}s{% endif %} in catalog</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
         </div>
       </form>
     </div>
@@ -43,14 +79,20 @@
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
           <tr>
+            {% if can_reorder %}<th scope="col" style="width: 3rem;" class="text-center" title="Drag to reorder"></th>{% endif %}
             <th>Subject name</th>
             <th>Subject code</th>
             <th class="text-center" style="width: 140px;">Actions</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody{% if can_reorder %} id="subject-sort-tbody"{% endif %}>
           {% for s in subjects %}
-          <tr>
+          <tr {% if can_reorder %}data-subject-id="{{ s.id }}"{% endif %}>
+            {% if can_reorder %}
+            <td class="text-center text-muted subject-sort-handle" style="cursor: grab;" title="Drag to reorder">
+              <i class="bi bi-grip-vertical fs-5" aria-hidden="true"></i>
+            </td>
+            {% endif %}
             <td>{{ s.name }}</td>
             <td><code>{{ s.code }}</code></td>
             <td class="text-center" style="width: 180px;">
@@ -62,37 +104,112 @@
               </button>
             </td>
           </tr>
-          <div class="modal fade" id="delSubject{{ s.id }}" tabindex="-1">
-            <div class="modal-dialog modal-dialog-centered">
-              <div class="modal-content">
-                <div class="modal-header">
-                  <h5 class="modal-title">Delete Subject</h5>
-                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">Delete <strong>{{ s.name }}</strong> ({{ s.code }})? This may affect marks, exams, and assignments that use this subject.</div>
-                <div class="modal-footer">
-                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                  <form method="post" action="{% url 'core:school_subject_delete' s.id %}" class="d-inline">{% csrf_token %}<button type="submit" class="btn btn-danger">Delete</button></form>
-                </div>
-              </div>
-            </div>
-          </div>
           {% empty %}
-          <tr><td colspan="3" class="text-center text-muted py-4">No subjects match your search. <a href="{% url 'core:school_subjects' %}">Clear filters</a>.</td></tr>
+          <tr><td colspan="{% if can_reorder %}4{% else %}3{% endif %}" class="text-center text-muted py-4">No subjects match your search. <a href="{% url 'core:school_subjects' %}">Clear filters</a>.</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-    {% if subjects.has_other_pages %}
+    {% if filters.q and subjects.has_other_pages %}
     <div class="card-footer d-flex justify-content-between align-items-center">
       <span class="small text-muted">Page {{ subjects.number }} of {{ subjects.paginator.num_pages }}</span>
       <ul class="pagination pagination-sm mb-0">
-        {% if subjects.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ subjects.previous_page_number }}{% if filters.q %}&q={{ filters.q }}{% endif %}">Previous</a></li>{% endif %}
-        {% if subjects.has_next %}<li class="page-item"><a class="page-link" href="?page={{ subjects.next_page_number }}{% if filters.q %}&q={{ filters.q }}{% endif %}">Next</a></li>{% endif %}
+        {% if subjects.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ subjects.previous_page_number }}{% if filters.q %}&q={{ filters.q|urlencode }}{% endif %}">Previous</a></li>{% endif %}
+        {% if subjects.has_next %}<li class="page-item"><a class="page-link" href="?page={{ subjects.next_page_number }}{% if filters.q %}&q={{ filters.q|urlencode }}{% endif %}">Next</a></li>{% endif %}
       </ul>
     </div>
     {% endif %}
   </div>
+
   {% endif %}
 </div>
+{% endblock %}
+
+{% block modals %}
+{% if total_subjects %}
+{% for s in subjects %}
+<div class="modal fade" id="delSubject{{ s.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Delete Subject</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">Delete <strong>{{ s.name }}</strong> ({{ s.code }})? This may affect marks, exams, and assignments that use this subject.</div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <form method="post" action="{% url 'core:school_subject_delete' s.id %}" class="d-inline">{% csrf_token %}<button type="submit" class="btn btn-danger">Delete</button></form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+{% block after_bootstrap %}
+{% if can_reorder %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script>
+(function() {
+  var tbody = document.getElementById("subject-sort-tbody");
+  var btn = document.getElementById("btnSaveSubjectOrder");
+  var saveUrl = "{% url 'core:api_subjects_save_order' %}";
+  var meta = document.querySelector('meta[name="csrf-token"]');
+  var csrf = meta ? meta.getAttribute("content") : "";
+  if (!tbody || !btn || typeof Sortable === "undefined") return;
+
+  var dirty = false;
+  Sortable.create(tbody, {
+    animation: 150,
+    handle: ".subject-sort-handle",
+    filter: "button, .btn, a, input, select, textarea, [data-bs-toggle]",
+    preventOnFilter: false,
+    ghostClass: "table-active",
+    onSort: function() {
+      dirty = true;
+      btn.disabled = false;
+    }
+  });
+
+  function getCookie(name) {
+    var v = document.cookie.match("(^|;) ?" + name + "=([^;]*)(;|$)");
+    return v ? decodeURIComponent(v[2]) : "";
+  }
+
+  btn.addEventListener("click", function() {
+    if (!dirty) return;
+    var rows = tbody.querySelectorAll("tr[data-subject-id]");
+    var order = [];
+    rows.forEach(function(tr) {
+      order.push(parseInt(tr.getAttribute("data-subject-id"), 10));
+    });
+    var token = csrf || getCookie("csrftoken");
+    fetch(saveUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": token
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({ order: order })
+    })
+      .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; }); })
+      .then(function(res) {
+        if (res.ok && res.data && res.data.ok) {
+          dirty = false;
+          btn.disabled = true;
+          alert(res.data.message || "Display order saved.");
+        } else {
+          var msg = (res.data && res.data.error) ? res.data.error : "Could not save order.";
+          alert(msg);
+        }
+      })
+      .catch(function() {
+        alert("Network error while saving order.");
+      });
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}

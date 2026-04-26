@@ -16,6 +16,19 @@
   .fee-kpi-card:hover { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(15,23,42,.1); }
   html.dark .fee-kpi-card { box-shadow: 0 12px 36px rgba(0,0,0,.35); }
   .fee-kpi-icon { width: 44px; height: 44px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+  .fee-billing-class-card {
+    background: var(--fh-card);
+    border: 1px solid var(--fh-border) !important;
+    border-radius: 1.15rem;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .fee-billing-class-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+    border-color: rgba(79, 70, 229, 0.28) !important;
+  }
+  html.dark .fee-billing-class-card:hover { box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4); }
   .fee-section-card {
     background: var(--fh-card); border: 1px solid var(--fh-border); border-radius: 1.25rem;
     box-shadow: 0 1px 3px rgba(15,23,42,.05); overflow: hidden;
@@ -27,6 +40,19 @@
   html.dark .fee-stmt thead th { background: rgba(15,23,42,.8); }
   .chart-box { height: 260px; position: relative; }
   @media (min-width: 992px) { .chart-box { height: 280px; } }
+  /* Fee category: height set in JS from bar count — avoids a huge empty chart for 1–2 categories */
+  .chart-box-fee-category {
+    position: relative;
+    min-height: 120px;
+    max-height: 380px;
+  }
+  .chart-box--mix {
+    height: 240px;
+    position: relative;
+  }
+  @media (min-width: 992px) {
+    .chart-box--mix { height: 260px; }
+  }
   .fee-structure-class-card {
     background: var(--fh-card); border: 1px solid var(--fh-border); border-radius: 1.25rem;
     box-shadow: 0 2px 12px rgba(15,23,42,.06), 0 1px 3px rgba(15,23,42,.04);
@@ -85,7 +111,7 @@
   <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
     <div>
       <h1 class="h4 fw-bold mb-1">Billing dashboard</h1>
-      <p class="small mb-0" style="color: var(--fh-muted);">KPIs · charts · fee structure by class</p>
+      <p class="small mb-0" style="color: var(--fh-muted);">KPIs · class-wise finances · charts</p>
     </div>
     <div class="d-flex flex-wrap gap-2 align-items-center">
       <form method="get" class="d-flex align-items-center gap-2">
@@ -201,6 +227,37 @@
     </div>
   </div>
 
+  {# —— Class-wise finances (drill-down) —— #}
+  {% if fee_class_summaries %}
+  <div class="mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+      <div>
+        <h2 class="h6 fw-bold mb-1">Class-wise finances</h2>
+        <p class="small text-muted mb-0">Net dues, concessions, collected, and pending per class — click a card for the full breakdown.</p>
+      </div>
+      <a href="{% url 'core:billing_fee_structure' %}" class="btn btn-sm btn-outline-primary rounded-pill">Add / edit structures</a>
+    </div>
+    <div class="row g-3">
+      {% for c in fee_class_summaries %}
+      <div class="col-6 col-md-4 col-xl-3">
+        <div class="fee-billing-class-card card h-100 shadow-sm position-relative">
+          <div class="card-body">
+            <h6 class="fw-semibold mb-2">{{ c.class_name }}</h6>
+            <p class="mb-1 small text-muted">Total (net): <span class="text-body fw-medium">₹{{ c.total_expected|inr }}</span></p>
+            <p class="mb-1 small text-muted">Per student: <span class="text-body fw-medium">₹{{ c.total_per_student|inr }}</span></p>
+            <p class="mb-1 small text-success">Paid: ₹{{ c.collected|inr }}</p>
+            <p class="mb-1 small text-warning">Pending: ₹{{ c.pending|inr }}</p>
+            <p class="mb-2 small text-info">Concession: ₹{{ c.total_discount_amt|inr }}</p>
+            <span class="badge rounded-pill {% if c.status_key == 'clear' %}text-bg-success{% elif c.status_key == 'outstanding' %}text-bg-warning text-dark{% else %}text-bg-secondary{% endif %}">{{ c.status_label }}</span>
+            <a href="{% url 'core:billing_class_financial_summary' classroom_id=c.classroom_id %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}" class="stretched-link" aria-label="Open {{ c.class_name }} financial summary"></a>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   {# —— Charts —— #}
   <div class="row g-3 mb-4">
     <div class="col-lg-5">
@@ -225,221 +282,29 @@
     </div>
   </div>
 
-  <div class="row g-3 mb-4">
-    <div class="col-12">
-      <div class="fee-section-card">
+  <div class="row g-3 mb-4 align-items-stretch" id="fee-category-row">
+    <div class="col-12 col-lg-7" id="fee-category-bar-col">
+      <div class="fee-section-card h-100">
         <div class="fee-section-head d-flex justify-content-between align-items-center flex-wrap gap-2">
           <span class="fw-bold">Collection by fee category</span>
-          <span class="small text-muted">Paid amounts grouped by fee type</span>
+          <span class="small text-muted">Paid amounts by fee type (bars scale to count)</span>
         </div>
-        <div class="p-3"><div class="chart-box"><canvas id="feeChartCategory"></canvas></div></div>
+        <div class="p-3 pt-2">
+          <p id="fee-category-empty" class="text-center text-muted small py-4 mb-0 d-none">No fee collections by category for this academic year yet.</p>
+          <div class="chart-box-fee-category d-none" id="fee-category-bar-wrap"><canvas id="feeChartCategory"></canvas></div>
+        </div>
       </div>
     </div>
-  </div>
-
-  {# —— Fee structure by class (summary + details) —— #}
-  <div class="fee-section-card mb-4" id="fee-structure-by-class">
-    <div class="fee-section-head d-flex flex-wrap justify-content-between align-items-center gap-2">
-      <div>
-        <span class="fw-bold">Fee structure by class</span>
-        <span class="small text-muted d-block">Summary per class — open a row for fee lines, apply dues, and student preview.</span>
-      </div>
-      <a href="{% url 'core:billing_fee_structure' %}" class="btn btn-sm btn-outline-primary rounded-pill">Add / edit structures</a>
-    </div>
-    <div class="p-3 p-lg-4">
-      {% if not fee_class_summaries %}
-      <p class="text-center text-muted py-5 mb-0">No classes for this academic year. <a href="{% url 'core:billing_fee_structure' %}">Configure fee structures</a> after adding classes.</p>
-      {% else %}
-      <div class="accordion fee-class-accordion" id="feeClassAccordion">
-        {% for c in fee_class_summaries %}
-        <div class="accordion-item fee-structure-class-card border-0 mb-3">
-          <h2 class="accordion-header" id="feeClassH{{ c.classroom_id }}">
-            <button class="accordion-button collapsed rounded-4 py-3 px-3 px-lg-4 shadow-none fee-class-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#feeClassC{{ c.classroom_id }}" aria-expanded="false" aria-controls="feeClassC{{ c.classroom_id }}">
-              <div class="w-100 pe-2">
-                <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
-                  <div class="flex-grow-1" style="min-width: 12rem;">
-                    <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
-                      <span class="fw-bold fs-6">{{ c.class_name }}</span>
-                      {% if c.sections_label and c.sections_label != "—" %}
-                      <span class="badge rounded-pill badge-erp badge-erp-inactive fw-normal">{{ c.sections_label }}</span>
-                      {% endif %}
-                    </div>
-                    <div class="small text-muted">Students <strong class="text-body">{{ c.student_count|inri }}</strong>
-                      {% if c.applied_students %}· Applied dues <strong class="text-body">{{ c.applied_students|inri }}</strong>{% endif %}
-                    </div>
-                    <div class="small text-primary fw-semibold mt-1 d-none d-sm-block"><i class="bi bi-chevron-expand me-1"></i>View details</div>
-                  </div>
-                  <div class="text-end">
-                    <div class="small text-muted text-uppercase fw-semibold" style="letter-spacing:.04em;">Total / student</div>
-                    <div class="fw-bold">₹{{ c.total_per_student|inr }}</div>
-                  </div>
-                  <div class="d-flex flex-wrap gap-3 align-items-end">
-                    <div>
-                      <div class="small text-muted text-uppercase fw-semibold" style="letter-spacing:.04em;">Expected</div>
-                      <div class="fw-bold">₹{{ c.total_expected|inr }}</div>
-                    </div>
-                    <div>
-                      <div class="small text-success text-uppercase fw-semibold" style="letter-spacing:.04em;">Collected</div>
-                      <div class="fw-bold text-success">₹{{ c.collected|inr }}</div>
-                    </div>
-                    <div>
-                      <div class="small text-warning text-uppercase fw-semibold" style="letter-spacing:.04em;">Pending</div>
-                      <div class="fw-bold text-warning">₹{{ c.pending|inr }}</div>
-                    </div>
-                    <div>
-                      {% if c.status_key == 'clear' %}
-                      <span class="badge rounded-pill badge-erp badge-erp-active px-3 py-2">{{ c.status_label }}</span>
-                      {% elif c.status_key == 'outstanding' %}
-                      <span class="badge rounded-pill badge-erp badge-erp-pending px-3 py-2">{{ c.status_label }}</span>
-                      {% else %}
-                      <span class="badge rounded-pill badge-erp badge-erp-inactive px-3 py-2">{{ c.status_label }}</span>
-                      {% endif %}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </button>
-          </h2>
-          <div id="feeClassC{{ c.classroom_id }}" class="accordion-collapse collapse" aria-labelledby="feeClassH{{ c.classroom_id }}">
-            <div class="accordion-body fee-structure-detail p-3 p-lg-4 pt-0">
-              <div class="d-flex flex-wrap gap-2 mb-4 pt-2 border-top border-opacity-50">
-                <a href="{% url 'core:billing_fee_structure' %}" class="btn btn-sm btn-outline-secondary rounded-pill"><i class="bi bi-pencil-square me-1"></i>Edit fee structure</a>
-              </div>
-              <p class="small text-muted mb-3">Use <strong>Apply</strong> to post dues for all students in this class (optional section).</p>
-
-              <div class="row g-4">
-                <div class="col-lg-5">
-                  <h3 class="h6 fw-bold mb-3">{{ c.class_name }} — fee structure</h3>
-                  {% if c.breakdown %}
-                  <div class="table-responsive rounded-3 border" style="border-color: var(--fh-border) !important;">
-                    <table class="table table-sm align-middle mb-0">
-                      <thead><tr><th>Fee type</th><th class="text-end">Amount</th></tr></thead>
-                      <tbody>
-                        {% for line in c.breakdown %}
-                        <tr>
-                          <td>
-                            <div class="fw-semibold">{{ line.fee_type_name }}</div>
-                            <div class="small text-muted">{{ line.frequency }}{% if line.due_day %} · Due day {{ line.due_day }}{% endif %}</div>
-                          </td>
-                          <td class="text-end font-monospace fw-bold">₹{{ line.amount|inr }}</td>
-                        </tr>
-                        {% endfor %}
-                        <tr class="table-light fw-bold">
-                          <td>Total</td>
-                          <td class="text-end font-monospace">₹{{ c.total_per_student|inr }}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                  {% else %}
-                  <p class="text-muted small mb-0">No active fee lines for this class in the selected year. <a href="{% url 'core:billing_fee_structure' %}">Add structure</a>.</p>
-                  {% endif %}
-                </div>
-                <div class="col-lg-7">
-                  <h3 class="h6 fw-bold mb-3">Collection snapshot</h3>
-                  <div class="row g-2 mb-4">
-                    <div class="col-6 col-sm-3">
-                      <div class="rounded-3 border p-3 h-100" style="border-color: var(--fh-border) !important;">
-                        <div class="small text-muted">Applied students</div>
-                        <div class="fs-5 fw-bold">{{ c.applied_students|inri }}</div>
-                      </div>
-                    </div>
-                    <div class="col-6 col-sm-3">
-                      <div class="rounded-3 border p-3 h-100" style="border-color: var(--fh-border) !important;">
-                        <div class="small text-muted">Discount students</div>
-                        <div class="fs-5 fw-bold">{{ c.discount_students_count|inri }}</div>
-                      </div>
-                    </div>
-                    <div class="col-6 col-sm-3">
-                      <div class="rounded-3 border p-3 h-100 border-success border-opacity-25">
-                        <div class="small text-success">Paid (cleared)</div>
-                        <div class="fs-5 fw-bold text-success">{{ c.paid_students_count|inri }}</div>
-                      </div>
-                    </div>
-                    <div class="col-6 col-sm-3">
-                      <div class="rounded-3 border p-3 h-100 border-warning border-opacity-25">
-                        <div class="small text-warning">Pending balance</div>
-                        <div class="fs-5 fw-bold text-warning">{{ c.pending_students_count|inri }}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <h3 class="h6 fw-bold mb-2">Apply to students</h3>
-                  {% if c.structures %}
-                  <div class="vstack gap-3 mb-4">
-                    {% for struct in c.structures %}
-                    <form method="post" action="{% url 'core:billing_structure_apply' struct.id %}" class="row g-2 align-items-end p-3 rounded-3 border" style="border-color: var(--fh-border) !important;">
-                      {% csrf_token %}
-                      <div class="col-12 col-sm-4 col-md-3">
-                        <label class="form-label small text-muted mb-0">{{ struct.fee_type.name }}</label>
-                        <div class="small fw-semibold">₹{{ struct.amount|inr }}</div>
-                      </div>
-                      <div class="col-6 col-sm-4 col-md-3">
-                        <label class="form-label small text-muted mb-0">Due date</label>
-                        <input type="date" name="due_date" class="form-control form-control-sm rounded-3" required>
-                      </div>
-                      <div class="col-6 col-sm-4 col-md-3">
-                        <label class="form-label small text-muted mb-0">Section</label>
-                        <select name="section_id" class="form-select form-select-sm rounded-3">
-                          <option value="">All sections</option>
-                          {% for sec in fee_sections %}
-                          {% if sec.classroom_id == c.classroom_id %}
-                          <option value="{{ sec.id }}">{{ sec.name }}</option>
-                          {% endif %}
-                          {% endfor %}
-                        </select>
-                      </div>
-                      <div class="col-12 col-md-3">
-                        <button type="submit" class="btn btn-sm btn-primary rounded-pill w-100">Apply dues</button>
-                      </div>
-                    </form>
-                    {% endfor %}
-                  </div>
-                  {% endif %}
-
-                  <h3 class="h6 fw-bold mb-2">Applied dues preview</h3>
-                  {% if c.preview_rows %}
-                  <div class="table-responsive rounded-3 border" style="max-height: 320px; border-color: var(--fh-border) !important;">
-                    <table class="table table-sm table-hover align-middle mb-0 fee-stmt">
-                      <thead>
-                        <tr>
-                          <th>Student</th>
-                          <th class="text-end">Total due</th>
-                          <th class="text-end">Discount</th>
-                          <th class="text-end">Final due</th>
-                          <th class="text-end">Paid</th>
-                          <th class="text-end">Balance</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {% for pr in c.preview_rows %}
-                        <tr>
-                          <td>
-                            <div class="fw-semibold">{{ pr.name }}</div>
-                            <div class="small text-muted">{{ pr.section }}</div>
-                          </td>
-                          <td class="text-end font-monospace small">₹{{ pr.total_due|inr }}</td>
-                          <td class="text-end font-monospace small text-secondary">₹{{ pr.discount|inr }}</td>
-                          <td class="text-end font-monospace small">₹{{ pr.final_due|inr }}</td>
-                          <td class="text-end font-monospace small text-success">₹{{ pr.paid|inr }}</td>
-                          <td class="text-end font-monospace small {% if pr.balance > 0 %}text-warning fw-semibold{% else %}text-success{% endif %}">₹{{ pr.balance|inr }}</td>
-                        </tr>
-                        {% endfor %}
-                      </tbody>
-                    </table>
-                  </div>
-                  <p class="small text-muted mt-2 mb-0">Showing up to 50 students with dues, sorted by balance.</p>
-                  {% else %}
-                  <p class="text-muted small mb-0">No fee dues recorded for students in this class for the selected year.</p>
-                  {% endif %}
-                </div>
-              </div>
-            </div>
-          </div>
+    <div class="col-12 col-lg-5" id="fee-category-mix-col">
+      <div class="fee-section-card h-100">
+        <div class="fee-section-head d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <span class="fw-bold">Share of collections</span>
+          <span class="small text-muted">Same data — proportion view</span>
         </div>
-        {% endfor %}
+        <div class="p-3 d-flex align-items-center justify-content-center">
+          <div class="chart-box--mix w-100"><canvas id="feeChartCategoryMix"></canvas></div>
+        </div>
       </div>
-      {% endif %}
     </div>
   </div>
 
@@ -562,31 +427,96 @@
   }
 
   var elCat = document.getElementById("feeChartCategory");
-  if (elCat && typeof Chart !== "undefined" && catLabels.length) {
-    var catColors = [
-      "rgba(79, 70, 229, 0.75)", "rgba(14, 165, 233, 0.75)", "rgba(16, 185, 129, 0.75)",
-      "rgba(245, 158, 11, 0.75)", "rgba(236, 72, 153, 0.75)", "rgba(139, 92, 246, 0.75)",
-      "rgba(20, 184, 166, 0.75)", "rgba(251, 113, 133, 0.75)", "rgba(99, 102, 241, 0.75)", "rgba(234, 179, 8, 0.75)"
-    ];
-    new Chart(elCat.getContext("2d"), {
-      type: "bar",
-      data: {
-        labels: catLabels,
-        datasets: [{
-          label: "Collected (₹)",
-          data: catVals,
-          borderRadius: 8,
-          backgroundColor: catLabels.map(function (_, i) { return catColors[i % catColors.length]; })
-        }]
-      },
-      options: Object.assign({}, commonOpts, {
-        plugins: Object.assign({}, rupeeTooltip.plugins, { legend: { display: false } }),
-        scales: {
-          y: Object.assign({ beginAtZero: true, grid: { color: "rgba(148,163,184,0.2)" } }, rupeeTick),
-          x: { grid: { display: false }, ticks: { maxRotation: 40, minRotation: 0, autoSkip: true } }
-        }
-      })
-    });
+  var elMix = document.getElementById("feeChartCategoryMix");
+  var catEmpty = document.getElementById("fee-category-empty");
+  var catBarWrap = document.getElementById("fee-category-bar-wrap");
+  var colMix = document.getElementById("fee-category-mix-col");
+  var barCol = document.getElementById("fee-category-bar-col");
+  var catColors = [
+    "rgba(79, 70, 229, 0.78)", "rgba(14, 165, 233, 0.78)", "rgba(16, 185, 129, 0.78)",
+    "rgba(245, 158, 11, 0.78)", "rgba(236, 72, 153, 0.78)", "rgba(139, 92, 246, 0.78)",
+    "rgba(20, 184, 166, 0.78)", "rgba(251, 113, 133, 0.78)", "rgba(99, 102, 241, 0.78)", "rgba(234, 179, 8, 0.78)"
+  ];
+  if (typeof Chart !== "undefined") {
+    if (!catLabels || !catLabels.length) {
+      if (catEmpty) catEmpty.classList.remove("d-none");
+      if (catBarWrap) catBarWrap.classList.add("d-none");
+      if (colMix) colMix.classList.add("d-none");
+      if (barCol) {
+        barCol.classList.remove("col-lg-7");
+        barCol.classList.add("col-lg-12");
+      }
+    } else {
+      if (barCol) {
+        barCol.classList.add("col-lg-7");
+        barCol.classList.remove("col-lg-12");
+      }
+      if (catEmpty) catEmpty.classList.add("d-none");
+      if (catBarWrap) {
+        catBarWrap.classList.remove("d-none");
+        var nCat = catLabels.length;
+        var barH = Math.min(380, Math.max(116, 28 + nCat * 54));
+        catBarWrap.style.height = barH + "px";
+      }
+      if (colMix) colMix.classList.remove("d-none");
+
+      if (elCat) {
+        new Chart(elCat.getContext("2d"), {
+          type: "bar",
+          data: {
+            labels: catLabels,
+            datasets: [{
+              label: "Collected (₹)",
+              data: catVals,
+              borderRadius: 8,
+              maxBarThickness: 40,
+              backgroundColor: catLabels.map(function (_, i) { return catColors[i % catColors.length]; })
+            }]
+          },
+          options: Object.assign({}, commonOpts, {
+            indexAxis: "y",
+            plugins: Object.assign({}, rupeeTooltip.plugins, { legend: { display: false } }),
+            scales: {
+              x: Object.assign({ beginAtZero: true, grid: { color: "rgba(148,163,184,0.2)" } }, rupeeTick),
+              y: {
+                grid: { display: false },
+                ticks: { autoSkip: false, font: { size: 11 } }
+              }
+            }
+          })
+        });
+      }
+
+      if (elMix) {
+        new Chart(elMix.getContext("2d"), {
+          type: "doughnut",
+          data: {
+            labels: catLabels,
+            datasets: [{
+              data: catVals,
+              backgroundColor: catLabels.map(function (_, i) { return catColors[i % catColors.length]; }),
+              borderWidth: 0
+            }]
+          },
+          options: Object.assign({}, commonOpts, {
+            plugins: {
+              legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 11 } } },
+              tooltip: {
+                callbacks: {
+                  label: function (ctx) {
+                    var v = ctx.raw;
+                    var total = ctx.dataset.data.reduce(function (a, b) { return a + b; }, 0);
+                    var pct = total > 0 ? ((v / total) * 100).toFixed(1) : "0";
+                    return (ctx.label || "") + ": ₹" + fmtINR(v) + " (" + pct + "%)";
+                  }
+                }
+              }
+            },
+            cutout: "52%"
+          })
+        });
+      }
+    }
   }
 })();
 </script>

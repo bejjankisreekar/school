@@ -1,5 +1,9 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Add exam paper | School ERP{% endblock %}
+{% block extra_head %}
+<script src="{% static 'js/exam-mark-components.js' %}"></script>
+{% endblock %}
 {% block content %}
 <div class="container-fluid px-0">
   <h1 class="h4 fw-bold mb-2">Add exam paper</h1>
@@ -27,6 +31,21 @@
             {{ form.total_marks }}
             {% if form.total_marks.errors %}<div class="invalid-feedback d-block">{{ form.total_marks.errors }}</div>{% endif %}
           </div>
+          <div class="col-12">
+            <div class="form-check form-switch mb-2">
+              {{ form.use_mark_components }}
+              <label class="form-check-label" for="{{ form.use_mark_components.id_for_label }}">Define mark components</label>
+            </div>
+            {{ form.mark_components_json }}
+            <div id="teacherMcRoot" class="border rounded-3 p-3 bg-body-secondary d-none" data-mc-empty-default="1">
+              <div class="d-flex justify-content-between gap-2 mb-2">
+                <span class="small fw-semibold">Components</span>
+                <span class="small text-muted">Total: <strong class="mc-total-val">0</strong></span>
+              </div>
+              <div class="mc-rows"></div>
+              <button type="button" class="btn btn-sm btn-outline-primary rounded-pill mt-1" data-mc-add><i class="bi bi-plus-lg"></i> Add component</button>
+            </div>
+          </div>
           <div class="col-md-6">
             <label class="form-label" for="{{ form.class_name.id_for_label }}">Class</label>
             {{ form.class_name }}
@@ -51,4 +70,33 @@
     </div>
   </div>
 </div>
+{% endblock %}
+{% block after_bootstrap %}
+<script>
+(function() {
+  var cb = document.getElementById("{{ form.use_mark_components.id_for_label }}");
+  var root = document.getElementById("teacherMcRoot");
+  var hid = document.getElementById("{{ form.mark_components_json.id_for_label }}");
+  var tm = document.getElementById("{{ form.total_marks.id_for_label }}");
+  var inited = false;
+  function refresh() {
+    if (!cb || !root || !hid) return;
+    var on = cb.checked;
+    root.classList.toggle("d-none", !on);
+    if (on && window.ErpExamMc) {
+      ErpExamMc.init(root, hid);
+      if (!inited) {
+        inited = true;
+        root.addEventListener("examMcChange", function(ev) {
+          if (tm && ev.detail.total > 0) tm.value = String(ev.detail.total);
+        });
+      }
+    }
+  }
+  if (cb) {
+    cb.addEventListener("change", refresh);
+    refresh();
+  }
+})();
+</script>
 {% endblock %}

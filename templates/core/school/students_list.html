@@ -38,13 +38,16 @@
     html.dark .students-module .students-table.erp-data-table--premium tbody tr:nth-child(even) {
       background-color: rgba(51, 65, 85, 0.55);
     }
+    .students-module .students-table.erp-data-table--premium tbody tr {
+      transition: background-color 250ms ease, box-shadow 250ms ease;
+    }
     .students-module .students-table.erp-data-table--premium tbody tr:hover {
-      background-color: rgba(79, 70, 229, 0.12) !important;
-      box-shadow: inset 3px 0 0 #4f46e5;
+      background-color: #f0f7ff !important;
+      box-shadow: inset 3px 0 0 rgba(59, 130, 246, 0.35);
     }
     html.dark .students-module .students-table.erp-data-table--premium tbody tr:hover {
-      background-color: rgba(99, 102, 241, 0.22) !important;
-      box-shadow: inset 3px 0 0 #818cf8;
+      background-color: rgba(96, 165, 250, 0.10) !important;
+      box-shadow: inset 3px 0 0 rgba(96, 165, 250, 0.35);
     }
     /* No table-hover: Bootstrap 5.3 uses a huge inset box-shadow on cells; mixed with
        app-theme-global td backgrounds it can look “stuck” after pointer leave. */

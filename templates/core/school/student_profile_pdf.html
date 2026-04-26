@@ -199,8 +199,12 @@
     <tr><td class="lbl">Stream</td><td class="val">{% if academic.stream %}{{ academic.stream }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
     <tr><td class="lbl">Course / branch</td><td class="val">{% if academic.course_branch %}{{ academic.course_branch }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
     <tr><td class="lbl">Semester / year</td><td class="val">{% if academic.semester_year %}{{ academic.semester_year }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
-    <tr><td class="lbl">Previous institution</td><td class="val">{% if academic.previous_institution %}{{ academic.previous_institution }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
-    <tr><td class="lbl">Previous marks</td><td class="val">{% if academic.previous_marks %}{{ academic.previous_marks }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Previous school name</td><td class="val">{% if academic.previous_institution %}{{ academic.previous_institution }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Academic year (previous school)</td><td class="val">{% if academic.previous_school_academic_year %}{{ academic.previous_school_academic_year }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Grade / class completed</td><td class="val">{% if academic.previous_grade_completed %}{{ academic.previous_grade_completed }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Board / medium</td><td class="val">{% if academic.previous_board %}{{ academic.previous_board }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Overall % or CGPA</td><td class="val">{% if academic.previous_marks %}{{ academic.previous_marks }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
+    <tr><td class="lbl">Subject-wise marks &amp; details</td><td class="val">{% if academic.previous_marks_breakdown %}{{ academic.previous_marks_breakdown|linebreaksbr }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
     <tr><td class="lbl">Registration no.</td><td class="val">{% if academic.registration_number %}{{ academic.registration_number }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
     <tr><td class="lbl">Student type</td><td class="val">{% if academic.student_type %}{{ academic.student_type }}{% else %}<span class="muted">Not provided</span>{% endif %}</td></tr>
     {% if status_block.record_status %}

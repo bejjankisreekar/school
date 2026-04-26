@@ -1,0 +1,208 @@
+{% with p=mf_prefix|default:"mf" %}
+<div class="master-fields-block">
+    <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+      <div>
+        <div class="fw-semibold">Master Fields Settings</div>
+        <div class="text-muted small">Tenant-scoped — stored in this school’s schema (not public).</div>
+      </div>
+      {% if request.user.role == "SUPERADMIN" %}
+        <form method="get" class="d-flex align-items-center gap-2">
+          <label class="small text-muted mb-0">School</label>
+          <select name="school" class="form-select form-select-sm rounded-3" onchange="this.form.submit()">
+            {% for s in settings_school_choices %}
+              <option value="{{ s.code }}" {% if settings_school and settings_school.code == s.code %}selected{% endif %}>
+                {{ s.name }} ({{ s.code }})
+              </option>
+            {% endfor %}
+          </select>
+        </form>
+      {% endif %}
+    </div>
+
+    <form method="post" class="row g-2 align-items-end mb-3">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="add_field" />
+
+      <div class="col-12 col-md-4">
+        <label class="form-label small mb-1" for="{{ p }}_field_key">Field Key</label>
+        <input id="{{ p }}_field_key" name="field_key" class="form-control rounded-3 mf-field-key-input" placeholder="e.g. gender / blood_group" required />
+      </div>
+      <div class="col-12 col-md-4">
+        <label class="form-label small mb-1" for="{{ p }}_display_label">Display Label</label>
+        <input id="{{ p }}_display_label" name="display_label" class="form-control rounded-3" placeholder="e.g. Male" required />
+      </div>
+      <div class="col-12 col-md-4">
+        <label class="form-label small mb-1" for="{{ p }}_option_value">Option Value</label>
+        <input id="{{ p }}_option_value" name="option_value" class="form-control rounded-3" placeholder="e.g. male" required />
+      </div>
+
+      <div class="col-12 col-md-4">
+        <label class="form-label small mb-1" for="{{ p }}_category">Category</label>
+        <input id="{{ p }}_category" list="{{ p }}_dropdownCategories" name="category" class="form-control rounded-3" placeholder="e.g. common / student / teacher" />
+        <datalist id="{{ p }}_dropdownCategories">
+          {% for c in dropdown_categories %}
+            <option value="{{ c }}"></option>
+          {% endfor %}
+        </datalist>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1" for="{{ p }}_display_order">Display Order</label>
+        <input id="{{ p }}_display_order" name="display_order" type="number" class="form-control rounded-3" value="0" min="0" />
+      </div>
+      <div class="col-6 col-md-2">
+        <div class="form-check mt-4">
+          <input class="form-check-input" type="checkbox" name="is_active" value="1" id="{{ p }}Active" checked />
+          <label class="form-check-label small" for="{{ p }}Active">Is Active</label>
+        </div>
+      </div>
+      <div class="col-12 col-md-4 text-md-end">
+        <button class="btn btn-primary rounded-3" type="submit">
+          <i class="bi bi-plus-circle"></i> Add Field
+        </button>
+      </div>
+    </form>
+
+    {% if not dropdown_fields %}
+      <div class="border rounded-4 p-4 text-center bg-body-tertiary mb-3">
+        <div class="fw-semibold mb-1">No fields created yet</div>
+        <div class="text-muted small mb-3">Create your first master dropdown option to start using dynamic fields across the ERP.</div>
+        <button type="button" class="btn btn-primary rounded-3" onclick="(function(){var el=document.getElementById('{{ p }}_field_key');if(el) el.focus();})();">
+          <i class="bi bi-plus-circle"></i> Create First Field
+        </button>
+      </div>
+    {% endif %}
+
+    <div class="table-responsive">
+      <table class="table align-middle table-hover">
+        <thead>
+          <tr class="text-muted small">
+            <th>Field Key</th>
+            <th>Label</th>
+            <th>Value</th>
+            <th>Category</th>
+            <th>Status</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in dropdown_fields %}
+            <tr>
+              <td class="fw-semibold">{{ f.field_key }}</td>
+              <td>{{ f.display_label }}</td>
+              <td class="text-muted">{{ f.option_value }}</td>
+              <td class="text-muted">{{ f.category|default:"—" }}</td>
+              <td>
+                {% if f.is_active %}
+                  <span class="badge text-bg-success">Active</span>
+                {% else %}
+                  <span class="badge text-bg-secondary">Inactive</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <div class="btn-group btn-group-sm" role="group">
+                  <form method="post" class="d-inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="toggle_active" />
+                    <input type="hidden" name="id" value="{{ f.id }}" />
+                    <button class="btn btn-outline-primary" type="submit">
+                      {% if f.is_active %}Deactivate{% else %}Activate{% endif %}
+                    </button>
+                  </form>
+                  <button
+                    type="button"
+                    class="btn btn-outline-secondary"
+                    data-bs-toggle="modal"
+                    data-bs-target="#editMasterFieldModal{{ p }}"
+                    data-id="{{ f.id }}"
+                    data-field_key="{{ f.field_key }}"
+                    data-display_label="{{ f.display_label }}"
+                    data-option_value="{{ f.option_value }}"
+                    data-category="{{ f.category }}"
+                    data-display_order="{{ f.display_order }}"
+                    data-is_active="{{ f.is_active|yesno:'1,0' }}"
+                  >
+                    Edit
+                  </button>
+                  <form method="post" class="d-inline" onsubmit="return confirm('Delete this option?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete_field" />
+                    <input type="hidden" name="id" value="{{ f.id }}" />
+                    <button class="btn btn-outline-danger" type="submit">Delete</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+</div>
+
+<div class="modal fade" id="editMasterFieldModal{{ p }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content rounded-4">
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="edit_field" />
+        <input type="hidden" name="id" id="{{ p }}EditId" />
+        <div class="modal-header">
+          <h5 class="modal-title">Edit master field</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-2">
+            <div class="col-md-4">
+              <label class="form-label small mb-1">Field Key</label>
+              <input class="form-control rounded-3" name="field_key" id="{{ p }}EditKey" required />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small mb-1">Display Label</label>
+              <input class="form-control rounded-3" name="display_label" id="{{ p }}EditLabel" required />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small mb-1">Option Value</label>
+              <input class="form-control rounded-3" name="option_value" id="{{ p }}EditValue" required />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small mb-1">Category</label>
+              <input class="form-control rounded-3" name="category" id="{{ p }}EditCategory" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small mb-1">Display Order</label>
+              <input class="form-control rounded-3" type="number" min="0" name="display_order" id="{{ p }}EditOrder" />
+            </div>
+            <div class="col-md-4">
+              <div class="form-check mt-4">
+                <input class="form-check-input" type="checkbox" name="is_active" value="1" id="{{ p }}EditActive" />
+                <label class="form-check-label small" for="{{ p }}EditActive">Is Active</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var modal = document.getElementById("editMasterFieldModal{{ p }}");
+    if (!modal) return;
+    modal.addEventListener("show.bs.modal", function (event) {
+      var btn = event.relatedTarget;
+      if (!btn) return;
+      document.getElementById("{{ p }}EditId").value = btn.getAttribute("data-id") || "";
+      document.getElementById("{{ p }}EditKey").value = btn.getAttribute("data-field_key") || "";
+      document.getElementById("{{ p }}EditLabel").value = btn.getAttribute("data-display_label") || "";
+      document.getElementById("{{ p }}EditValue").value = btn.getAttribute("data-option_value") || "";
+      document.getElementById("{{ p }}EditCategory").value = btn.getAttribute("data-category") || "";
+      document.getElementById("{{ p }}EditOrder").value = btn.getAttribute("data-display_order") || "0";
+      document.getElementById("{{ p }}EditActive").checked = (btn.getAttribute("data-is_active") || "") === "1";
+    });
+  })();
+</script>
+{% endwith %}

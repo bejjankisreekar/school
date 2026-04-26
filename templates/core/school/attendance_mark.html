@@ -599,7 +599,7 @@
           <p class="att-filter-card-sub">Choose the class roster and date, then load students to open the roll call.</p>
         </div>
       </div>
-      <form method="get" action="{% url 'core:attendance_list' %}" id="loadForm" class="att-load-form">
+      <form method="get" action="{% url 'core:attendance_list' %}" id="loadForm" class="att-load-form" data-erp-loading="Loading students...">
         {% if focus_student %}
         <input type="hidden" name="student_id" value="{{ focus_student.id }}">
         <input type="hidden" name="classroom_id" value="{{ classroom_id }}">
@@ -715,6 +715,11 @@
       <div class="text-start mb-3">
         <h2 class="h6 fw-bold mb-1">Roll call</h2>
         <p class="text-muted small mb-0">
+          <span class="fw-semibold text-body-secondary">Viewing:</span>
+          <span class="fw-semibold">{{ selected_class_name|default:"—" }}</span>
+          · Section <span class="fw-semibold">{{ selected_section_name|default:"—" }}</span>
+          · Date <span class="fw-semibold font-monospace">{{ attendance_date }}</span>
+          <span class="mx-1">·</span>
           {{ roll_call_total }} student{{ roll_call_total|pluralize }} total
           {% if roll_call_paginator and roll_call_paginator.num_pages > 1 %}
           · Page {{ roll_call_page_obj.number }} of {{ roll_call_paginator.num_pages }}
@@ -862,7 +867,7 @@
       {% endif %}
       <div class="d-flex flex-wrap align-items-center gap-2 align-self-end align-self-md-auto" id="attRollPerPage">
         <label for="attPerPageSelect" class="small fw-semibold text-muted mb-0">Rows per page:</label>
-        <form method="get" action="{% url 'core:attendance_list' %}" class="d-inline-flex align-items-center gap-2 mb-0 erp-filter-toolbar" id="attPerPageForm">
+        <form method="get" action="{% url 'core:attendance_list' %}" class="d-inline-flex align-items-center gap-2 mb-0 erp-filter-toolbar" id="attPerPageForm" data-erp-loading="Loading students...">
           <input type="hidden" name="classroom_id" value="{{ classroom_id }}">
           <input type="hidden" name="section_id" value="{{ section_id }}">
           <input type="hidden" name="attendance_date" value="{{ attendance_date }}">
@@ -1027,12 +1032,57 @@
       }
     }
 
+    function updateAttendancePctCells(pctUpdates) {
+      if (!pctUpdates) return;
+      rows.forEach(function(row) {
+        var sid = parseInt(row.getAttribute("data-student-id") || "0", 10);
+        if (!sid || !pctUpdates[String(sid)] && !pctUpdates[sid]) return;
+        var upd = pctUpdates[sid] || pctUpdates[String(sid)];
+        var cell = row.querySelector(".att-pct-cell");
+        if (!cell) return;
+
+        var pct = (upd && upd.att_pct != null) ? Number(upd.att_pct) : null;
+        var band = (upd && upd.att_pct_band) ? String(upd.att_pct_band) : null;
+        var tip = (upd && upd.att_tooltip) ? String(upd.att_tooltip) : "";
+
+        if (pct == null || !band) {
+          cell.innerHTML = "<span class=\"text-muted small\">—</span>";
+          return;
+        }
+        var pctSafe = Math.max(0, Math.min(100, Math.round(pct)));
+        var wrap = document.createElement("div");
+        wrap.className = "att-pct-tooltip-wrap";
+        wrap.setAttribute("data-bs-toggle", "tooltip");
+        wrap.setAttribute("data-bs-placement", "left");
+        wrap.setAttribute("title", tip);
+
+        wrap.innerHTML =
+          "<div class=\"d-flex align-items-center gap-2 flex-wrap\">" +
+          "<span class=\"att-pct-badge att-pct-badge--" + band + "\">" + pctSafe + "%</span>" +
+          "</div>" +
+          "<div class=\"att-pct-bar\" role=\"progressbar\" aria-valuenow=\"" + pctSafe + "\" aria-valuemin=\"0\" aria-valuemax=\"100\" aria-label=\"Attendance " + pctSafe + " percent\">" +
+          "<div class=\"att-pct-bar__fill att-pct-bar__fill--" + band + "\" style=\"width: " + pctSafe + "%;\"></div>" +
+          "</div>";
+
+        cell.innerHTML = "";
+        cell.appendChild(wrap);
+        try {
+          if (window.bootstrap && bootstrap.Tooltip) {
+            bootstrap.Tooltip.getOrCreateInstance(wrap, { container: "body" });
+          }
+        } catch (e) {}
+      });
+    }
+
     saveBtn.addEventListener("click", function() {
       if (saveBtn.disabled) return;
       var fd = new FormData(form);
       saveBtn.disabled = true;
       var prevHtml = saveBtn.innerHTML;
       saveBtn.innerHTML = "<span class=\"spinner-border spinner-border-sm me-1\" role=\"status\" aria-hidden=\"true\"></span>Saving…";
+      if (window.ErpLoading && typeof window.ErpLoading.show === "function") {
+        window.ErpLoading.show("Saving attendance...");
+      }
 
       fetch(form.action, {
         method: "POST",
@@ -1057,9 +1107,13 @@
         .then(function(result) {
           saveBtn.disabled = false;
           saveBtn.innerHTML = prevHtml;
+          if (window.ErpLoading && typeof window.ErpLoading.hide === "function") {
+            window.ErpLoading.hide();
+          }
           if (result.ok && result.data && result.data.ok) {
             showAttendanceToast("success", result.data.message || "Attendance saved successfully");
             markAllRowsSavedUi(result.data.summary);
+            updateAttendancePctCells(result.data.pct_updates);
           } else {
             var errMsg = (result.data && result.data.message) || "Failed to save attendance";
             showAttendanceToast("error", errMsg);
@@ -1068,6 +1122,9 @@
         .catch(function() {
           saveBtn.disabled = false;
           saveBtn.innerHTML = prevHtml;
+          if (window.ErpLoading && typeof window.ErpLoading.hide === "function") {
+            window.ErpLoading.hide();
+          }
           showAttendanceToast("error", "Failed to save attendance");
         });
     });

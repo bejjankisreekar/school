@@ -14,6 +14,7 @@ from django.db.utils import DatabaseError
 from django_tenants.utils import tenant_context
 
 from apps.customers.models import School
+from apps.school_data.classroom_ordering import ORDER_GRADE_NAME
 from apps.school_data.models import AcademicYear, ClassRoom, Fee, Payment, Section, Student, Teacher
 
 
@@ -237,7 +238,7 @@ def tenant_dropdowns_for_school(school: School) -> dict:
         with tenant_context(school):
             with transaction.atomic():
                 out["classrooms"] = list(
-                    ClassRoom.objects.order_by("name").values("id", "name")
+                    ClassRoom.objects.order_by(*ORDER_GRADE_NAME).values("id", "name")
                 )
                 out["sections"] = list(Section.objects.order_by("name").values("id", "name"))
                 out["academic_years"] = list(

@@ -1,0 +1,109 @@
+{% load nav_tags %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ invoice_title }} — {{ student_name }}</title>
+  {% if not is_pdf %}
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  {% endif %}
+  <style>
+    @page { margin: 12mm 14mm; size: A4; }
+    body {
+      font-family: DejaVu Sans, Helvetica, Arial, sans-serif;
+      font-size: 10pt;
+      color: #0f172a;
+      margin: 0;
+      padding: 0;
+      background: {% if is_pdf %}#fff{% else %}#f1f5f9{% endif %};
+    }
+    .inv-wrap { max-width: 800px; margin: 0 auto; padding: {% if is_pdf %}0{% else %}1.5rem 1rem 2rem{% endif %}; }
+    .inv-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: {% if is_pdf %}0{% else %}0.75rem{% endif %};
+      padding: 1.5rem 1.35rem;
+    }
+    .inv-table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+    .inv-table th, .inv-table td { border: 1px solid #cbd5e1; padding: 0.4rem 0.5rem; }
+    .inv-table thead th { background: #f1f5f9; font-weight: 700; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; color: #475569; }
+    .inv-kpi { border-radius: 0.5rem; border: 1px solid #e2e8f0; padding: 0.65rem 0.75rem; background: #f8fafc; }
+    @media print { .no-print { display: none !important; } body { background: #fff; } }
+  </style>
+</head>
+<body>
+  <div class="inv-wrap">
+    {% if not is_pdf %}
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 no-print">
+      <div class="small text-muted">Fee statement</div>
+      <div class="d-flex flex-wrap gap-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Print</button>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="inv-card">
+      {% include "partials/school_header.html" with doc_type="INVOICE" document=document school=school doc_subtitle=doc_subtitle %}
+
+      <table width="100%" style="width:100%; border-collapse:collapse; margin-bottom:12pt; font-size:9.5pt; border:1px solid #e2e8f0; table-layout:fixed;">
+        <tr>
+          <td style="vertical-align:top; padding:8pt; text-align:left; line-height:1.5;">
+            <strong>Student:</strong> {{ student_name }}<br>
+            <strong>Class / Section:</strong> {{ student_class }} — {{ student_section }}<br>
+            <strong>Admission No:</strong> {{ admission_number }}
+          </td>
+        </tr>
+      </table>
+
+      <table style="width:100%; border-collapse:separate; border-spacing:0.35rem; margin-bottom:1rem;">
+        <tr>
+          <td style="vertical-align:top; width:25%; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.65rem; background:#f8fafc;">
+            <div class="small text-muted text-uppercase" style="font-size:0.6rem;">Total fees</div>
+            <div class="fw-bold">₹{{ total_final|inr }}</div>
+          </td>
+          <td style="vertical-align:top; width:25%; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.65rem; background:#f8fafc;">
+            <div class="small text-muted text-uppercase" style="font-size:0.6rem;">Total paid</div>
+            <div class="fw-bold">₹{{ total_paid|inr }}</div>
+          </td>
+          <td style="vertical-align:top; width:25%; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.65rem; background:#f8fafc;">
+            <div class="small text-muted text-uppercase" style="font-size:0.6rem;">Concession</div>
+            <div class="fw-bold">₹{{ total_discount|inr }}</div>
+          </td>
+          <td style="vertical-align:top; width:25%; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.65rem; background:#f8fafc;">
+            <div class="small text-muted text-uppercase" style="font-size:0.6rem;">Pending</div>
+            <div class="fw-bold">₹{{ total_pending|inr }}</div>
+          </td>
+        </tr>
+      </table>
+
+      <div class="fw-bold mb-2 small text-uppercase" style="letter-spacing:0.06em; color:#64748b;">Fee-wise breakdown</div>
+      <table class="inv-table mb-3">
+        <thead>
+          <tr>
+            <th>Fee type</th>
+            <th class="text-end">Total (₹)</th>
+            <th class="text-end">Paid (₹)</th>
+            <th class="text-end">Pending (₹)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in ledger_rows %}
+          <tr>
+            <td>{{ row.fee_type_name }}</td>
+            <td class="text-end font-monospace">₹{{ row.final_due|inr }}</td>
+            <td class="text-end font-monospace text-success">₹{{ row.paid|inr }}</td>
+            <td class="text-end font-monospace {% if row.balance > 0 %}fw-bold text-danger{% else %}text-muted{% endif %}">₹{{ row.balance|inr }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="text-center text-muted py-4">No fee lines for this period.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <p class="small text-muted text-center mb-0">This is a statement of account and not a demand for payment unless amounts are shown as pending.</p>
+    </div>
+  </div>
+</body>
+</html>

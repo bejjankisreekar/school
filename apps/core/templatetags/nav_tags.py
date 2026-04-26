@@ -110,3 +110,31 @@ def nav_active_names(request, *url_names):
         if name and current == name:
             return "sidebar-nav-active"
     return ""
+
+
+@register.filter(name="admission_badge")
+def admission_badge(status: str) -> str:
+    """
+    Map admissions status -> Bootstrap badge color.
+    Used by Admissions Management module templates.
+    """
+    s = (status or "").upper()
+    return {
+        "NEW": "primary",
+        "UNDER_REVIEW": "info",
+        "DOCUMENT_PENDING": "warning",
+        "APPROVED": "success",
+        "REJECTED": "danger",
+        "JOINED": "secondary",
+    }.get(s, "secondary")
+
+
+@register.filter(name="get_item")
+def get_item(mapping, key):
+    """Template helper: safely read mapping[key] for dict-like objects."""
+    try:
+        if mapping is None:
+            return None
+        return mapping.get(key)
+    except Exception:
+        return None

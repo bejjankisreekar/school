@@ -2,44 +2,131 @@
 {% block title %}My Exams | School ERP{% endblock %}
 
 {% block content %}
+<style>
+  /* Compact SaaS layout */
+  /* Wider + denser (fit 3–4 cards/row) */
+  .mex-wrap { max-width: 1320px; margin: 0 auto; }
+  .mex-stack { display: grid; gap: 10px; }
+  .mex-hero {
+    border-radius: 14px;
+    border: 1px solid var(--bs-border-color-translucent);
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.14) 0%, rgba(99, 102, 241, 0.10) 55%, rgba(255, 255, 255, 0.55) 100%);
+    padding: 0.7rem 0.9rem;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+  }
+  html.dark .mex-hero {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.22) 0%, rgba(99, 102, 241, 0.16) 55%, rgba(15, 23, 42, 0.35) 100%);
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.35);
+  }
+  .mex-title { letter-spacing: -0.02em; }
+  .mex-sub { max-width: 78ch; font-size: 0.88rem; color: #6b7280; }
+  html.dark .mex-sub { color: #94a3b8; }
+  .mex-overall-pill {
+    border: 1px solid rgba(59,130,246,0.25);
+    background: rgba(59,130,246,0.10);
+  }
+  /* Prefer dense CSS grid instead of bootstrap cols for compactness */
+  .mex-grid {
+    /* Bootstrap grid handles columns; keep for minor tweaks only */
+  }
+  .mex-card {
+    position: relative;
+    border-radius: 14px;
+    border: 1px solid var(--bs-border-color-translucent);
+    background: var(--bs-body-bg);
+    overflow: hidden;
+    height: 100%;
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+    transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+  }
+  .mex-card::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    background: linear-gradient(180deg, rgba(59,130,246,0.95), rgba(99,102,241,0.75));
+    opacity: 0.9;
+  }
+  .mex-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+    border-color: rgba(59,130,246,0.28);
+  }
+  html.dark .mex-card { box-shadow: 0 14px 32px rgba(0, 0, 0, 0.35); }
+  html.dark .mex-card:hover { box-shadow: 0 22px 50px rgba(0, 0, 0, 0.48); border-color: rgba(99,102,241,0.40); }
+  .mex-card-title {
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin: 0;
+  }
+  .mex-meta { color: var(--bs-secondary-color); font-size: 0.84rem; }
+  .mex-meta i { opacity: 0.85; }
+  @media (prefers-reduced-motion: reduce) {
+    .mex-card { transition: none; }
+    .mex-card:hover { transform: none; }
+  }
+</style>
+
 <div class="container-fluid px-0">
-  <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
-    <div>
-      <h1 class="h4 fw-bold mb-1">My Exams</h1>
-      <p class="text-muted mb-0">Each card is an exam session or a single exam. Open it to see the subject schedule and marks.</p>
-    </div>
-    <div class="text-end">
-      <div class="small text-muted">Overall percentage</div>
-      <div class="d-flex align-items-center justify-content-end gap-2">
-        <button type="button"
-                class="badge bg-primary rounded-pill px-3 py-2 fs-6 border-0"
-                data-bs-toggle="modal"
-                data-bs-target="#overallPctModal"
-                title="Click to see how overall is calculated">
-          {{ overall_pct }}%
-        </button>
-        {% if overall_grade %}
-          <span class="badge bg-secondary" title="{{ overall_grade_tooltip|default:'' }}">{{ overall_grade }}</span>
-        {% endif %}
-        {% if overall_skipped_count %}
-          <span class="text-muted small"
-                title="{% if overall_has_any_result %}Skipped {{ overall_skipped_count }} pending result(s) in overall percentage.{% else %}No results published yet. Overall is shown as 0% for now.{% endif %}">
-            <i class="bi bi-info-circle"></i>
-          </span>
-        {% endif %}
+  <div class="mex-wrap">
+    <div class="mex-stack">
+    <div class="mex-hero">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+          <h1 class="h4 fw-bold mb-1 mex-title">My Exams</h1>
+          <p class="text-muted mb-0 mex-sub">
+            Each card is an exam session or a single exam. Open it to see the subject schedule and marks.
+          </p>
+        </div>
+        <div class="text-end">
+          <div class="small text-muted">Overall percentage</div>
+          <div class="d-flex align-items-center justify-content-end gap-2">
+            <button
+              type="button"
+              class="badge rounded-pill px-3 py-2 fs-6 border-0 mex-overall-pill text-primary"
+              data-bs-toggle="modal"
+              data-bs-target="#overallPctModal"
+              title="Click to see how overall is calculated"
+            >
+              {{ overall_pct }}%
+            </button>
+            {% if overall_grade %}
+              <span class="badge bg-secondary" title="{{ overall_grade_tooltip|default:'' }}">{{ overall_grade }}</span>
+            {% endif %}
+            {% if overall_skipped_count %}
+              <span class="text-muted small"
+                    title="{% if overall_has_any_result %}Skipped {{ overall_skipped_count }} pending result(s) in overall percentage.{% else %}No results published yet. Overall is shown as 0% for now.{% endif %}">
+                <i class="bi bi-info-circle"></i>
+              </span>
+            {% endif %}
+          </div>
+        </div>
       </div>
     </div>
-  </div>
 
   {% if exams %}
     <div class="row g-3">
       {% for exam in exams %}
-      <div class="col-sm-6 col-lg-4">
-        <div class="card border-0 shadow-sm rounded-4 h-100 exam-card">
-          <div class="card-body">
-            <h5 class="card-title fw-semibold">{{ exam.exam_name }}</h5>
-            <p class="text-muted small mb-2">
-              <i class="bi bi-calendar3 me-1"></i>
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="mex-card h-100">
+          <div class="p-3 py-2" style="padding-left:1.05rem;">
+            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+              <h3 class="h6 mex-card-title pe-2">{{ exam.exam_name }}</h3>
+              {% if exam.overall_pct is not None %}
+                <span class="badge rounded-pill bg-primary">{{ exam.overall_pct }}%</span>
+              {% else %}
+                <span class="badge rounded-pill bg-secondary-subtle text-secondary border">Pending</span>
+              {% endif %}
+            </div>
+
+            <div class="mex-meta mb-2">
+              <div class="mb-1">
+                <i class="bi bi-calendar3 me-1"></i>
               {% if exam.is_session %}
                 {% if exam.date_min and exam.date_max %}
                   {% if exam.date_min == exam.date_max %}{{ exam.date_min|date:"M j, Y" }}{% else %}{{ exam.date_min|date:"M j" }} – {{ exam.date_max|date:"M j, Y" }}{% endif %}
@@ -47,31 +134,33 @@
               {% else %}
                 {% if exam.exam_date %}{{ exam.exam_date|date:"M j, Y" }}{% else %}&#8212;{% endif %}
               {% endif %}
-            </p>
-            <p class="text-muted small mb-2">
-              <i class="bi bi-book me-1"></i>{{ exam.total_subjects }} subject{{ exam.total_subjects|pluralize }}
-            </p>
+              </div>
+              <div class="mb-1">
+                <i class="bi bi-building me-1"></i>{{ exam.class_name }} · {{ exam.section }}
+              </div>
+              <div>
+                <i class="bi bi-book me-1"></i>{{ exam.total_subjects }} subject{{ exam.total_subjects|pluralize }}
+              </div>
+            </div>
+
             <div class="d-flex justify-content-between align-items-center mt-3">
-              {% if exam.overall_pct is not None %}
-              <span class="badge bg-primary rounded-pill fs-6">{{ exam.overall_pct }}%</span>
-              {% if exam.grade %}
-                <span class="badge bg-secondary me-1" title="{{ exam.grade_tooltip|default:'' }}">{{ exam.grade }}</span>
-              {% endif %}
-              {% else %}
-              <span class="badge bg-light text-dark border rounded-pill fs-6">Awaiting results</span>
-              {% endif %}
+              <div class="d-flex gap-2 align-items-center">
+                {% if exam.grade %}
+                  <span class="badge bg-secondary" title="{{ exam.grade_tooltip|default:'' }}">{{ exam.grade }}</span>
+                {% endif %}
+              </div>
               {% if exam.is_session and exam.session_id %}
-              <a href="{% url 'core:student_exam_session_detail' exam.session_id %}" class="btn btn-outline-primary btn-sm">
-                View Details
-              </a>
+                <a href="{% url 'core:student_exam_session_detail' exam.session_id %}" class="btn btn-primary btn-sm rounded-pill px-3">
+                  <i class="bi bi-eye me-1"></i>Open
+                </a>
               {% elif exam.exam_id %}
-              <a href="{% url 'core:student_exam_detail_by_id' exam.exam_id %}" class="btn btn-outline-primary btn-sm">
-                View Details
-              </a>
+                <a href="{% url 'core:student_exam_detail_by_id' exam.exam_id %}" class="btn btn-primary btn-sm rounded-pill px-3">
+                  <i class="bi bi-eye me-1"></i>Open
+                </a>
               {% else %}
-              <a href="{% url 'core:student_exam_detail' exam.exam_name %}" class="btn btn-outline-primary btn-sm">
-                View Details
-              </a>
+                <a href="{% url 'core:student_exam_detail' exam.exam_name %}" class="btn btn-primary btn-sm rounded-pill px-3">
+                  <i class="bi bi-eye me-1"></i>Open
+                </a>
               {% endif %}
             </div>
           </div>
@@ -88,6 +177,7 @@
     </div>
   {% endif %}
 </div>
+    </div>
 
 <div class="modal fade" id="overallPctModal" tabindex="-1" aria-labelledby="overallPctModalLabel" aria-hidden="true" data-bs-backdrop="false">
   <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -166,14 +256,4 @@
     </div>
   </div>
 </div>
-
-<style>
-  .exam-card {
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-  .exam-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 0.5rem 1rem rgba(0,0,0,.15) !important;
-  }
-</style>
 {% endblock %}

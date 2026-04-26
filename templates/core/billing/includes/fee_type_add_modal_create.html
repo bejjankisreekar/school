@@ -1,0 +1,51 @@
+{# Bootstrap modal: add fee type without leaving the page (POSTs to current fee-structure view). #}
+<style>
+  /* Above .cfs-layer (2147483640) when “Edit fee structure batch” overlay is open */
+  #cfsAddFeeTypeModal.modal { z-index: 2147483650 !important; }
+  body.modal-open:has(#cfsAddFeeTypeModal.show) .modal-backdrop { z-index: 2147483649 !important; }
+</style>
+<div class="modal fade" id="cfsAddFeeTypeModal" tabindex="-1" aria-labelledby="cfsAddFeeTypeModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content rounded-4 border-0 shadow-lg">
+      <form method="post" action="{{ fee_structure_form_action }}">
+        {% csrf_token %}
+        <input type="hidden" name="save_fee_type" value="1">
+        {% if academic_year %}<input type="hidden" name="ay" value="{{ academic_year.id }}">{% endif %}
+        <div class="modal-header border-0 pb-0">
+          <div>
+            <h2 class="modal-title h5 fw-bold" id="cfsAddFeeTypeModalLabel">Add fee type</h2>
+            <p class="small text-muted mb-0">New categories appear in this list after you save.</p>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body pt-2">
+          {% if form_t.non_field_errors %}<div class="alert alert-danger rounded-3 small">{{ form_t.non_field_errors }}</div>{% endif %}
+          <div class="mb-3">
+            <label class="form-label small fw-semibold" for="{{ form_t.name.id_for_label }}">Name</label>
+            {{ form_t.name }}
+            {% if form_t.name.errors %}<div class="text-danger small mt-1">{{ form_t.name.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold" for="{{ form_t.code.id_for_label }}">Code <span class="text-muted fw-normal">(optional)</span></label>
+            {{ form_t.code }}
+            {% if form_t.code.errors %}<div class="text-danger small mt-1">{{ form_t.code.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold" for="{{ form_t.description.id_for_label }}">Description</label>
+            {{ form_t.description }}
+            {% if form_t.description.errors %}<div class="text-danger small mt-1">{{ form_t.description.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="form-check form-switch">
+            {{ form_t.is_active }}
+            <label class="form-check-label small" for="{{ form_t.is_active.id_for_label }}">Active (available for new fee structures)</label>
+          </div>
+          {% if form_t.is_active.errors %}<div class="text-danger small mt-1">{{ form_t.is_active.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-light rounded-pill border" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary rounded-pill px-4">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

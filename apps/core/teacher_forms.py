@@ -4,6 +4,7 @@ from django import forms
 from django.contrib.auth import get_user_model
 
 from apps.payroll.models import Payslip
+from apps.school_data.classroom_ordering import ORDER_AY_START_GRADE_NAME
 from apps.school_data.models import ClassRoom, Subject, Teacher, MasterDataOption
 
 from .forms import BS_INPUT, INPUT_CLASS
@@ -100,6 +101,7 @@ class TeacherMasterForm(forms.Form):
         label="Photo",
         widget=forms.ClearableFileInput(attrs={"class": "form-control"}),
     )
+    # Portal role must not be editable from the Teacher form (security).
     role = forms.ChoiceField(choices=User.Roles.choices, widget=forms.Select(attrs={"class": BS_INPUT}))
 
     subjects = forms.ModelMultipleChoiceField(
@@ -188,9 +190,9 @@ class TeacherMasterForm(forms.Form):
         self.school = school
         self.teacher = teacher
         super().__init__(*args, **kwargs)
-        self.fields["subjects"].queryset = Subject.objects.order_by("name")
+        self.fields["subjects"].queryset = Subject.objects.order_by("display_order", "name")
         self.fields["classrooms"].queryset = ClassRoom.objects.select_related("academic_year").order_by(
-            "academic_year__start_date", "name"
+            *ORDER_AY_START_GRADE_NAME
         )
 
         def _master_choices(master_key: str, empty_label: str = "— Select —"):
@@ -314,8 +316,11 @@ class TeacherMasterForm(forms.Form):
                 "record_status",
                 status_block.get("record_status") or ("ACTIVE" if teacher.user.is_active else "INACTIVE"),
             )
-        else:
+        # Never allow changing portal role from this form.
+        if "role" in self.fields:
             del self.fields["role"]
+
+        if not teacher:
             self.fields["password"].required = True
 
     def clean_username(self):

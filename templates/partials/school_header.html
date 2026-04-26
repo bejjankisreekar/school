@@ -1,0 +1,131 @@
+{# Professional print-ready header: school branding + document type / no / date. #}
+{# Expects: school, document (.number, .date), doc_type, doc_subtitle (optional), qr_data_uri (optional) #}
+<style>
+  .doc-header {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+    table-layout: fixed;
+  }
+  .doc-header td {
+    vertical-align: middle;
+    border: none;
+    padding: 0;
+  }
+  .doc-header .header-left {
+    width: 64px;
+    max-width: 64px;
+    padding-right: 12px;
+    vertical-align: middle !important;
+  }
+  .doc-header .school-logo {
+    width: 50px;
+    height: 50px;
+    max-width: 50px;
+    max-height: 50px;
+    object-fit: contain;
+    display: block;
+  }
+  .doc-header .header-center {
+    text-align: center;
+    padding: 0 10px;
+    vertical-align: middle !important;
+  }
+  .doc-header .school-name {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: #111827;
+    line-height: 1.2;
+  }
+  .doc-header .school-meta {
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: #6b7280;
+    line-height: 1.45;
+  }
+  .doc-header .header-right {
+    text-align: right;
+    width: 32%;
+    vertical-align: top !important;
+    padding-left: 10px;
+  }
+  .doc-header .doc-title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: #374151;
+    text-transform: uppercase;
+  }
+  .doc-header .doc-meta {
+    font-size: 12px;
+    color: #6b7280;
+    margin: 6px 0 0;
+    line-height: 1.5;
+  }
+  .doc-header .header-qr {
+    margin-top: 8px;
+  }
+  .doc-header .header-qr img {
+    width: 72px;
+    height: 72px;
+  }
+  .doc-subline {
+    text-align: center;
+    font-size: 10px;
+    color: #6b7280;
+    margin: 0 0 14px;
+    line-height: 1.4;
+  }
+  .header-divider {
+    border: none;
+    border-top: 2px solid #111827;
+    border-bottom: 1px solid #e5e7eb;
+    height: 4px;
+    margin: 10px 0 20px;
+    background: transparent;
+  }
+</style>
+
+<table class="doc-header" role="presentation" width="100%">
+  <tr>
+    <td class="header-left">
+      {% if school.logo_data_uri or school.logo_url %}
+      <img src="{% firstof school.logo_data_uri school.logo_url %}" alt="" class="school-logo">
+      {% endif %}
+    </td>
+    <td class="header-center">
+      <h2 class="school-name">{{ school.name }}</h2>
+      <p class="school-meta">
+        {% if school.address %}{{ school.address }}{% endif %}
+        {% if school.phone or school.email %}
+          {% if school.address %}<br>{% endif %}
+          {% if school.phone %}Phone: {{ school.phone }}{% endif %}
+          {% if school.phone and school.email %} | {% endif %}
+          {% if school.email %}Email: {{ school.email }}{% endif %}
+        {% endif %}
+        {% if school.website %}
+          <br>Web: {{ school.website }}
+        {% endif %}
+      </p>
+    </td>
+    <td class="header-right">
+      <h5 class="doc-title">{{ doc_type }}</h5>
+      <p class="doc-meta">
+        <strong>No:</strong> {{ document.number }}<br>
+        <strong>Date:</strong> {{ document.date|date:"M j, Y" }}
+      </p>
+      {% if qr_data_uri %}
+      <div class="header-qr">
+        <img src="{{ qr_data_uri }}" alt="">
+      </div>
+      <div style="font-size: 7px; color: #6b7280;">Scan to verify</div>
+      {% endif %}
+    </td>
+  </tr>
+</table>
+{% if doc_subtitle %}
+<p class="doc-subline">{{ doc_subtitle }}</p>
+{% endif %}
+<hr class="header-divider">

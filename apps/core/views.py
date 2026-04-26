@@ -13,8 +13,11 @@ from calendar import monthrange
 from io import BytesIO
 import csv
 import json
+import uuid
 from urllib.parse import urlencode
 import logging
+from functools import reduce
+from operator import or_ as _or_
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -22,7 +25,6 @@ logger = logging.getLogger(__name__)
 from django.db import connection, transaction
 from django.db.models import Case, Count, F, IntegerField, Max, Min, Prefetch, Q, Sum, Value, When
 from django.db.models.functions import Lower
-from django.db.models.expressions import RawSQL
 from django.core.paginator import Paginator
 from django.db.utils import DatabaseError, InternalError, IntegrityError, OperationalError, ProgrammingError
 from apps.core.tenant_scope import ensure_tenant_for_request
@@ -39,7 +41,15 @@ from apps.customers.models import (
     School,
 )
 from apps.school_data.exam_session_compat import examsession_create_compat
-from apps.school_data.homework_schema_repair import ensure_homework_enterprise_columns_if_missing
+from apps.school_data.homework_schema_repair import (
+    ensure_homework_audit_columns_if_missing,
+    ensure_homework_enterprise_columns_if_missing,
+)
+from apps.school_data.classroom_ordering import (
+    ORDER_AY_PK_GRADE_NAME,
+    ORDER_AY_START_GRADE_NAME,
+    ORDER_GRADE_NAME,
+)
 from apps.school_data.models import (
     Student,
     Teacher,
@@ -113,10 +123,12 @@ from apps.accounts.decorators import (
     superadmin_required,
     student_required,
     teacher_required,
+    teacher_or_admin_required,
     parent_required,
     feature_required,
 )
 from apps.core.pdf_utils import pdf_response, render_pdf_bytes
+from apps.core.student_attendance_services import get_student_attendance_summary
 
 # ======================
 # Public Pages
@@ -247,6 +259,66 @@ def enquiries_unread_count(request):
 # School Admin: Master Data APIs (tenant-scoped)
 # ======================
 
+_VALID_MASTER_KEYS = frozenset({k for k, _ in MasterDataOption.Key.choices})
+
+
+def _parse_master_json(request):
+    raw_body = ""
+    try:
+        raw_body = (request.body or b"").decode("utf-8", errors="ignore")
+    except Exception:
+        raw_body = ""
+    try:
+        payload = json.loads(raw_body or "{}")
+    except Exception:
+        payload = dict(request.POST or {})
+    return raw_body, payload
+
+
+def _master_data_update_from_payload(request, key: str, option_id: int, payload: dict):
+    """Apply update fields from payload to MasterDataOption (key + id)."""
+    school = request.user.school
+    if not school:
+        return JsonResponse({"error": "Unauthorized."}, status=403)
+    key = (key or "").strip()
+    if key not in _VALID_MASTER_KEYS:
+        return JsonResponse({"error": "Invalid master key."}, status=400)
+
+    obj = MasterDataOption.objects.filter(pk=option_id, key=key).first()
+    if not obj:
+        return JsonResponse({"error": "Not found."}, status=404)
+
+    if "name" in payload:
+        name = (payload.get("name") or "").strip()
+        if not name:
+            return JsonResponse({"error": "Please enter a valid value."}, status=400)
+        obj.name = name
+    if "display_order" in payload:
+        try:
+            obj.display_order = int(payload.get("display_order") or 0)
+        except Exception:
+            obj.display_order = 0
+    if "is_active" in payload:
+        obj.is_active = bool(payload.get("is_active"))
+
+    try:
+        obj.save_with_audit(request.user)
+    except IntegrityError:
+        return JsonResponse({"error": "This option already exists."}, status=409)
+    except Exception:
+        logger.exception("master_data_update failed (key=%s, id=%s)", key, option_id)
+        return JsonResponse({"error": "Could not save. Please try again."}, status=500)
+    return JsonResponse(
+        {
+            "ok": True,
+            "id": obj.id,
+            "name": obj.name,
+            "name_normalized": obj.name_normalized,
+            "is_active": obj.is_active,
+            "display_order": obj.display_order,
+        }
+    )
+
 
 @admin_required
 @require_GET
@@ -260,11 +332,11 @@ def master_data_list(request, key: str):
     if not school:
         return JsonResponse({"options": []}, status=403)
     key = (key or "").strip()
-    if key not in {k for k, _ in MasterDataOption.Key.choices}:
+    if key not in _VALID_MASTER_KEYS:
         return JsonResponse({"error": "Invalid master key."}, status=400)
     opts = (
         MasterDataOption.objects.filter(key=key, is_active=True)
-        .order_by("name")
+        .order_by("display_order", "name")
         .values("id", "name")
     )
     return JsonResponse({"options": list(opts)})
@@ -272,31 +344,209 @@ def master_data_list(request, key: str):
 
 @admin_required
 @require_POST
+def master_data_update(request, key: str, option_id: int):
+    """POST /api/master-data/<key>/<id>/update/ (JSON) -> update name/order/is_active."""
+    try:
+        payload = json.loads((request.body or b"{}").decode("utf-8") or "{}")
+    except Exception:
+        payload = {}
+    return _master_data_update_from_payload(request, (key or "").strip(), option_id, payload)
+
+
+@admin_required
+@require_POST
+def master_data_delete(request, key: str, option_id: int):
+    """POST /api/master-data/<key>/<id>/delete/ -> permanently remove the option row."""
+    school = request.user.school
+    if not school:
+        return JsonResponse({"error": "Unauthorized."}, status=403)
+    key = (key or "").strip()
+    if key not in _VALID_MASTER_KEYS:
+        return JsonResponse({"error": "Invalid master key."}, status=400)
+    obj = MasterDataOption.objects.filter(pk=option_id, key=key).first()
+    if not obj:
+        return JsonResponse({"error": "Not found."}, status=404)
+    try:
+        obj.delete()
+    except Exception:
+        logger.exception("master_data_delete failed (key=%s, id=%s)", key, option_id)
+        return JsonResponse({"error": "Could not delete. Please try again."}, status=500)
+    return JsonResponse({"ok": True})
+
+
+@admin_required
+@require_POST
+def master_data_reorder(request, key: str):
+    """POST /api/master-data/<key>/reorder/ (JSON: {"ids":[1,2,3]}) -> set display_order."""
+    school = request.user.school
+    if not school:
+        return JsonResponse({"error": "Unauthorized."}, status=403)
+    key = (key or "").strip()
+    if key not in _VALID_MASTER_KEYS:
+        return JsonResponse({"error": "Invalid master key."}, status=400)
+    try:
+        payload = json.loads((request.body or b"{}").decode("utf-8") or "{}")
+    except Exception:
+        payload = {}
+    ids = payload.get("ids") or []
+    if not isinstance(ids, list) or not ids:
+        return JsonResponse({"error": "Invalid ids."}, status=400)
+    try:
+        with transaction.atomic():
+            for idx, oid in enumerate(ids):
+                MasterDataOption.objects.filter(pk=int(oid), key=key).update(display_order=idx)
+    except Exception:
+        logger.exception("master_data_reorder failed (key=%s)", key)
+        return JsonResponse({"error": "Could not reorder. Please try again."}, status=500)
+    return JsonResponse({"ok": True})
+
+
+def _master_data_create_core(request, key: str):
+    """
+    Shared create implementation. ``key`` must already be validated against ``_VALID_MASTER_KEYS``.
+    """
+    school = request.user.school
+    if not school:
+        return JsonResponse({"error": "Unauthorized."}, status=403)
+    raw_body, payload = _parse_master_json(request)
+    name = payload.get("name") or ""
+    if isinstance(name, list):
+        name = name[0] if name else ""
+    name = (name or "").strip()
+    if not name:
+        return JsonResponse({"error": "Please enter a valid value."}, status=400)
+    name_norm = name.strip().lower()
+    if MasterDataOption.objects.filter(key=key, name_normalized=name_norm).exists():
+        return JsonResponse({"error": "This option already exists."}, status=409)
+    try:
+        with transaction.atomic():
+            next_order = (
+                (MasterDataOption.objects.filter(key=key).aggregate(m=Max("display_order")).get("m") or -1) + 1
+            )
+            obj = MasterDataOption(key=key, name=name, display_order=next_order)
+            obj.save_with_audit(request.user)
+    except IntegrityError:
+        return JsonResponse({"error": "This option already exists."}, status=409)
+    except (ProgrammingError, InternalError, DatabaseError):
+        error_id = uuid.uuid4().hex
+        logger.exception(
+            "master_data_create DB error [%s] (schema=%s, key=%s, name=%s)",
+            error_id,
+            getattr(connection, "schema_name", None),
+            key,
+            name,
+        )
+        return JsonResponse(
+            {
+                "error": "Database schema is not ready for this dropdown. Please run tenant migrations and try again.",
+                "error_id": error_id,
+            },
+            status=500,
+        )
+    except Exception:
+        error_id = uuid.uuid4().hex
+        logger.exception(
+            "master_data_create failed [%s] (schema=%s, key=%s, name=%s, body=%s)",
+            error_id,
+            getattr(connection, "schema_name", None),
+            key,
+            name,
+            raw_body[:500],
+        )
+        from django.conf import settings
+
+        msg = "Could not save. Please try again."
+        if getattr(settings, "DEBUG", False):
+            msg = f"{msg} (see server log, Error ID: {error_id})"
+        return JsonResponse({"error": msg, "error_id": error_id}, status=500)
+    return JsonResponse(
+        {
+            "id": obj.id,
+            "name": obj.name,
+            "name_normalized": obj.name_normalized,
+            "display_order": obj.display_order,
+            "is_active": obj.is_active,
+        },
+        status=201,
+    )
+
+
+@admin_required
+@require_POST
 def master_data_create(request, key: str):
     """
     POST /api/master-data/<key>/create/ (JSON: {"name": "X"}) ->
-      201 {"id": 1, "name": "X"}
+      201 {"id": 1, "name": "X", ...}
       409 {"error": "This option already exists."}
     """
     school = request.user.school
     if not school:
         return JsonResponse({"error": "Unauthorized."}, status=403)
     key = (key or "").strip()
-    if key not in {k for k, _ in MasterDataOption.Key.choices}:
+    if key not in _VALID_MASTER_KEYS:
         return JsonResponse({"error": "Invalid master key."}, status=400)
+    return _master_data_create_core(request, key)
+
+
+@admin_required
+@require_POST
+def master_dropdown_add_option(request):
+    """POST /api/master-dropdown/add-option/ JSON: {"key": "gender", "name": "..."}"""
+    _, payload = _parse_master_json(request)
+    key = (payload.get("key") or "").strip()
+    if key not in _VALID_MASTER_KEYS:
+        return JsonResponse({"error": "Invalid master key."}, status=400)
+    return _master_data_create_core(request, key)
+
+
+@admin_required
+@require_POST
+def master_dropdown_update(request):
+    """POST /api/master-dropdown/update/ JSON: {"key","id","name","display_order","is_active"}"""
     try:
-        payload = json.loads(request.body.decode("utf-8") or "{}")
+        payload = json.loads((request.body or b"{}").decode("utf-8") or "{}")
     except Exception:
         payload = {}
-    name = (payload.get("name") or "").strip()
-    if not name:
-        return JsonResponse({"error": "Please enter a valid value."}, status=400)
-    name_norm = name.lower()
-    if MasterDataOption.objects.filter(key=key, name_normalized=name_norm).exists():
-        return JsonResponse({"error": "This option already exists."}, status=409)
-    obj = MasterDataOption(key=key, name=name)
-    obj.save_with_audit(request.user)
-    return JsonResponse({"id": obj.id, "name": obj.name}, status=201)
+    key = (payload.get("key") or "").strip()
+    if key not in _VALID_MASTER_KEYS:
+        return JsonResponse({"error": "Invalid master key."}, status=400)
+    try:
+        option_id = int(payload.get("id"))
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "Invalid id."}, status=400)
+    update_payload = {k: payload[k] for k in ("name", "display_order", "is_active") if k in payload}
+    return _master_data_update_from_payload(request, key, option_id, update_payload)
+
+
+@admin_required
+@require_POST
+def master_dropdown_save_order(request):
+    """POST /api/master-dropdown/save-order/ JSON: {"key":"gender","items":[{"id":1,"order":0}, ...]}"""
+    school = request.user.school
+    if not school:
+        return JsonResponse({"error": "Unauthorized."}, status=403)
+    try:
+        payload = json.loads((request.body or b"{}").decode("utf-8") or "{}")
+    except Exception:
+        payload = {}
+    key = (payload.get("key") or "").strip()
+    if key not in _VALID_MASTER_KEYS:
+        return JsonResponse({"error": "Invalid master key."}, status=400)
+    items = payload.get("items")
+    if not isinstance(items, list) or not items:
+        return JsonResponse({"error": "Invalid items."}, status=400)
+    try:
+        with transaction.atomic():
+            for it in items:
+                oid = int(it.get("id"))
+                ord_val = int(it.get("order", 0))
+                MasterDataOption.objects.filter(pk=oid, key=key).update(display_order=ord_val)
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "Invalid items payload."}, status=400)
+    except Exception:
+        logger.exception("master_dropdown_save_order failed (key=%s)", key)
+        return JsonResponse({"error": "Could not reorder. Please try again."}, status=500)
+    return JsonResponse({"ok": True})
 
 
 @superadmin_required
@@ -1507,7 +1757,7 @@ def admin_dashboard(request):
             cnt=Count("students", filter=Q(students__user__school=school))
         )
         .values("name", "cnt")
-        .order_by("name")
+        .order_by("grade_order", "name")
     )
     class_distribution = [{"label": x["name"], "count": x["cnt"]} for x in class_dist_qs if x["cnt"]]
     show_class_chart = bool(class_distribution)
@@ -1769,6 +2019,7 @@ def _homework_queryset_for_teacher(teacher, user):
         return Homework.objects.none()
 
     ensure_homework_enterprise_columns_if_missing(connection)
+    ensure_homework_audit_columns_if_missing(connection)
 
     from .utils import teacher_class_section_pairs_display
 
@@ -1804,7 +2055,14 @@ def _homework_queryset_for_teacher(teacher, user):
     return (
         Homework.objects.filter(pk__in=pk_subq)
         .defer("attachment")
-        .select_related("subject", "assigned_by", "teacher", "teacher__user", "academic_year")
+        .select_related(
+            "subject",
+            "assigned_by",
+            "teacher",
+            "teacher__user",
+            "academic_year",
+            "modified_by",
+        )
         .prefetch_related("classes", "sections")
         .order_by("-due_date", "-created_at")
     )
@@ -1841,7 +2099,7 @@ def _teacher_assigned_subject_display(teacher):
             names.append(row.subject.name)
     if names:
         return ", ".join(names)
-    classrooms = list(teacher.classrooms.all().order_by("name"))
+    classrooms = list(teacher.classrooms.all().order_by(*ORDER_GRADE_NAME))
     if classrooms:
         return "Classes: " + ", ".join(c.name for c in classrooms)
     return "Not assigned"
@@ -2159,6 +2417,28 @@ def student_dashboard(request):
         pass
     from apps.school_data.calendar_policy import portal_holiday_widget_context
 
+    # Attendance trend (monthly % within academic year window) — for dashboard line chart
+    # Use up to last 6 months present in records (keeps chart compact).
+    month_buckets = {}
+    for r in attendance_year_records:
+        key = (r.date.year, r.date.month)
+        b = month_buckets.get(key)
+        if not b:
+            b = {"present": 0, "total": 0}
+            month_buckets[key] = b
+        b["total"] += 1
+        if r.status == "PRESENT":
+            b["present"] += 1
+    month_keys_sorted = sorted(month_buckets.keys())
+    month_keys_sorted = month_keys_sorted[-6:]
+    attendance_trend_labels = [date(y, m, 1).strftime("%b %Y") for (y, m) in month_keys_sorted]
+    attendance_trend_data = [
+        round((month_buckets[(y, m)]["present"] / month_buckets[(y, m)]["total"] * 100), 1)
+        if month_buckets[(y, m)]["total"]
+        else 0
+        for (y, m) in month_keys_sorted
+    ]
+
     return render(request, "core/student_dashboard/dashboard.html", {
         "attendance_list": list(attendance_year_qs.order_by("-date")),
         "total_days": total_att,
@@ -2196,6 +2476,8 @@ def student_dashboard(request):
         "attendance_pie": attendance_pie,
         "subject_chart_labels": subject_chart_labels,
         "subject_chart_data": subject_chart_data,
+        "attendance_trend_labels": attendance_trend_labels,
+        "attendance_trend_data": attendance_trend_data,
         "today_classes": today_classes,
         **portal_holiday_widget_context("student"),
     })
@@ -2493,6 +2775,32 @@ def _grading_policy_signature(bands: list[dict]) -> tuple:
 
 
 @admin_required
+@require_GET
+def school_settings_index(request):
+    """School admin: settings landing page."""
+    return render(
+        request,
+        "core/school/settings/index.html",
+        {
+            "items": [
+                {
+                    "title": "Master Dropdown Settings",
+                    "desc": "Manage reusable dropdown values used across Student, Teacher, Admissions, Attendance and Reports.",
+                    "href": reverse("core:school_master_dropdown_settings"),
+                    "icon": "bi-sliders",
+                },
+                {
+                    "title": "Grading System",
+                    "desc": "Configure grade boundaries (percent-based).",
+                    "href": reverse("core:school_grading_settings"),
+                    "icon": "bi-award",
+                },
+            ]
+        },
+    )
+
+
+@admin_required
 @require_http_methods(["GET", "POST"])
 def school_grading_settings(request):
     """School admin: configure grade boundaries (percent-based)."""
@@ -2552,6 +2860,133 @@ def school_grading_settings(request):
             "bands": bands,
             "is_default": is_default,
             "preview": _grade_tooltip_map(bands),
+        },
+    )
+
+
+@admin_required
+@require_GET
+def school_master_dropdown_settings(request):
+    """Settings: manage tenant master dropdown options (MasterDataOption)."""
+    selected_key = (request.GET.get("key") or "").strip() or MasterDataOption.Key.GENDER
+    valid_keys = {k for k, _ in MasterDataOption.Key.choices}
+    if selected_key not in valid_keys:
+        selected_key = MasterDataOption.Key.GENDER
+
+    q = (request.GET.get("q") or "").strip()
+    category = (request.GET.get("category") or "").strip()
+
+    # Segment definitions for *tenant* dropdown values (forms, admissions, etc.).
+    # Platform-wide analytics/report *registry* is public-schema AnalyticsField — not edited here.
+    categories = [
+        ("common", "Common fields", [
+            "gender", "blood_group", "nationality", "religion", "caste_category", "mother_tongue",
+            "marital_status", "transport_required", "status", "attendance_status",
+        ]),
+        ("student", "Student fields", [
+            "admission_source", "fee_category", "student_status", "previous_board", "medium_of_instruction",
+            "admission_status",
+        ]),
+        ("teacher", "Teacher / staff fields", [
+            "staff_type", "designation", "department", "qualification", "employment_type", "shift",
+            "reporting_manager", "experience_level", "payroll_category",
+        ]),
+        ("parent", "Parent fields", [
+            "relationship", "occupation", "annual_income_range", "education_level",
+        ]),
+    ]
+
+    cat_order = [ck for ck, _, _ in categories]
+    cat_title_short = {
+        "common": "Common",
+        "student": "Students",
+        "teacher": "Staff",
+        "parent": "Parents",
+    }
+
+    # key -> which segment slugs apply (only keys that exist on the model)
+    key_to_segments = {k: [] for k in valid_keys}
+    for ck, _, keys in categories:
+        for raw_k in keys:
+            if raw_k not in valid_keys:
+                continue
+            short = cat_title_short.get(ck, ck)
+            if short not in key_to_segments[raw_k]:
+                key_to_segments[raw_k].append(short)
+
+    # Primary segment for sorting / optgroups: first category block in order that lists this key
+    key_primary_cat = {}
+    for ck in cat_order:
+        for _ck, _, keys in categories:
+            if _ck != ck:
+                continue
+            for raw_k in keys:
+                if raw_k in valid_keys and raw_k not in key_primary_cat:
+                    key_primary_cat[raw_k] = ck
+
+    for k in valid_keys:
+        key_primary_cat.setdefault(k, "common")
+
+    choices_dict = dict(MasterDataOption.Key.choices)
+
+    def passes_filters(k: str) -> bool:
+        if category:
+            in_cat = False
+            for ck, _, keys in categories:
+                if ck != category:
+                    continue
+                if k in keys:
+                    in_cat = True
+                    break
+            if not in_cat:
+                return False
+        if q:
+            ql = q.lower()
+            label = choices_dict.get(k) or ""
+            if ql not in k.lower() and ql not in label.lower():
+                seg_blob = " ".join(key_to_segments.get(k, [])).lower()
+                if ql not in seg_blob:
+                    return False
+        return True
+
+    filtered_keys = [k for k in choices_dict if passes_filters(k)]
+    filtered_keys.sort(
+        key=lambda k: (cat_order.index(key_primary_cat.get(k, "common")), (choices_dict[k] or "").lower())
+    )
+
+    def option_row(k: str):
+        label = choices_dict[k]
+        seg = " · ".join(key_to_segments.get(k, []))
+        return (k, label, seg)
+
+    keys_choices = [option_row(k) for k in filtered_keys]
+
+    # When browsing all segments, group the Field key dropdown by primary segment (optgroups).
+    field_key_groups = None
+    if not category:
+        field_key_groups = []
+        for ck, cl, _ in categories:
+            row_keys = [k for k in filtered_keys if key_primary_cat.get(k) == ck]
+            if not row_keys:
+                continue
+            field_key_groups.append((cl, [option_row(k) for k in row_keys]))
+
+    selected_segments = " · ".join(key_to_segments.get(selected_key, []))
+
+    options = MasterDataOption.objects.filter(key=selected_key).order_by("display_order", "name")
+
+    return render(
+        request,
+        "core/school/settings/master_dropdowns.html",
+        {
+            "selected_key": selected_key,
+            "selected_segments": selected_segments,
+            "keys_choices": keys_choices,
+            "field_key_groups": field_key_groups,
+            "categories": categories,
+            "category": category,
+            "q": q,
+            "options": options,
         },
     )
 
@@ -3303,6 +3738,8 @@ def student_exam_session_detail(request, session_id):
         })
     overall_pct = round((total_o / total_m * 100), 1) if total_m else None
     overall_grade = _grade_from_pct_with_policy(overall_pct, bands) if overall_pct is not None else "—"
+    # Marks completeness: report card should be shown only when all papers have marks.
+    marks_complete = bool(papers) and all((marks_by_exam_id.get(p.id) is not None) for p in papers)
     return render(
         request,
         "core/student/exam_session_detail.html",
@@ -3313,6 +3750,10 @@ def student_exam_session_detail(request, session_id):
             "grade": overall_grade,
             "overall_grade_tooltip": tooltip_map.get(overall_grade, ""),
             "grade_tooltips": tooltip_map,
+            "marks_complete": marks_complete,
+            "show_incomplete_marks_modal": (request.GET.get("marks_incomplete") or "").strip() in ("1", "true", "yes"),
+            "total_obtained": total_o if total_m else None,
+            "total_max": total_m if total_m else None,
         },
     )
 
@@ -3853,6 +4294,23 @@ def student_report_card_session_view(request, session_id):
         or student.section.name != session_obj.section
     ):
         raise PermissionDenied
+    # Prevent report card if marks are not fully entered for this session.
+    papers = list(
+        _exam_papers_full_qs()
+        .filter(session=session_obj)
+        .order_by("date", "subject__name")
+    )
+    marks_by_exam_id = {
+        m.exam_id: m
+        for m in Marks.objects.filter(student=student, exam__session=session_obj).select_related("exam")
+    }
+    if papers and any((marks_by_exam_id.get(p.id) is None) for p in papers):
+        messages.warning(
+            request,
+            "Marks are not fully entered yet. Please contact your teacher.",
+        )
+        # Signal the session page to show a modal (also keeps it user-friendly without relying on toasts).
+        return redirect(reverse("core:student_exam_session_detail", args=[session_obj.id]) + "?marks_incomplete=1")
     context = _student_report_card_context(student, session=session_obj)
     return render(request, "core/student/report_card_view.html", context)
 
@@ -4120,9 +4578,9 @@ def school_students_list(request):
     export = (request.GET.get("export") or "").strip().lower()
     # Ordering
     if classroom_source == "student":
-        order_by = ("classroom__name", "section__name", "roll_number")
+        order_by = ("classroom__grade_order", "classroom__name", "section__name", "roll_number")
     elif classroom_source == "section":
-        order_by = ("section__classroom__name", "section__name", "roll_number")
+        order_by = ("section__classroom__grade_order", "section__classroom__name", "section__name", "roll_number")
     else:
         order_by = ("section__name", "roll_number")
 
@@ -4179,7 +4637,7 @@ def school_students_list(request):
             or (s.user.date_joined.date().isoformat() if getattr(s.user, "date_joined", None) else "")
         )
 
-    classrooms = ClassRoom.objects.select_related("academic_year").order_by("academic_year__start_date", "name")
+    classrooms = ClassRoom.objects.select_related("academic_year").order_by(*ORDER_AY_START_GRADE_NAME)
     sections = Section.objects.all().order_by("name")
     years = AcademicYear.objects.order_by("-start_date")
 
@@ -4310,7 +4768,11 @@ def school_student_add(request):
                     "stream": data.get("stream") or "",
                     "student_type": data.get("student_type") or "",
                     "previous_institution": data.get("previous_institution") or "",
+                    "previous_school_academic_year": data.get("previous_school_academic_year") or "",
+                    "previous_grade_completed": data.get("previous_grade_completed") or "",
+                    "previous_board": data.get("previous_board") or "",
                     "previous_marks": data.get("previous_marks") or "",
+                    "previous_marks_breakdown": data.get("previous_marks_breakdown") or "",
                 },
                 "parents": {
                     "father_name": data.get("father_name") or "",
@@ -4575,7 +5037,11 @@ def school_student_edit(request, student_id):
         "course_branch": academic.get("course_branch") or "",
         "semester_year": academic.get("semester_year") or "",
         "previous_institution": academic.get("previous_institution") or "",
+        "previous_school_academic_year": academic.get("previous_school_academic_year") or "",
+        "previous_grade_completed": academic.get("previous_grade_completed") or "",
+        "previous_board": academic.get("previous_board") or "",
         "previous_marks": academic.get("previous_marks") or "",
+        "previous_marks_breakdown": academic.get("previous_marks_breakdown") or "",
         "stream": academic.get("stream") or "",
         "student_type": academic.get("student_type") or "",
 
@@ -4688,7 +5154,11 @@ def school_student_edit(request, student_id):
                     "stream": data.get("stream") or "",
                     "student_type": data.get("student_type") or "",
                     "previous_institution": data.get("previous_institution") or "",
+                    "previous_school_academic_year": data.get("previous_school_academic_year") or "",
+                    "previous_grade_completed": data.get("previous_grade_completed") or "",
+                    "previous_board": data.get("previous_board") or "",
                     "previous_marks": data.get("previous_marks") or "",
+                    "previous_marks_breakdown": data.get("previous_marks_breakdown") or "",
                 },
                 "parents": {
                     "father_name": data.get("father_name") or "",
@@ -4952,8 +5422,8 @@ def school_teachers_list(request):
     }
 
     filter_options = {
-        "subjects": Subject.objects.order_by("name"),
-        "classrooms": ClassRoom.objects.select_related("academic_year").order_by("academic_year__start_date", "name"),
+        "subjects": Subject.objects.order_by("display_order", "name"),
+        "classrooms": ClassRoom.objects.select_related("academic_year").order_by(*ORDER_AY_START_GRADE_NAME),
     }
 
     filters = {
@@ -5107,7 +5577,8 @@ def school_teacher_edit(request, teacher_id):
             teacher.user.last_name = data.get("last_name") or ""
             teacher.user.email = (data.get("email") or "").strip()
             teacher.user.username = (data.get("username") or "").strip()
-            teacher.user.role = data.get("role")
+            # Security: teachers must never be able to become other portal roles from this screen.
+            teacher.user.role = User.Roles.TEACHER
             teacher.user.is_active = is_active
             pwd = (data.get("password") or "").strip()
             if pwd:
@@ -5363,13 +5834,16 @@ def school_academic_year_add(request):
     from .forms import AcademicYearForm
 
     previous_years = list(AcademicYear.objects.order_by("-start_date"))
-    class_names = list(
-        ClassRoom.objects.filter(academic_year__isnull=False)
-        .order_by("academic_year__start_date", "name")
-        .values_list("name", flat=True)
-        .distinct()
+    from apps.school_data.classroom_ordering import grade_order_from_name
+
+    class_names = sorted(
+        {
+            n
+            for n in ClassRoom.objects.filter(academic_year__isnull=False).values_list("name", flat=True)
+            if n
+        },
+        key=lambda x: (grade_order_from_name(x), x.lower()),
     )
-    class_names = sorted(set(class_names), key=lambda x: x.lower())
     ay_weekday_choices = [
         (1, "Monday"),
         (2, "Tuesday"),
@@ -5551,7 +6025,7 @@ def _suggest_promoted_class(current_classroom, target_year):
     if cur_no is None:
         return None
     target_no = cur_no + 1
-    for c in ClassRoom.objects.filter(academic_year=target_year).order_by("name"):
+    for c in ClassRoom.objects.filter(academic_year=target_year).order_by(*ORDER_GRADE_NAME):
         if _extract_grade_num(c.name) == target_no:
             return c
     return None
@@ -5584,7 +6058,9 @@ def school_promote_students(request):
             qs = qs.filter(classroom=classroom)
         if section:
             qs = qs.filter(section=section)
-        students = list(qs.order_by("classroom__name", "section__name", "roll_number"))
+        students = list(
+            qs.order_by("classroom__grade_order", "classroom__name", "section__name", "roll_number")
+        )
         for s in students:
             suggested_class = _suggest_promoted_class(s.classroom, to_year)
             is_final = suggested_class is None
@@ -5650,7 +6126,7 @@ def school_promote_students(request):
                     wanted = (cur_no - 1) if cur_no else None
                     fallback = None
                     if wanted:
-                        for c in ClassRoom.objects.filter(academic_year=to_year).order_by("name"):
+                        for c in ClassRoom.objects.filter(academic_year=to_year).order_by(*ORDER_GRADE_NAME):
                             if _extract_grade_num(c.name) == wanted:
                                 fallback = c
                                 break
@@ -5805,23 +6281,12 @@ def school_classes(request):
         section_count=Count("sections", distinct=True),
         student_count=Count("students", distinct=True),
     )
-    # Newest academic year first; within a year, higher grades first (Grade 10 … Grade 1) using digits in name.
-    if connection.vendor == "postgresql":
-        meta = ClassRoom._meta
-        tbl = connection.ops.quote_name(meta.db_table)
-        col = connection.ops.quote_name(meta.get_field("name").column)
-        grade_sql = (
-            f"CAST(COALESCE(NULLIF(regexp_replace({tbl}.{col}, '[^0-9]', '', 'g'), ''), '0') AS INTEGER)"
-        )
-        qs = qs.annotate(_class_grade_sort=RawSQL(grade_sql, [])).order_by(
-            F("academic_year__start_date").desc(nulls_last=True),
-            "-_class_grade_sort",
-        )
-    else:
-        qs = qs.order_by(
-            F("academic_year__start_date").desc(nulls_last=True),
-            "-name",
-        )
+    # Newest academic year first; within a year, ascending grade (Grade 1 … Grade 12) via grade_order.
+    qs = qs.order_by(
+        F("academic_year__start_date").desc(nulls_last=True),
+        "grade_order",
+        "name",
+    )
     academic_year_id = request.GET.get("academic_year")
     if academic_year_id:
         qs = qs.filter(academic_year_id=academic_year_id)
@@ -5905,18 +6370,26 @@ def school_subjects(request):
     ensure_tenant_for_request(request)
     from django.core.paginator import Paginator
 
-    qs = Subject.objects.all().order_by("name")
+    qs = Subject.objects.all().order_by("display_order", "name")
     total_subjects = Subject.objects.count()
     search = request.GET.get("q", "").strip()
     if search:
         qs = qs.filter(Q(name__icontains=search) | Q(code__icontains=search))
-    paginator = Paginator(qs, 15)
-    page = request.GET.get("page", 1)
-    subjects = paginator.get_page(page)
+        filtered_count = qs.count()
+        paginator = Paginator(qs, 15)
+        page = request.GET.get("page", 1)
+        subjects = paginator.get_page(page)
+        can_reorder = False
+    else:
+        filtered_count = total_subjects
+        subjects = qs
+        can_reorder = total_subjects > 0
     return render(request, "core/school/subjects/list.html", {
         "subjects": subjects,
         "total_subjects": total_subjects,
+        "filtered_count": filtered_count,
         "filters": {"q": search},
+        "can_reorder": can_reorder,
     })
 
 
@@ -5953,6 +6426,7 @@ def school_subject_edit(request, subject_id):
 
 
 @admin_required
+@feature_required("students")
 def school_subject_delete(request, subject_id):
     school = request.user.school
     if not school:
@@ -5963,6 +6437,48 @@ def school_subject_delete(request, subject_id):
     subject = get_object_or_404(Subject, id=subject_id)
     subject.delete()
     return redirect("core:school_subjects")
+
+
+@admin_required
+@feature_required("students")
+@require_POST
+def api_subjects_save_order(request):
+    """Persist subject list order (display_order) for the school tenant."""
+    if not request.user.school:
+        return JsonResponse({"ok": False, "error": "Forbidden"}, status=403)
+    try:
+        payload = json.loads(request.body.decode())
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({"ok": False, "error": "Invalid JSON"}, status=400)
+    order = payload.get("order")
+    if not isinstance(order, list) or not order:
+        return JsonResponse({"ok": False, "error": "order must be a non-empty list"}, status=400)
+    try:
+        ids = [int(x) for x in order]
+    except (TypeError, ValueError):
+        return JsonResponse({"ok": False, "error": "Invalid subject ids"}, status=400)
+    if len(ids) != len(set(ids)):
+        return JsonResponse({"ok": False, "error": "Duplicate subject ids"}, status=400)
+
+    total = Subject.objects.count()
+    if total == 0:
+        return JsonResponse({"ok": True, "message": "No subjects."})
+    if len(ids) != total:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "The order list must include every subject exactly once.",
+            },
+            status=400,
+        )
+    found = set(Subject.objects.filter(id__in=ids).values_list("id", flat=True))
+    if len(found) != total:
+        return JsonResponse({"ok": False, "error": "Unknown subject id."}, status=400)
+
+    with transaction.atomic():
+        for position, pk in enumerate(ids):
+            Subject.objects.filter(pk=pk).update(display_order=(position + 1) * 10)
+    return JsonResponse({"ok": True, "message": "Order saved."})
 
 
 # ======================
@@ -6082,7 +6598,7 @@ def attendance_list(request):
 
     today = date.today()
     classrooms = list(
-        ClassRoom.objects.prefetch_related("sections").order_by("academic_year", "name")
+        ClassRoom.objects.prefetch_related("sections").order_by(*ORDER_AY_PK_GRADE_NAME)
     )
     class_sections_data = [
         {
@@ -6336,6 +6852,48 @@ def attendance_list(request):
         pending_total = max(0, len(students) - marked_total)
 
         if wants_json:
+            # Update attendance % for the students saved in this request (so UI can refresh without reload).
+            pct_updates: dict[int, dict] = {}
+            try:
+                active_ay_for_pct = get_active_academic_year_obj()
+                agg_qs = Attendance.objects.filter(student_id__in=submitted_student_ids)
+                if active_ay_for_pct is not None:
+                    agg_qs = agg_qs.filter(academic_year_id=active_ay_for_pct.id)
+                agg = {
+                    int(r["student_id"]): r
+                    for r in agg_qs.values("student_id").annotate(
+                        total_marked=Count("id"),
+                        present_days=Count("id", filter=Q(status=Attendance.Status.PRESENT)),
+                        absent_days=Count("id", filter=Q(status=Attendance.Status.ABSENT)),
+                        leave_days=Count("id", filter=Q(status=Attendance.Status.LEAVE)),
+                    )
+                }
+                for sid in submitted_student_ids:
+                    row = agg.get(int(sid))
+                    if not row or not row.get("total_marked"):
+                        pct_updates[int(sid)] = {"att_pct": None, "att_pct_band": None, "att_tooltip": ""}
+                        continue
+                    present = int(row["present_days"])
+                    total_m = int(row["total_marked"])
+                    absent = int(row["absent_days"])
+                    leave = int(row["leave_days"])
+                    att_pct = round((present / total_m) * 100) if total_m else None
+                    band = None
+                    if att_pct is not None:
+                        if att_pct >= 90:
+                            band = "high"
+                        elif att_pct >= 75:
+                            band = "mid"
+                        else:
+                            band = "low"
+                    tooltip = f"Present: {present} · Absent: {absent} · Leave: {leave} · Total marked: {total_m}"
+                    pct_updates[int(sid)] = {
+                        "att_pct": att_pct,
+                        "att_pct_band": band,
+                        "att_tooltip": tooltip,
+                    }
+            except Exception:
+                pct_updates = {}
             return JsonResponse(
                 {
                     "ok": True,
@@ -6343,6 +6901,7 @@ def attendance_list(request):
                     "marked_count": len(submitted_student_ids),
                     "pending_count": pending_total,
                     "summary": {"marked": marked_total, "pending": pending_total},
+                    "pct_updates": pct_updates,
                 }
             )
         messages.success(
@@ -6367,6 +6926,24 @@ def attendance_list(request):
     section_id = _parse_int(request.GET.get("section_id"))
     date_str = request.GET.get("attendance_date", today.isoformat()).strip()
     search_q = request.GET.get("q", "").strip()
+
+    # Default view: pick the highest grade (by grade_order) and its first section.
+    # This keeps /attendance/ immediately useful (loads a class roll call without extra clicks).
+    if not focus_student and (not classroom_id or not section_id):
+        if classrooms:
+            default_class = max(classrooms, key=lambda c: (c.grade_order, c.id))
+            default_sections = list(default_class.sections.all().order_by("name"))
+            default_section = default_sections[0] if default_sections else None
+            if default_class and default_section:
+                return _redirect_with_params(
+                    default_class.id,
+                    default_section.id,
+                    date_str or today.isoformat(),
+                    search_q,
+                    None,
+                    request.GET.get("page"),
+                    _parse_roll_per_page(request.GET.get("per_page")),
+                )
 
     if focus_student and focus_student.classroom_id and focus_student.section_id:
         classroom_id = focus_student.classroom_id
@@ -6419,6 +6996,10 @@ def attendance_list(request):
         elif not classroom.sections.filter(pk=section_id).exists():
             section_valid_for_class = False
         else:
+            selected_class_name = getattr(classroom, "name", "") or ""
+            selected_section_name = (
+                classroom.sections.filter(pk=section_id).values_list("name", flat=True).first() or ""
+            )
             try:
                 stud_qs = (
                     Student.objects.filter(classroom_id=classroom_id, section_id=section_id)
@@ -6576,6 +7157,8 @@ def attendance_list(request):
             "attendance_pct_scope_label": attendance_pct_scope_label,
             "day_calendar": day_calendar,
             "attendance_day_blocked": attendance_day_blocked,
+            "selected_class_name": locals().get("selected_class_name", ""),
+            "selected_section_name": locals().get("selected_section_name", ""),
         },
     )
 
@@ -6638,6 +7221,7 @@ def homework_list(request):
         return HttpResponseForbidden("This feature is not enabled for this school.")
 
     ensure_homework_enterprise_columns_if_missing(connection)
+    ensure_homework_audit_columns_if_missing(connection)
 
     # Admin: redirect to school homework list
     if getattr(request.user, "role", None) == "ADMIN":
@@ -6688,7 +7272,7 @@ def homework_list(request):
         assignments_raw = list(hw_legacy) + hw_new
         assignments_raw.sort(key=lambda h: (h.due_date, -h.id))
 
-        subject_qs = Subject.objects.filter(id__in=mapped_subject_ids).order_by("name")
+        subject_qs = Subject.objects.filter(id__in=mapped_subject_ids).order_by("display_order", "name")
         subject_id = (request.GET.get("subject") or "").strip()
         status_filter = (request.GET.get("status") or "").strip().upper()
 
@@ -6744,8 +7328,19 @@ def homework_list(request):
         teacher = getattr(request.user, "teacher_profile", None)
         qs = _homework_queryset_for_teacher(teacher, request.user)
         classroom_filter = request.GET.get("classroom", "").strip()
+        subject_filter = request.GET.get("subject", "").strip()
+        due_status = (request.GET.get("due_status") or "").strip().lower()  # today|overdue|upcoming
         if classroom_filter.isdigit():
             qs = qs.filter(classes__id=int(classroom_filter))
+        if subject_filter.isdigit():
+            qs = qs.filter(subject_id=int(subject_filter))
+        today = timezone.localdate()
+        if due_status == "today":
+            qs = qs.filter(due_date=today)
+        elif due_status == "overdue":
+            qs = qs.filter(due_date__lt=today)
+        elif due_status == "upcoming":
+            qs = qs.filter(due_date__gt=today)
         # qs is already pk-deduped in _homework_queryset_for_teacher; avoid .distinct() here
         # (same PostgreSQL + order_by pitfall as the admin homework list).
         homework_list = qs
@@ -6757,15 +7352,20 @@ def homework_list(request):
                 ).distinct()
             )
             class_ids.update(teacher.classrooms.values_list("id", flat=True))
-        classrooms = list(ClassRoom.objects.filter(id__in=class_ids).order_by("name")) if class_ids else []
+        classrooms = list(ClassRoom.objects.filter(id__in=class_ids).order_by(*ORDER_GRADE_NAME)) if class_ids else []
+        subject_ids = list(homework_list.values_list("subject_id", flat=True).distinct())
+        subjects = list(Subject.objects.filter(id__in=[sid for sid in subject_ids if sid]).order_by("display_order", "name")) if subject_ids else []
+        filtered_count = homework_list.count()
         return render(
             request,
             "core/teacher/homework_list.html",
             {
                 "homework_list": homework_list,
                 "classrooms": classrooms,
-                "filters": {"classroom": classroom_filter},
-                "today": timezone.localdate(),
+                "subjects": subjects,
+                "filters": {"classroom": classroom_filter, "subject": subject_filter, "due_status": due_status},
+                "today": today,
+                "filtered_count": filtered_count,
             },
         )
 
@@ -6776,7 +7376,7 @@ def homework_list(request):
 @feature_required("homework")
 @require_POST
 def student_homework_submit(request, homework_id):
-    """Upload submission file and mark assignment as submitted for current student."""
+    """Mark assignment as submitted for current student (no upload required)."""
     student = getattr(request.user, "student_profile", None)
     if not student or not student.classroom:
         messages.error(request, "Student profile is not configured.")
@@ -6817,9 +7417,6 @@ def student_homework_submit(request, homework_id):
         return redirect("core:homework_list")
 
     upload = request.FILES.get("submission_file")
-    if homework.submission_required and not upload:
-        messages.error(request, "Please select a file to submit.")
-        return redirect("core:homework_list")
 
     submission, _ = HomeworkSubmission.objects.get_or_create(
         homework=homework,
@@ -6835,7 +7432,143 @@ def student_homework_submit(request, homework_id):
     submission.save(update_fields=update_fields)
 
     messages.success(request, f"Assignment submitted for '{homework.title}'.")
-    return redirect("core:homework_list")
+    return redirect("core:student_homework_detail", homework_id=homework.id)
+
+
+@student_required
+@feature_required("homework")
+@require_GET
+def student_homework_detail(request, homework_id: int):
+    student = getattr(request.user, "student_profile", None)
+    if not student or not student.classroom:
+        raise PermissionDenied
+    ensure_homework_enterprise_columns_if_missing(connection)
+    ensure_homework_audit_columns_if_missing(connection)
+    hw = get_object_or_404(
+        Homework.objects.defer("attachment")
+        .prefetch_related("classes", "sections")
+        .select_related("subject", "assigned_by", "academic_year"),
+        id=homework_id,
+    )
+    if not hw.is_visible_to_students():
+        raise PermissionDenied
+    # Access check: new model (classes+sections) or legacy (subject)
+    if hw.classes.exists() or hw.sections.exists():
+        if (
+            not student.section_id
+            or not hw.classes.filter(id=student.classroom_id).exists()
+            or not hw.sections.filter(id=student.section_id).exists()
+        ):
+            raise PermissionDenied
+    elif hw.subject_id:
+        if not student.section_id:
+            raise PermissionDenied
+        allowed = ClassSectionSubjectTeacher.objects.filter(
+            class_obj_id=student.classroom_id,
+            section_id=student.section_id,
+            subject_id=hw.subject_id,
+        ).exists()
+        if not allowed:
+            raise PermissionDenied
+    else:
+        raise PermissionDenied
+    submission = HomeworkSubmission.objects.filter(homework_id=hw.id, student=student).first()
+    status = submission.status if submission else HomeworkSubmission.Status.PENDING
+    return render(
+        request,
+        "core/student/homework_detail.html",
+        {
+            "homework": hw,
+            "student": student,
+            "submission": submission,
+            "status": status,
+            "today": timezone.localdate(),
+            "is_overdue": hw.is_past_submission_deadline() and status != HomeworkSubmission.Status.COMPLETED,
+        },
+    )
+
+
+def _eligible_students_for_homework(hw: Homework):
+    """
+    Students eligible for a homework (for submission stats).
+    Supports:
+    - New homework scope: hw.classes + hw.sections
+    - Legacy scope: hw.subject via ClassSectionSubjectTeacher class+section pairs
+    """
+    if hw.classes.exists() or hw.sections.exists():
+        class_ids = list(hw.classes.values_list("id", flat=True))
+        section_ids = list(hw.sections.values_list("id", flat=True))
+        qs = Student.objects.all()
+        if class_ids:
+            qs = qs.filter(classroom_id__in=class_ids)
+        if section_ids:
+            qs = qs.filter(section_id__in=section_ids)
+        return qs
+    if hw.subject_id:
+        pairs = list(
+            ClassSectionSubjectTeacher.objects.filter(subject_id=hw.subject_id)
+            .values_list("class_obj_id", "section_id")
+            .distinct()
+        )
+        if not pairs:
+            return Student.objects.none()
+        conds = [Q(classroom_id=c, section_id=s) for c, s in pairs if c and s]
+        if not conds:
+            return Student.objects.none()
+        return Student.objects.filter(reduce(_or_, conds))
+    return Student.objects.none()
+
+
+@teacher_or_admin_required
+@feature_required("homework")
+@require_GET
+def homework_submission_stats(request, pk: int):
+    """
+    Teacher/Admin: total/submitted/not-submitted counts and lists for a homework.
+    """
+    ensure_homework_enterprise_columns_if_missing(connection)
+    ensure_homework_audit_columns_if_missing(connection)
+
+    if getattr(request.user, "role", None) == "TEACHER":
+        teacher = getattr(request.user, "teacher_profile", None)
+        hw = get_object_or_404(_homework_queryset_for_teacher(teacher, request.user), pk=pk)
+    else:
+        hw = get_object_or_404(
+            Homework.objects.defer("attachment")
+            .prefetch_related("classes", "sections")
+            .select_related("subject", "assigned_by", "teacher", "teacher__user", "academic_year", "modified_by"),
+            pk=pk,
+        )
+
+    eligible_students = list(
+        _eligible_students_for_homework(hw)
+        .select_related("user", "classroom", "section")
+        .order_by("admission_number", "id")
+    )
+    total_students = len(eligible_students)
+
+    submitted_ids = set(
+        HomeworkSubmission.objects.filter(
+            homework_id=hw.id,
+            status=HomeworkSubmission.Status.COMPLETED,
+        ).values_list("student_id", flat=True)
+    )
+    submitted_students = [s for s in eligible_students if s.id in submitted_ids]
+    not_submitted_students = [s for s in eligible_students if s.id not in submitted_ids]
+
+    return render(
+        request,
+        "core/homework/submission_stats.html",
+        {
+            "hw": hw,
+            "total_students": total_students,
+            "submitted_count": len(submitted_students),
+            "not_submitted_count": len(not_submitted_students),
+            "submitted_students": submitted_students,
+            "not_submitted_students": not_submitted_students,
+            "is_teacher": getattr(request.user, "role", None) == "TEACHER",
+        },
+    )
 
 
 def _school_homework_list_queryset(request):
@@ -6843,6 +7576,7 @@ def _school_homework_list_queryset(request):
     # Dedupe by primary key via a subquery instead of .distinct() + .order_by() on the main row,
     # which can return no rows on PostgreSQL for some join shapes.
     ensure_homework_enterprise_columns_if_missing(connection)
+    ensure_homework_audit_columns_if_missing(connection)
     base = Homework.objects.defer("attachment")
     classroom_filter = request.GET.get("classroom", "").strip()
     if classroom_filter.isdigit():
@@ -6852,7 +7586,7 @@ def _school_homework_list_queryset(request):
         Homework.objects.filter(pk__in=pk_subq)
         .defer("attachment")
         .prefetch_related("classes", "sections")
-        .select_related("assigned_by", "subject", "teacher", "teacher__user", "academic_year")
+        .select_related("assigned_by", "subject", "teacher", "teacher__user", "academic_year", "modified_by")
         .order_by("-due_date", "-created_at")
     )
     return qs, classroom_filter
@@ -6896,6 +7630,12 @@ def _homework_row_payload(hw, today):
     late_until_iso = ""
     if hw.late_submission_until:
         late_until_iso = timezone.localtime(hw.late_submission_until).strftime("%Y-%m-%dT%H:%M")
+    modified_by = ""
+    try:
+        if getattr(hw, "modified_by_id", None):
+            modified_by = hw.modified_by.get_full_name() or hw.modified_by.username or ""
+    except Exception:
+        modified_by = ""
     return {
         "id": hw.id,
         "subject": hw.subject.name if hw.subject_id else "",
@@ -6908,6 +7648,8 @@ def _homework_row_payload(hw, today):
         "classes_display": classes_names or "—",
         "sections_display": sections_names or "—",
         "created_display": hw.created_at.strftime("%d %b %Y, %H:%M") if hw.created_at else "—",
+        "modified_display": timezone.localtime(hw.modified_on).strftime("%d %b %Y, %H:%M") if getattr(hw, "modified_on", None) else "—",
+        "modified_by": modified_by or "—",
         "assigned_date_iso": assigned_date_iso,
         "assigned_date_display": assigned_date_display,
         "due_date_iso": hw.due_date.isoformat(),
@@ -6945,9 +7687,7 @@ def _school_homework_list_context(request, homework_list, homework_edit_form=Non
     try:
         with transaction.atomic():
             classrooms = list(
-                ClassRoom.objects.select_related("academic_year").order_by(
-                    "academic_year__start_date", "name"
-                )
+                ClassRoom.objects.select_related("academic_year").order_by(*ORDER_AY_START_GRADE_NAME)
             )
     except (ProgrammingError, InternalError, DatabaseError, OperationalError):
         classrooms = []
@@ -6996,6 +7736,7 @@ def school_homework_update(request, pk):
     from .forms import HomeworkCreateForm
 
     ensure_homework_enterprise_columns_if_missing(connection)
+    ensure_homework_audit_columns_if_missing(connection)
     hw = get_object_or_404(Homework.objects.defer("attachment"), pk=pk)
     if request.method != "POST":
         return redirect("core:school_homework_list")
@@ -7004,7 +7745,7 @@ def school_homework_update(request, pk):
         obj = form.save(commit=False)
         if not obj.assigned_by_id:
             obj.assigned_by = request.user
-        obj.save()
+        obj.save_with_audit(request.user)
         form.save_m2m()
         messages.success(request, "Homework updated successfully.")
         return redirect("core:school_homework_list")
@@ -7029,6 +7770,7 @@ def school_homework_delete(request, pk):
     if request.method != "POST":
         return redirect("core:school_homework_list")
     ensure_homework_enterprise_columns_if_missing(connection)
+    ensure_homework_audit_columns_if_missing(connection)
     hw = get_object_or_404(Homework.objects.defer("attachment"), pk=pk)
     title = hw.title
     hw.delete()
@@ -7046,13 +7788,14 @@ def school_homework_create(request):
     from .forms import HomeworkCreateForm
 
     ensure_homework_enterprise_columns_if_missing(connection)
+    ensure_homework_audit_columns_if_missing(connection)
     if request.method == "POST":
         form = HomeworkCreateForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
             hw = form.save(commit=False)
             if not hw.assigned_by_id:
                 hw.assigned_by = request.user
-            hw.save()
+            hw.save_with_audit(request.user)
             form.save_m2m()
             messages.success(request, "Homework created successfully.")
             return redirect("core:school_homework_list")
@@ -7117,7 +7860,13 @@ def teacher_students_list(request):
                     | Q(user__username__icontains=search)
                 )
             students = list(
-                qs.order_by("classroom__name", "section__name", "roll_number", "user__first_name")
+                qs.order_by(
+                    "classroom__grade_order",
+                    "classroom__name",
+                    "section__name",
+                    "roll_number",
+                    "user__first_name",
+                )
             )
         class_options = sorted({c for c, _ in pairs if c})
         sel_class = (request.GET.get("class_name") or "").strip()
@@ -7152,6 +7901,7 @@ def create_homework(request):
         return redirect("core:teacher_dashboard")
 
     ensure_homework_enterprise_columns_if_missing(connection)
+    ensure_homework_audit_columns_if_missing(connection)
     if request.method == "POST":
         form = HomeworkCreateForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
@@ -7159,7 +7909,7 @@ def create_homework(request):
             if not hw.assigned_by_id:
                 hw.assigned_by = request.user
             hw.teacher = teacher
-            hw.save()
+            hw.save_with_audit(request.user)
             form.save_m2m()
             messages.success(request, "Homework created successfully.")
             return redirect("core:homework_list")
@@ -7167,6 +7917,77 @@ def create_homework(request):
         form = HomeworkCreateForm(user=request.user)
 
     return render(request, "core/teacher/homework_form.html", {"form": form, "title": "Create Homework"})
+
+
+@teacher_or_admin_required
+@feature_required("homework")
+def teacher_homework_view(request, pk: int):
+    teacher = getattr(request.user, "teacher_profile", None)
+    if getattr(request.user, "role", None) == User.Roles.TEACHER and not teacher:
+        raise PermissionDenied
+    ensure_homework_enterprise_columns_if_missing(connection)
+    ensure_homework_audit_columns_if_missing(connection)
+    hw = get_object_or_404(
+        Homework.objects.defer("attachment")
+        .select_related("subject", "assigned_by", "teacher", "teacher__user", "academic_year", "modified_by")
+        .prefetch_related("classes", "sections"),
+        pk=pk,
+    )
+    # Teacher can only view if explicitly assigned/created for them (or visible via their scope).
+    if getattr(request.user, "role", None) == User.Roles.TEACHER:
+        allowed = _homework_queryset_for_teacher(teacher, request.user).filter(pk=hw.pk).exists()
+        if not allowed:
+            logger.warning(
+                "teacher_homework_view denied user_id=%s teacher_id=%s hw_id=%s hw_teacher_id=%s hw_assigned_by_id=%s",
+                getattr(request.user, "id", None),
+                getattr(teacher, "id", None),
+                hw.id,
+                getattr(hw, "teacher_id", None),
+                getattr(hw, "assigned_by_id", None),
+            )
+            raise PermissionDenied
+    return render(request, "core/teacher/homework_view.html", {"hw": hw})
+
+
+@teacher_or_admin_required
+@feature_required("homework")
+def teacher_homework_edit(request, pk: int):
+    from .forms import HomeworkCreateForm
+
+    teacher = getattr(request.user, "teacher_profile", None)
+    if getattr(request.user, "role", None) == User.Roles.TEACHER and not teacher:
+        raise PermissionDenied
+    ensure_homework_enterprise_columns_if_missing(connection)
+    ensure_homework_audit_columns_if_missing(connection)
+    hw = get_object_or_404(Homework.objects.defer("attachment"), pk=pk)
+    if getattr(request.user, "role", None) == User.Roles.TEACHER:
+        allowed = _homework_queryset_for_teacher(teacher, request.user).filter(pk=hw.pk).exists()
+        if not allowed:
+            logger.warning(
+                "teacher_homework_edit denied(scope) user_id=%s teacher_id=%s hw_id=%s hw_teacher_id=%s hw_assigned_by_id=%s",
+                getattr(request.user, "id", None),
+                getattr(teacher, "id", None),
+                hw.id,
+                getattr(hw, "teacher_id", None),
+                getattr(hw, "assigned_by_id", None),
+            )
+            raise PermissionDenied
+    if request.method == "POST":
+        form = HomeworkCreateForm(request.POST, request.FILES, instance=hw, user=request.user)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            # Preserve the assigned teacher when editing from teacher portal (teacher role only).
+            if getattr(request.user, "role", None) == User.Roles.TEACHER:
+                obj.teacher = teacher
+            if not obj.assigned_by_id:
+                obj.assigned_by = request.user
+            obj.save_with_audit(request.user)
+            form.save_m2m()
+            messages.success(request, "Homework updated.")
+            return redirect("core:homework_list")
+    else:
+        form = HomeworkCreateForm(instance=hw, user=request.user)
+    return render(request, "core/teacher/homework_form.html", {"form": form, "title": "Edit Homework"})
 
 
 @teacher_required
@@ -7233,7 +8054,7 @@ def enter_marks(request):
         mapped_subject_ids.update(teacher.subjects.values_list("id", flat=True))
         if teacher.subject_id:
             mapped_subject_ids.add(teacher.subject_id)
-        form.fields["subject"].queryset = Subject.objects.filter(id__in=mapped_subject_ids).order_by("name")
+        form.fields["subject"].queryset = Subject.objects.filter(id__in=mapped_subject_ids).order_by("display_order", "name")
 
     return render(request, "core/teacher/marks_form.html", {"form": form, "title": "Enter Marks"})
 
@@ -7560,7 +8381,7 @@ def school_exams_list(request):
         pass
 
     try:
-        classrooms = list(ClassRoom.objects.all().order_by("name"))
+        classrooms = list(ClassRoom.objects.all().order_by(*ORDER_AY_START_GRADE_NAME))
         sections = list(Section.objects.all().order_by("name"))
         teachers = (
             list(
@@ -7571,7 +8392,7 @@ def school_exams_list(request):
             if school
             else []
         )
-        subjects = list(Subject.objects.all().order_by("name"))
+        subjects = list(Subject.objects.all().order_by("display_order", "name"))
     except (ProgrammingError, InternalError, DatabaseError, OperationalError):
         try:
             connection.rollback()
@@ -7681,6 +8502,18 @@ def school_exam_session_edit(request, session_id):
                         paper.created_by = request.user
                     paper.save()
                 formset.save_m2m()
+                from apps.core.exam_components import sync_exam_mark_components
+
+                for form in formset.forms:
+                    if not hasattr(form, "cleaned_data") or not form.cleaned_data:
+                        continue
+                    if form.cleaned_data.get("DELETE"):
+                        continue
+                    ex = form.instance
+                    if not ex.pk:
+                        continue
+                    raw_mc = form.cleaned_data.get("mark_components_json")
+                    sync_exam_mark_components(ex, raw_mc or "[]", skip_if_blank=False)
 
             logger.info(
                 "exam_session_updated",
@@ -8151,69 +8984,102 @@ def school_exam_create(request):
                             )
                         else:
                             subjects_by_id = {s.id: s for s in Subject.objects.filter(id__in=subject_ids)}
+                            use_mc = request.POST.get("scheduler_use_mark_components") == "1"
+                            comp_map_parsed = {}
+                            comp_err = False
+                            if use_mc:
+                                try:
+                                    raw_map = (request.POST.get("scheduler_components_map_json") or "{}").strip()
+                                    comp_map_parsed = json.loads(raw_map) if raw_map else {}
+                                    if not isinstance(comp_map_parsed, dict):
+                                        raise ValueError("not a dict")
+                                except (TypeError, ValueError, json.JSONDecodeError):
+                                    comp_err = True
+                                    messages.error(
+                                        request,
+                                        "Mark components map must be valid JSON object keyed by subject id.",
+                                    )
                             papers_created = 0
                             sessions_created = 0
                             skipped = []
-                            with transaction.atomic():
-                                for classroom, sn in pair_items:
-                                    cn = classroom.name
-                                    session = examsession_create_compat(
-                                        name=exam_name_base[:100],
-                                        class_name=cn,
-                                        section=sn,
-                                        classroom=classroom,
-                                        created_by=request.user,
-                                    )
-                                    sessions_created += 1
-                                    for subj_id in subject_ids:
-                                        subj = subjects_by_id.get(subj_id)
-                                        if not subj:
-                                            skipped.append(f"Unknown subject id {subj_id}")
-                                            continue
-                                        raw = request.POST.get(f"exam_date_{subj_id}", "").strip()
-                                        try:
-                                            dt = date.fromisoformat(raw)
-                                        except (ValueError, TypeError):
-                                            skipped.append(f"{subj.name}: invalid date")
-                                            continue
-                                        if _exam_class_section_date_conflict(cn, sn, dt):
-                                            skipped.append(
-                                                f"{cn} {sn} {dt} ({subj.name}) — class already has an exam that day"
+                            if not comp_err:
+                                try:
+                                    from django.core.exceptions import ValidationError as DJValidationError
+
+                                    from apps.core.exam_components import sync_exam_mark_components
+
+                                    with transaction.atomic():
+                                        for classroom, sn in pair_items:
+                                            cn = classroom.name
+                                            session = examsession_create_compat(
+                                                name=exam_name_base[:100],
+                                                class_name=cn,
+                                                section=sn,
+                                                classroom=classroom,
+                                                created_by=request.user,
                                             )
-                                            continue
-                                        if _exam_duplicate(cn, sn, dt, subj):
-                                            skipped.append(
-                                                f"{cn} {sn} {dt} ({subj.name}) — duplicate exam"
-                                            )
-                                            continue
-                                        try:
-                                            start_t, end_t = _exam_times_from_post(request, str(subj_id))
-                                        except ValueError as exc:
-                                            skipped.append(f"{subj.name}: {exc}")
-                                            continue
-                                        paper_name = subj.name[:100]
-                                        raw_tid = (request.POST.get(f"exam_teacher_{subj_id}") or "").strip()
-                                        chosen_teacher = None
-                                        if raw_tid.isdigit():
-                                            chosen_teacher = _exam_teacher_for_school(school, int(raw_tid))
-                                        paper_teacher = chosen_teacher or _default_teacher_for_class_section_subject(
-                                            school, classroom, cn, sn, subj
-                                        )
-                                        Exam.objects.create(
-                                            session=session,
-                                            name=paper_name,
-                                            classroom=classroom,
-                                            class_name=cn,
-                                            section=sn,
-                                            date=dt,
-                                            start_time=start_t,
-                                            end_time=end_t,
-                                            subject=subj,
-                                            total_marks=tm,
-                                            teacher=paper_teacher,
-                                            created_by=request.user,
-                                        )
-                                        papers_created += 1
+                                            sessions_created += 1
+                                            for subj_id in subject_ids:
+                                                subj = subjects_by_id.get(subj_id)
+                                                if not subj:
+                                                    skipped.append(f"Unknown subject id {subj_id}")
+                                                    continue
+                                                raw = request.POST.get(f"exam_date_{subj_id}", "").strip()
+                                                try:
+                                                    dt = date.fromisoformat(raw)
+                                                except (ValueError, TypeError):
+                                                    skipped.append(f"{subj.name}: invalid date")
+                                                    continue
+                                                if _exam_class_section_date_conflict(cn, sn, dt):
+                                                    skipped.append(
+                                                        f"{cn} {sn} {dt} ({subj.name}) — class already has an exam that day"
+                                                    )
+                                                    continue
+                                                if _exam_duplicate(cn, sn, dt, subj):
+                                                    skipped.append(
+                                                        f"{cn} {sn} {dt} ({subj.name}) — duplicate exam"
+                                                    )
+                                                    continue
+                                                try:
+                                                    start_t, end_t = _exam_times_from_post(request, str(subj_id))
+                                                except ValueError as exc:
+                                                    skipped.append(f"{subj.name}: {exc}")
+                                                    continue
+                                                paper_name = subj.name[:100]
+                                                raw_tid = (request.POST.get(f"exam_teacher_{subj_id}") or "").strip()
+                                                chosen_teacher = None
+                                                if raw_tid.isdigit():
+                                                    chosen_teacher = _exam_teacher_for_school(school, int(raw_tid))
+                                                paper_teacher = chosen_teacher or _default_teacher_for_class_section_subject(
+                                                    school, classroom, cn, sn, subj
+                                                )
+                                                paper = Exam.objects.create(
+                                                    session=session,
+                                                    name=paper_name,
+                                                    classroom=classroom,
+                                                    class_name=cn,
+                                                    section=sn,
+                                                    date=dt,
+                                                    start_time=start_t,
+                                                    end_time=end_t,
+                                                    subject=subj,
+                                                    total_marks=tm,
+                                                    teacher=paper_teacher,
+                                                    created_by=request.user,
+                                                )
+                                                if use_mc:
+                                                    arr = comp_map_parsed.get(str(subj_id))
+                                                    if arr is None:
+                                                        arr = comp_map_parsed.get(subj_id)
+                                                    raw_c = json.dumps(arr) if isinstance(arr, list) else "[]"
+                                                    sync_exam_mark_components(paper, raw_c, skip_if_blank=False)
+                                                papers_created += 1
+                                except DJValidationError as exc:
+                                    msg = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
+                                    messages.error(request, msg)
+                                    sessions_created = 0
+                                    papers_created = 0
+                                    skipped = []
                             if sessions_created:
                                 messages.success(
                                     request,
@@ -8247,51 +9113,64 @@ def school_exam_create(request):
                         .first()
                     )
                     session_name = single_form.cleaned_data["name"].strip()[:100]
-                    with transaction.atomic():
-                        session = examsession_create_compat(
-                            name=session_name,
-                            class_name=cn,
-                            section=sn,
-                            classroom=classroom_obj,
-                            created_by=request.user,
+                    try:
+                        from django.core.exceptions import ValidationError as DJValidationError
+
+                        from apps.core.exam_components import sync_exam_mark_components
+
+                        with transaction.atomic():
+                            session = examsession_create_compat(
+                                name=session_name,
+                                class_name=cn,
+                                section=sn,
+                                classroom=classroom_obj,
+                                created_by=request.user,
+                            )
+                            chosen = _exam_teacher_for_school(
+                                school, single_form.cleaned_data.get("teacher")
+                            )
+                            paper_teacher = chosen or _default_teacher_for_class_section_subject(
+                                school, classroom_obj, cn, sn, subj
+                            )
+                            paper = Exam.objects.create(
+                                session=session,
+                                name=(subj.name[:100] if subj else session_name),
+                                classroom=classroom_obj,
+                                class_name=cn,
+                                section=sn,
+                                date=dt,
+                                start_time=single_form.cleaned_data.get("start_time"),
+                                end_time=single_form.cleaned_data.get("end_time"),
+                                room=(single_form.cleaned_data.get("room") or "").strip()[:120],
+                                details=(single_form.cleaned_data.get("details") or "").strip(),
+                                topics=(single_form.cleaned_data.get("topics") or "").strip(),
+                                subject=subj,
+                                total_marks=tm,
+                                teacher=paper_teacher,
+                                created_by=request.user,
+                            )
+                            if request.POST.get("single_use_mark_components") == "1":
+                                sync_exam_mark_components(
+                                    paper,
+                                    request.POST.get("single_mark_components_json") or "[]",
+                                    skip_if_blank=False,
+                                )
+                    except DJValidationError as exc:
+                        msg = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
+                        messages.error(request, msg)
+                    else:
+                        messages.success(
+                            request,
+                            "Exam session created with one subject paper. Add more papers from Create exam (scheduler) or edit workflow.",
                         )
-                        chosen = _exam_teacher_for_school(
-                            school, single_form.cleaned_data.get("teacher")
-                        )
-                        paper_teacher = chosen or _default_teacher_for_class_section_subject(
-                            school, classroom_obj, cn, sn, subj
-                        )
-                        Exam.objects.create(
-                            session=session,
-                            name=(subj.name[:100] if subj else session_name),
-                            classroom=classroom_obj,
-                            class_name=cn,
-                            section=sn,
-                            date=dt,
-                            start_time=single_form.cleaned_data.get("start_time"),
-                            end_time=single_form.cleaned_data.get("end_time"),
-                            room=(single_form.cleaned_data.get("room") or "").strip()[:120],
-                            details=(single_form.cleaned_data.get("details") or "").strip(),
-                            topics=(single_form.cleaned_data.get("topics") or "").strip(),
-                            subject=subj,
-                            total_marks=tm,
-                            teacher=paper_teacher,
-                            created_by=request.user,
-                        )
-                    messages.success(
-                        request,
-                        "Exam session created with one subject paper. Add more papers from Create exam (scheduler) or edit workflow.",
-                    )
-                    return redirect("core:school_exam_session_detail", session_id=session.pk)
+                        return redirect("core:school_exam_session_detail", session_id=session.pk)
 
     class_sections = {}
-    for c in ClassRoom.objects.prefetch_related("sections").order_by("name"):
+    for c in ClassRoom.objects.prefetch_related("sections").order_by(*ORDER_AY_START_GRADE_NAME):
         class_sections[c.name] = [s.name for s in c.sections.order_by("name")]
 
     scheduler_class_sections = []
-    for c in ClassRoom.objects.prefetch_related("sections").order_by(
-        "academic_year__start_date", "name"
-    ):
+    for c in ClassRoom.objects.prefetch_related("sections").order_by(*ORDER_AY_START_GRADE_NAME):
         scheduler_class_sections.append(
             {
                 "id": c.id,
@@ -8319,10 +9198,8 @@ def school_exam_create(request):
             "single_form": single_form,
             "scheduler_form": scheduler_form,
             "scheduler_teachers": scheduler_teachers,
-            "all_subjects": Subject.objects.order_by("name"),
-            "all_classrooms": ClassRoom.objects.select_related("academic_year").order_by(
-                "academic_year__start_date", "name"
-            ),
+            "all_subjects": Subject.objects.order_by("display_order", "name"),
+            "all_classrooms": ClassRoom.objects.select_related("academic_year").order_by(*ORDER_AY_START_GRADE_NAME),
             "class_sections_json": json.dumps(class_sections),
             "scheduler_class_sections_json": json.dumps(scheduler_class_sections, default=str),
             "existing_exams_json": json.dumps(
@@ -8330,6 +9207,134 @@ def school_exam_create(request):
                 default=str,
             ),
         },
+    )
+
+
+@admin_required
+@feature_required("exams")
+@require_POST
+def api_exam_create(request):
+    """
+    JSON API: create one exam session and one paper per subject entry.
+    Expects Content-Type application/json and CSRF token (cookie + header for fetch).
+
+    Body keys:
+      exam (or session_name), class_name, section,
+      subjects: [{ subject_id, date (ISO), components?: [{name, marks}], total_marks?: int }]
+    """
+    school = request.user.school
+    if not school:
+        return JsonResponse({"ok": False, "error": "Invalid school context"}, status=403)
+    try:
+        payload = json.loads(request.body.decode())
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({"ok": False, "error": "Invalid JSON"}, status=400)
+
+    exam_name = (payload.get("exam") or payload.get("session_name") or "").strip()
+    cn = (payload.get("class_name") or "").strip()
+    sn = (payload.get("section") or "").strip()
+    subjects_payload = payload.get("subjects") or []
+    if not exam_name:
+        return JsonResponse({"ok": False, "error": "exam / session_name is required"}, status=400)
+    if not cn or not sn:
+        return JsonResponse({"ok": False, "error": "class_name and section are required"}, status=400)
+    if not isinstance(subjects_payload, list) or not subjects_payload:
+        return JsonResponse({"ok": False, "error": "subjects must be a non-empty array"}, status=400)
+
+    classroom_obj = (
+        ClassRoom.objects.filter(name__iexact=cn)
+        .select_related("academic_year")
+        .order_by("-academic_year__start_date", "id")
+        .first()
+    )
+
+    from django.core.exceptions import ValidationError as DJValidationError
+
+    from apps.core.exam_components import sync_exam_mark_components
+
+    try:
+        with transaction.atomic():
+            session = examsession_create_compat(
+                name=exam_name[:100],
+                class_name=cn,
+                section=sn,
+                classroom=classroom_obj,
+                created_by=request.user,
+            )
+            created_ids = []
+            for item in subjects_payload:
+                if not isinstance(item, dict):
+                    raise DJValidationError("Each subject entry must be an object.")
+                sid = item.get("subject_id")
+                try:
+                    sid = int(sid)
+                except (TypeError, ValueError):
+                    raise DJValidationError("subject_id must be an integer.")
+                subj = Subject.objects.filter(pk=sid).first()
+                if not subj:
+                    raise DJValidationError(f"Unknown subject_id {sid}.")
+                raw_d = item.get("date")
+                try:
+                    dt = date.fromisoformat(str(raw_d))
+                except (ValueError, TypeError):
+                    raise DJValidationError(f"Invalid date for subject {sid}.")
+                if _exam_duplicate(cn, sn, dt, subj):
+                    raise DJValidationError(
+                        f"An exam already exists for {subj.name} on {dt.isoformat()} for this class and section."
+                    )
+                if _exam_class_section_date_conflict(cn, sn, dt):
+                    raise DJValidationError(
+                        f"Class {cn} section {sn} already has another exam on {dt.isoformat()}."
+                    )
+                components = item.get("components")
+                if components is None:
+                    components = []
+                if not isinstance(components, list):
+                    raise DJValidationError("components must be an array when provided.")
+                tm_raw = item.get("total_marks")
+                if components:
+                    tm = 100
+                else:
+                    try:
+                        tm = int(tm_raw) if tm_raw is not None else 100
+                    except (TypeError, ValueError):
+                        raise DJValidationError("total_marks must be an integer when components are empty.")
+                    if tm < 1:
+                        raise DJValidationError("total_marks must be at least 1.")
+
+                paper_teacher = _default_teacher_for_class_section_subject(
+                    school, classroom_obj, cn, sn, subj
+                )
+                paper = Exam.objects.create(
+                    session=session,
+                    name=subj.name[:100],
+                    classroom=classroom_obj,
+                    class_name=cn,
+                    section=sn,
+                    date=dt,
+                    subject=subj,
+                    total_marks=tm,
+                    teacher=paper_teacher,
+                    created_by=request.user,
+                )
+                if components:
+                    sync_exam_mark_components(
+                        paper,
+                        json.dumps(components),
+                        skip_if_blank=False,
+                    )
+                created_ids.append(paper.id)
+    except DJValidationError as exc:
+        msg = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
+        return JsonResponse({"ok": False, "error": msg}, status=400)
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "session_id": session.pk,
+            "exam_ids": created_ids,
+            "message": "Exam session and papers created.",
+        }
     )
 
 
@@ -8397,11 +9402,11 @@ def school_exam_calendar(request):
     classrooms = ClassRoom.objects.none()
     sections = Section.objects.none()
     teachers = Teacher.objects.none()
-    subjects = Subject.objects.order_by("name")
+    subjects = Subject.objects.order_by("display_order", "name")
     has_filters = role in ("ADMIN", "TEACHER")
 
     if school and role == "ADMIN":
-        classrooms = ClassRoom.objects.select_related("academic_year").order_by("academic_year__start_date", "name")
+        classrooms = ClassRoom.objects.select_related("academic_year").order_by(*ORDER_AY_START_GRADE_NAME)
         sections = Section.objects.order_by("name")
         teachers = (
             Teacher.objects.filter(user__school=school)
@@ -8424,7 +9429,9 @@ def school_exam_calendar(request):
                 cids.add(classroom.id)
                 for sec in classroom.sections.all():
                     sids.add(sec.id)
-            classrooms = ClassRoom.objects.filter(id__in=cids).order_by("name") if cids else ClassRoom.objects.none()
+            classrooms = (
+                ClassRoom.objects.filter(id__in=cids).order_by(*ORDER_GRADE_NAME) if cids else ClassRoom.objects.none()
+            )
             sections = Section.objects.filter(id__in=sids).order_by("name") if sids else Section.objects.none()
 
     return render(
@@ -8529,31 +9536,46 @@ def teacher_exam_create(request):
                     .order_by("-academic_year__start_date", "id")
                     .first()
                 )
-                with transaction.atomic():
-                    session = examsession_create_compat(
-                        name=session_name,
-                        class_name=cn,
-                        section=sn,
-                        classroom=classroom_obj,
-                        created_by=request.user,
+                try:
+                    from django.core.exceptions import ValidationError as DJValidationError
+
+                    from apps.core.exam_components import sync_exam_mark_components
+
+                    with transaction.atomic():
+                        session = examsession_create_compat(
+                            name=session_name,
+                            class_name=cn,
+                            section=sn,
+                            classroom=classroom_obj,
+                            created_by=request.user,
+                        )
+                        paper = Exam.objects.create(
+                            session=session,
+                            name=subj.name[:100],
+                            classroom=classroom_obj,
+                            class_name=cn,
+                            section=sn,
+                            date=dt,
+                            subject=subj,
+                            total_marks=tm,
+                            teacher=teacher,
+                            created_by=request.user,
+                        )
+                        if form.cleaned_data.get("use_mark_components"):
+                            sync_exam_mark_components(
+                                paper,
+                                form.cleaned_data.get("mark_components_json") or "[]",
+                                skip_if_blank=False,
+                            )
+                except DJValidationError as exc:
+                    msg = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
+                    messages.error(request, msg)
+                else:
+                    messages.success(
+                        request,
+                        "Exam session and subject paper created. Use the same session name to add more subjects (admin scheduler) or create another session.",
                     )
-                    paper = Exam.objects.create(
-                        session=session,
-                        name=subj.name[:100],
-                        classroom=classroom_obj,
-                        class_name=cn,
-                        section=sn,
-                        date=dt,
-                        subject=subj,
-                        total_marks=tm,
-                        teacher=teacher,
-                        created_by=request.user,
-                    )
-                messages.success(
-                    request,
-                    "Exam session and subject paper created. Use the same session name to add more subjects (admin scheduler) or create another session.",
-                )
-                return redirect("core:teacher_exam_session_detail", session_id=session.pk)
+                    return redirect("core:teacher_exam_session_detail", session_id=session.pk)
     else:
         form = TeacherExamSessionPaperForm(allowed_pairs=allowed_pairs, teacher=teacher)
     return render(request, "core/teacher/exam_create.html", {"form": form})
@@ -8621,12 +9643,15 @@ def _exam_enter_marks_view(request, exam_id, *, acting_as_admin):
         return redirect("core:admin_dashboard" if acting_as_admin else "core:teacher_dashboard")
     if not has_feature_access(school, "exams", user=request.user):
         return HttpResponseForbidden("This feature is not enabled for this school.")
-    exam = get_object_or_404(_exam_read_qs(), pk=exam_id)
+    exam = get_object_or_404(
+        _exam_read_qs().prefetch_related("mark_components"),
+        pk=exam_id,
+    )
     teacher = getattr(request.user, "teacher_profile", None) if not acting_as_admin else None
 
     if acting_as_admin:
         subjects = (
-            Subject.objects.filter(id=exam.subject_id).order_by("name")
+            Subject.objects.filter(id=exam.subject_id).order_by("display_order", "name")
             if exam.subject_id
             else Subject.objects.none()
         )
@@ -8654,11 +9679,11 @@ def _exam_enter_marks_view(request, exam_id, *, acting_as_admin):
                     subject_id_set.add(teacher.subject_id)
         if exam.subject_id:
             if exam.subject_id in subject_id_set or (exam.teacher_id and exam.teacher_id == teacher.id):
-                subjects = Subject.objects.filter(id=exam.subject_id).order_by("name")
+                subjects = Subject.objects.filter(id=exam.subject_id).order_by("display_order", "name")
             else:
                 subjects = Subject.objects.none()
         else:
-            subjects = Subject.objects.filter(id__in=subject_id_set).order_by("name")
+            subjects = Subject.objects.filter(id__in=subject_id_set).order_by("display_order", "name")
 
     enter_marks_url = reverse(
         "core:school_exam_paper_enter_marks" if acting_as_admin else "core:teacher_exam_enter_marks",
@@ -8711,6 +9736,31 @@ def _exam_enter_marks_view(request, exam_id, *, acting_as_admin):
                     raise PermissionDenied
             elif subject.id not in subject_id_set:
                 raise PermissionDenied
+        comp_rows = list(exam.mark_components.order_by("sort_order", "id"))
+        has_components = bool(comp_rows)
+        # Server-side validation: do not silently clamp above max.
+        if has_components:
+            invalid = []
+            for s in students:
+                for c in comp_rows:
+                    raw = (request.POST.get(f"cmp_{s.id}_{c.id}") or "").strip()
+                    try:
+                        v = int(raw or 0)
+                    except (ValueError, TypeError):
+                        v = 0
+                    if v < 0:
+                        v = 0
+                    if c.max_marks is not None and v > int(c.max_marks):
+                        who = s.user.get_full_name() or s.user.username
+                        invalid.append(f"{who} — {c.component_name} exceeds max {c.max_marks}.")
+                        if len(invalid) >= 5:
+                            break
+                if len(invalid) >= 5:
+                    break
+            if invalid:
+                messages.error(request, "Fix component marks: " + " ".join(invalid))
+                return redirect(f"{enter_marks_url}?subject={subject.id}")
+
         with transaction.atomic():
             existing = {
                 (m.student_id, m.subject_id): m
@@ -8720,18 +9770,44 @@ def _exam_enter_marks_view(request, exam_id, *, acting_as_admin):
             to_update = []
             default_tm = exam.total_marks if getattr(exam, "total_marks", None) else 100
             for s in students:
-                try:
-                    obtained = int(request.POST.get(f"obtained_{s.id}", 0) or 0)
-                    total = int(request.POST.get(f"total_{s.id}", default_tm) or default_tm)
-                except (ValueError, TypeError):
+                comp_map = {}
+                if has_components:
+                    # Per-component entry; total is derived.
                     obtained = 0
-                    total = default_tm
+                    for c in comp_rows:
+                        key = f"cmp_{s.id}_{c.id}"
+                        raw = (request.POST.get(key) or "").strip()
+                        try:
+                            v = int(raw or 0)
+                        except (ValueError, TypeError):
+                            v = 0
+                        if v < 0:
+                            v = 0
+                        comp_map[c.component_name] = v
+                        obtained += v
+                    total = int(default_tm)
+                else:
+                    try:
+                        obtained = int(request.POST.get(f"obtained_{s.id}", 0) or 0)
+                        total = int(request.POST.get(f"total_{s.id}", default_tm) or default_tm)
+                    except (ValueError, TypeError):
+                        obtained = 0
+                        total = default_tm
+                    if obtained < 0:
+                        obtained = 0
+                    if total <= 0:
+                        total = default_tm
                 key = (s.id, subject.id)
                 if key in existing:
                     rec = existing[key]
-                    if rec.marks_obtained != obtained or rec.total_marks != total:
+                    changed = rec.marks_obtained != obtained or rec.total_marks != total
+                    if has_components and (rec.component_marks or {}) != comp_map:
+                        changed = True
+                    if changed:
                         rec.marks_obtained = obtained
                         rec.total_marks = total
+                        if has_components:
+                            rec.component_marks = comp_map
                         rec.entered_by = request.user
                         to_update.append(rec)
                 else:
@@ -8742,13 +9818,14 @@ def _exam_enter_marks_view(request, exam_id, *, acting_as_admin):
                             exam=exam,
                             marks_obtained=obtained,
                             total_marks=total,
+                            component_marks=(comp_map if has_components else {}),
                             entered_by=request.user,
                         )
                     )
             if to_create:
                 Marks.objects.bulk_create(to_create)
             if to_update:
-                Marks.objects.bulk_update(to_update, ["marks_obtained", "total_marks", "entered_by"])
+                Marks.objects.bulk_update(to_update, ["marks_obtained", "total_marks", "component_marks", "entered_by"])
         if not acting_as_admin:
             Exam.objects.filter(pk=exam.pk).update(marks_teacher_edit_locked=True)
             messages.success(request, "Marks saved. Further edits require school admin approval (marks are now locked).")
@@ -8761,16 +9838,25 @@ def _exam_enter_marks_view(request, exam_id, *, acting_as_admin):
     existing_marks = {}
     if subject:
         for m in Marks.objects.filter(exam=exam, subject=subject):
-            existing_marks[m.student_id] = {"obtained": m.marks_obtained, "total": m.total_marks}
+            existing_marks[m.student_id] = {
+                "obtained": m.marks_obtained,
+                "total": m.total_marks,
+                "components": (m.component_marks or {}),
+            }
 
     default_total = exam.total_marks if getattr(exam, "total_marks", None) else 100
     students_with_marks = []
     for s in students:
-        em = existing_marks.get(s.id, {"obtained": 0, "total": default_total})
+        em = existing_marks.get(s.id)
+        has_mark = em is not None
+        if not em:
+            em = {"obtained": "", "total": default_total, "components": {}}
         students_with_marks.append({
             "student": s,
             "obtained": em["obtained"],
             "total": em["total"],
+            "components": em.get("components") or {},
+            "has_mark": has_mark,
         })
 
     exam.refresh_from_db(fields=["marks_teacher_edit_locked"])
@@ -8795,6 +9881,7 @@ def _exam_enter_marks_view(request, exam_id, *, acting_as_admin):
             "enter_marks_url": enter_marks_url,
             "marks_readonly": marks_readonly,
             "back_url": back_url,
+            "exam_mark_components": list(exam.mark_components.order_by("sort_order", "id")),
         },
     )
 
@@ -8907,7 +9994,7 @@ def teacher_class_analytics(request):
     class_avg = round(sum(x["pct"] for x in student_pcts) / len(student_pcts), 1) if student_pcts else 0
 
     # Subject-wise class average
-    subjects = Subject.objects.all()
+    subjects = Subject.objects.all().order_by("display_order", "name")
     subject_avgs = []
     for subj in subjects:
         agg = Marks.objects.filter(subject=subj).aggregate(
@@ -8950,6 +10037,8 @@ def teacher_class_analytics(request):
 
 def _get_class_section_choices(school):
     """Get unique (class_name, section_name) from students and classrooms."""
+    from apps.school_data.classroom_ordering import grade_order_from_name
+
     choices_class = set()
     choices_section = set()
     # From students: classroom name + section name
@@ -8960,11 +10049,13 @@ def _get_class_section_choices(school):
             choices_class.add((row[0], row[0]))
             choices_section.add((row[1], row[1]))
     # From classrooms: name + each section in that class
-    for c in ClassRoom.objects.prefetch_related("sections"):
+    for c in ClassRoom.objects.prefetch_related("sections").order_by(*ORDER_GRADE_NAME):
         choices_class.add((c.name, c.name))
         for sec in c.sections.all():
             choices_section.add((sec.name, sec.name))
-    return sorted(choices_class), sorted(choices_section)
+    return sorted(choices_class, key=lambda x: (grade_order_from_name(x[0]), x[0].lower())), sorted(
+        choices_section
+    )
 
 
 @teacher_required
@@ -9786,21 +10877,38 @@ def school_staff_attendance_mark(request):
             )
             return redirect(f"{reverse('core:school_staff_attendance_mark')}?date={att_date_str}")
         valid_statuses = {s[0] for s in STATUS_CHOICES}
-        for t in teachers:
-            key = f"status_{t.id}"
-            if key in request.POST:
-                status = request.POST[key]
-                if status in valid_statuses:
-                    StaffAttendance.objects.update_or_create(
-                        teacher=t,
-                        date=att_date,
-                        defaults={"status": status, "marked_by": request.user},
-                    )
-        return redirect("core:school_staff_attendance")
+        try:
+            with transaction.atomic():
+                for t in teachers:
+                    key = f"status_{t.id}"
+                    if key in request.POST:
+                        status = request.POST[key]
+                        if status in valid_statuses:
+                            StaffAttendance.objects.update_or_create(
+                                teacher=t,
+                                date=att_date,
+                                defaults={
+                                    "status": status,
+                                    "remarks": (request.POST.get(f"remarks_{t.id}") or "").strip()[:200],
+                                    "marked_by": request.user,
+                                },
+                            )
+        except Exception:
+            logger.exception("Staff attendance save failed")
+            return redirect(f"{reverse('core:school_staff_attendance_mark')}?date={att_date_str}&error=1")
+        else:
+            return redirect(f"{reverse('core:school_staff_attendance_mark')}?date={att_date_str}&saved=1")
     staff_rows = []
     for t in teachers:
         rec = by_teacher.get(t.id)
-        staff_rows.append({"teacher": t, "current_status": rec.status if rec else "PRESENT"})
+        staff_rows.append(
+            {
+                "teacher": t,
+                "current_status": rec.status if rec else "PRESENT",
+                "remarks": (rec.remarks or "") if rec else "",
+                "is_marked": bool(rec),
+            }
+        )
     return render(request, "core/staff_attendance/mark.html", {
         "staff_rows": staff_rows,
         "att_date": att_date_str,
@@ -9808,6 +10916,88 @@ def school_staff_attendance_mark(request):
         "day_calendar": day_calendar,
         "attendance_day_blocked": attendance_day_blocked,
     })
+
+
+@login_required
+@feature_required("attendance")
+def school_student_attendance(request):
+    """
+    Student attendance summary dashboard.
+    - Admin: all students (filterable)
+    - Teacher: only assigned class/section students
+    """
+    role = getattr(request.user, "role", None)
+    if role not in (User.Roles.ADMIN, User.Roles.TEACHER, "ADMIN", "TEACHER"):
+        return HttpResponseForbidden("Access denied.")
+
+    # Filters
+    raw_day = (request.GET.get("date") or "").strip()
+    day = None
+    if raw_day:
+        try:
+            day = date.fromisoformat(raw_day)
+        except Exception:
+            day = None
+
+    def _parse_int(v):
+        try:
+            return int(v)
+        except Exception:
+            return None
+
+    classroom_id = _parse_int(request.GET.get("classroom_id"))
+    section_id = _parse_int(request.GET.get("section_id"))
+    month = (request.GET.get("month") or "").strip() or None
+    start_date = None
+    end_date = None
+    try:
+        sd = (request.GET.get("start_date") or "").strip()
+        ed = (request.GET.get("end_date") or "").strip()
+        if sd:
+            start_date = date.fromisoformat(sd)
+        if ed:
+            end_date = date.fromisoformat(ed)
+    except Exception:
+        start_date, end_date = None, None
+
+    summary = get_student_attendance_summary(
+        request.user,
+        day=day,
+        classroom_id=classroom_id,
+        section_id=section_id,
+        month=month,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+    export = (request.GET.get("export") or "").lower().strip()
+    if export == "csv" and summary.get("is_admin"):
+        rows = [["Student", "Admission No", "Class", "Section", "Status", "Marked By", "Time", "Remarks"]]
+        for r in summary["table_rows"]:
+            s = r["student"]
+            rows.append(
+                [
+                    s.user.get_full_name() or s.user.username,
+                    s.admission_number or "",
+                    getattr(s.classroom, "name", "") if s.classroom_id else "",
+                    getattr(s.section, "name", "") if s.section_id else "",
+                    r["status"] or "NOT_MARKED",
+                    (r["marked_by"].get_full_name() if r.get("marked_by") else "") if r.get("marked_by") else "",
+                    r.get("time") or "",
+                    r.get("remarks") or "",
+                ]
+            )
+        import csv
+        from io import StringIO
+
+        buf = StringIO()
+        w = csv.writer(buf)
+        w.writerows(rows)
+        resp = HttpResponse(buf.getvalue(), content_type="text/csv")
+        resp["Content-Disposition"] = f'attachment; filename="student_attendance_{(summary.get("day") or date.today()).isoformat()}.csv"'
+        return resp
+
+    return render(request, "core/student_attendance/index.html", summary)
 
 
 # ======================

@@ -77,13 +77,14 @@ class Command(BaseCommand):
             _mk(admin, "Exams", "core:school_exams_list", "bi bi-clipboard-check", 12, feature_code="exams"),
             _mk(admin, "Homework", "core:school_homework_list", "bi bi-journal-text", 13, feature_code="homework"),
             _mk(admin, "Fees & Billing", "core:billing_dashboard", "bi bi-currency-dollar", 14, feature_code="fees"),
-            _mk(admin, "Reports", "reports:dashboard", "bi bi-graph-up-arrow", 15, feature_code="reports"),
-            _mk(admin, "Notifications", "notifications:school_notifications", "bi bi-bell", 16),
-            _mk(admin, "Library", "core:school_library_index", "bi bi-journals", 17, feature_code="library"),
-            _mk(admin, "Hostel", "core:school_hostel_index", "bi bi-house-door", 18, feature_code="hostel"),
-            _mk(admin, "Transport", "core:school_transport_index", "bi bi-bus-front", 19, feature_code="transport"),
-            _mk(admin, "Branding", "core:school_branding", "bi bi-palette2", 20),
-            _mk(admin, "Support", "core:school_support_create", "bi bi-life-preserver", 21),
+            _mk(admin, "Payroll", "payroll:payroll_dashboard", "bi bi-wallet2", 15, feature_code="payroll"),
+            _mk(admin, "Reports", "reports:dashboard", "bi bi-graph-up-arrow", 16, feature_code="reports"),
+            _mk(admin, "Notifications", "notifications:school_notifications", "bi bi-bell", 17, feature_code="sms"),
+            _mk(admin, "Library", "core:school_library_index", "bi bi-journals", 18, feature_code="library"),
+            _mk(admin, "Hostel", "core:school_hostel_index", "bi bi-house-door", 19, feature_code="hostel"),
+            _mk(admin, "Transport", "core:school_transport_index", "bi bi-bus-front", 20, feature_code="transport"),
+            _mk(admin, "Branding", "core:school_branding", "bi bi-palette2", 21),
+            _mk(admin, "Support", "core:school_support_create", "bi bi-life-preserver", 22),
         ]
 
         # TEACHER

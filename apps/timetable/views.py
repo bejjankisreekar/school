@@ -161,24 +161,14 @@ def school_timetable_index(request):
     ensure_tenant_for_request(request)
     import re
 
-    def _grade_sort_key(c: ClassRoom):
-        """
-        Prefer higher grades first (e.g. Grade 10 before Grade 9).
-        Falls back to name ordering when no number is found.
-        """
-        name = (getattr(c, "name", "") or "").strip()
-        m = re.search(r"(\d+)", name)
-        grade_num = int(m.group(1)) if m else -1
-        # Put "current" academic years first when present.
-        ay_start = getattr(getattr(c, "academic_year", None), "start_date", None)
-        ay_key = ay_start or date.min
-        return (-ay_key.toordinal(), -grade_num, name.lower(), c.id)
-
     default_profile = _default_schedule_profile()
     classrooms = list(
-        ClassRoom.objects.select_related("academic_year", "active_schedule_profile").all()
+        ClassRoom.objects.select_related("academic_year", "active_schedule_profile").all().order_by(
+            "academic_year__start_date",
+            "grade_order",
+            "name",
+        )
     )
-    classrooms.sort(key=_grade_sort_key)
     return render(
         request,
         "timetable/school_timetable_index.html",
@@ -383,7 +373,7 @@ def school_timetable(request, classroom_id):
         return redirect("timetable:school_timetable", classroom_id=classroom.id)
 
     slots = list(_timeslot_qs_for_profile(active_profile, default_profile))
-    subjects = list(Subject.objects.all().order_by("name"))
+    subjects = list(Subject.objects.all().order_by("display_order", "name"))
     teachers = list(Teacher.objects.select_related("user").order_by("user__last_name", "user__first_name"))
 
     existing = _timetable_existing_dict(classroom, active_profile, default_profile)
@@ -730,7 +720,7 @@ def teacher_timetable(request):
         )
         .select_related("time_slot", "subject", "classroom")
         .prefetch_related("teachers__user")
-        .order_by("classroom__name", "subject__name")
+        .order_by("classroom__grade_order", "classroom__name", "subject__name")
     )
 
     by_cell = {}

@@ -70,18 +70,18 @@ def report_students_by_section(school) -> dict:
         Student.objects.filter(user__school=school)
         .exclude(classroom__isnull=True)
         .exclude(section__isnull=True)
-        .values("classroom__name", "section__name")
+        .values("classroom__name", "classroom__grade_order", "section__name")
         .annotate(c=Count("id"))
-        .order_by("classroom__name", "section__name")
+        .order_by("classroom__grade_order", "classroom__name", "section__name")
     )
     rows = list(qs)
     labels = [f"{r['classroom__name']} — {r['section__name']}" for r in rows]
     values = [int(r["c"] or 0) for r in rows]
     only_class = (
         Student.objects.filter(user__school=school, classroom__isnull=False, section__isnull=True)
-        .values("classroom__name")
+        .values("classroom__name", "classroom__grade_order")
         .annotate(c=Count("id"))
-        .order_by("classroom__name")
+        .order_by("classroom__grade_order", "classroom__name")
     )
     for r in only_class:
         labels.append(f"{r['classroom__name']} — (no section)")

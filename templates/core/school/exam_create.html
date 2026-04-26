@@ -1,12 +1,45 @@
 {% extends "base.html" %}
 {% block title %}Create exam | School ERP{% endblock %}
 {% block extra_head %}
+{% load static %}
 <link href="https://cdn.jsdelivr.net/npm/tom-select/dist/css/tom-select.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/tom-select/dist/js/tom-select.complete.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="{% static 'js/exam-mark-components.js' %}"></script>
 <style>
   .exam-create-page {
-    max-width: 1040px;
+    /* Wider SaaS-style canvas */
+    max-width: 1280px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 16px 24px;
   }
+  @media (min-width: 1400px) {
+    .exam-create-page { max-width: 1360px; }
+  }
+  @media (max-width: 576px) {
+    .exam-create-page { padding: 14px 14px; }
+  }
+
+  /* Modern card surface */
+  .exam-create-page .card.ec-surface {
+    border-radius: 14px !important;
+    border: 1px solid #eef2f7 !important;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.06) !important;
+    background: var(--bs-body-bg);
+  }
+  /* Reduce space + modern rhythm */
+  .exam-create-page .card-body {
+    padding: 1.25rem !important;
+  }
+  @media (min-width: 992px) {
+    .exam-create-page .card-body { padding: 1.75rem !important; }
+  }
+  .exam-create-page .mb-5 { margin-bottom: 2rem !important; }
+  .exam-create-page .mb-4 { margin-bottom: 1.25rem !important; }
+  .exam-create-page .mt-4 { margin-top: 1.25rem !important; }
+  .exam-create-page .pt-2 { padding-top: 0.5rem !important; }
   .exam-create-page .ec-kicker {
     font-size: 0.75rem;
     font-weight: 600;
@@ -16,22 +49,253 @@
     margin-bottom: 0.35rem;
   }
   .exam-create-page .ec-title {
-    font-size: 1.5rem;
-    font-weight: 700;
+    font-size: 1.45rem; /* ~23px */
+    font-weight: 650;
     letter-spacing: -0.02em;
     line-height: 1.25;
     margin-bottom: 0.35rem;
   }
   .exam-create-page .ec-lead {
-    font-size: 0.9375rem;
-    color: var(--bs-secondary-color);
-    max-width: 40rem;
+    font-size: 0.95rem;
+    color: #6b7280;
+    max-width: 54rem;
+  }
+
+  /* Gradient header */
+  .exam-create-page .ec-hero {
+    border-radius: 16px;
+    padding: 18px 18px;
+    color: #fff;
+    background: radial-gradient(1200px 340px at 10% -20%, rgba(255,255,255,0.18), transparent 60%),
+                linear-gradient(135deg, rgba(59, 130, 246, 1), rgba(139, 92, 246, 1));
+    box-shadow: 0 18px 45px -30px rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(255,255,255,0.18);
+  }
+  .exam-create-page .ec-hero .ec-hero-title {
+    font-size: 1.55rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0;
+    line-height: 1.2;
+  }
+  .exam-create-page .ec-hero .ec-hero-subtitle {
+    margin: 6px 0 0 0;
+    font-size: 0.95rem;
+    color: rgba(255,255,255,0.85);
+    max-width: 60rem;
+  }
+  .exam-create-page .ec-hero .btn {
+    border-color: rgba(255,255,255,0.22) !important;
+    color: #fff !important;
+    background: rgba(255,255,255,0.10) !important;
+  }
+  .exam-create-page .ec-hero .btn:hover {
+    background: rgba(255,255,255,0.16) !important;
+    transform: translateY(-1px);
+  }
+
+  /* Grid helpers (replaces vertically stacked rows) */
+  .exam-create-page .ec-grid { display: grid; gap: 16px; }
+  .exam-create-page .ec-grid + .ec-grid { margin-top: 14px; }
+  .exam-create-page .ec-grid-1 { grid-template-columns: 1fr; }
+  .exam-create-page .ec-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .exam-create-page .ec-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .exam-create-page .ec-span-2 { grid-column: span 2; }
+  .exam-create-page .ec-span-3 { grid-column: span 3; }
+  @media (max-width: 991.98px) {
+    .exam-create-page .ec-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .exam-create-page .ec-span-3 { grid-column: span 2; }
+  }
+  @media (max-width: 767.98px) {
+    .exam-create-page .ec-grid-2,
+    .exam-create-page .ec-grid-3 { grid-template-columns: 1fr; }
+    .exam-create-page .ec-span-2,
+    .exam-create-page .ec-span-3 { grid-column: auto; }
+  }
+
+  /* Tighter labels/controls */
+  .exam-create-page .form-label { margin-bottom: 0.3rem; color: #374151; }
+  .exam-create-page .form-control,
+  .exam-create-page .form-select,
+  .exam-create-page .ts-control { padding: 0.5rem 0.75rem; }
+
+  /* Buttons: SaaS feel */
+  .exam-create-page .btn {
+    transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease, border-color 160ms ease, filter 160ms ease;
+  }
+  .exam-create-page .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 26px -22px rgba(15, 23, 42, 0.45);
+  }
+  .exam-create-page .btn:active {
+    transform: translateY(0px);
+    box-shadow: none;
+  }
+  .exam-create-page .btn.btn-primary {
+    background-image: linear-gradient(135deg, rgba(var(--bs-primary-rgb), 1), rgba(99, 102, 241, 1));
+    border-color: transparent !important;
+  }
+  .exam-create-page .btn.btn-primary:hover {
+    filter: saturate(1.05) brightness(1.02);
+  }
+
+  /* Modern date/time inputs */
+  .exam-create-page input[type="date"].form-control,
+  .exam-create-page input[type="time"].form-control,
+  .exam-create-page input[type="date"].form-control-sm,
+  .exam-create-page input[type="time"].form-control-sm {
+    background-color: #fff;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
+  }
+  html.dark .exam-create-page input[type="date"].form-control,
+  html.dark .exam-create-page input[type="time"].form-control,
+  html.dark .exam-create-page input[type="date"].form-control-sm,
+  html.dark .exam-create-page input[type="time"].form-control-sm,
+  body.dark-mode .exam-create-page input[type="date"].form-control,
+  body.dark-mode .exam-create-page input[type="time"].form-control,
+  body.dark-mode .exam-create-page input[type="date"].form-control-sm,
+  body.dark-mode .exam-create-page input[type="time"].form-control-sm {
+    background-color: rgba(15, 23, 42, 0.35);
+    border-color: rgba(148, 163, 184, 0.22);
+  }
+  .exam-create-page input[type="date"].form-control:focus,
+  .exam-create-page input[type="time"].form-control:focus,
+  .exam-create-page input[type="date"].form-control-sm:focus,
+  .exam-create-page input[type="time"].form-control-sm:focus {
+    border-color: rgba(99, 102, 241, 0.75);
+    box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.18);
+  }
+  /* Nicer picker indicator (Chrome/Edge) */
+  .exam-create-page input[type="date"]::-webkit-calendar-picker-indicator,
+  .exam-create-page input[type="time"]::-webkit-calendar-picker-indicator {
+    opacity: 0.85;
+    cursor: pointer;
+    filter: grayscale(0.15);
+  }
+  html.dark .exam-create-page input[type="date"]::-webkit-calendar-picker-indicator,
+  html.dark .exam-create-page input[type="time"]::-webkit-calendar-picker-indicator,
+  body.dark-mode .exam-create-page input[type="date"]::-webkit-calendar-picker-indicator,
+  body.dark-mode .exam-create-page input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) grayscale(0.2);
+    opacity: 0.75;
+  }
+
+  /* Flatpickr: modern calendar/time popup styling */
+  .exam-create-page .flatpickr-calendar {
+    border: 1px solid #eef2f7;
+    box-shadow: 0 18px 45px -30px rgba(15, 23, 42, 0.55);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .exam-create-page .flatpickr-months {
+    padding: 8px 8px 0 8px;
+  }
+  .exam-create-page .flatpickr-day.selected,
+  .exam-create-page .flatpickr-day.startRange,
+  .exam-create-page .flatpickr-day.endRange {
+    background: rgba(99, 102, 241, 1);
+    border-color: rgba(99, 102, 241, 1);
+  }
+  .exam-create-page .flatpickr-day.today:not(.selected) {
+    border-color: rgba(99, 102, 241, 0.55);
+  }
+  .exam-create-page .flatpickr-time input,
+  .exam-create-page .flatpickr-time .flatpickr-am-pm {
+    font-size: 0.95rem;
+  }
+
+  /* Workflow selector: option cards (replaces toggle) */
+  .exam-create-page .ec-mode-cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+  @media (max-width: 767.98px) {
+    .exam-create-page .ec-mode-cards { grid-template-columns: 1fr; }
+  }
+  .exam-create-page .ec-mode-input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .exam-create-page .ec-mode-card {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 14px 16px;
+    border-radius: 14px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    cursor: pointer;
+    user-select: none;
+    transition: box-shadow 180ms ease, border-color 180ms ease, transform 180ms ease, background 180ms ease;
+    min-height: 86px;
+  }
+  html.dark .exam-create-page .ec-mode-card,
+  body.dark-mode .exam-create-page .ec-mode-card {
+    background: rgba(15, 23, 42, 0.35);
+    border-color: rgba(148, 163, 184, 0.22);
+  }
+  .exam-create-page .ec-mode-card:hover {
+    border-color: rgba(99, 102, 241, 0.55);
+    box-shadow: 0 10px 26px -20px rgba(15, 23, 42, 0.35);
+    transform: translateY(-1px);
+  }
+  .exam-create-page .ec-mode-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    background: rgba(99, 102, 241, 0.12);
+    color: rgba(79, 70, 229, 1);
+    flex: 0 0 auto;
+  }
+  .exam-create-page .ec-mode-title {
+    font-weight: 650;
+    font-size: 0.98rem;
+    margin: 0;
+    line-height: 1.2;
+  }
+  .exam-create-page .ec-mode-desc {
+    margin: 4px 0 0 0;
+    font-size: 0.875rem;
+    color: #6b7280;
+    line-height: 1.35;
+  }
+  .exam-create-page .ec-mode-indicator {
+    margin-left: auto;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    border: 1px solid #e5e7eb;
+    display: grid;
+    place-items: center;
+    color: transparent;
+    background: transparent;
+    transition: background 180ms ease, border-color 180ms ease, color 180ms ease;
+    flex: 0 0 auto;
+  }
+  .exam-create-page .ec-mode-input:focus-visible + .ec-mode-card {
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.18);
+    border-color: rgba(99, 102, 241, 0.85);
+  }
+  .exam-create-page .ec-mode-input:checked + .ec-mode-card {
+    border-color: rgba(99, 102, 241, 0.9);
+    background: rgba(99, 102, 241, 0.06);
+    box-shadow: 0 12px 30px -22px rgba(79, 70, 229, 0.65);
+  }
+  .exam-create-page .ec-mode-input:checked + .ec-mode-card .ec-mode-indicator {
+    border-color: rgba(99, 102, 241, 0.9);
+    background: rgba(99, 102, 241, 0.14);
+    color: rgba(79, 70, 229, 1);
   }
   .exam-create-page .form-control,
   .exam-create-page .form-select,
   .exam-create-page .ts-control {
     border-radius: 10px;
-    padding: 0.55rem 0.85rem;
   }
   .exam-create-page .ts-wrapper .ts-control {
     min-height: 44px;
@@ -42,9 +306,17 @@
   .exam-create-page .ts-wrapper.focus .ts-control {
     box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.12);
   }
+  /* Bulk scheduler: TomSelect dropdown must appear above sticky table header. */
+  .exam-create-page .ts-dropdown {
+    z-index: 1085;
+  }
+  .exam-create-page .ts-wrapper {
+    position: relative;
+    z-index: 1085;
+  }
   .exam-create-page .ec-mode .btn-check:checked + .btn {
-    background: var(--bs-primary);
-    border-color: var(--bs-primary);
+    background: linear-gradient(135deg, rgba(var(--bs-primary-rgb), 1), rgba(99, 102, 241, 1));
+    border-color: transparent;
     color: #fff;
   }
   .exam-create-page .ec-switcher {
@@ -53,10 +325,10 @@
     gap: 0.6rem;
     align-items: center;
     justify-content: space-between;
-    padding: 0.9rem 1rem;
+    padding: 0.75rem 0.9rem;
     border: 1px solid var(--bs-border-color);
     border-radius: 16px;
-    background: rgba(255, 255, 255, 0.72);
+    background: rgba(255, 255, 255, 0.78);
     backdrop-filter: blur(10px);
   }
   html.dark .exam-create-page .ec-switcher,
@@ -96,7 +368,7 @@
   }
   .exam-create-page .ec-seg .btn i { opacity: 0.9; }
   .exam-create-page .ec-mode .btn-check:checked + .btn {
-    background: var(--seg-active);
+    background: linear-gradient(135deg, rgba(var(--bs-primary-rgb), 1), rgba(99, 102, 241, 1));
     color: #fff;
     box-shadow: var(--seg-active-shadow);
     transform: translateY(-1px);
@@ -132,8 +404,8 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--bs-secondary-color);
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
+    margin-bottom: 0.65rem;
+    padding-bottom: 0.35rem;
     border-bottom: 1px solid var(--bs-border-color);
   }
   .exam-create-page .ec-subcard {
@@ -141,11 +413,24 @@
     border: 1px solid var(--bs-border-color);
     background: var(--bs-body-bg);
   }
+  .exam-create-page .ec-subcard.p-4 { padding: 1.1rem !important; }
+  @media (min-width: 992px) {
+    .exam-create-page .ec-subcard.p-4 { padding: 1.25rem !important; }
+  }
   html:not(.dark) .exam-create-page .ec-subcard {
     background: rgba(var(--bs-primary-rgb), 0.03);
   }
   .exam-create-page #subjectScheduleTable tbody tr td {
     vertical-align: middle;
+  }
+  .exam-create-page #subjectScheduleTable td,
+  .exam-create-page #subjectScheduleTable th {
+    padding-top: 0.55rem;
+    padding-bottom: 0.55rem;
+  }
+  .exam-create-page #subjectScheduleTable tbody tr.subject-marks-split-row td {
+    padding-top: 0.65rem;
+    padding-bottom: 0.65rem;
   }
   .exam-create-page #subjectScheduleTable thead th {
     font-size: 0.75rem;
@@ -159,11 +444,159 @@
     font-size: 0.75rem;
     color: var(--bs-secondary-color);
   }
+
+  /* Bulk scheduler table: avoid inner scroll box; let page scroll naturally */
+  .exam-create-page .ec-schedule-wrap {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 14px;
+    background: var(--bs-body-bg);
+    box-shadow: 0 8px 26px -18px rgba(15, 23, 42, 0.22);
+    overflow: hidden;
+  }
+  html:not(.dark) .exam-create-page .ec-schedule-wrap {
+    background: rgba(var(--bs-primary-rgb), 0.02);
+  }
+  .exam-create-page .ec-schedule-wrap .table-responsive {
+    /* keep horizontal safety only; remove vertical scroll feel */
+    overflow-y: visible !important;
+    max-height: none !important;
+  }
+  .exam-create-page #subjectScheduleTable thead th {
+    background: rgba(248, 250, 252, 0.92);
+  }
+  html.dark .exam-create-page #subjectScheduleTable thead th,
+  body.dark-mode .exam-create-page #subjectScheduleTable thead th {
+    background: rgba(15, 23, 42, 0.75);
+  }
+  .exam-create-page #subjectScheduleTable td:first-child {
+    width: 3rem;
+  }
+  .exam-create-page #subjectScheduleTable .form-control-sm,
+  .exam-create-page #subjectScheduleTable .form-select-sm {
+    border-radius: 10px;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.875rem;
+  }
+  .exam-create-page .form-check.form-switch { margin-bottom: 0.35rem !important; }
+  .exam-create-page .ec-time-hint,
+  .exam-create-page .form-text,
+  .exam-create-page .small.text-muted {
+    line-height: 1.35;
+  }
+
+  /* Premium switches (mark components toggles) */
+  .exam-create-page .ec-switch {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid #eef2f7;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.7);
+    transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  }
+  html.dark .exam-create-page .ec-switch,
+  body.dark-mode .exam-create-page .ec-switch {
+    background: rgba(15, 23, 42, 0.35);
+    border-color: rgba(148, 163, 184, 0.22);
+  }
+  .exam-create-page .ec-switch:hover {
+    border-color: rgba(99, 102, 241, 0.35);
+    box-shadow: 0 10px 26px -22px rgba(15, 23, 42, 0.35);
+  }
+  .exam-create-page .ec-switch .form-check-input {
+    width: 46px;
+    height: 26px;
+    margin-top: 2px;
+    cursor: pointer;
+    background-color: #e5e7eb;
+    border-color: transparent;
+    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.25);
+    transition: background-color 160ms ease, box-shadow 160ms ease;
+  }
+  .exam-create-page .ec-switch .form-check-input:focus {
+    border-color: transparent;
+    box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.18);
+  }
+  .exam-create-page .ec-switch .form-check-input:checked {
+    background-color: rgba(99, 102, 241, 1);
+    background-image: linear-gradient(135deg, rgba(99, 102, 241, 1), rgba(168, 85, 247, 1));
+    box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.35);
+  }
+  .exam-create-page .ec-switch .form-check-label {
+    cursor: pointer;
+    display: block;
+    margin: 0;
+  }
+  .exam-create-page .ec-switch .ec-switch-title {
+    font-weight: 650;
+    font-size: 0.92rem;
+    line-height: 1.25;
+    color: #111827;
+  }
+  html.dark .exam-create-page .ec-switch .ec-switch-title,
+  body.dark-mode .exam-create-page .ec-switch .ec-switch-title {
+    color: rgba(226, 232, 240, 1);
+  }
+  .exam-create-page .ec-switch .ec-switch-sub {
+    margin-top: 2px;
+    font-size: 0.85rem;
+    color: #6b7280;
+    line-height: 1.35;
+  }
+
+  /* Per-subject marking scheme selector (segmented pills) */
+  .exam-create-page .ec-scheme {
+    display: inline-flex;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    border-radius: 999px;
+    border: 1px solid #e5e7eb;
+    background: rgba(2, 6, 23, 0.03);
+  }
+  html.dark .exam-create-page .ec-scheme,
+  body.dark-mode .exam-create-page .ec-scheme {
+    border-color: rgba(148, 163, 184, 0.22);
+    background: rgba(148, 163, 184, 0.08);
+  }
+  .exam-create-page .ec-scheme .btn {
+    border: 0 !important;
+    border-radius: 999px !important;
+    padding: 0.35rem 0.65rem;
+    font-weight: 650;
+    font-size: 0.82rem;
+    color: var(--bs-secondary-color);
+    background: transparent;
+    transition: background 140ms ease, color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+    white-space: nowrap;
+  }
+  .exam-create-page .ec-scheme .btn:hover {
+    background: rgba(var(--bs-primary-rgb), 0.08);
+    color: var(--bs-body-color);
+  }
+  .exam-create-page .ec-scheme .btn.is-active {
+    background: linear-gradient(135deg, rgba(var(--bs-primary-rgb), 1), rgba(99, 102, 241, 1));
+    color: #fff;
+    box-shadow: 0 10px 26px -18px rgba(37, 99, 235, 0.55);
+    transform: translateY(-1px);
+  }
+
+  .exam-create-page .ec-subject-marking-card {
+    border: 1px solid #eef2f7;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.85);
+    box-shadow: 0 10px 26px -22px rgba(15, 23, 42, 0.35);
+  }
+  html.dark .exam-create-page .ec-subject-marking-card,
+  body.dark-mode .exam-create-page .ec-subject-marking-card {
+    background: rgba(15, 23, 42, 0.35);
+    border-color: rgba(148, 163, 184, 0.22);
+  }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid px-0 exam-create-page">
+<div class="exam-create-page">
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
@@ -172,34 +605,48 @@
     </ol>
   </nav>
 
-  <div class="d-flex flex-column flex-md-row align-items-start justify-content-between gap-3 mb-4">
-    <div>
-      <p class="ec-kicker mb-0">Exams</p>
-      <h1 class="ec-title">Create assessments</h1>
-      <p class="ec-lead mb-0">Add one paper with session details, or schedule many subjects at once with a date and optional time window per subject.</p>
+  <div class="ec-hero mb-4">
+    <div class="d-flex flex-column flex-md-row align-items-start justify-content-between gap-3">
+      <div>
+        <div class="text-uppercase small fw-semibold" style="letter-spacing:0.08em; opacity:0.9;">Exams</div>
+        <h1 class="ec-hero-title">Create Exam</h1>
+        <p class="ec-hero-subtitle">Set up a new exam session for your school. Create a single paper, or schedule multiple subjects in bulk with dates and optional times.</p>
+      </div>
+      <a href="{% url 'core:school_exams_list' %}" class="btn btn-sm rounded-pill align-self-md-center">
+        <i class="bi bi-arrow-left me-1"></i>Back to exams
+      </a>
     </div>
-    <a href="{% url 'core:school_exams_list' %}" class="btn btn-outline-secondary btn-sm rounded-pill align-self-md-center">
-      <i class="bi bi-arrow-left me-1"></i>Back to exams
-    </a>
   </div>
 
-  <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-5">
-    <div class="card-body p-4 p-lg-5">
+  <div class="card ec-surface overflow-hidden mb-5">
+    <div class="card-body">
       <div class="mb-4">
-        <div class="ec-switcher">
-          <div>
-            <div class="ec-section-title mb-1 border-0 pb-0">Creation mode</div>
-            <p class="ec-mode-hint mb-0" id="modeHint">
-              Create one paper quickly, or schedule many subject papers across classes.
-            </p>
+        <div class="ec-section-title mb-2">Choose workflow</div>
+        <div class="ec-mode-cards" role="radiogroup" aria-label="Creation workflow">
+          <div class="position-relative">
+            <input type="radio" class="ec-mode-input" name="exam_mode_ui" id="mode_single" value="single" checked autocomplete="off">
+            <label class="ec-mode-card" for="mode_single">
+              <span class="ec-mode-icon"><i class="bi bi-file-earmark-plus"></i></span>
+              <span class="d-block">
+                <span class="ec-mode-title d-block">Single exam</span>
+                <span class="ec-mode-desc d-block">Create one paper quickly for a class/section with optional time, room, and details.</span>
+              </span>
+              <span class="ec-mode-indicator" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
+            </label>
           </div>
-          <div class="ec-seg ec-mode" role="group" aria-label="Creation mode">
-            <input type="radio" class="btn-check" name="exam_mode_ui" id="mode_single" value="single" checked autocomplete="off">
-            <label class="btn" for="mode_single"><i class="bi bi-file-earmark-plus"></i>Single exam</label>
-            <input type="radio" class="btn-check" name="exam_mode_ui" id="mode_multiple" value="multiple" autocomplete="off">
-            <label class="btn" for="mode_multiple"><i class="bi bi-calendar3-range"></i>Bulk scheduler</label>
+          <div class="position-relative">
+            <input type="radio" class="ec-mode-input" name="exam_mode_ui" id="mode_multiple" value="multiple" autocomplete="off">
+            <label class="ec-mode-card" for="mode_multiple">
+              <span class="ec-mode-icon"><i class="bi bi-layers"></i></span>
+              <span class="d-block">
+                <span class="ec-mode-title d-block">Bulk scheduler</span>
+                <span class="ec-mode-desc d-block">Schedule many subjects at once across classes with per-subject date/time and teacher.</span>
+              </span>
+              <span class="ec-mode-indicator" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
+            </label>
           </div>
         </div>
+        <p class="ec-mode-hint mt-2 mb-0" id="modeHint">Pick a workflow above. You can switch anytime before submitting.</p>
       </div>
 
       {# Single exam #}
@@ -212,8 +659,8 @@
 
         <div class="ec-subcard p-4 mb-0">
           <div class="ec-section-title">Session</div>
-          <div class="row g-3 mb-4">
-            <div class="col-md-8">
+          <div class="ec-grid ec-grid-1 mb-4">
+            <div class="ec-span-3">
               <label class="form-label fw-semibold small" for="{{ single_form.name.id_for_label }}">Exam session name</label>
               {{ single_form.name }}
               {% if single_form.name.errors %}<div class="text-danger small mt-1">{{ single_form.name.errors.0 }}</div>{% endif %}
@@ -221,13 +668,13 @@
           </div>
 
           <div class="ec-section-title">Class &amp; section</div>
-          <div class="row g-3 mb-4">
-            <div class="col-md-6">
+          <div class="ec-grid ec-grid-2 mb-4">
+            <div>
               <label class="form-label fw-semibold small" for="{{ single_form.class_name.id_for_label }}">Class</label>
               {{ single_form.class_name }}
               {% if single_form.class_name.errors %}<div class="text-danger small mt-1">{{ single_form.class_name.errors.0 }}</div>{% endif %}
             </div>
-            <div class="col-md-6">
+            <div>
               <label class="form-label fw-semibold small" for="{{ single_form.section.id_for_label }}">Section</label>
               {{ single_form.section }}
               {% if single_form.section.errors %}<div class="text-danger small mt-1">{{ single_form.section.errors.0 }}</div>{% endif %}
@@ -235,46 +682,66 @@
           </div>
 
           <div class="ec-section-title">Subject paper</div>
-          <div class="row g-3 mb-4">
-            <div class="col-md-6">
+          <div class="ec-grid ec-grid-2 mb-3">
+            <div>
               <label class="form-label fw-semibold small" for="{{ single_form.subject.id_for_label }}">Subject</label>
               {{ single_form.subject }}
               {% if single_form.subject.errors %}<div class="text-danger small mt-1">{{ single_form.subject.errors.0 }}</div>{% endif %}
             </div>
-            <div class="col-md-6">
+            <div>
               <label class="form-label fw-semibold small" for="{{ single_form.date.id_for_label }}">Exam date</label>
               {{ single_form.date }}
               {% if single_form.date.errors %}<div class="text-danger small mt-1">{{ single_form.date.errors.0 }}</div>{% endif %}
             </div>
-            <div class="col-md-6 col-lg-4">
+          </div>
+          <div class="ec-grid ec-grid-3 mb-3">
+            <div>
               <label class="form-label fw-semibold small" for="{{ single_form.start_time.id_for_label }}">Start time <span class="text-muted fw-normal">(optional)</span></label>
               {{ single_form.start_time }}
               {% if single_form.start_time.errors %}<div class="text-danger small mt-1">{{ single_form.start_time.errors.0 }}</div>{% endif %}
             </div>
-            <div class="col-md-6 col-lg-4">
+            <div>
               <label class="form-label fw-semibold small" for="{{ single_form.end_time.id_for_label }}">End time <span class="text-muted fw-normal">(optional)</span></label>
               {{ single_form.end_time }}
               {% if single_form.end_time.errors %}<div class="text-danger small mt-1">{{ single_form.end_time.errors.0 }}</div>{% endif %}
             </div>
-            <div class="col-md-12 col-lg-4">
+            <div>
               <label class="form-label fw-semibold small" for="{{ single_form.room.id_for_label }}">Room / hall <span class="text-muted fw-normal">(optional)</span></label>
               {{ single_form.room }}
               {% if single_form.room.errors %}<div class="text-danger small mt-1">{{ single_form.room.errors.0 }}</div>{% endif %}
             </div>
-            <div class="col-12">
+            <div class="ec-span-3">
               <p class="ec-time-hint mb-0"><i class="bi bi-info-circle me-1"></i>Leave times empty for an all-day entry on the calendar. If you set one, set both; end must be after start.</p>
             </div>
-            <div class="col-md-6 col-lg-4">
+          </div>
+          <div class="ec-grid ec-grid-2 mb-4">
+            <div>
               <label class="form-label fw-semibold small" for="{{ single_form.total_marks.id_for_label }}">Total marks</label>
               {{ single_form.total_marks }}
               {% if single_form.total_marks.errors %}<div class="text-danger small mt-1">{{ single_form.total_marks.errors.0 }}</div>{% endif %}
+              <p class="small text-muted mb-0 mt-1">If you use components below, the total is set from their sum.</p>
             </div>
-            <div class="col-12">
+            <div class="ec-span-2">
+              <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" name="single_use_mark_components" value="1" id="id_single_use_mark_components">
+                <label class="form-check-label fw-semibold small" for="id_single_use_mark_components">Define mark components (theory, practical, internal, …)</label>
+              </div>
+              <input type="hidden" name="single_mark_components_json" id="id_single_mark_components_json" value="[]">
+              <div id="singleMcRoot" class="border rounded-3 p-3 bg-body-secondary d-none" data-mc-empty-default="1">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                  <span class="small fw-semibold">Components</span>
+                  <span class="small text-muted">Total: <strong class="mc-total-val text-body">0</strong></span>
+                </div>
+                <div class="mc-rows"></div>
+                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill mt-1" data-mc-add><i class="bi bi-plus-lg me-1"></i>Add component</button>
+              </div>
+            </div>
+            <div class="ec-span-2">
               <label class="form-label fw-semibold small" for="{{ single_form.details.id_for_label }}">Exam details <span class="text-muted fw-normal">(optional)</span></label>
               {{ single_form.details }}
               {% if single_form.details.errors %}<div class="text-danger small mt-1">{{ single_form.details.errors.0 }}</div>{% endif %}
             </div>
-            <div class="col-12">
+            <div class="ec-span-2">
               <label class="form-label fw-semibold small" for="{{ single_form.topics.id_for_label }}">Exam topics <span class="text-muted fw-normal">(optional)</span></label>
               {{ single_form.topics }}
               {% if single_form.topics.errors %}<div class="text-danger small mt-1">{{ single_form.topics.errors.0 }}</div>{% endif %}
@@ -282,8 +749,8 @@
           </div>
 
           <div class="ec-section-title">Teacher <span class="text-muted fw-normal text-lowercase" style="letter-spacing:0;">(optional)</span></div>
-          <div class="row g-3">
-            <div class="col-md-8">
+          <div class="ec-grid ec-grid-2">
+            <div>
               <label class="form-label fw-semibold small" for="{{ single_form.teacher.id_for_label }}">Assign teacher</label>
               {{ single_form.teacher }}
             </div>
@@ -319,8 +786,27 @@
             <div class="col-lg-4">
               <label class="form-label fw-semibold small" for="{{ scheduler_form.total_marks.id_for_label }}">Total marks (each paper)</label>
               {{ scheduler_form.total_marks }}
+              <p class="small text-muted mb-0 mt-1">Used when mark components are off, or as fallback if a subject has no component map.</p>
             </div>
           </div>
+          <div class="border rounded-4 p-3 mt-3 mb-2 bg-body-tertiary">
+            <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
+              <div>
+                <div class="fw-semibold">Marking scheme</div>
+                <div class="small text-muted">Choose how marks are captured for all included subjects.</div>
+              </div>
+              <div class="d-flex flex-wrap align-items-center gap-2">
+                <div class="ec-scheme" id="schedulerMarkingScheme" aria-label="Marking scheme">
+                  <button type="button" class="btn is-active" data-scheme-global="total">Total marks</button>
+                  <button type="button" class="btn" data-scheme-global="split">Split into components</button>
+                </div>
+              </div>
+              {# kept for backend compatibility; mirrors global scheme #}
+              <input class="d-none" type="checkbox" name="scheduler_use_mark_components" value="1" id="id_scheduler_use_mark_components">
+            </div>
+            <div class="small text-muted mt-2" id="schedulerSchemeHint">Total marks mode uses the session default for each paper.</div>
+          </div>
+          <input type="hidden" name="scheduler_components_map_json" id="id_scheduler_components_map_json" value="{}">
           <p class="small text-muted mb-0">One session is created per class–section pair. Each ticked subject becomes a paper with its own date, optional time window, and teacher.</p>
 
           <div class="ec-section-title mt-4">Classes &amp; sections</div>
@@ -340,9 +826,10 @@
           <div class="ec-section-title mt-4">Subjects, dates &amp; times</div>
           <p class="small text-muted mb-3">Include a subject, set its date, and optionally a start and end time (both required if you use times). Sundays shift to Monday when picked.</p>
 
-          <div class="table-responsive border rounded-3 bg-white shadow-sm" style="max-height: 520px;">
-            <table class="table table-hover align-middle mb-0" id="subjectScheduleTable">
-              <thead class="table-light sticky-top">
+          <div class="ec-schedule-wrap position-relative" style="z-index: 1;">
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0" id="subjectScheduleTable">
+              <thead class="table-light">
                 <tr>
                   <th class="text-center" style="width: 3rem;">On</th>
                   <th>Subject</th>
@@ -388,11 +875,45 @@
                     </select>
                   </td>
                 </tr>
+                <tr class="subject-marks-split-row d-none" data-marks-for-subject="{{ sub.id }}">
+                  <td colspan="6" class="bg-body-tertiary border-top-0 py-3">
+                    <input type="hidden" class="sched-mc-hidden" id="sched_mc_{{ sub.id }}" value="[]" autocomplete="off" data-subject-id="{{ sub.id }}">
+                    <div class="px-1">
+                      <div class="ec-subject-marking-card p-3">
+                        <div class="d-flex flex-wrap justify-content-between gap-2 align-items-start mb-2">
+                          <div>
+                            <div class="fw-semibold"><i class="bi bi-sliders2 me-1 text-primary"></i>{{ sub.name }} — Marks</div>
+                            <div class="small text-muted d-none ec-split-only">Split mode: add components like Theory/Lab; totals are calculated.</div>
+                          </div>
+                          <div class="d-flex flex-wrap align-items-center gap-2">
+                            <span class="small text-muted ec-split-total d-none" data-split-total-for="{{ sub.id }}">Total: <strong class="mc-total-val">0</strong> marks</span>
+                          </div>
+                        </div>
+
+                        <div class="ec-scheme-panel ec-scheme-total" data-scheme-panel="total">
+                          <div class="d-flex align-items-center justify-content-end gap-2">
+                            <span class="small text-muted">Total marks</span>
+                            <input type="number" class="form-control form-control-sm" value="" disabled data-total-marks-mirror>
+                          </div>
+                        </div>
+
+                        <div class="ec-scheme-panel ec-scheme-split d-none mt-2" data-scheme-panel="split">
+                          <div class="sched-mc-root border rounded-3 p-2 bg-white" id="sched_mc_root_{{ sub.id }}" data-subject-id="{{ sub.id }}" data-mc-empty-default="2">
+                            <div class="mc-rows"></div>
+                            <button type="button" class="btn btn-sm btn-outline-primary rounded-pill mt-1" data-mc-add><i class="bi bi-plus-lg"></i> Add component</button>
+                          </div>
+                          <p class="small text-muted mb-0 mt-2">Example: “Written” 80 + “Lab” 20, or just one row “Main” 100.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
                 {% empty %}
                 <tr><td colspan="6" class="text-muted text-center py-4">No subjects in the catalog. Add subjects first.</td></tr>
                 {% endfor %}
               </tbody>
-            </table>
+              </table>
+            </div>
           </div>
         </div>
 
@@ -490,6 +1011,67 @@
     return ids;
   }
 
+  var schedSubjectInited = {};
+  function initSchedSubjectMc(sid) {
+    var root = document.getElementById("sched_mc_root_" + sid);
+    var hid = document.getElementById("sched_mc_" + sid);
+    if (!root || !hid || !window.ErpExamMc) return;
+    if (schedSubjectInited[sid]) return;
+    var existing = [];
+    try {
+      existing = window.ErpExamMc.parseJson ? window.ErpExamMc.parseJson(hid.value) : JSON.parse(hid.value || "[]");
+    } catch (e) {
+      existing = [];
+    }
+    ErpExamMc.init(root, hid);
+    schedSubjectInited[sid] = true;
+  }
+  var schedGlobalScheme = "total"; // "total" | "split"
+  function setGlobalScheme(scheme) {
+    schedGlobalScheme = scheme === "split" ? "split" : "total";
+    var wrap = document.getElementById("schedulerMarkingScheme");
+    if (wrap) {
+      wrap.querySelectorAll("button[data-scheme-global]").forEach(function(btn) {
+        btn.classList.toggle("is-active", btn.getAttribute("data-scheme-global") === schedGlobalScheme);
+      });
+    }
+    var hint = document.getElementById("schedulerSchemeHint");
+    if (hint) {
+      hint.textContent = schedGlobalScheme === "split"
+        ? "Split mode lets you add components (Theory/Lab/Internal) per subject. Totals are calculated automatically."
+        : "Total marks mode uses the session default for each paper.";
+    }
+    var flag = document.getElementById("id_scheduler_use_mark_components");
+    if (flag) flag.checked = (schedGlobalScheme === "split");
+    refreshSchedulerSubjectMcVisibility();
+  }
+
+  function refreshSchedulerSubjectMcVisibility() {
+    document.querySelectorAll(".subject-marks-split-row").forEach(function(row) {
+      var sid = row.getAttribute("data-marks-for-subject");
+      var cb = document.querySelector('input.subject-include[data-subject-id="' + sid + '"]');
+      var on = cb && cb.checked;
+      row.classList.toggle("d-none", !on);
+      if (on) {
+        // Ensure mirrored "Total marks" shows the session default
+        var mirror = row.querySelector("[data-total-marks-mirror]");
+        var base = document.getElementById("id_scheduler_total_marks");
+        if (mirror) mirror.value = base && base.value ? base.value : "";
+        // Panels follow global scheme; preserve any component JSON while hidden
+        var totalPanel = row.querySelector('[data-scheme-panel="total"]');
+        var splitPanel = row.querySelector('[data-scheme-panel="split"]');
+        if (totalPanel) totalPanel.classList.toggle("d-none", schedGlobalScheme !== "total");
+        if (splitPanel) splitPanel.classList.toggle("d-none", schedGlobalScheme !== "split");
+        var totChip = row.querySelector('[data-split-total-for="' + sid + '"]');
+        if (totChip) totChip.classList.toggle("d-none", schedGlobalScheme !== "split");
+        row.querySelectorAll(".ec-split-only").forEach(function(el) {
+          el.classList.toggle("d-none", schedGlobalScheme !== "split");
+        });
+        if (schedGlobalScheme === "split") initSchedSubjectMc(sid);
+      }
+    });
+  }
+
   function rowInputsForSid(sid) {
     return {
       date: document.querySelector("#exam_date_" + sid),
@@ -513,6 +1095,7 @@
         });
         if (r.date) r.date.required = on;
         checkSchedulerConflicts();
+        refreshSchedulerSubjectMcVisibility();
       });
     });
     document.querySelectorAll("#subjectScheduleTable input.exam-date-input").forEach(function(inp) {
@@ -543,6 +1126,25 @@
     if (st && en) return st + " – " + en;
     if (st || en) return "(incomplete times)";
     return "All day";
+  }
+
+  function marksLabelForSid(sid) {
+    if (schedGlobalScheme !== "split") return "";
+    var hid = document.getElementById("sched_mc_" + sid);
+    if (!hid) return "";
+    try {
+      var arr = JSON.parse(hid.value || "[]");
+      if (!arr.length) return "";
+      var tot = 0;
+      var parts = arr.map(function(x) {
+        var m = parseInt(x.marks, 10) || 0;
+        tot += m;
+        return (x.name || "?") + " " + m;
+      });
+      return " · marks: " + parts.join(" + ") + " (total " + tot + ")";
+    } catch (e) {
+      return "";
+    }
   }
 
   function skipSunday(inp) {
@@ -577,6 +1179,7 @@
     classTs.refreshOptions(false);
     rebuildSectionOptions();
     bindSubjectRows();
+    refreshSchedulerSubjectMcVisibility();
   }
 
   function subjectDates() {
@@ -646,7 +1249,7 @@
         var subjName = cb && cb.getAttribute("data-subject-name") ? cb.getAttribute("data-subject-name") : sid;
         var li = document.createElement("li");
         li.className = "mb-2 pb-2 border-bottom border-light";
-        li.textContent = examBase + " · " + p.cn + " · " + p.sn + " → " + subjName + " on " + dt + " · " + timeLabelForSid(sid) + " · " + teacherLabelForSid(sid);
+        li.textContent = examBase + " · " + p.cn + " · " + p.sn + " → " + subjName + " on " + dt + " · " + timeLabelForSid(sid) + " · " + teacherLabelForSid(sid) + marksLabelForSid(sid);
         ul.appendChild(li);
       });
     });
@@ -759,11 +1362,87 @@
     return null;
   }
 
+  var singleMcCb = document.getElementById("id_single_use_mark_components");
+  var singleMcRoot = document.getElementById("singleMcRoot");
+  var singleHidden = document.getElementById("id_single_mark_components_json");
+  var totalMarksInp = document.getElementById("{{ single_form.total_marks.id_for_label }}");
+  var singleMcInited = false;
+  function refreshSingleMc() {
+    if (!singleMcCb || !singleMcRoot || !singleHidden) return;
+    var on = singleMcCb.checked;
+    singleMcRoot.classList.toggle("d-none", !on);
+    if (on && window.ErpExamMc) {
+      ErpExamMc.init(singleMcRoot, singleHidden);
+      if (!singleMcInited) {
+        singleMcInited = true;
+        singleMcRoot.addEventListener("examMcChange", function(ev) {
+          var total = ev.detail.total;
+          if (totalMarksInp && total > 0) totalMarksInp.value = String(total);
+        });
+      }
+    }
+  }
+  if (singleMcCb) {
+    singleMcCb.addEventListener("change", refreshSingleMc);
+    refreshSingleMc();
+  }
+
+  var schedUse = document.getElementById("id_scheduler_use_mark_components");
+  var schedTotalInp = document.getElementById("id_scheduler_total_marks");
+  // kept only for backend compatibility; UI is per-subject
+  function refreshSchedMc() {
+    refreshSchedulerSubjectMcVisibility();
+  }
+  refreshSchedMc();
+
+  if (schedTotalInp) {
+    schedTotalInp.addEventListener("input", function() {
+      // Keep per-subject "Total marks" mirrors in sync
+      document.querySelectorAll(".subject-marks-split-row [data-total-marks-mirror]").forEach(function(inp) {
+        inp.value = schedTotalInp.value || "";
+      });
+    });
+  }
+
+  var schemeWrap = document.getElementById("schedulerMarkingScheme");
+  if (schemeWrap) {
+    schemeWrap.addEventListener("click", function(e) {
+      var btn = e.target.closest("button[data-scheme-global]");
+      if (!btn) return;
+      setGlobalScheme(btn.getAttribute("data-scheme-global"));
+    });
+  }
+  setGlobalScheme("total");
+
   document.getElementById("form-scheduler").addEventListener("submit", function(ev) {
     if (!classTs || !sectionTs) return;
     var cids = classTs.getValue();
     var sids = sectionTs.getValue();
     var subj = checkedSubjectIds();
+    var mapEl = document.getElementById("id_scheduler_components_map_json");
+    if (schedGlobalScheme === "split") {
+      var out = {};
+      var parseErr = null;
+      subj.forEach(function(sid) {
+        var hid = document.getElementById("sched_mc_" + sid);
+        if (!hid) { out[sid] = []; return; }
+        try {
+          out[sid] = JSON.parse(hid.value || "[]");
+        } catch (e) {
+          parseErr = "Invalid mark components for one or more subjects.";
+        }
+      });
+      if (parseErr) {
+        alert(parseErr);
+        ev.preventDefault();
+        return false;
+      }
+      if (mapEl) mapEl.value = JSON.stringify(out);
+      if (schedUse) schedUse.checked = true;
+    } else {
+      if (mapEl) mapEl.value = "{}";
+      if (schedUse) schedUse.checked = false;
+    }
     if (!cids.length) { alert("Select at least one class."); ev.preventDefault(); return false; }
     if (!sids.length) { alert("Select at least one section."); ev.preventDefault(); return false; }
     if (!subj.length) { alert("Include at least one subject and set its date."); ev.preventDefault(); return false; }
@@ -790,6 +1469,37 @@
       return false;
     }
   });
+
+  function initModernPickers() {
+    if (typeof flatpickr === "undefined") return;
+    var root = document.querySelector(".exam-create-page");
+    if (!root) return;
+
+    // Replace native pickers with modern editors (keep submitted value in same input)
+    root.querySelectorAll('input[type="date"]').forEach(function(inp) {
+      if (inp._flatpickr) return;
+      flatpickr(inp, {
+        dateFormat: "Y-m-d",
+        allowInput: true
+      });
+    });
+    root.querySelectorAll('input[type="time"]').forEach(function(inp) {
+      if (inp._flatpickr) return;
+      flatpickr(inp, {
+        enableTime: true,
+        noCalendar: true,
+        dateFormat: "H:i",
+        time_24hr: true,
+        allowInput: true
+      });
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initModernPickers);
+  } else {
+    initModernPickers();
+  }
 })();
 </script>
 {% endblock %}

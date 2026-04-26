@@ -55,6 +55,18 @@
     }
   </style>
 
+  <div class="mb-3">
+    {% if can_access_account_settings %}
+      <a href="{% url 'accounts:account_settings' %}" class="btn btn-outline-secondary btn-sm rounded-pill">
+        <i class="bi bi-arrow-left me-1"></i>Back to account settings
+      </a>
+    {% else %}
+      <a href="{{ profile_dashboard_url }}" class="btn btn-outline-secondary btn-sm rounded-pill">
+        <i class="bi bi-arrow-left me-1"></i>Back to {{ profile_dashboard_label }}
+      </a>
+    {% endif %}
+  </div>
+
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{{ profile_dashboard_url }}">{{ profile_dashboard_label }}</a></li>

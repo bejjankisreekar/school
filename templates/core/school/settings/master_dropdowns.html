@@ -1,0 +1,500 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Master Dropdown Settings | School ERP{% endblock %}
+{% block extra_head %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+{% endblock %}
+{% block content %}
+<style>
+  .mds-page { max-width: 1280px; margin: 0 auto; }
+  .mds-hero {
+    border-radius: 20px;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.10), rgba(99, 102, 241, 0.08), rgba(248, 250, 252, 0.9));
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1rem;
+  }
+  html.dark .mds-hero { border-color: rgba(148, 163, 184, 0.18); background: rgba(15, 23, 42, 0.25); }
+  .mds-card { border-radius: 20px; border: 1px solid var(--bs-border-color); box-shadow: 0 12px 40px -14px rgba(15, 23, 42, 0.12); }
+  .mds-card .form-control, .mds-card .form-select { border-radius: 999px; }
+  .mds-table thead th {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--bs-secondary-color);
+    background: rgba(148, 163, 184, 0.08);
+    border-bottom: 1px solid var(--bs-border-color);
+    white-space: nowrap;
+  }
+  html.dark .mds-table thead th { background: rgba(148, 163, 184, 0.10); }
+  .mds-table tbody td { vertical-align: middle; }
+  .mds-pill { border-radius: 999px; font-weight: 700; letter-spacing: 0.02em; }
+</style>
+
+<div class="container-fluid px-0 mds-page" id="mdsRoot" data-master-key="{{ selected_key }}">
+  <div class="mb-3">
+    <a href="{% url 'core:school_settings_index' %}" class="btn btn-outline-secondary btn-sm rounded-pill">
+      <i class="bi bi-arrow-left me-1"></i>Back to settings
+    </a>
+  </div>
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_settings_index' %}">Settings</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Master Dropdown Settings</li>
+    </ol>
+  </nav>
+
+  <div class="mds-hero">
+    <div>
+      <h1 class="h4 fw-bold mb-1">Master Fields / Dropdown Settings</h1>
+      <div class="text-muted small">Manage reusable dropdown values for Teachers, Students, Admissions, Attendance, and Reports.</div>
+    </div>
+  </div>
+
+  <form method="get" class="card border-0 shadow-sm mds-card mb-3" data-erp-loading="Loading settings...">
+    <div class="card-body p-3 p-lg-4">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label small text-muted">Category</label>
+          <select class="form-select form-select-sm" name="category" onchange="this.form.submit()">
+            <option value="">All</option>
+            {% for ck, cl, _ in categories %}
+              <option value="{{ ck }}" {% if category == ck %}selected{% endif %}>{{ cl }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small text-muted">Search</label>
+          <input class="form-control form-control-sm" name="q" value="{{ q }}" placeholder="Search by key or label…">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small text-muted">Field key</label>
+          <div class="form-text small text-muted mb-1">Each option shows the human label, where it is used, then the internal key.</div>
+          <select class="form-select form-select-sm" name="key" onchange="this.form.submit()" title="Grouped by primary area; some fields appear in more than one segment.">
+            {% if field_key_groups %}
+              {% for group_label, rows in field_key_groups %}
+                <optgroup label="{{ group_label }}">
+                  {% for k, label, segs in rows %}
+                    <option value="{{ k }}" {% if selected_key == k %}selected{% endif %}>{{ label }}{% if segs %} — {{ segs }}{% endif %} ({{ k }})</option>
+                  {% endfor %}
+                </optgroup>
+              {% endfor %}
+            {% else %}
+              {% for k, label, segs in keys_choices %}
+                <option value="{{ k }}" {% if selected_key == k %}selected{% endif %}>{{ label }}{% if segs %} — {{ segs }}{% endif %} ({{ k }})</option>
+              {% endfor %}
+            {% endif %}
+          </select>
+        </div>
+        <div class="col-12 d-flex gap-2">
+          <button class="btn btn-primary btn-sm rounded-pill px-3" type="submit"><i class="bi bi-funnel me-1"></i>Apply</button>
+          <a class="btn btn-outline-secondary btn-sm rounded-pill px-3" href="{% url 'core:school_master_dropdown_settings' %}?key={{ selected_key }}"><i class="bi bi-arrow-clockwise me-1"></i>Reset</a>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <div class="card border-0 shadow-sm mds-card">
+    <div class="card-header bg-transparent border-0 d-flex flex-wrap align-items-center justify-content-between gap-2 py-3 px-3 px-lg-4">
+      <div class="flex-grow-1 min-w-0">
+        <div class="fw-bold">Options for: <span class="font-monospace">{{ selected_key }}</span></div>
+        {% if selected_segments %}
+          <div class="text-muted small">Used in: <span class="text-body-secondary fw-semibold">{{ selected_segments }}</span></div>
+        {% endif %}
+        <div class="text-muted small">Edit label and order. Delete removes the option permanently.</div>
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-2 ms-lg-auto">
+        <div id="mdsFlash" class="alert alert-success py-2 px-3 small mb-0 d-none" role="status"></div>
+        <button type="button" class="btn btn-primary btn-sm rounded-pill px-3" id="mdsAddBtn" data-mds-action="open-add">
+          <i class="bi bi-plus-lg me-1"></i>Add option
+        </button>
+        <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3" id="mdsSaveOrderBtn" data-mds-action="save-order">
+          <i class="bi bi-save2 me-1"></i>Save order
+        </button>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0 mds-table">
+        <thead class="table-light">
+          <tr>
+            <th style="width:90px;">Order</th>
+            <th>Label</th>
+            <th style="width:140px;">Active</th>
+            <th class="text-end" style="width:180px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="mdsRows">
+          {% for o in options %}
+          <tr data-id="{{ o.id }}">
+            <td><input type="number" class="form-control form-control-sm mds-order" value="{{ o.display_order }}" style="max-width:90px;"></td>
+            <td>
+              <input type="text" class="form-control form-control-sm mds-name" value="{{ o.name }}">
+              <div class="small text-muted mt-1 font-monospace mds-norm">{{ o.name_normalized }}</div>
+            </td>
+            <td>
+              <div class="form-check form-switch">
+                <input class="form-check-input mds-active" type="checkbox" {% if o.is_active %}checked{% endif %}>
+              </div>
+            </td>
+            <td class="text-end">
+              <div class="d-inline-flex gap-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill mds-update" data-mds-action="update"><i class="bi bi-check2 me-1"></i>Update</button>
+                <button type="button" class="btn btn-outline-danger btn-sm rounded-pill mds-delete"><i class="bi bi-trash me-1"></i>Delete</button>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="text-muted text-center py-5">No options yet. Click “Add option”.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div class="modal fade" id="mdsAddModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-4">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold">Add option</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label small text-muted">Label</label>
+        <input type="text" class="form-control" id="mdsAddName" placeholder="Enter option label…" autocomplete="off">
+        <div class="text-danger small mt-2 d-none" id="mdsAddErr"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary rounded-pill" id="mdsAddSave" data-mds-action="add-save">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block after_bootstrap %}
+<script>
+(function () {
+  "use strict";
+
+  var API_ADD = "/api/master-dropdown/add-option/";
+  var API_UPDATE = "/api/master-dropdown/update/";
+  var API_SAVE_ORDER = "/api/master-dropdown/save-order/";
+  var API_DELETE_TMPL = "/api/master-data/__KEY__/__ID__/delete/";
+
+  function getCSRFToken() {
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta && meta.getAttribute("content")) return meta.getAttribute("content");
+    var m = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
+    if (m) return decodeURIComponent(m[1]);
+    var inp = document.querySelector("[name=csrfmiddlewaretoken]");
+    return inp ? inp.value : "";
+  }
+
+  function getMasterKey() {
+    var root = document.getElementById("mdsRoot");
+    return (root && root.getAttribute("data-master-key")) || "";
+  }
+
+  function mdsFetch(url, bodyObj) {
+    return fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCSRFToken(),
+        "X-Requested-With": "XMLHttpRequest"
+      },
+      body: bodyObj != null ? JSON.stringify(bodyObj) : "{}"
+    });
+  }
+
+  function showFlash(msg, isError) {
+    var el = document.getElementById("mdsFlash");
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.remove("d-none", "alert-success", "alert-danger");
+    el.classList.add(isError ? "alert-danger" : "alert-success");
+    window.clearTimeout(showFlash._t);
+    showFlash._t = window.setTimeout(function () {
+      el.classList.add("d-none");
+    }, 4500);
+  }
+
+  function showErr(el, msg) {
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.remove("d-none");
+  }
+  function hideErr(el) {
+    if (!el) return;
+    el.classList.add("d-none");
+  }
+
+  function removeEmptyPlaceholderRow(tbody) {
+    if (!tbody) return;
+    var empty = tbody.querySelector("tr:not([data-id])");
+    if (empty) empty.remove();
+  }
+
+  function appendOptionRow(tbody, data) {
+    removeEmptyPlaceholderRow(tbody);
+    var tr = document.createElement("tr");
+    tr.setAttribute("data-id", String(data.id));
+    tr.innerHTML =
+      '<td><input type="number" class="form-control form-control-sm mds-order" value="' +
+      String(data.display_order != null ? data.display_order : 0) +
+      '" style="max-width:90px;"></td>' +
+      '<td><input type="text" class="form-control form-control-sm mds-name" value="">' +
+      '<div class="small text-muted mt-1 font-monospace mds-norm">' +
+      (data.name_normalized || "") +
+      "</div></td>" +
+      '<td><div class="form-check form-switch">' +
+      '<input class="form-check-input mds-active" type="checkbox"' +
+      (data.is_active !== false ? " checked" : "") +
+      "></div></td>" +
+      '<td class="text-end"><div class="d-inline-flex gap-2">' +
+      '<button type="button" class="btn btn-outline-secondary btn-sm rounded-pill mds-update" data-mds-action="update">' +
+      '<i class="bi bi-check2 me-1"></i>Update</button>' +
+      '<button type="button" class="btn btn-outline-danger btn-sm rounded-pill mds-delete" data-mds-action="delete">' +
+      '<i class="bi bi-trash me-1"></i>Delete</button></div></td>';
+    tr.querySelector(".mds-name").value = data.name || "";
+    tbody.appendChild(tr);
+  }
+
+  function rowPayload(tr) {
+    var id = parseInt(tr.getAttribute("data-id"), 10);
+    var nameEl = tr.querySelector(".mds-name");
+    var orderEl = tr.querySelector(".mds-order");
+    var activeEl = tr.querySelector(".mds-active");
+    var name = (nameEl && nameEl.value) ? nameEl.value.trim() : "";
+    var order = parseInt(orderEl && orderEl.value ? orderEl.value : "0", 10);
+    var active = activeEl ? activeEl.checked : true;
+    return {
+      key: getMasterKey(),
+      id: id,
+      name: name,
+      display_order: isNaN(order) ? 0 : order,
+      is_active: active
+    };
+  }
+
+  async function handleUpdate(button) {
+    var tr = button && button.closest ? button.closest("tr[data-id]") : null;
+    if (!tr) {
+      console.warn("[mds] handleUpdate: missing row");
+      return;
+    }
+    var p = rowPayload(tr);
+    console.log("[mds] handleUpdate", p);
+    try {
+      var resp = await mdsFetch(API_UPDATE, p);
+      var data = await resp.json().catch(function () {
+        return {};
+      });
+      if (!resp.ok) {
+        console.error("[mds] handleUpdate failed", resp.status, data);
+        showFlash(data.error || "Could not update.", true);
+        return;
+      }
+      var norm = tr.querySelector(".mds-norm");
+      if (norm && data.name_normalized) norm.textContent = data.name_normalized;
+      showFlash("Option updated.", false);
+      console.log("[mds] handleUpdate ok", data);
+    } catch (err) {
+      console.error("[mds] handleUpdate error", err);
+      showFlash("Could not update (network error).", true);
+    }
+  }
+
+  async function handleSaveOrder() {
+    var rows = document.getElementById("mdsRows");
+    var key = getMasterKey();
+    var items = [];
+    if (rows) {
+      rows.querySelectorAll("tr[data-id]").forEach(function (tr, idx) {
+        var id = parseInt(tr.getAttribute("data-id"), 10);
+        var orderRaw = tr.querySelector(".mds-order");
+        var o = orderRaw ? parseInt(orderRaw.value || String(idx), 10) : idx;
+        if (isNaN(o)) o = idx;
+        items.push({ id: id, order: o });
+      });
+    }
+    console.log("[mds] handleSaveOrder", { key: key, items: items });
+    if (!items.length) {
+      showFlash("Nothing to reorder.", true);
+      return;
+    }
+    try {
+      var resp = await mdsFetch(API_SAVE_ORDER, { key: key, items: items });
+      var data = await resp.json().catch(function () {
+        return {};
+      });
+      if (!resp.ok) {
+        console.error("[mds] handleSaveOrder failed", resp.status, data);
+        showFlash(data.error || "Could not save order.", true);
+        return;
+      }
+      showFlash("Order saved.", false);
+      console.log("[mds] handleSaveOrder ok", data);
+    } catch (err) {
+      console.error("[mds] handleSaveOrder error", err);
+      showFlash("Could not save order (network error).", true);
+    }
+  }
+
+  async function handleAddOption() {
+    var addName = document.getElementById("mdsAddName");
+    var addErr = document.getElementById("mdsAddErr");
+    var addSave = document.getElementById("mdsAddSave");
+    var v = (addName && addName.value) ? addName.value.trim() : "";
+    if (!v) {
+      showErr(addErr, "Please enter a valid value.");
+      return;
+    }
+    hideErr(addErr);
+    var key = getMasterKey();
+    console.log("[mds] handleAddOption", { key: key, name: v });
+    if (addSave) addSave.disabled = true;
+    try {
+      var resp = await mdsFetch(API_ADD, { key: key, name: v });
+      var data = await resp.json().catch(function () {
+        return {};
+      });
+      if (!resp.ok) {
+        console.error("[mds] handleAddOption failed", resp.status, data);
+        showErr(
+          addErr,
+          (data.error || "Could not save.") + (data.error_id ? " [Error ID: " + data.error_id + "]" : "")
+        );
+        return;
+      }
+      var tbody = document.getElementById("mdsRows");
+      appendOptionRow(tbody, data);
+      showFlash("Option added.", false);
+      var modalEl = document.getElementById("mdsAddModal");
+      if (modalEl && window.bootstrap && bootstrap.Modal) {
+        bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+      }
+      if (addName) addName.value = "";
+      console.log("[mds] handleAddOption ok", data);
+    } catch (err) {
+      console.error("[mds] handleAddOption error", err);
+      showErr(addErr, "Network error. Please try again.");
+    } finally {
+      if (addSave) addSave.disabled = false;
+    }
+  }
+
+  function openAddModal() {
+    var addErr = document.getElementById("mdsAddErr");
+    var addName = document.getElementById("mdsAddName");
+    var modalEl = document.getElementById("mdsAddModal");
+    hideErr(addErr);
+    if (addName) addName.value = "";
+    if (modalEl && window.bootstrap && bootstrap.Modal) {
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      window.setTimeout(function () {
+        if (addName) addName.focus();
+      }, 50);
+    } else {
+      console.error("[mds] Bootstrap Modal unavailable");
+    }
+  }
+
+  async function handleDelete(button) {
+    var tr = button && button.closest ? button.closest("tr[data-id]") : null;
+    if (!tr) return;
+    if (!window.confirm("Delete this option permanently? This cannot be undone.")) return;
+    var id = tr.getAttribute("data-id");
+    var key = getMasterKey();
+    var url = API_DELETE_TMPL.replace("__KEY__", encodeURIComponent(key)).replace("__ID__", encodeURIComponent(id));
+    console.log("[mds] handleDelete", { key: key, id: id });
+    try {
+      var resp = await fetch(url, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "X-CSRFToken": getCSRFToken(),
+          "X-Requested-With": "XMLHttpRequest"
+        }
+      });
+      var data = await resp.json().catch(function () {
+        return {};
+      });
+      if (!resp.ok) {
+        console.error("[mds] handleDelete failed", resp.status, data);
+        showFlash(data.error || "Could not delete.", true);
+        return;
+      }
+      tr.remove();
+      var tbody = document.getElementById("mdsRows");
+      if (tbody && !tbody.querySelector("tr[data-id]")) {
+        var empty = document.createElement("tr");
+        empty.innerHTML =
+          '<td colspan="4" class="text-muted text-center py-5">No options yet. Click &ldquo;Add option&rdquo;.</td>';
+        tbody.appendChild(empty);
+      }
+      showFlash("Option deleted.", false);
+    } catch (err) {
+      console.error("[mds] handleDelete error", err);
+      showFlash("Could not delete (network error).", true);
+    }
+  }
+
+  /** Event delegation (dynamic rows + icons inside buttons). Modal lives outside #mdsRoot. */
+  document.addEventListener("click", function (e) {
+    var t = e.target;
+    if (!t || !t.closest) return;
+    var root = document.getElementById("mdsRoot");
+    var modal = document.getElementById("mdsAddModal");
+    if (!root) return;
+    var inPage = root.contains(t);
+    var inAddModal = modal && modal.contains(t);
+    if (!inPage && !inAddModal) return;
+
+    if (t.closest("#mdsAddBtn") || t.closest("[data-mds-action='open-add']")) {
+      e.preventDefault();
+      openAddModal();
+      return;
+    }
+    if (t.closest("#mdsSaveOrderBtn") || t.closest("[data-mds-action='save-order']")) {
+      e.preventDefault();
+      handleSaveOrder();
+      return;
+    }
+    if (t.closest("#mdsAddSave") || t.closest("[data-mds-action='add-save']")) {
+      e.preventDefault();
+      handleAddOption();
+      return;
+    }
+    var upd = t.closest(".mds-update");
+    if (upd) {
+      e.preventDefault();
+      handleUpdate(upd);
+      return;
+    }
+    var del = t.closest(".mds-delete");
+    if (del) {
+      e.preventDefault();
+      handleDelete(del);
+      return;
+    }
+  }, false);
+
+  window.mdsMasterDropdowns = {
+    handleUpdate: handleUpdate,
+    handleSaveOrder: handleSaveOrder,
+    handleAddOption: handleAddOption,
+    getCSRFToken: getCSRFToken,
+    getMasterKey: getMasterKey
+  };
+  console.log("[mds] Master dropdown settings JS initialized", API_ADD, API_UPDATE, API_SAVE_ORDER);
+})();
+</script>
+{% endblock %}
+

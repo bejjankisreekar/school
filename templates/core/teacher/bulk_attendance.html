@@ -144,7 +144,7 @@
           <p class="text-muted small mb-0">Only classes you teach appear in the lists.</p>
         </div>
       </div>
-      <form method="get" action="{% url 'core:bulk_attendance' %}" id="loadForm" class="row g-3 g-lg-4 align-items-end">
+      <form method="get" action="{% url 'core:bulk_attendance' %}" id="loadForm" class="row g-3 g-lg-4 align-items-end" data-erp-loading="Loading students...">
         <div class="col-12 col-md-6 col-lg-3">
           <label for="class_name" class="form-label fw-semibold small">Class</label>
           <select name="class_name" id="class_name" class="form-select rounded-3" required>
@@ -213,7 +213,7 @@
       </div>
     </div>
 
-    <form method="post" action="{% url 'core:bulk_attendance' %}" id="attendanceForm">
+    <form method="post" action="{% url 'core:bulk_attendance' %}" id="attendanceForm" data-erp-loading="Saving attendance...">
       {% csrf_token %}
       <input type="hidden" name="class_name" value="{{ class_name }}">
       <input type="hidden" name="section" value="{{ section_val }}">
@@ -330,9 +330,131 @@ document.addEventListener("DOMContentLoaded", function() {
   if (markAllLeave) markAllLeave.addEventListener("click", function() { setAll("LEAVE"); });
 
   saveBtn.addEventListener("click", function() {
-    if (confirm("Save attendance for all students in this list?")) form.submit();
+    const layer = document.getElementById("attConfirmLayer");
+    const msg = document.getElementById("attConfirmMsg");
+    const yesBtn = document.getElementById("attConfirmYes");
+    const cancelBtn = document.getElementById("attConfirmCancel");
+    if (!layer || !msg || !yesBtn || !cancelBtn) {
+      // Fallback: submit directly if modal markup is missing
+      if (typeof form.requestSubmit === "function") form.requestSubmit();
+      else form.submit();
+      return;
+    }
+
+    // Count
+    let p = 0, a = 0, l = 0, total = rows.length;
+    rows.forEach(function(row) {
+      const v = currentValue(row);
+      if (v === "PRESENT") p++;
+      else if (v === "ABSENT") a++;
+      else if (v === "LEAVE") l++;
+    });
+
+    // Message
+    let lines = [];
+    if (total === 0) {
+      lines.push("No students found in this list.");
+    } else if (p === total) {
+      lines.push("All " + total + " students are marked present.");
+    } else if (p === 0 && a === 0 && l === 0) {
+      lines.push("No attendance marked. Do you still want to save?");
+    } else {
+      lines.push("Out of " + total + " students, " + p + " are marked present.");
+      if (a) lines.push(a + " students will be marked absent.");
+      if (l) lines.push(l + " students will be marked leave.");
+    }
+    msg.innerHTML = lines.map(function(t){ return "<div>" + t.replace(/</g,"&lt;") + "</div>"; }).join("");
+
+    // Open modal
+    layer.classList.add("att-open");
+    layer.setAttribute("aria-hidden", "false");
+    setTimeout(function(){ try { cancelBtn.focus(); } catch(e) {} }, 0);
+
+    function close() {
+      layer.classList.remove("att-open");
+      layer.setAttribute("aria-hidden", "true");
+    }
+    function submitNow() {
+      close();
+      if (window.ErpLoading && typeof window.ErpLoading.show === "function") {
+        window.ErpLoading.show("Saving attendance...");
+      }
+      if (typeof form.requestSubmit === "function") form.requestSubmit();
+      else form.submit();
+    }
+    // One-shot handlers
+    const onYes = function(e){ e.preventDefault(); yesBtn.removeEventListener("click", onYes); cancelBtn.removeEventListener("click", onCancel); layer.removeEventListener("click", onLayerClick); document.removeEventListener("keydown", onKey); submitNow(); };
+    const onCancel = function(e){ e.preventDefault(); yesBtn.removeEventListener("click", onYes); cancelBtn.removeEventListener("click", onCancel); layer.removeEventListener("click", onLayerClick); document.removeEventListener("keydown", onKey); close(); };
+    const onLayerClick = function(e){ const c = e.target && e.target.closest ? e.target.closest("[data-att-close]") : null; if (c) onCancel(e); };
+    const onKey = function(e){ if (!layer.classList.contains("att-open")) return; if (e.key === "Escape") onCancel(e); };
+    yesBtn.addEventListener("click", onYes);
+    cancelBtn.addEventListener("click", onCancel);
+    layer.addEventListener("click", onLayerClick);
+    document.addEventListener("keydown", onKey);
   });
 });
 </script>
 {% endif %}
+{% endblock %}
+
+{% block modals %}
+<style>
+  .att-layer {
+    display: none !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 2147483640 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 1rem !important;
+    pointer-events: none !important;
+  }
+  .att-layer.att-open { display: flex !important; pointer-events: auto !important; }
+  .att-scrim {
+    position: absolute !important;
+    inset: 0 !important;
+    background: rgba(15, 23, 42, 0.60) !important;
+    backdrop-filter: blur(6px);
+  }
+  .att-panel {
+    position: relative !important;
+    width: 100% !important;
+    max-width: 30rem !important;
+    border-radius: 1rem !important;
+    overflow: hidden !important;
+    background: #fff !important;
+    color: #0f172a !important;
+    border: 1px solid rgba(15, 23, 42, 0.10) !important;
+    box-shadow: 0 26px 60px rgba(0,0,0,0.35) !important;
+  }
+  html.dark .att-panel, body.dark-mode .att-panel {
+    background: #1e293b !important;
+    color: #f1f5f9 !important;
+    border-color: rgba(148, 163, 184, 0.22) !important;
+  }
+  .att-title { font-weight: 800; letter-spacing: -0.01em; margin: 0; }
+  .att-msg strong { font-weight: 900; }
+</style>
+
+<div id="attConfirmLayer" class="att-layer" aria-hidden="true">
+  <div class="att-scrim" data-att-close="1" role="presentation"></div>
+  <div class="att-panel" role="dialog" aria-modal="true" aria-labelledby="attConfirmTitle" aria-describedby="attConfirmMsg">
+    <div class="p-3 border-bottom d-flex align-items-start gap-2">
+      <div class="flex-shrink-0" aria-hidden="true">
+        <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary-subtle text-primary" style="width:2.25rem;height:2.25rem;">
+          <i class="bi bi-check2-square"></i>
+        </span>
+      </div>
+      <div class="flex-grow-1">
+        <h2 class="h6 att-title mb-1" id="attConfirmTitle">Confirm Attendance</h2>
+        <div class="text-muted small att-msg" id="attConfirmMsg">—</div>
+      </div>
+      <button type="button" class="btn-close ms-2" data-att-close="1" aria-label="Close"></button>
+    </div>
+    <div class="p-3 d-flex justify-content-end gap-2 bg-body-tertiary bg-opacity-25">
+      <button type="button" class="btn btn-outline-secondary rounded-pill px-4" id="attConfirmCancel" data-att-close="1">Cancel</button>
+      <button type="button" class="btn btn-primary rounded-pill px-4" id="attConfirmYes">Confirm &amp; Save</button>
+    </div>
+  </div>
+</div>
 {% endblock %}

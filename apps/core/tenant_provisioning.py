@@ -7,9 +7,12 @@ Schema name = lowercase code (e.g. nhs123). Academic tables exist only in tenant
 """
 from __future__ import annotations
 
+import logging
 import random
 import re
 from datetime import date, timedelta
+
+logger = logging.getLogger(__name__)
 
 from django.core.exceptions import ValidationError
 from django.db import connection, transaction
@@ -145,6 +148,13 @@ def provision_school_from_enrollment(
     domain_host = f"{schema_name}.localhost"
     if not Domain.objects.filter(tenant=school).exists():
         Domain.objects.create(domain=domain_host, tenant=school, is_primary=True)
+
+    try:
+        from apps.school_data.master_data_defaults import ensure_master_data_defaults
+
+        ensure_master_data_defaults(school)
+    except Exception:
+        logger.exception("Master data defaults seed failed after provisioning schema %s", schema_name)
 
     return school
 

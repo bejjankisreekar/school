@@ -9,6 +9,7 @@ from typing import Any
 from django.db.models import Sum
 
 from apps.core.utils import has_feature_access
+from apps.school_data.classroom_ordering import ORDER_GRADE_NAME
 from apps.school_data.models import ClassRoom, Exam, Marks, Section, Student
 
 
@@ -133,7 +134,7 @@ def build_toppers_panel_context(request, school, *, user=None) -> dict[str, Any]
     ]
 
     exams = _exam_read_qs_safe().order_by("-date")
-    classes = ClassRoom.objects.all().order_by("name")
+    classes = ClassRoom.objects.all().order_by(*ORDER_GRADE_NAME)
     sections = Section.objects.all().order_by("name")
 
     return {

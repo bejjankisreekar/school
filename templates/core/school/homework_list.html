@@ -411,10 +411,17 @@
         <dd id="hwx_v_attachment">—</dd>
         <dt>Assigned by</dt>
         <dd id="hwx_v_creator">—</dd>
+        <dt>Last changed</dt>
+        <dd id="hwx_v_modified">—</dd>
         <dt>Recorded</dt>
         <dd id="hwx_v_created">—</dd>
         <dt>Due status</dt>
         <dd id="hwx_v_status">—</dd>
+        <dt>Submissions</dt>
+        <dd>
+          <a id="hwx_v_submissions_link" href="#" class="fw-semibold">View stats & lists</a>
+          <div class="small text-muted mt-1">Total / submitted / not submitted + student lists.</div>
+        </dd>
       </dl>
     </div>
     <div class="d-flex justify-content-end gap-2 p-3 border-top bg-light bg-opacity-50 flex-shrink-0 rounded-bottom">
@@ -688,6 +695,15 @@
           } else lateEl.textContent = "No";
         }
         textOrDash(document.getElementById("hwx_v_created"), row.created_display);
+        var modEl = document.getElementById("hwx_v_modified");
+        if (modEl) {
+          var m = row.modified_display || "—";
+          var mb = row.modified_by || "—";
+          if (m !== "—" && mb !== "—") modEl.textContent = m + " · " + mb;
+          else if (m !== "—") modEl.textContent = m;
+          else if (mb !== "—") modEl.textContent = mb;
+          else modEl.textContent = "—";
+        }
         var attEl = document.getElementById("hwx_v_attachment");
         if (attEl) {
           if (row.attachment_url && row.attachment_name) {
@@ -705,6 +721,11 @@
           } else {
             st.innerHTML = '<span class="badge rounded-pill text-bg-success">Active</span>';
           }
+        }
+
+        var link = document.getElementById("hwx_v_submissions_link");
+        if (link) {
+          link.setAttribute("href", "/homework/" + encodeURIComponent(id) + "/submissions/");
         }
         hwxOpen("hwxView");
         return;

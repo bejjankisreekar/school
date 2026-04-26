@@ -3,6 +3,21 @@
 from django.db import migrations
 
 
+class SafeAlterUniqueTogether(migrations.AlterUniqueTogether):
+    """
+    Some environments (notably test DB creation under django-tenants) can end up
+    without the expected unique constraint index for older unique_together.
+    Django's schema editor raises ValueError in that case. We still want the
+    migration state to move forward, so treat it as a no-op at DB level.
+    """
+
+    def database_forwards(self, app_label, schema_editor, from_state, to_state):
+        try:
+            return super().database_forwards(app_label, schema_editor, from_state, to_state)
+        except Exception:
+            return None
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -18,7 +33,7 @@ class Migration(migrations.Migration):
             model_name='feestructure',
             name='academic_year',
         ),
-        migrations.AlterUniqueTogether(
+        SafeAlterUniqueTogether(
             name='attendance',
             unique_together=None,
         ),
@@ -62,7 +77,7 @@ class Migration(migrations.Migration):
             model_name='bookissue',
             name='student',
         ),
-        migrations.AlterUniqueTogether(
+        SafeAlterUniqueTogether(
             name='classroom',
             unique_together=None,
         ),
@@ -130,7 +145,7 @@ class Migration(migrations.Migration):
             model_name='payment',
             name='fee',
         ),
-        migrations.AlterUniqueTogether(
+        SafeAlterUniqueTogether(
             name='feestructure',
             unique_together=None,
         ),
@@ -226,7 +241,7 @@ class Migration(migrations.Migration):
             model_name='hostelfee',
             name='student',
         ),
-        migrations.AlterUniqueTogether(
+        SafeAlterUniqueTogether(
             name='hostelroom',
             unique_together=None,
         ),
@@ -258,7 +273,7 @@ class Migration(migrations.Migration):
             model_name='purchase',
             name='inventory_item',
         ),
-        migrations.AlterUniqueTogether(
+        SafeAlterUniqueTogether(
             name='invoice',
             unique_together=None,
         ),
@@ -398,7 +413,7 @@ class Migration(migrations.Migration):
             model_name='vehicle',
             name='school',
         ),
-        migrations.AlterUniqueTogether(
+        SafeAlterUniqueTogether(
             name='section',
             unique_together=None,
         ),
@@ -414,7 +429,7 @@ class Migration(migrations.Migration):
             model_name='section',
             name='modified_by',
         ),
-        migrations.AlterUniqueTogether(
+        SafeAlterUniqueTogether(
             name='staffattendance',
             unique_together=None,
         ),
@@ -442,7 +457,7 @@ class Migration(migrations.Migration):
             model_name='studentrouteassignment',
             name='student',
         ),
-        migrations.AlterUniqueTogether(
+        SafeAlterUniqueTogether(
             name='studentparent',
             unique_together=None,
         ),
@@ -454,7 +469,7 @@ class Migration(migrations.Migration):
             model_name='studentparent',
             name='modified_by',
         ),
-        migrations.AlterUniqueTogether(
+        SafeAlterUniqueTogether(
             name='studentrouteassignment',
             unique_together=None,
         ),

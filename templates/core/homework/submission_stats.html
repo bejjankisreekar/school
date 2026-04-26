@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}Homework submissions | School ERP{% endblock %}
+
+{% block extra_head %}
+<style>
+  .hss-wrap { max-width: 1200px; }
+  .hss-hero {
+    border-radius: 1rem;
+    border: 1px solid var(--bs-border-color-translucent);
+    background: linear-gradient(135deg, rgba(13, 110, 253, 0.08) 0%, transparent 55%),
+      linear-gradient(225deg, rgba(20, 184, 166, 0.08) 0%, transparent 50%);
+    padding: 1rem 1.25rem;
+  }
+  .hss-tile {
+    border-radius: 1rem;
+    border: 1px solid var(--bs-border-color-translucent);
+    background: var(--bs-body-bg);
+  }
+  .hss-kpi { font-weight: 900; letter-spacing: -0.02em; }
+  .hss-table-card { border-radius: 1rem; border: 1px solid var(--bs-border-color-translucent); overflow: hidden; }
+  .hss-table-card .card-header { background: transparent; }
+  .hss-badge { font-weight: 700; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="hss-wrap mx-auto">
+    <nav aria-label="breadcrumb" class="mb-3">
+      <ol class="breadcrumb">
+        {% if is_teacher %}
+          <li class="breadcrumb-item"><a href="{% url 'core:teacher_dashboard' %}">Dashboard</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'core:homework_list' %}">Homework</a></li>
+        {% else %}
+          <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'core:school_homework_list' %}">Homework</a></li>
+        {% endif %}
+        <li class="breadcrumb-item active">Submissions</li>
+      </ol>
+    </nav>
+
+    <div class="hss-hero mb-3">
+      <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+        <div class="min-w-0">
+          <h1 class="h5 fw-bold mb-1 text-truncate">{{ hw.title }}</h1>
+          <div class="text-muted small">
+            {% if hw.subject %}<span class="me-2"><i class="bi bi-book me-1"></i>{{ hw.subject.name }}</span>{% endif %}
+            <span><i class="bi bi-calendar-event me-1"></i>Due {{ hw.due_date|date:"M j, Y" }}</span>
+          </div>
+        </div>
+        <div class="d-flex gap-2">
+          {% if is_teacher %}
+            <a href="{% url 'core:teacher_homework_view' hw.id %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">Back</a>
+          {% else %}
+            <a href="{% url 'core:school_homework_list' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">Back</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+      <div class="col-12 col-md-4">
+        <div class="card hss-tile shadow-sm">
+          <div class="card-body">
+            <div class="text-muted small">Total students</div>
+            <div class="h2 hss-kpi mb-0">{{ total_students }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div class="card hss-tile shadow-sm">
+          <div class="card-body">
+            <div class="text-muted small">Submitted</div>
+            <div class="h2 hss-kpi mb-0 text-success">{{ submitted_count }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div class="card hss-tile shadow-sm">
+          <div class="card-body">
+            <div class="text-muted small">Not submitted</div>
+            <div class="h2 hss-kpi mb-0 text-danger">{{ not_submitted_count }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-12 col-lg-6">
+        <div class="card hss-table-card shadow-sm">
+          <div class="card-header py-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="fw-semibold">Submitted</div>
+              <span class="badge rounded-pill bg-success hss-badge">{{ submitted_count }}</span>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>Admission No</th>
+                  <th>Name</th>
+                  <th class="text-end">Class</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for s in submitted_students %}
+                <tr>
+                  <td class="fw-semibold">{{ s.admission_number|default:"—" }}</td>
+                  <td>{{ s.user.get_full_name|default:s.user.username|default:"—" }}</td>
+                  <td class="text-end">
+                    {{ s.classroom.name|default:"—" }}{% if s.section %} - {{ s.section.name }}{% endif %}
+                  </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="3" class="text-muted text-center py-4">No submissions yet.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-6">
+        <div class="card hss-table-card shadow-sm">
+          <div class="card-header py-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="fw-semibold">Not submitted</div>
+              <span class="badge rounded-pill bg-danger hss-badge">{{ not_submitted_count }}</span>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>Admission No</th>
+                  <th>Name</th>
+                  <th class="text-end">Class</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for s in not_submitted_students %}
+                <tr>
+                  <td class="fw-semibold">{{ s.admission_number|default:"—" }}</td>
+                  <td>{{ s.user.get_full_name|default:s.user.username|default:"—" }}</td>
+                  <td class="text-end">
+                    {{ s.classroom.name|default:"—" }}{% if s.section %} - {{ s.section.name }}{% endif %}
+                  </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="3" class="text-muted text-center py-4">Everyone has submitted.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

@@ -344,6 +344,10 @@ def extend_dashboard_charts_context(
             class_ids = stu_filter.values_list("classroom_id", flat=True).distinct()
             uniq_ids = sorted(set(class_ids))
             cmap = {c.pk: c for c in ClassRoom.objects.filter(pk__in=uniq_ids)}
+            uniq_ids = sorted(
+                uniq_ids,
+                key=lambda i: (cmap[i].grade_order, (cmap[i].name or "").lower(), i),
+            )
             labels_ca: list[str] = []
             pcts_ca: list[float] = []
             class_ids_ca: list[int] = []

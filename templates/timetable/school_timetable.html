@@ -29,11 +29,12 @@
   .tt-title { font-size: clamp(1.1rem, 2vw, 1.35rem); font-weight: 800; letter-spacing: -0.02em; margin: 0; }
   .tt-meta { font-size: 0.8125rem; color: var(--bs-secondary-color); }
   .tt-badge { font-size: 0.7rem; font-weight: 600; padding: 0.2rem 0.55rem; border-radius: 999px; }
+  /* Full-width grid; no inner scroll box — main layout scrolls (see base.html main.overflow-auto). */
   .tt-table-wrap {
     border-radius: var(--tt-radius);
     border: 1px solid rgba(148, 163, 184, 0.35);
-    overflow: auto;
-    max-height: min(78vh, 1200px);
+    overflow-x: auto;
+    overflow-y: visible;
     box-shadow: 0 10px 40px -12px rgba(15, 23, 42, 0.12);
   }
   html.dark .tt-table-wrap, body.dark-mode .tt-table-wrap {
@@ -217,6 +218,153 @@
     border-color: rgba(129, 140, 248, 0.3);
     color: #e0e7ff;
   }
+
+  /* Print: only timetable grid (A4-friendly) */
+  .tt-print-header { display: none; }
+  @media print {
+    @page { size: A4 landscape; margin: 6mm; }
+    /* Hide app chrome */
+    .sidebar-toggle,
+    #sidebar,
+    .sidebar-overlay,
+    .app-top-header,
+    .toast-container,
+    .no-print,
+    .tt-toolbar,
+    nav[aria-label="breadcrumb"],
+    .app-site-footer { display: none !important; }
+
+    /* Print only the timetable area */
+    body * { visibility: hidden !important; }
+    #tt-print-area, #tt-print-area * { visibility: visible !important; }
+    #tt-print-area {
+      position: absolute !important;
+      left: 0 !important;
+      top: 0 !important;
+      width: 100% !important;
+    }
+    /* Professional print header */
+    .tt-print-header {
+      display: block !important;
+      margin: 0 0 8px !important;
+      padding: 6px 8px !important;
+      border: 1px solid #cbd5e1 !important;
+      border-radius: 10px !important;
+      background: #f8fafc !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .tt-print-top {
+      display: flex !important;
+      align-items: baseline !important;
+      justify-content: space-between !important;
+      gap: 10px !important;
+      margin-bottom: 4px !important;
+      padding-bottom: 4px !important;
+      border-bottom: 1px solid #e2e8f0 !important;
+    }
+    .tt-print-school {
+      font-size: 12.5pt !important;
+      font-weight: 900 !important;
+      letter-spacing: -0.02em !important;
+      margin: 0 !important;
+      color: #0f172a !important;
+    }
+    .tt-print-tag {
+      display: inline-block !important;
+      font-size: 8pt !important;
+      font-weight: 800 !important;
+      text-transform: uppercase !important;
+      letter-spacing: 0.08em !important;
+      padding: 2px 8px !important;
+      border-radius: 999px !important;
+      border: 1px solid #cbd5e1 !important;
+      background: #eef2ff !important;
+      color: #3730a3 !important;
+      margin-left: 8px !important;
+      vertical-align: middle !important;
+    }
+    .tt-print-when {
+      font-size: 8.5pt !important;
+      color: #334155 !important;
+      white-space: nowrap !important;
+    }
+    .tt-print-rows {
+      display: grid !important;
+      grid-template-columns: 1fr 1fr !important;
+      gap: 2px 10px !important;
+      font-size: 8.5pt !important;
+      color: #334155 !important;
+      margin: 0 !important;
+    }
+    .tt-print-rows strong { color: #0f172a !important; font-weight: 800 !important; }
+    .tt-print-student {
+      margin-top: 5px !important;
+      padding-top: 5px !important;
+      border-top: 1px dashed #cbd5e1 !important;
+      font-size: 8.5pt !important;
+      color: #334155 !important;
+    }
+    .tt-print-student strong { color: #0f172a !important; font-weight: 800 !important; }
+
+    .tt-table-wrap { overflow: visible !important; box-shadow: none !important; }
+    /* Fit in ONE page: shrink typography + padding */
+    html, body { font-size: 9pt !important; }
+    #tt-print-area { transform: none !important; }
+
+    .tt-grid {
+      min-width: 0 !important;
+      width: 100% !important;
+      table-layout: fixed !important;
+      font-size: 8.5pt !important;
+    }
+    .tt-grid thead th, .tt-grid tbody th.tt-slot-col, .tt-grid td {
+      padding: 3px 4px !important;
+      line-height: 1.15 !important;
+    }
+    .tt-grid thead th {
+      position: static !important;
+      top: auto !important;
+      font-size: 7.2pt !important;
+    }
+    .tt-grid thead th.tt-corner {
+      position: static !important;
+      left: auto !important;
+      min-width: 86px !important;
+    }
+    .tt-grid tbody th.tt-slot-col {
+      position: static !important;
+      left: auto !important;
+      min-width: 86px !important;
+      font-size: 7.8pt !important;
+    }
+    .tt-grid td {
+      min-width: 0 !important;
+      max-width: none !important;
+      word-break: break-word !important;
+      white-space: normal !important;
+    }
+    .tt-view-cell {
+      min-height: 0 !important;
+      padding: 3px 4px !important;
+      box-shadow: none !important;
+      transform: none !important;
+    }
+    .tt-subject { font-size: 8pt !important; margin-bottom: 2px !important; }
+    .tt-teachers { font-size: 7pt !important; margin: 0 !important; }
+    .tt-time-hint { display: none !important; }
+
+    /* Avoid awkward breaks (should still fit in one page) */
+    table, tr, td, th { page-break-inside: avoid !important; }
+
+    .tt-grid thead th, .tt-grid tbody th.tt-slot-col, .tt-grid td {
+      border-color: #94a3b8 !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .tt-grid thead th { background: #e2e8f0 !important; color: #0f172a !important; }
+    .tt-grid tbody th.tt-slot-col { background: #f8fafc !important; color: #0f172a !important; }
+  }
 </style>
 {% endblock %}
 
@@ -296,6 +444,11 @@
         {% endif %}
       </div>
       <div class="d-flex flex-wrap gap-2">
+        {% if portal_readonly %}
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()">
+            <i class="bi bi-printer me-1"></i>Print timetable
+          </button>
+        {% endif %}
         {% if not portal_readonly %}
           {% if edit_mode %}
           <a href="{% url 'timetable:school_timetable' classroom.id %}" class="btn btn-outline-secondary btn-sm">
@@ -319,7 +472,45 @@
     {% csrf_token %}
     <input type="hidden" name="save_timetable" value="1">
   {% endif %}
-  <div class="tt-table-wrap bg-body{% if edit_mode %} mt-0{% endif %}">
+  <div id="tt-print-area" class="tt-table-wrap bg-body{% if edit_mode %} mt-0{% endif %}">
+    <div class="tt-print-header">
+      <div class="tt-print-top">
+        <div>
+          <div class="tt-print-school">
+            {% if request.user.school %}{{ request.user.school.name }}{% else %}School{% endif %}
+            <span class="tt-print-tag">Timetable</span>
+          </div>
+        </div>
+        <div class="tt-print-when">
+          <strong>Printed:</strong> {% now "M j, Y, g:i A" %}
+        </div>
+      </div>
+
+      <div class="tt-print-rows">
+        <div><strong>Class:</strong> {{ classroom.name }}</div>
+        <div><strong>Profile:</strong> {{ active_profile.name }}</div>
+        <div>
+          <strong>Section:</strong>
+          {% if request.user.role == "STUDENT" and request.user.student_profile and request.user.student_profile.section %}
+            {{ request.user.student_profile.section.name }}
+          {% else %}
+            —
+          {% endif %}
+        </div>
+        <div><strong>Academic year:</strong> {% if classroom.academic_year %}{{ classroom.academic_year.name }}{% else %}—{% endif %}</div>
+      </div>
+
+      {% if request.user.role == "STUDENT" %}
+      <div class="tt-print-student">
+        <div><strong>Student:</strong> {{ request.user.get_full_name|default:request.user.username }}</div>
+        <div>
+          {% if request.user.student_profile.admission_number %}<strong>Admission No:</strong> {{ request.user.student_profile.admission_number }}{% else %}<strong>Admission No:</strong> —{% endif %}
+          <span class="mx-1">·</span>
+          {% if request.user.student_profile.roll_number %}<strong>Roll No:</strong> {{ request.user.student_profile.roll_number }}{% else %}<strong>Roll No:</strong> —{% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
     <table class="table tt-grid mb-0">
       <thead>
         <tr>

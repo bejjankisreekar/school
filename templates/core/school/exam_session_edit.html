@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Edit {{ session.name }} | Exams{% endblock %}
 
 {% block content %}
@@ -132,6 +133,21 @@
               {{ paper_form.total_marks }}
               {% if paper_form.total_marks.errors %}<div class="invalid-feedback d-block small">{{ paper_form.total_marks.errors.0 }}</div>{% endif %}
             </div>
+            <div class="col-12">
+              {{ paper_form.mark_components_json }}
+              <label class="form-label small fw-semibold">Mark components <span class="text-muted fw-normal">(optional)</span></label>
+              <div
+                class="exam-session-mc border rounded-3 p-3 bg-white"
+                data-hidden-id="{{ paper_form.mark_components_json.id_for_label }}"
+              >
+                <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+                  <span class="small text-muted">Split max marks into parts (total updates from sum on save).</span>
+                  <span class="small">Total: <strong class="mc-total-val">0</strong></span>
+                </div>
+                <div class="mc-rows"></div>
+                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill mt-1" data-mc-add><i class="bi bi-plus-lg"></i> Add component</button>
+              </div>
+            </div>
             <div class="col-md-6 col-lg-3 d-flex align-items-end">
               <div class="form-check form-switch w-100 border rounded-3 px-3 py-2 bg-white">
                 {{ paper_form.marks_teacher_edit_locked }}
@@ -151,4 +167,25 @@
     </div>
   </form>
 </div>
+{% endblock %}
+
+{% block after_bootstrap %}
+<script src="{% static 'js/exam-mark-components.js' %}"></script>
+<script>
+(function() {
+  document.querySelectorAll(".exam-session-mc").forEach(function(panel) {
+    var hidId = panel.getAttribute("data-hidden-id");
+    var hid = hidId ? document.getElementById(hidId) : null;
+    if (window.ErpExamMc && hid) {
+      ErpExamMc.init(panel, hid);
+      panel.addEventListener("examMcChange", function(ev) {
+        var card = panel.closest(".exam-paper-row");
+        if (!card) return;
+        var tm = card.querySelector('input[name$="-total_marks"]');
+        if (tm && ev.detail.total > 0) tm.value = String(ev.detail.total);
+      });
+    }
+  });
+})();
+</script>
 {% endblock %}

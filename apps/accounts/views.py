@@ -3,10 +3,16 @@ from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm
 from django.contrib.sessions.models import Session
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.db import connection
+from django.db.utils import ProgrammingError
+from django.core.management import call_command
+
+from apps.school_data.models import Student
 
 from .forms import (
     SchoolInstitutionProfileForm,
@@ -19,6 +25,12 @@ from .forms import (
     UserProfileSecurityPrefsForm,
 )
 from .models import BlockedLoginAttempt, User, UserProfile
+
+
+def _require_admin_or_super(user):
+    role = getattr(user, "role", None)
+    if role not in (User.Roles.ADMIN, User.Roles.SUPERADMIN):
+        raise PermissionDenied
 
 
 def _dashboard_redirect_for_user(user):
@@ -194,6 +206,8 @@ def account_profile(request):
         request,
         "accounts/account_profile.html",
         {
+            "can_access_account_settings": getattr(user, "role", None)
+            in (User.Roles.ADMIN, User.Roles.SUPERADMIN),
             "account_user": user,
             "profile": profile,
             "core_form": core_form,
@@ -226,8 +240,10 @@ def change_password(request):
         return redirect("accounts:change_password_first")
 
     form = PasswordChangeForm(user=request.user, data=request.POST or None)
-    for _fname, field in form.fields.items():
-        field.widget.attrs.setdefault("class", "form-control rounded-3")
+    for name, field in form.fields.items():
+        field.widget.attrs.setdefault("class", "form-control form-control-lg rounded-4 border-secondary-subtle")
+        if "password" in name:
+            field.widget.attrs.setdefault("autocomplete", "new-password" if name != "old_password" else "current-password")
 
     if request.method == "POST" and form.is_valid():
         form.save()
@@ -237,6 +253,7 @@ def change_password(request):
         return _dashboard_redirect_for_user(request.user)
 
     dash_url, dash_label = _profile_breadcrumb_home(request.user)
+    u = request.user
     return render(
         request,
         "accounts/change_password.html",
@@ -244,20 +261,305 @@ def change_password(request):
             "form": form,
             "settings_dashboard_url": dash_url,
             "settings_dashboard_label": dash_label,
+            "can_access_account_settings": getattr(u, "role", None)
+            in (User.Roles.ADMIN, User.Roles.SUPERADMIN),
         },
     )
 
 
 @login_required
 def account_settings(request):
-    """Settings landing page for all roles."""
+    """
+    Account settings:
+    - Student: show only the logged-in student's details (scoped to their school).
+    - Admin/Superadmin: master dropdown settings.
+    """
+    if getattr(request.user, "role", None) == User.Roles.STUDENT:
+        student = Student.objects.select_related("user", "classroom", "section").filter(user=request.user).first()
+        if not student:
+            messages.error(request, "Student profile not found for this account.")
+            raise PermissionDenied
+        # School-level restriction (student must belong to the same school as the logged-in user)
+        if getattr(student.user, "school", None) != getattr(request.user, "school", None):
+            raise PermissionDenied
+
+        if request.method == "POST":
+            action = (request.POST.get("action") or "").strip()
+            if action == "save_student_contact":
+                phone = (request.POST.get("phone") or "").strip()
+                student.phone = phone
+                student.modified_by = request.user
+                student.save(update_fields=["phone", "modified_by", "modified_on"])
+                messages.success(request, "Your contact details were updated.")
+                return redirect(reverse("accounts:account_settings"))
+
+        dash_url, dash_label = _profile_breadcrumb_home(request.user)
+        return render(
+            request,
+            "accounts/student_account_settings.html",
+            {
+                "settings_dashboard_url": dash_url,
+                "settings_dashboard_label": dash_label,
+                "student": student,
+                "account_user": request.user,
+            },
+        )
+
+    _require_admin_or_super(request.user)
     dash_url, dash_label = _profile_breadcrumb_home(request.user)
+
+    try:
+        from apps.school_data.models import DropdownMaster
+    except Exception:
+        DropdownMaster = None
+
+    # IMPORTANT: /accounts/ routes are usually public-schema, but this specific settings page is
+    # tenant-bound (see apps.core.tenant_bind.TENANT_BIND_FORCE_PATHS). We still keep tenant_context
+    # for superadmin "pick a school" support.
+    from apps.customers.models import School
+
+    req_school = getattr(request.user, "school", None)
+    selected_school = req_school
+
+    # Superadmin may not be bound to a school. Allow selecting a school for master fields.
+    school_choices = []
+    if getattr(request.user, "role", None) == User.Roles.SUPERADMIN:
+        school_choices = list(School.objects.exclude(schema_name="public").order_by("name", "code"))
+        code = (request.GET.get("school") or "").strip()
+        if code:
+            picked = School.objects.filter(code=code).first()
+            if picked:
+                selected_school = picked
+        if not selected_school or getattr(selected_school, "schema_name", None) == "public":
+            selected_school = school_choices[0] if school_choices else None
+
+    # For school admins, the selected school must be their linked school (never PUBLIC).
+    if getattr(request.user, "role", None) == User.Roles.ADMIN:
+        if not selected_school or getattr(selected_school, "schema_name", None) == "public":
+            selected_school = None
+    tenant_ctx = None
+    if DropdownMaster is not None and selected_school:
+        try:
+            from django_tenants.utils import tenant_context
+
+            tenant_ctx = tenant_context(selected_school)
+        except Exception:
+            tenant_ctx = None
+
+    if request.method == "POST" and DropdownMaster is not None and tenant_ctx is not None:
+        action = (request.POST.get("action") or "").strip()
+
+        if action == "add_field":
+            field_key = (request.POST.get("field_key") or "").strip()
+            display_label = (request.POST.get("display_label") or "").strip()
+            option_value = (request.POST.get("option_value") or "").strip()
+            category = (request.POST.get("category") or "").strip()
+            try:
+                display_order = int((request.POST.get("display_order") or "0").strip() or 0)
+            except Exception:
+                display_order = 0
+            is_active = (request.POST.get("is_active") or "") in ("1", "true", "on", "yes")
+
+            if not field_key or not display_label or not option_value:
+                messages.error(request, "Please fill Field Key, Display Label and Option Value.")
+            else:
+                try:
+                    with tenant_ctx:
+                        obj = DropdownMaster(
+                            field_key=field_key,
+                            display_label=display_label,
+                            option_value=option_value,
+                            category=category,
+                            display_order=max(0, int(display_order)),
+                            is_active=bool(is_active),
+                        )
+                        obj.save_with_audit(request.user)
+                    messages.success(request, "Master field option added.")
+                except Exception:
+                    messages.error(request, "Could not add this option. It may already exist.")
+            return redirect(reverse("accounts:account_settings"))
+
+        if action == "toggle_active":
+            try:
+                pk = int(request.POST.get("id") or "0")
+            except Exception:
+                pk = 0
+            if pk:
+                try:
+                    with tenant_ctx:
+                        obj = DropdownMaster.objects.filter(pk=pk).first()
+                        if obj:
+                            obj.is_active = not bool(obj.is_active)
+                            obj.modified_by = request.user
+                            obj.save(update_fields=["is_active", "modified_by", "modified_on"])
+                            messages.success(request, "Status updated.")
+                except Exception:
+                    messages.error(request, "Could not update status.")
+            return redirect(reverse("accounts:account_settings"))
+
+        if action == "delete_field":
+            try:
+                pk = int(request.POST.get("id") or "0")
+            except Exception:
+                pk = 0
+            if pk:
+                try:
+                    with tenant_ctx:
+                        DropdownMaster.objects.filter(pk=pk).delete()
+                    messages.success(request, "Deleted.")
+                except Exception:
+                    messages.error(request, "Could not delete.")
+            return redirect(reverse("accounts:account_settings"))
+
+        if action == "edit_field":
+            try:
+                pk = int(request.POST.get("id") or "0")
+            except Exception:
+                pk = 0
+            field_key = (request.POST.get("field_key") or "").strip()
+            display_label = (request.POST.get("display_label") or "").strip()
+            option_value = (request.POST.get("option_value") or "").strip()
+            category = (request.POST.get("category") or "").strip()
+            try:
+                display_order = int((request.POST.get("display_order") or "0").strip() or 0)
+            except Exception:
+                display_order = 0
+            is_active = (request.POST.get("is_active") or "") in ("1", "true", "on", "yes")
+
+            if pk and field_key and display_label and option_value:
+                try:
+                    with tenant_ctx:
+                        DropdownMaster.objects.filter(pk=pk).update(
+                            field_key=field_key,
+                            display_label=display_label,
+                            option_value=option_value,
+                            category=category,
+                            display_order=max(0, int(display_order)),
+                            is_active=bool(is_active),
+                            modified_by=request.user,
+                        )
+                    messages.success(request, "Updated.")
+                except Exception:
+                    messages.error(request, "Could not update. It may conflict with an existing option.")
+            else:
+                messages.error(request, "Invalid update data.")
+            return redirect(reverse("accounts:account_settings"))
+
+    dropdown_fields = []
+    categories = []
+    if DropdownMaster is not None and tenant_ctx is not None:
+        try:
+            with tenant_ctx:
+                dropdown_fields = list(DropdownMaster.objects.all())
+                categories = list(
+                    DropdownMaster.objects.exclude(category="")
+                    .values_list("category", flat=True)
+                    .distinct()
+                    .order_by("category")
+                )
+        except ProgrammingError:
+            # Tenant migrations not applied for this school schema (or schema mismatch).
+            attempted_schema = getattr(selected_school, "schema_name", None) if selected_school else None
+
+            # Best-effort auto-migrate this tenant once per session to self-heal new deployments.
+            did_try = bool(request.session.get("did_autofix_dropdownmaster"))
+            if not did_try and attempted_schema:
+                request.session["did_autofix_dropdownmaster"] = True
+                try:
+                    call_command(
+                        "migrate_schemas",
+                        schema_name=attempted_schema,
+                        tenant=True,
+                        skip_checks=True,
+                        app_label="school_data",
+                    )
+                    with tenant_ctx:
+                        dropdown_fields = list(DropdownMaster.objects.all())
+                        categories = list(
+                            DropdownMaster.objects.exclude(category="")
+                            .values_list("category", flat=True)
+                            .distinct()
+                            .order_by("category")
+                        )
+                except Exception:
+                    messages.error(
+                        request,
+                        f"Master fields table is not ready for this school (schema: {attempted_schema or 'unknown'}). "
+                        "Please run tenant migrations and try again.",
+                    )
+            else:
+                messages.error(
+                    request,
+                    f"Master fields table is not ready for this school (schema: {attempted_schema or 'unknown'}). "
+                    "Please run tenant migrations and try again.",
+                )
+
+    # Auto-seed a few common master fields for a brand new tenant.
+    if DropdownMaster is not None and tenant_ctx is not None and selected_school and not dropdown_fields:
+        if not request.session.get("seeded_dropdownmaster_defaults"):
+            request.session["seeded_dropdownmaster_defaults"] = True
+            try:
+                with tenant_ctx:
+                    seeds = [
+                        # gender
+                        ("gender", "Male", "male", "common", 0, True),
+                        ("gender", "Female", "female", "common", 1, True),
+                        ("gender", "Other", "other", "common", 2, True),
+                        # nationality
+                        ("nationality", "Indian", "indian", "common", 0, True),
+                        # blood group
+                        ("blood_group", "A+", "A+", "common", 0, True),
+                        ("blood_group", "B+", "B+", "common", 1, True),
+                        ("blood_group", "O+", "O+", "common", 2, True),
+                        ("blood_group", "AB+", "AB+", "common", 3, True),
+                        # staff type
+                        ("staff_type", "Teaching", "teaching", "teacher", 0, True),
+                        ("staff_type", "Non-Teaching", "non_teaching", "teacher", 1, True),
+                        # department
+                        ("department", "General", "general", "teacher", 0, True),
+                        # subject
+                        ("subject", "General", "general", "teacher", 0, True),
+                    ]
+                    for fk, lbl, val, cat, order, active in seeds:
+                        DropdownMaster.objects.get_or_create(
+                            field_key=fk,
+                            option_value=val,
+                            defaults={
+                                "display_label": lbl,
+                                "category": cat,
+                                "display_order": order,
+                                "is_active": active,
+                                "created_by": request.user,
+                                "modified_by": request.user,
+                            },
+                        )
+                    dropdown_fields = list(DropdownMaster.objects.all())
+                    categories = list(
+                        DropdownMaster.objects.exclude(category="")
+                        .values_list("category", flat=True)
+                        .distinct()
+                        .order_by("category")
+                    )
+            except Exception:
+                # Seeding is best-effort; don't block the page.
+                pass
+    elif getattr(request.user, "role", None) == User.Roles.ADMIN and selected_school is None:
+        messages.error(request, "This admin user is not linked to a school tenant. Please contact Super Admin.")
+
+    # Legacy context key (Analytics card removed from template). Keeps render safe if templates still reference it.
+    analytics_fields = []
+
     return render(
         request,
         "accounts/account_settings.html",
         {
             "settings_dashboard_url": dash_url,
             "settings_dashboard_label": dash_label,
+            "dropdown_fields": dropdown_fields,
+            "dropdown_categories": categories,
+            "settings_school": selected_school,
+            "settings_school_choices": school_choices,
+            "analytics_fields": analytics_fields,
         },
     )
 
@@ -313,6 +615,10 @@ def login_view(request, login_type: str = "portal"):
         # - Do NOT leak whether a username/email exists or is inactive.
         raw_login = (request.POST.get("username") or "").strip()
         raw_password = request.POST.get("password") or ""
+        # Normalize username for AuthenticationForm:
+        # If the user typed an admission number / username with different casing,
+        # map it to the canonical stored username before validating the form.
+        post_data = request.POST
         if raw_login and raw_password:
             try:
                 cand = (
@@ -344,10 +650,17 @@ def login_view(request, login_type: str = "portal"):
                         return redirect(
                             f"{reverse('accounts:access_restricted')}?type=inactive&role={role}&login_type={login_type}"
                         )
+                    # Credentials are correct and account is active.
+                    # Force the canonical username into the posted data so AuthenticationForm succeeds.
+                    try:
+                        post_data = request.POST.copy()
+                        post_data["username"] = cand.username
+                    except Exception:
+                        post_data = request.POST
             except Exception:
                 pass
 
-        form = AuthenticationForm(request, data=request.POST)
+        form = AuthenticationForm(request, data=post_data)
         if form.is_valid():
             user = form.get_user()
             login(request, user)
@@ -369,17 +682,7 @@ def login_view(request, login_type: str = "portal"):
                 allowed_hosts={request.get_host()},
                 require_https=request.is_secure(),
             ):
-                target = next_url
-                return render(
-                    request,
-                    "accounts/login_loading.html",
-                    {
-                        "target": target,
-                        "role": getattr(user, "role", "") or "",
-                        "username": getattr(user, "username", "") or "",
-                        "full_name": getattr(user, "get_full_name", lambda: "")() or "",
-                    },
-                )
+                return redirect(next_url)
 
             role = getattr(user, "role", None)
             if role == "SUPERADMIN":
@@ -395,16 +698,7 @@ def login_view(request, login_type: str = "portal"):
             else:
                 target = reverse("core:student_dashboard")
 
-            return render(
-                request,
-                "accounts/login_loading.html",
-                {
-                    "target": target,
-                    "role": role or "",
-                    "username": getattr(user, "username", "") or "",
-                    "full_name": getattr(user, "get_full_name", lambda: "")() or "",
-                },
-            )
+            return redirect(target)
     else:
         form = AuthenticationForm(request)
 

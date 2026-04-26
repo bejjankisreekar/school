@@ -10,6 +10,44 @@
   .conc-card { background: var(--card); border: 1px solid var(--bd); border-radius: 1.15rem; box-shadow: 0 1px 3px rgba(15,23,42,.06); }
   .conc-summary-row:hover { background: rgba(79, 70, 229, 0.06) !important; }
   html.dark .conc-summary-row:hover { background: rgba(99, 102, 241, 0.12) !important; }
+  .conc-class-card {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    border-radius: 1.15rem;
+    transition: transform 0.12s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    position: relative;
+  }
+  .conc-class-card .conc-card {
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+  .conc-class-card .conc-card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(1200px 220px at 20% -10%, rgba(99, 102, 241, 0.18), transparent 55%),
+                radial-gradient(900px 220px at 100% 0%, rgba(13, 148, 136, 0.12), transparent 55%);
+    opacity: 0;
+    transition: opacity 0.22s ease;
+    pointer-events: none;
+  }
+  .conc-class-card:hover .conc-card {
+    transform: translateY(-3px);
+    box-shadow: 0 16px 34px rgba(15,23,42,.12);
+    border-color: rgba(99, 102, 241, 0.45);
+  }
+  .conc-class-card:hover .conc-card::after { opacity: 1; }
+  html.dark .conc-class-card:hover .conc-card {
+    box-shadow: 0 18px 38px rgba(0,0,0,.45);
+  }
+  .conc-class-kpi .lbl { font-size: 0.7rem; text-transform: uppercase; letter-spacing: .06em; color: #64748b; font-weight: 700; }
+  html.dark .conc-class-kpi .lbl { color: #94a3b8; }
+  .conc-class-kpi .val { font-weight: 800; letter-spacing: -0.02em; }
+  .conc-money { font-variant-numeric: tabular-nums; }
+  .conc-kpi-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.65rem; }
+  @media (max-width: 575.98px) { .conc-kpi-grid { grid-template-columns: 1fr 1fr; } }
   .conc-modal-lines-header {
     background: linear-gradient(135deg, #4338ca 0%, #4f46e5 40%, #0d9488 100%);
     padding: 1.1rem 1.35rem;
@@ -72,11 +110,41 @@
   </nav>
 
   <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+  
+    <!-- LEFT SIDE -->
     <div>
-      <h1 class="h4 fw-bold mb-1">Student concessions</h1>
-      <p class="small text-muted mb-0">One row per student (totals across all fee lines). Click <strong>Fee lines</strong> to open a focused window, then <strong>Edit concession</strong> on each line where discounts are allowed.</p>
+      {% if selected_classroom %}
+        <h1 class="h4 fw-bold mb-1">
+          Student Concessions – {{ selected_classroom.name }}
+        </h1>
+        <p class="small text-muted mb-0">
+          One row per student (totals across all fee lines). Open <strong>Fee lines</strong> to edit concessions where discounts are allowed.
+        </p>
+      {% else %}
+        <h1 class="h4 fw-bold mb-1">Student concessions</h1>
+        <p class="small text-muted mb-0">
+          Choose a class to drill down into student-wise concessions.
+        </p>
+      {% endif %}
     </div>
-    <a href="{% url 'core:billing_fee_structure' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}" class="btn btn-outline-primary btn-sm rounded-pill">Class fee structure</a>
+  
+    <!-- RIGHT SIDE BUTTONS -->
+    <div class="d-flex align-items-center gap-2">
+      
+      {% if selected_classroom %}
+      <a href="{% url 'core:billing_concessions' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}"
+         class="btn btn-outline-secondary btn-sm rounded-pill">
+        <i class="bi bi-arrow-left me-1"></i> Back to classes
+      </a>
+      {% endif %}
+  
+      <a href="{% url 'core:billing_fee_structure' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}"
+         class="btn btn-outline-primary btn-sm rounded-pill">
+        Class fee structure
+      </a>
+  
+    </div>
+  
   </div>
 
   {% if messages %}
@@ -99,26 +167,54 @@
         </select>
       </div>
       {% endif %}
-      <div class="col-6 col-md-3">
-        <label class="form-label small text-muted mb-0">Class</label>
-        <select name="classroom_id" class="form-select form-select-sm rounded-3" onchange="this.form.submit()">
-          <option value="">All classes</option>
-          {% for c in classrooms %}
-          <option value="{{ c.id }}" {% if classroom_id == c.id %}selected{% endif %}>{{ c.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
+      {% if selected_classroom %}
+        <input type="hidden" name="class_id" value="{{ selected_classroom.id }}">
+      {% endif %}
       <div class="col-12 col-md-4">
         <label class="form-label small text-muted mb-0">Search</label>
         <input type="search" name="q" class="form-control form-control-sm rounded-3" placeholder="Student or fee type…" value="{{ q }}">
       </div>
       <div class="col-12 col-md-2 d-flex gap-2">
         <button type="submit" class="btn btn-primary btn-sm rounded-pill px-3 flex-grow-1">Apply</button>
-        <a href="{% url 'core:billing_concessions' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}" class="btn btn-outline-secondary btn-sm rounded-pill">Reset</a>
+        <a href="{% url 'core:billing_concessions' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}{% if selected_classroom %}&class_id={{ selected_classroom.id }}{% endif %}" class="btn btn-outline-secondary btn-sm rounded-pill">Reset</a>
       </div>
     </form>
   </div>
 
+  {% if class_cards and not selected_classroom %}
+  <div class="row g-3">
+    {% for card in class_cards %}
+    <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+      <a class="conc-class-card" href="{% url 'core:billing_concessions' %}?{% if academic_year %}ay={{ academic_year.id }}&{% endif %}class_id={{ card.classroom.id }}">
+        <div class="conc-card p-3 p-lg-4">
+          <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+            <div class="fw-bold">{{ card.classroom.name }}</div>
+            <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">Class</span>
+          </div>
+          <div class="conc-kpi-grid">
+            <div class="conc-class-kpi">
+              <div class="lbl">Students</div>
+              <div class="val">{{ card.students_count|intcomma }}</div>
+            </div>
+            <div class="conc-class-kpi">
+              <div class="lbl">Concession</div>
+              <div class="val conc-money text-secondary">₹{{ card.total_concession|inr }}</div>
+            </div>
+            <div class="conc-class-kpi">
+              <div class="lbl">Net due</div>
+              <div class="val conc-money">₹{{ card.total_net_due|inr }}</div>
+            </div>
+          </div>
+        </div>
+      </a>
+    </div>
+    {% empty %}
+    <div class="col-12">
+      <div class="conc-card p-4 text-center text-muted">No fee lines found for this academic year.</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
   <div class="conc-card overflow-hidden">
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
@@ -143,9 +239,9 @@
             </td>
             <td class="small">{{ s.classroom.name|default:"—" }}</td>
             <td class="text-center"><span class="badge rounded-pill bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">{{ group.lines_count }}</span></td>
-            <td class="text-end font-monospace small">₹{{ group.total_original|inr }}</td>
-            <td class="text-end font-monospace small text-secondary">₹{{ group.total_concession|inr }}</td>
-            <td class="text-end font-monospace small fw-semibold">₹{{ group.total_net|inr }}</td>
+            <td class="text-end font-monospace small conc-money">₹{{ group.total_original|inr }}</td>
+            <td class="text-end font-monospace small text-secondary conc-money">₹{{ group.total_concession|inr }}</td>
+            <td class="text-end font-monospace small fw-semibold conc-money">₹{{ group.total_net|inr }}</td>
             <td class="pe-3 text-end">
               <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#concLinesStudent{{ s.id }}" aria-label="Open fee lines for {{ s.user.get_full_name|default:s.user.username }}">
                 <i class="bi bi-receipt-cutoff me-1"></i>Fee lines
@@ -164,15 +260,16 @@
       <span class="text-muted">Students: page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} total)</span>
       <div class="d-flex gap-2">
         {% if page_obj.has_previous %}
-        <a class="btn btn-sm btn-outline-secondary rounded-pill" href="?{% if academic_year %}ay={{ academic_year.id }}&{% endif %}{% if classroom_id %}classroom_id={{ classroom_id }}&{% endif %}{% if q %}q={{ q|urlencode }}&{% endif %}page={{ page_obj.previous_page_number }}">Previous</a>
+        <a class="btn btn-sm btn-outline-secondary rounded-pill" href="?{% if academic_year %}ay={{ academic_year.id }}&{% endif %}{% if selected_classroom %}class_id={{ selected_classroom.id }}&{% endif %}{% if q %}q={{ q|urlencode }}&{% endif %}page={{ page_obj.previous_page_number }}">Previous</a>
         {% endif %}
         {% if page_obj.has_next %}
-        <a class="btn btn-sm btn-outline-secondary rounded-pill" href="?{% if academic_year %}ay={{ academic_year.id }}&{% endif %}{% if classroom_id %}classroom_id={{ classroom_id }}&{% endif %}{% if q %}q={{ q|urlencode }}&{% endif %}page={{ page_obj.next_page_number }}">Next</a>
+        <a class="btn btn-sm btn-outline-secondary rounded-pill" href="?{% if academic_year %}ay={{ academic_year.id }}&{% endif %}{% if selected_classroom %}class_id={{ selected_classroom.id }}&{% endif %}{% if q %}q={{ q|urlencode }}&{% endif %}page={{ page_obj.next_page_number }}">Next</a>
         {% endif %}
       </div>
     </div>
     {% endif %}
   </div>
+  {% endif %}
 </div>
 {% endblock %}
 

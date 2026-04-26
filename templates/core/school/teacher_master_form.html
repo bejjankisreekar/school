@@ -367,7 +367,7 @@
                   <button type="button" class="teacher-master-qa-btn tm-quickadd-btn" data-target="#{{ form.department.id_for_label }}" data-title="Add department" data-placeholder="e.g. Sciences" aria-label="Add department"><i class="bi bi-plus-lg"></i></button>
                 </div>
               </div>
-              {% if teacher %}<div class="col-12"><label class="form-label" for="{{ form.role.id_for_label }}">Portal role</label>{{ form.role }}</div>{% endif %}
+              {# Portal role removed (security) #}
               <div class="col-12"><label class="form-label" for="{{ form.subjects.id_for_label }}">Subjects</label>{{ form.subjects }}</div>
               <div class="col-12"><label class="form-label" for="{{ form.classrooms.id_for_label }}">Assigned classes</label>{{ form.classrooms }}</div>
             </div>
@@ -739,15 +739,21 @@
           },
           body: JSON.stringify({ name: v })
         });
-        var payload = await resp.json().catch(function(){ return {}; });
+        var payload = await resp.json().catch(function(){ return null; });
         if (resp.status === 409) {
-          setError(payload.error || "This option already exists.");
+          setError((payload && payload.error) || "This option already exists.");
           if (saveBtn) saveBtn.disabled = false;
           inputEl.focus();
           return;
         }
         if (!resp.ok) {
-          setError(payload.error || ("Could not save. Please try again. (" + resp.status + ")"));
+          if (!payload) {
+            var txt = await resp.text().catch(function(){ return ""; });
+            setError(("Could not save. Please try again. (" + resp.status + ")") + (txt ? (" — " + txt.slice(0, 160)) : ""));
+          } else {
+            var eid = payload.error_id ? (" [Error ID: " + payload.error_id + "]") : "";
+            setError((payload.error || ("Could not save. Please try again. (" + resp.status + ")")) + eid);
+          }
           if (saveBtn) saveBtn.disabled = false;
           return;
         }

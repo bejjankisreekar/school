@@ -238,6 +238,7 @@ body {
   justify-content: center;
   gap: 0.125rem;
   min-height: 2.75rem;
+  min-width: 0;
 }
 
 .sidebar-product-name {
@@ -250,7 +251,14 @@ body {
   color: #0f172a;
   min-width: 0;
   -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+
+/* Force brand visibility even under aggressive global resets */
+#sidebar .sidebar-product-brand { display: flex !important; }
+#sidebar .sidebar-product-name { display: block !important; opacity: 1 !important; visibility: visible !important; }
 
 :is(html.dark, html[data-theme="dark"], html[data-bs-theme="dark"]) .sidebar-product-brand,
 body.dark-mode .sidebar-product-brand {
@@ -491,9 +499,12 @@ body.dark-mode .topbar-page-title {
 .topbar-school-title {
   margin: 0;
   padding: 0;
-  font-size: 1.375rem;
+  font-size: 1.2rem;
   line-height: 1.2;
 }
+
+/* Some pages may render the school name using app-header-school-name only */
+.app-header-school-name { font-size: 1.2rem; line-height: 1.2; }
 
 .topbar-logo.app-header-brand-mark,
 .app-header-brand-mark {
@@ -799,7 +810,7 @@ body.dark-mode .app-top-header .school-name {
 
   .topbar-school-title,
   .school-info .topbar-school-title {
-    font-size: 1.05rem;
+    font-size: 1rem;
   }
 }
 

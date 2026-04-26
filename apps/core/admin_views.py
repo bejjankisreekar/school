@@ -20,6 +20,7 @@ from apps.core.tenant_provisioning import (
     schema_name_for_school_code,
 )
 from apps.customers.models import Coupon, Feature, Plan, School, SchoolSubscription, SubscriptionPlan
+from apps.school_data.classroom_ordering import ORDER_GRADE_NAME
 from apps.school_data.models import Teacher, Student, ClassRoom, Section, Subject
 from .forms import AdminCouponForm, AdminSchoolForm, AdminTeacherForm, AdminStudentForm
 
@@ -263,7 +264,7 @@ def admin_teachers_list(request):
 
             qs = qs.annotate(assignments_count=Count("class_section_subject_teacher_mappings", distinct=True))
 
-            subject_choices = list(Subject.objects.order_by("name").values_list("id", "name"))
+            subject_choices = list(Subject.objects.order_by("display_order", "name").values_list("id", "name"))
 
             paginator = Paginator(qs, 20)
             _ = paginator.count  # cache total COUNT while tenant schema is active
@@ -436,7 +437,7 @@ def admin_students_list(request):
             elif status == "inactive":
                 qs = qs.filter(user__is_active=False)
 
-            classroom_choices = list(ClassRoom.objects.order_by("name").values_list("id", "name"))
+            classroom_choices = list(ClassRoom.objects.order_by(*ORDER_GRADE_NAME).values_list("id", "name"))
             section_choices = list(Section.objects.order_by("name").values_list("id", "name"))
 
             paginator = Paginator(qs, 20)

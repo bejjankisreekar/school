@@ -32,6 +32,27 @@ class MasterDataOption(BaseModel):
         DESIGNATION = "designation", "Designation"
         DEPARTMENT = "department", "Department"
         QUALIFICATION = "qualification", "Qualification"
+        CASTE_CATEGORY = "caste_category", "Caste / Category"
+        MARITAL_STATUS = "marital_status", "Marital status"
+        STAFF_TYPE = "staff_type", "Staff type"
+        EMPLOYMENT_TYPE = "employment_type", "Employment type"
+        SHIFT = "shift", "Shift"
+        PAYROLL_CATEGORY = "payroll_category", "Payroll category"
+        EXPERIENCE_LEVEL = "experience_level", "Experience level"
+        REPORTING_MANAGER = "reporting_manager", "Reporting manager"
+        RELATIONSHIP = "relationship", "Relationship"
+        OCCUPATION = "occupation", "Occupation"
+        ANNUAL_INCOME_RANGE = "annual_income_range", "Annual income range"
+        EDUCATION_LEVEL = "education_level", "Education level"
+        ADMISSION_SOURCE = "admission_source", "Admission source"
+        FEE_CATEGORY = "fee_category", "Fee category"
+        STUDENT_STATUS = "student_status", "Student status"
+        PREVIOUS_BOARD = "previous_board", "Previous board"
+        MEDIUM_OF_INSTRUCTION = "medium_of_instruction", "Medium of instruction"
+        ATTENDANCE_STATUS = "attendance_status", "Attendance status"
+        ADMISSION_STATUS = "admission_status", "Admission status"
+        TRANSPORT_REQUIRED = "transport_required", "Transport required"
+        STATUS = "status", "Status"
 
     key = models.CharField(max_length=40, choices=Key.choices, db_index=True)
     name = models.CharField(max_length=160, db_index=True)
@@ -40,10 +61,11 @@ class MasterDataOption(BaseModel):
         db_index=True,
         help_text="Lowercased + trimmed for duplicate prevention.",
     )
+    display_order = models.PositiveIntegerField(default=0, db_index=True)
     is_active = models.BooleanField(default=True, db_index=True)
 
     class Meta:
-        ordering = ["key", "name"]
+        ordering = ["key", "display_order", "name"]
         constraints = [
             models.UniqueConstraint(fields=["key", "name_normalized"], name="uniq_masterdata_key_name_norm"),
         ]
@@ -55,6 +77,46 @@ class MasterDataOption(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.key}: {self.name}"
+
+
+class DropdownMaster(BaseModel):
+    """
+    Tenant-scoped master dropdown registry used by settings UI.
+
+    This is a generic table that can back any dropdown across the ERP.
+    """
+
+    field_key = models.CharField(max_length=80, db_index=True)
+    display_label = models.CharField(max_length=160, db_index=True)
+    option_value = models.CharField(max_length=160, db_index=True)
+    option_value_normalized = models.CharField(
+        max_length=180,
+        db_index=True,
+        help_text="Lowercased + trimmed for duplicate prevention.",
+    )
+    category = models.CharField(max_length=60, db_index=True, blank=True, default="")
+    display_order = models.PositiveIntegerField(default=0, db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        ordering = ["category", "field_key", "display_order", "display_label"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["field_key", "option_value_normalized"],
+                name="uniq_dropdownmaster_key_value_norm",
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.field_key = (self.field_key or "").strip()
+        self.display_label = (self.display_label or "").strip()
+        self.option_value = (self.option_value or "").strip()
+        self.option_value_normalized = (self.option_value or "").strip().lower()
+        self.category = (self.category or "").strip()
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return f"{self.field_key}: {self.display_label}"
 
 
 class AcademicYear(BaseModel):
@@ -107,6 +169,11 @@ class Section(BaseModel):
 class ClassRoom(BaseModel):
     """Grade level (e.g. Grade 1, Grade 10). References sections via M2M."""
     name = models.CharField(max_length=50, db_index=True)
+    grade_order = models.PositiveIntegerField(
+        default=0,
+        db_index=True,
+        help_text="Sort position: lower = earlier grade (1 before 10). Filled from name if left 0.",
+    )
     description = models.TextField(blank=True)
     capacity = models.PositiveIntegerField(null=True, blank=True)
     active_schedule_profile = models.ForeignKey(
@@ -137,7 +204,14 @@ class ClassRoom(BaseModel):
                 name="unique_classroom_name_per_academic_year",
             ),
         ]
-        ordering = ["academic_year", "name"]
+        ordering = ["academic_year", "grade_order", "name"]
+
+    def save(self, *args, **kwargs):
+        if self.grade_order == 0 and (self.name or "").strip():
+            from apps.school_data.classroom_ordering import grade_order_from_name
+
+            self.grade_order = grade_order_from_name(self.name)
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return self.name
@@ -158,9 +232,14 @@ class Subject(BaseModel):
         db_index=True,
         help_text="Short unique code, e.g. MATH01.",
     )
+    display_order = models.PositiveIntegerField(
+        default=0,
+        db_index=True,
+        help_text="Lower numbers appear first in subject pickers and the school subject list.",
+    )
 
     class Meta:
-        ordering = ["name"]
+        ordering = ["display_order", "name"]
 
     def __str__(self) -> str:
         return self.name
@@ -618,6 +697,36 @@ class Exam(models.Model):
         return f"{self.name} ({self.class_name} - {self.section})"
 
 
+class ExamMarkComponent(models.Model):
+    """
+    Optional breakdown of max marks for one exam paper (one subject).
+    When rows exist, Exam.total_marks should match the sum of max_marks (enforced in application code).
+    """
+
+    exam = models.ForeignKey(
+        Exam,
+        on_delete=models.CASCADE,
+        related_name="mark_components",
+    )
+    component_name = models.CharField(max_length=64)
+    max_marks = models.PositiveIntegerField()
+    sort_order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["exam", "component_name"],
+                name="uniq_exam_mark_component_name",
+            ),
+        ]
+        verbose_name = "exam mark component"
+        verbose_name_plural = "exam mark components"
+
+    def __str__(self) -> str:
+        return f"{self.component_name} ({self.max_marks})"
+
+
 class Attendance(models.Model):
     class Status(models.TextChoices):
         PRESENT = "PRESENT", "Present"
@@ -800,6 +909,9 @@ class Marks(models.Model):
     exam_date = models.DateField(null=True, blank=True)
     marks_obtained = models.PositiveIntegerField()
     total_marks = models.PositiveIntegerField()
+    # Optional per-paper breakdown (e.g. {"Theory": 55, "Practical": 18}).
+    # When present, marks_obtained should equal sum(values) and total_marks should equal Exam.total_marks.
+    component_marks = models.JSONField(default=dict, blank=True)
     entered_by = models.ForeignKey(
         "accounts.User",
         on_delete=models.SET_NULL,
@@ -835,7 +947,7 @@ class Grade(models.Model):
         return f"{self.name} ({self.min_percentage}-{self.max_percentage}%)"
 
 
-class Homework(models.Model):
+class Homework(BaseModel):
     """Homework assigned to class(es) and section(s). Legacy subject/teacher kept for backward compat."""
 
     class HomeworkType(models.TextChoices):
@@ -1125,6 +1237,12 @@ class FeeStructure(BaseModel):
         help_text="If disabled, staff are discouraged from applying concessions on this head.",
     )
     is_active = models.BooleanField(default=True, db_index=True)
+    batch_key = models.UUIDField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Groups structure rows created in one wizard save (multi-section / multi-fee batch).",
+    )
 
     class Meta:
         constraints = [
@@ -1139,7 +1257,7 @@ class FeeStructure(BaseModel):
                 name="school_data_feestructure_unique_section",
             ),
         ]
-        ordering = ["fee_type", "classroom"]
+        ordering = ["fee_type", "classroom__grade_order", "classroom__name"]
 
     def __str__(self) -> str:
         label = (self.line_name or "").strip() or (self.fee_type.name if self.fee_type_id else "Fee")
@@ -1325,9 +1443,95 @@ class StudentPromotion(models.Model):
         ordering = ["-created_at"]
 
 
+class PaymentBatch(models.Model):
+    """One logical payment (single receipt) allocated across multiple fee lines."""
+
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="payment_batches")
+    academic_year = models.ForeignKey(
+        AcademicYear,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="payment_batches",
+    )
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    payment_date = models.DateField()
+    payment_method = models.CharField(max_length=50, default="Cash")
+    receipt_number = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="School receipt / voucher number (optional).",
+    )
+    transaction_reference = models.CharField(
+        max_length=120,
+        blank=True,
+        help_text="UPI ref., bank ref., or online payment id (optional).",
+    )
+    notes = models.TextField(blank=True)
+    received_by = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="payment_batches_received",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    receipt_code = models.CharField(
+        max_length=32,
+        blank=True,
+        db_index=True,
+        help_text="Auto-generated receipt no., e.g. RCPT-2026-000042.",
+    )
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self) -> str:
+        return f"Batch ₹{self.total_amount} — {self.student_id}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if not (self.receipt_code or "").strip():
+            y = self.payment_date.year
+            code = f"RCPT-{y}-{self.pk:06d}"
+            type(self).objects.filter(pk=self.pk).update(receipt_code=code)
+            self.receipt_code = code
+
+
+class PaymentBatchTender(models.Model):
+    """Split of one receipt across payment modes (e.g. part cash, part UPI)."""
+
+    batch = models.ForeignKey(
+        PaymentBatch,
+        on_delete=models.CASCADE,
+        related_name="tenders",
+    )
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    payment_method = models.CharField(max_length=50, default="Cash")
+    transaction_reference = models.CharField(
+        max_length=120,
+        blank=True,
+        help_text="Optional ref for this tender (UPI / cheque no. / etc.).",
+    )
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self) -> str:
+        return f"{self.payment_method} {self.amount}"
+
+
 class Payment(BaseModel):
     """Payment record against a fee."""
     fee = models.ForeignKey(Fee, on_delete=models.CASCADE, related_name="payments")
+    batch = models.ForeignKey(
+        PaymentBatch,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="line_payments",
+        help_text="When set, this row is part of a multi-line payment.",
+    )
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     payment_date = models.DateField()
     payment_method = models.CharField(max_length=50, default="Cash")
@@ -1695,6 +1899,196 @@ class ApplicationDocument(models.Model):
 
     def __str__(self) -> str:
         return f"{self.application.application_number} - {self.title}"
+
+
+# ---------- Admissions Management (Admin module) ----------
+
+
+class Admission(BaseModel):
+    """
+    Tenant-scoped admissions application tracked by school admin staff.
+    This is separate from OnlineAdmission (public web form).
+    """
+
+    class Status(models.TextChoices):
+        NEW = "NEW", "New"
+        UNDER_REVIEW = "UNDER_REVIEW", "Under review"
+        DOCUMENT_PENDING = "DOCUMENT_PENDING", "Document pending"
+        APPROVED = "APPROVED", "Approved"
+        REJECTED = "REJECTED", "Rejected"
+        JOINED = "JOINED", "Joined"
+
+    application_id = models.CharField(
+        max_length=32,
+        unique=True,
+        db_index=True,
+        help_text="Auto generated like ADM-2026-0001",
+    )
+    admission_number = models.CharField(
+        max_length=40,
+        unique=True,
+        db_index=True,
+        editable=False,
+        blank=True,
+        default="",
+        help_text="Auto generated like 26chs_2536486vc",
+    )
+    admission_date = models.DateField(null=True, blank=True, db_index=True)
+    status = models.CharField(max_length=32, choices=Status.choices, default=Status.NEW, db_index=True)
+
+    # Student details
+    first_name = models.CharField(max_length=150)
+    last_name = models.CharField(max_length=150, blank=True, default="")
+    gender = models.CharField(max_length=60, blank=True, default="")
+    date_of_birth = models.DateField(null=True, blank=True)
+    blood_group = models.CharField(max_length=20, blank=True, default="")
+    aadhaar_or_student_id = models.CharField(max_length=32, blank=True, default="", db_index=True)
+    passport_photo = models.ImageField(upload_to="admissions/photos/%Y/%m/", blank=True, null=True)
+
+    # Parent details (quick)
+    father_name = models.CharField(max_length=150, blank=True, default="")
+    mother_name = models.CharField(max_length=150, blank=True, default="")
+    mobile_number = models.CharField(max_length=20, blank=True, default="", db_index=True)
+    alternate_mobile = models.CharField(max_length=20, blank=True, default="")
+    email = models.EmailField(blank=True, default="")
+    occupation = models.CharField(max_length=120, blank=True, default="")
+    annual_income = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+
+    # Address
+    house_no = models.CharField(max_length=80, blank=True, default="")
+    street = models.CharField(max_length=180, blank=True, default="")
+    city = models.CharField(max_length=120, blank=True, default="")
+    state = models.CharField(max_length=120, blank=True, default="")
+    pincode = models.CharField(max_length=12, blank=True, default="")
+
+    # Academic
+    applying_for_class = models.ForeignKey(
+        ClassRoom,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="admissions_applications",
+    )
+    previous_school_name = models.CharField(max_length=200, blank=True, default="")
+    previous_marks_percent = models.CharField(max_length=50, blank=True, default="")
+
+    # Transport
+    require_bus = models.BooleanField(default=False)
+    pickup_point = models.CharField(max_length=160, blank=True, default="")
+
+    notes = models.TextField(blank=True, default="")
+
+    # Integration links (after approval)
+    created_student = models.ForeignKey(
+        "school_data.Student",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_from_admissions",
+    )
+    approved_by = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="admissions_approved",
+    )
+    rejected_by = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="admissions_rejected",
+    )
+
+    class Meta:
+        ordering = ["-created_on"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["aadhaar_or_student_id"],
+                condition=Q(aadhaar_or_student_id__gt=""),
+                name="uniq_admission_aadhaar_per_tenant",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.application_id} - {self.first_name} {self.last_name}".strip()
+
+    @staticmethod
+    def next_application_id(today=None) -> str:
+        """
+        Generate a tenant-unique application id like ADM-2026-0001.
+        """
+        from django.utils import timezone
+
+        d = today or timezone.localdate()
+        prefix = f"ADM-{d.year}-"
+        last = (
+            Admission.objects.filter(application_id__startswith=prefix)
+            .order_by("-application_id")
+            .values_list("application_id", flat=True)
+            .first()
+        )
+        n = 1
+        if last and isinstance(last, str) and last.startswith(prefix):
+            try:
+                n = int(last.replace(prefix, "").strip() or "0") + 1
+            except Exception:
+                n = 1
+        return f"{prefix}{n:04d}"
+
+    def save(self, *args, **kwargs):
+        if not self.application_id:
+            self.application_id = self.next_application_id()
+        if not self.admission_number:
+            from django.conf import settings
+            from apps.core.admissions_utils import generate_admission_number
+
+            school_code = getattr(settings, "ADMISSIONS_SCHOOL_SHORT_CODE", "chs")
+            # Retry on duplicates
+            for _ in range(25):
+                candidate = generate_admission_number(
+                    self.first_name or "",
+                    self.last_name or "",
+                    "",
+                    school_code,
+                )
+                if not Admission.objects.filter(admission_number=candidate).exists():
+                    self.admission_number = candidate
+                    break
+        super().save(*args, **kwargs)
+
+
+class AdmissionDocument(models.Model):
+    class DocType(models.TextChoices):
+        TRANSFER_CERT = "TRANSFER_CERT", "Transfer certificate"
+        BIRTH_CERT = "BIRTH_CERT", "Birth certificate"
+        OTHER = "OTHER", "Other"
+
+    admission = models.ForeignKey(Admission, on_delete=models.CASCADE, related_name="documents")
+    doc_type = models.CharField(max_length=40, choices=DocType.choices, default=DocType.OTHER, db_index=True)
+    title = models.CharField(max_length=200, blank=True, default="")
+    file = models.FileField(upload_to="admissions/docs/%Y/%m/")
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-uploaded_at"]
+
+    def __str__(self) -> str:
+        return f"{self.admission.application_id} - {self.doc_type}"
+
+
+class AdmissionStatusHistory(BaseModel):
+    admission = models.ForeignKey(Admission, on_delete=models.CASCADE, related_name="status_history")
+    from_status = models.CharField(max_length=32, blank=True, default="")
+    to_status = models.CharField(max_length=32, db_index=True)
+    note = models.CharField(max_length=240, blank=True, default="")
+
+    class Meta:
+        ordering = ["-created_on", "-id"]
+
+    def __str__(self) -> str:
+        return f"{self.admission.application_id}: {self.from_status} -> {self.to_status}"
 
 
 # ---------- Library ----------

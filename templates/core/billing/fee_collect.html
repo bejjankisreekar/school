@@ -22,7 +22,269 @@
   .fc-search-results button:hover { background: rgba(79,70,229,.08); }
   .pay-card-sticky { position: sticky; top: 5.5rem; }
   .timeline-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--brand); margin-top: 0.35rem; flex-shrink: 0; }
+  .fc-recent-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+  }
+  .fc-recent-head__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.5rem;
+    min-width: 0;
+  }
+  .fc-recent-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+  }
+  .fc-recent-actions .btn {
+    padding: 0.22rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    border-radius: 0.5rem;
+    line-height: 1.2;
+  }
+  .fc-btn-icon-only {
+    width: 2.1rem;
+    height: 2.1rem;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.5rem !important;
+  }
+  .fc-btn-icon-only i { font-size: 1rem; line-height: 1; }
+  /* Record payment panel */
+  input.no-spinner::-webkit-outer-spin-button,
+  input.no-spinner::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input.no-spinner {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  .fc-record-card { transition: box-shadow 0.35s ease, transform 0.35s ease; }
+  @keyframes fc-record-success-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45); }
+    70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+  }
+  .fc-record-card.fc-record-card--paid-flash {
+    animation: fc-record-success-pulse 1s ease-out 1;
+  }
+  .fc-balance-strip {
+    background: rgba(79, 70, 229, 0.06);
+    border: 1px solid rgba(79, 70, 229, 0.15);
+    border-radius: 0.65rem;
+    font-size: 0.8125rem;
+  }
+  html.dark .fc-balance-strip {
+    background: rgba(129, 140, 248, 0.1);
+    border-color: rgba(129, 140, 248, 0.22);
+  }
+  .fc-pay-table tbody tr.fc-pay-row--on {
+    background: rgba(79, 70, 229, 0.06);
+  }
+  html.dark .fc-pay-table tbody tr.fc-pay-row--on {
+    background: rgba(129, 140, 248, 0.12);
+  }
+  .fc-pay-table .form-control:disabled {
+    opacity: 0.45;
+  }
+  /* Fee allocation table — column rhythm & gaps */
+  .fc-pay-table-wrap {
+    background: var(--card);
+  }
+  .fc-pay-table {
+    width: 100%;
+  }
+  .fc-pay-table thead th {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    font-weight: 700;
+    padding: 0.7rem 0.6rem;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  .fc-pay-table tbody td {
+    padding: 0.6rem 0.6rem;
+    vertical-align: middle;
+  }
+  .fc-pay-table .fc-pay-col-check {
+    width: 2.75rem;
+    padding-left: 0.85rem !important;
+    padding-right: 0.35rem !important;
+  }
+  .fc-pay-table .fc-pay-col-type {
+    width: auto;
+    min-width: 0;
+    padding-left: 0.5rem;
+    padding-right: 1rem;
+    word-break: break-word;
+  }
+  .fc-pay-table .fc-pay-col-balance {
+    width: 1%;
+    text-align: right;
+    padding-left: 1.15rem;
+    padding-right: 1.15rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .fc-pay-table th.fc-pay-col-amt,
+  .fc-pay-table td.fc-pay-col-amt {
+    width: 1%;
+    max-width: 7.25rem;
+    vertical-align: middle;
+    padding-left: 1.25rem;
+    padding-right: 0.9rem !important;
+  }
+  .fc-pay-table .fc-pay-amt {
+    display: block;
+    width: 5.35rem;
+    max-width: 100%;
+    min-width: 4.5rem;
+    margin-left: auto;
+    padding: 0.32rem 0.5rem;
+    font-size: 0.8125rem;
+    line-height: 1.3;
+  }
+  /* Record payment — bulk actions + save */
+  .fc-pay-toolbar {
+    padding: 0.65rem 0.85rem;
+    background: rgba(248, 250, 252, 0.92);
+    border: 1px solid var(--bd);
+    border-radius: 0.75rem;
+  }
+  html.dark .fc-pay-toolbar {
+    background: rgba(15, 23, 42, 0.55);
+  }
+  .fc-pay-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .fc-btn-bulk,
+  .fc-btn-save-payment {
+    cursor: pointer;
+  }
+  .fc-btn-bulk {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.2;
+    padding: 0.5rem 0.95rem;
+    border-radius: 0.65rem;
+    border: 1px solid var(--bd);
+    background: var(--card);
+    color: #475569;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.18s ease;
+  }
+  html.dark .fc-btn-bulk {
+    color: #cbd5e1;
+    box-shadow: none;
+  }
+  .fc-btn-bulk i {
+    font-size: 1rem;
+    opacity: 0.92;
+  }
+  .fc-btn-bulk:hover {
+    background: rgba(79, 70, 229, 0.07);
+    border-color: rgba(79, 70, 229, 0.35);
+    color: #4338ca;
+    box-shadow: 0 2px 8px rgba(79, 70, 229, 0.12);
+  }
+  html.dark .fc-btn-bulk:hover {
+    color: #c7d2fe;
+    border-color: rgba(129, 140, 248, 0.45);
+    background: rgba(79, 70, 229, 0.18);
+  }
+  .fc-btn-bulk:active {
+    transform: translateY(1px);
+  }
+  .fc-btn-bulk--accent {
+    border-color: rgba(79, 70, 229, 0.42);
+    background: linear-gradient(180deg, rgba(79, 70, 229, 0.11) 0%, rgba(99, 102, 241, 0.08) 100%);
+    color: #4338ca;
+  }
+  html.dark .fc-btn-bulk--accent {
+    color: #e0e7ff;
+    border-color: rgba(129, 140, 248, 0.42);
+    background: linear-gradient(180deg, rgba(79, 70, 229, 0.28) 0%, rgba(99, 102, 241, 0.15) 100%);
+  }
+  .fc-btn-bulk--accent:hover {
+    border-color: rgba(79, 70, 229, 0.55);
+    background: linear-gradient(180deg, rgba(79, 70, 229, 0.18) 0%, rgba(99, 102, 241, 0.14) 100%);
+    color: #3730a3;
+    box-shadow: 0 3px 12px rgba(79, 70, 229, 0.2);
+  }
+  html.dark .fc-btn-bulk--accent:hover {
+    color: #fff;
+  }
+  .fc-btn-save-payment {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 100%;
+    margin-top: 0.125rem;
+    padding: 0.7rem 1.15rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    letter-spacing: 0.015em;
+    border: none;
+    border-radius: 0.75rem;
+    color: #fff !important;
+    background: linear-gradient(135deg, #4f46e5 0%, #6366f1 52%, #0d9488 118%);
+    box-shadow: 0 4px 16px rgba(79, 70, 229, 0.38);
+    transition: transform 0.12s ease, box-shadow 0.2s ease, filter 0.15s ease;
+  }
+  .fc-btn-save-payment:hover {
+    filter: brightness(1.06);
+    box-shadow: 0 6px 22px rgba(79, 70, 229, 0.45);
+    color: #fff !important;
+  }
+  .fc-btn-save-payment:active {
+    transform: translateY(1px);
+    filter: brightness(0.98);
+  }
+  html.dark .fc-btn-save-payment {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  }
+  .fc-btn-save-payment i {
+    font-size: 1.1rem;
+  }
+  .fc-btn-save-payment:focus-visible {
+    outline: 2px solid rgba(165, 180, 252, 0.95);
+    outline-offset: 3px;
+  }
+  .fc-btn-bulk:focus-visible {
+    outline: 2px solid rgba(79, 70, 229, 0.45);
+    outline-offset: 2px;
+  }
+  @media (max-width: 575.98px) {
+    .fc-pay-actions {
+      width: 100%;
+    }
+    .fc-btn-bulk {
+      flex: 1 1 auto;
+      min-width: calc(50% - 0.25rem);
+    }
+  }
 </style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 {% endblock %}
 
 {% block billing_main %}
@@ -143,13 +405,19 @@
         </div>
       </div>
     </div>
+    {% if student %}
+    <div class="mt-3 pt-3 border-top d-flex flex-wrap align-items-center gap-2">
+      <span class="small text-muted fw-semibold text-uppercase me-1" style="font-size:0.65rem; letter-spacing:0.06em;">Statements</span>
+      <a href="{% url 'core:billing_invoice_student' student.id %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}" class="btn btn-sm btn-outline-primary rounded-pill" target="_blank" rel="noopener"><i class="bi bi-file-text"></i> Fee statement</a>
+    </div>
+    {% endif %}
     {% if bundle.scope_fee and bundle.scope_fee.academic_year %}
     <div class="mt-3 pt-3 border-top small text-muted"><i class="bi bi-calendar3 me-1"></i>Ledger: <strong>{{ bundle.scope_fee.academic_year.name }}</strong></div>
     {% endif %}
   </div>
 
   <div class="row g-4 align-items-start">
-    <div class="col-lg-8">
+    <div class="col-lg-7">
       <div class="fc-card overflow-hidden mb-4">
         <div class="px-3 py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
           <div>
@@ -202,16 +470,54 @@
         <div class="fw-bold mb-3">Recent payments</div>
         {% if bundle.payment_history %}
         <div class="d-flex flex-column gap-3">
-          {% for p in bundle.payment_history %}
+          {% for item in bundle.payment_history %}
           <div class="d-flex gap-3">
             <div class="timeline-dot"></div>
             <div class="flex-grow-1 border-bottom pb-3">
-              <div class="d-flex flex-wrap justify-content-between gap-2">
-                <span class="fw-semibold">{{ p.payment_date|date:"M j, Y" }}</span>
-                <span class="fw-bold text-success">₹{{ p.amount|inr }}</span>
+              <div class="fc-recent-head">
+                <div class="fc-recent-head__meta">
+                  <span class="fw-semibold">{{ item.payment_date|date:"M j, Y" }}</span>
+                  {% if item.is_batch %}
+                  <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 small fw-semibold">Combined receipt</span>
+                  {% endif %}
+                  {% if item.receipt_code %}
+                  <span class="badge rounded-pill bg-light text-dark border font-monospace small">{{ item.receipt_code }}</span>
+                  {% endif %}
+                </div>
+                <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                  <span class="fw-bold text-success">₹{{ item.amount|inr }}</span>
+                  <div class="fc-recent-actions">
+                    {% if item.is_batch and item.batch_id %}
+                    <a href="{% url 'core:billing_receipt_batch' item.batch_id %}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">View receipt</a>
+                    <a href="{% url 'core:billing_payment_batch_edit' item.batch_id %}?next={{ request.get_full_path|urlencode }}" class="btn btn-sm btn-outline-secondary fc-btn-icon-only" title="Edit payment details" aria-label="Edit payment details"><i class="bi bi-pencil-square" aria-hidden="true"></i></a>
+                    {% elif item.payment_id %}
+                    <a href="{% url 'core:billing_receipt_payment' item.payment_id %}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">View receipt</a>
+                    <a href="{% url 'core:billing_orphan_payment_edit' item.payment_id %}?next={{ request.get_full_path|urlencode }}" class="btn btn-sm btn-outline-secondary fc-btn-icon-only" title="Edit payment details" aria-label="Edit payment details"><i class="bi bi-pencil-square" aria-hidden="true"></i></a>
+                    {% endif %}
+                  </div>
+                </div>
               </div>
-              <div class="small text-muted">{{ p.payment_method }}{% if p.receipt_number %} · Rcpt {{ p.receipt_number }}{% endif %}{% if p.fee.fee_structure.fee_type %} · {{ p.fee.fee_structure.fee_type.name }}{% endif %}</div>
-              <div class="small text-muted">By {% if p.received_by %}{{ p.received_by.get_full_name|default:p.received_by.username }}{% else %}—{% endif %}</div>
+              {% if item.is_batch %}
+              <ul class="small mb-1 mt-2 ps-3 fc-recent-pay-lines">
+                {% for line in item.lines %}
+                <li class="mb-1"><span class="text-body">{{ line.fee_type_name }}</span> <span class="text-muted">·</span> <span class="font-monospace">₹{{ line.amount|inr }}</span></li>
+                {% endfor %}
+              </ul>
+              {% else %}
+              <div class="small text-body mt-2">{{ item.fee_type_name }}</div>
+              {% endif %}
+              {% if item.tenders %}
+              <div class="small text-uppercase text-muted fw-bold mt-2 mb-1" style="font-size:0.65rem; letter-spacing:0.06em;">Paid by</div>
+              <ul class="small mb-1 ps-3 list-unstyled fc-recent-tenders">
+                {% for t in item.tenders %}
+                <li class="mb-1"><span class="text-body">{{ t.payment_method }}</span> <span class="text-muted">·</span> <span class="font-monospace">₹{{ t.amount|inr }}</span>{% if t.transaction_reference %} <span class="text-muted">({{ t.transaction_reference }})</span>{% endif %}</li>
+                {% endfor %}
+              </ul>
+              {% endif %}
+              {% if item.receipt_number %}
+              <div class="small text-muted">School voucher: {{ item.receipt_number }}</div>
+              {% endif %}
+              <div class="small text-muted mt-1">By {% if item.received_by %}{{ item.received_by.get_full_name|default:item.received_by.username }}{% else %}—{% endif %}</div>
             </div>
           </div>
           {% endfor %}
@@ -222,10 +528,10 @@
       </div>
     </div>
 
-    <div class="col-lg-4">
-      <div class="fc-card p-3 p-lg-4 pay-card-sticky">
+    <div class="col-lg-5">
+      <div id="fc-record-card" class="fc-card p-3 p-lg-4 pay-card-sticky fc-record-card{% if request.GET.recorded == '1' %} fc-record-card--paid-flash{% endif %}">
         <div class="fw-bold mb-1">Record payment</div>
-        <p class="small text-muted mb-3">Choose the fee line. Amount cannot exceed the line balance.</p>
+        <p class="small text-muted mb-3">Select one or more fee lines, enter amounts (each cannot exceed balance), then save one receipt.</p>
         {% if bundle.payment_targets %}
         <form method="post" novalidate id="fc-payment-form">
           {% csrf_token %}
@@ -236,49 +542,117 @@
           <input type="hidden" name="section_id" value="{{ section_id|default:'' }}" />
           <input type="hidden" name="student_id" value="{{ student.id }}" />
           {% endif %}
+          <div class="fc-pay-toolbar d-flex flex-wrap justify-content-between align-items-center gap-2 gap-md-3 mb-3">
+            <div class="form-label fw-semibold mb-0 text-body">Allocate to fee lines</div>
+            <div class="fc-pay-actions" role="group" aria-label="Bulk fee selection">
+              <button type="button" class="fc-btn-bulk" id="fc-select-all-fees" title="Select or clear every line">
+                <i class="bi bi-check2-square" aria-hidden="true"></i>
+                <span>Select all</span>
+              </button>
+              <button type="button" class="fc-btn-bulk fc-btn-bulk--accent" id="fc-pay-full-selected" title="Set pay amount to full balance for each selected line">
+                <i class="bi bi-currency-rupee" aria-hidden="true"></i>
+                <span>Pay full balance</span>
+              </button>
+            </div>
+          </div>
+          <div class="table-responsive mb-3 rounded-3 border fc-pay-table-wrap" style="max-height: min(52vh, 380px);">
+            <table class="table table-sm table-hover align-middle mb-0 fc-pay-table" id="fc-pay-table">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th scope="col" class="fc-pay-col-check">
+                    <span class="visually-hidden">Select</span>
+                    <input type="checkbox" class="form-check-input" id="fc-select-all-checkbox" title="Select all" aria-label="Select all fee lines" />
+                  </th>
+                  <th scope="col" class="fc-pay-col-type">Fee type</th>
+                  <th scope="col" class="text-end fc-pay-col-balance">Balance</th>
+                  <th scope="col" class="text-end fc-pay-col-amt">Pay amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in payment_table_rows %}
+                <tr class="fc-pay-row" data-fee-id="{{ row.id }}">
+                  <td class="fc-pay-col-check">
+                    <input type="checkbox" name="fee_pay" value="{{ row.id }}" class="form-check-input fee-checkbox fc-fee-cb" data-fee-id="{{ row.id }}"
+                      {% if fee_pay_selected %}{% if row.id|stringformat:"s" in fee_pay_selected %}checked{% endif %}{% endif %} />
+                  </td>
+                  <td class="fc-pay-col-type small fw-medium">{{ row.fee_type_name }}</td>
+                  <td class="text-end fc-pay-col-balance small font-monospace">₹{{ row.balance|inr }}</td>
+                  <td class="text-end fc-pay-col-amt">
+                    <input type="number"
+                      name="pay_amt_{{ row.id }}"
+                      class="form-control form-control-sm text-end pay-input no-spinner rounded-2 fc-pay-amt"
+                      data-fee-id="{{ row.id }}"
+                      data-max-balance="{{ row.balance }}"
+                      max="{{ row.balance }}"
+                      min="0"
+                      step="0.01"
+                      inputmode="decimal"
+                      {% if fee_pay_selected %}{% if row.id|stringformat:"s" in fee_pay_selected %}{% else %}disabled{% endif %}{% else %}disabled{% endif %}
+                      value="{{ row.prefill_amt }}"
+                      />
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="fc-balance-strip py-2 px-3 mb-3" id="fc-total-strip" aria-live="polite">
+            <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+              <span class="text-muted fw-semibold">Total this payment</span>
+              <strong class="text-primary font-monospace" id="fc-total-payment">₹0.00</strong>
+            </div>
+            <div class="mt-2 pt-2 border-top border-opacity-25 small text-muted" id="fc-remaining-hint"></div>
+          </div>
           <div class="mb-3">
-            <label class="form-label small fw-semibold" for="payment_fee_select">Fee line</label>
-            <select class="form-select rounded-3" name="payment_fee_id" id="payment_fee_select">
-              {% for t in bundle.payment_targets %}
-              <option value="{{ t.id }}" data-balance="{{ t.balance }}" {% if selected_pay_fee_id == t.id %}selected{% elif not selected_pay_fee_id and forloop.first %}selected{% endif %}>{{ t.label }} — bal ₹{{ t.balance|inr }}</option>
+            <label class="form-label fw-semibold" for="id_payment_date">Payment date</label>
+            {{ payment_header_form.payment_date }}
+            {% if payment_header_form.payment_date.errors %}<div class="text-danger small mt-1">{{ payment_header_form.payment_date.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="mb-2">
+            <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-2 mb-2">
+              <label class="form-label fw-semibold mb-0">Payment methods</label>
+              <span class="small text-muted" id="fc-tender-vs-total" aria-live="polite"></span>
+            </div>
+            <p class="small text-muted mb-2">Amounts here must add up to <strong>Total this payment</strong> above (e.g. part cash, part UPI).</p>
+            <div id="fc-tender-rows">
+              {% for tr in tender_rows %}
+              <div class="fc-tender-row row g-2 mb-2 align-items-end">
+                <div class="col-12 col-sm-5 col-md-5">
+                  <label class="form-label small fw-semibold mb-1">Mode</label>
+                  <select name="tender_method" class="form-select form-select-sm rounded-3">
+                    {% for val, label in payment_mode_choices %}
+                    <option value="{{ val }}" {% if tr.method == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-6 col-sm-4 col-md-4">
+                  <label class="form-label small fw-semibold mb-1">Amount</label>
+                  <input type="number" name="tender_amount" class="form-control form-control-sm text-end no-spinner rounded-3 fc-tender-amt" min="0" step="0.01" inputmode="decimal" value="{{ tr.amount }}" placeholder="0.00" />
+                </div>
+                <div class="col-6 col-sm-3 col-md-3">
+                  <label class="form-label small fw-semibold mb-1">Ref <span class="text-muted fw-normal">(opt.)</span></label>
+                  <input type="text" name="tender_ref" class="form-control form-control-sm rounded-3" value="{{ tr.ref }}" placeholder="UPI / chq" autocomplete="off" />
+                </div>
+              </div>
               {% endfor %}
-            </select>
-          </div>
-          <div class="mb-3">
-            <label class="form-label small fw-semibold" for="id_amount">Amount received</label>
-            {{ form.amount }}
-            {% if form.amount.errors %}<div class="text-danger small mt-1">{{ form.amount.errors.0 }}</div>{% endif %}
-          </div>
-          <div class="mb-3">
-            <label class="form-label small" for="id_payment_date">Payment date</label>
-            {{ form.payment_date }}
-          </div>
-          <div class="mb-3">
-            <label class="form-label small" for="id_payment_method">Payment mode</label>
-            {{ form.payment_method }}
-          </div>
-          <div class="row g-2 mb-3">
-            <div class="col-md-6">
-              <label class="form-label small" for="id_receipt_number">{{ form.receipt_number.label }}</label>
-              {{ form.receipt_number }}
             </div>
-            <div class="col-md-6">
-              <label class="form-label small" for="id_transaction_reference">{{ form.transaction_reference.label }}</label>
-              {{ form.transaction_reference }}
-            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary rounded-3 mb-2" id="fc-tender-add">
+              <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Add payment method
+            </button>
           </div>
           <div class="mb-3">
-            <label class="form-label small" for="id_notes">Notes</label>
-            {{ form.notes }}
+            <label class="form-label small fw-semibold" for="id_receipt_number">{{ payment_header_form.receipt_number.label }}</label>
+            {{ payment_header_form.receipt_number }}
           </div>
-          {% if form.non_field_errors %}<div class="alert alert-danger py-2 small">{{ form.non_field_errors }}</div>{% endif %}
-          <div class="d-grid gap-2">
-            <div class="btn-group" role="group">
-              <button type="button" class="btn btn-outline-primary rounded-start-3" id="btn-collect-full">Pay full balance</button>
-              <button type="button" class="btn btn-outline-secondary rounded-end-3" id="btn-collect-partial">Partial</button>
-            </div>
-            <button type="submit" class="btn btn-primary rounded-3 py-2 fw-semibold">Save payment</button>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold" for="id_notes">Notes</label>
+            {{ payment_header_form.notes }}
           </div>
+          {% if payment_header_form.non_field_errors %}<div class="alert alert-danger py-2 small">{{ payment_header_form.non_field_errors }}</div>{% endif %}
+          <button type="submit" class="btn fc-btn-save-payment" id="fc-save-payment">
+            <i class="bi bi-check2-circle" aria-hidden="true"></i>
+            <span>Save payment</span>
+          </button>
         </form>
         {% else %}
         <p class="text-muted small mb-0">No balance due on any line for this year — nothing to collect.</p>
@@ -297,29 +671,290 @@
 {% endblock %}
 
 {% block after_bootstrap %}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script>
 (function () {
-  var feeSelect = document.getElementById("payment_fee_select");
-  var amt = document.getElementById("id_amount");
-  if (feeSelect && amt) {
-    function balanceForSelected() {
-      var opt = feeSelect.options[feeSelect.selectedIndex];
-      if (!opt) return null;
-      var b = opt.getAttribute("data-balance");
-      return b !== null ? parseFloat(b) : null;
+  function fmtINR(num) {
+    if (num === null || num === undefined || (typeof num === "number" && isNaN(num))) return "—";
+    try {
+      return new Intl.NumberFormat("en-IN", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(num);
+    } catch (e) {
+      return String(num);
     }
-    document.getElementById("btn-collect-full")?.addEventListener("click", function () {
-      var b = balanceForSelected();
-      if (b !== null && !isNaN(b)) amt.value = b.toFixed(2);
+  }
+
+  var payDateEl = document.getElementById("id_payment_date");
+  if (payDateEl && typeof flatpickr === "function") {
+    var existing = (payDateEl.value || "").trim();
+    var fpOpts = { dateFormat: "Y-m-d", allowInput: true, disableMobile: true };
+    fpOpts.defaultDate = existing ? existing : new Date();
+    flatpickr(payDateEl, fpOpts);
+  }
+
+  function showFcErrorToast(msg) {
+    var container = document.getElementById("toastContainer");
+    if (!container || typeof bootstrap === "undefined") {
+      window.alert(msg);
+      return;
+    }
+    var toastEl = document.createElement("div");
+    toastEl.className = "toast align-items-center text-white border-0 mb-2 bg-danger";
+    toastEl.setAttribute("role", "alert");
+    toastEl.innerHTML =
+      '<div class="d-flex">' +
+      '<div class="toast-body"><i class="bi bi-exclamation-triangle-fill me-2"></i>' +
+      (msg || "") +
+      "</div>" +
+      '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>' +
+      "</div>";
+    container.appendChild(toastEl);
+    var toast = new bootstrap.Toast(toastEl, { delay: 5000, autohide: true });
+    toast.show();
+    toastEl.addEventListener("hidden.bs.toast", function () {
+      toastEl.remove();
     });
-    document.getElementById("btn-collect-partial")?.addEventListener("click", function () {
-      amt.focus();
-      amt.select();
+  }
+
+  var payForm = document.getElementById("fc-payment-form");
+  var payTable = document.getElementById("fc-pay-table");
+  var totalEl = document.getElementById("fc-total-payment");
+  var remainingEl = document.getElementById("fc-remaining-hint");
+  var selAllCb = document.getElementById("fc-select-all-checkbox");
+  var btnSelAll = document.getElementById("fc-select-all-fees");
+  var btnPayFull = document.getElementById("fc-pay-full-selected");
+
+  function rowForFeeId(fid) {
+    if (!payTable) return null;
+    return payTable.querySelector('tr.fc-pay-row[data-fee-id="' + fid + '"]');
+  }
+
+  function syncRowHighlight(tr, on) {
+    if (!tr) return;
+    if (on) tr.classList.add("fc-pay-row--on");
+    else tr.classList.remove("fc-pay-row--on");
+  }
+
+  function setPayInputEnabled(cb) {
+    var fid = cb.getAttribute("data-fee-id");
+    var inp = payTable ? payTable.querySelector('.fc-pay-amt[data-fee-id="' + fid + '"]') : null;
+    var tr = rowForFeeId(fid);
+    if (!inp) return;
+    if (cb.checked) {
+      inp.disabled = false;
+      var maxB = parseFloat(inp.getAttribute("data-max-balance") || "0");
+      if (!String(inp.value || "").trim() && !isNaN(maxB)) inp.value = maxB.toFixed(2);
+      syncRowHighlight(tr, true);
+    } else {
+      inp.disabled = true;
+      inp.value = "";
+      syncRowHighlight(tr, false);
+    }
+    syncSelectAllCheckbox();
+    calculateTotal();
+  }
+
+  function syncSelectAllCheckbox() {
+    if (!selAllCb || !payTable) return;
+    var cbs = payTable.querySelectorAll(".fc-fee-cb");
+    var n = cbs.length;
+    var checked = payTable.querySelectorAll(".fc-fee-cb:checked").length;
+    selAllCb.checked = n > 0 && checked === n;
+    selAllCb.indeterminate = checked > 0 && checked < n;
+  }
+
+  function calculateTotal() {
+    if (!payTable || !totalEl) return;
+    var total = 0;
+    var parts = [];
+    payTable.querySelectorAll(".fc-pay-amt").forEach(function (inp) {
+      if (inp.disabled) return;
+      var v = parseFloat(String(inp.value || "").trim());
+      if (!isNaN(v) && v > 0) total += v;
+      var maxB = parseFloat(inp.getAttribute("data-max-balance") || "0");
+      var fid = inp.getAttribute("data-fee-id");
+      if (!inp.disabled && !isNaN(v) && v >= 0 && fid) {
+        var left = Math.max(0, maxB - v);
+        var trEl = rowForFeeId(fid);
+        var tdName = trEl ? trEl.querySelector("td:nth-child(2)") : null;
+        var label = tdName ? (tdName.textContent || "").trim().slice(0, 28) : "";
+        if (label) parts.push(label + ": ₹" + fmtINR(left));
+      }
     });
-    feeSelect.addEventListener("change", function () {
-      var b = balanceForSelected();
-      if (b !== null && !isNaN(b)) amt.value = b.toFixed(2);
+    totalEl.textContent = "₹" + fmtINR(total);
+    if (remainingEl) {
+      remainingEl.textContent =
+        parts.length && total > 0
+          ? "Remaining after this payment — " + parts.join(" · ")
+          : total > 0
+            ? ""
+            : "";
+    }
+    syncTenderHint();
+  }
+
+  var tenderVsEl = document.getElementById("fc-tender-vs-total");
+  var tenderRowsEl = document.getElementById("fc-tender-rows");
+  var btnTenderAdd = document.getElementById("fc-tender-add");
+
+  function getFeeAllocationTotal() {
+    if (!payTable) return 0;
+    var total = 0;
+    payTable.querySelectorAll(".fc-pay-amt").forEach(function (inp) {
+      if (inp.disabled) return;
+      var v = parseFloat(String(inp.value || "").trim());
+      if (!isNaN(v) && v > 0) total += v;
     });
+    return total;
+  }
+
+  function getTenderTotal() {
+    if (!tenderRowsEl) return 0;
+    var total = 0;
+    tenderRowsEl.querySelectorAll(".fc-tender-amt").forEach(function (inp) {
+      var v = parseFloat(String(inp.value || "").trim());
+      if (!isNaN(v) && v > 0) total += v;
+    });
+    return total;
+  }
+
+  function syncTenderHint() {
+    if (!tenderVsEl) return;
+    var f = getFeeAllocationTotal();
+    var t = getTenderTotal();
+    if (f <= 0 && t <= 0) {
+      tenderVsEl.textContent = "";
+      tenderVsEl.className = "small text-muted";
+      return;
+    }
+    var diff = Math.abs(f - t);
+    if (diff < 0.02) {
+      tenderVsEl.textContent = "Matches fee total";
+      tenderVsEl.className = "small text-success fw-semibold";
+    } else {
+      tenderVsEl.textContent = "Methods ₹" + fmtINR(t) + " · Fees ₹" + fmtINR(f);
+      tenderVsEl.className = "small text-danger fw-semibold";
+    }
+  }
+
+  if (payTable && payForm) {
+    payTable.addEventListener("change", function (e) {
+      var t = e.target;
+      if (t && t.classList && t.classList.contains("fc-fee-cb")) setPayInputEnabled(t);
+    });
+    payTable.querySelectorAll(".fc-pay-amt").forEach(function (inp) {
+      inp.addEventListener("input", function () {
+        var maxB = parseFloat(inp.getAttribute("data-max-balance") || "0");
+        var v = parseFloat(String(inp.value || "").trim());
+        if (!isNaN(v) && v > maxB) {
+          inp.value = maxB.toFixed(2);
+          showFcErrorToast("Amount cannot exceed balance for a fee line.");
+        }
+        calculateTotal();
+      });
+      inp.addEventListener("change", calculateTotal);
+    });
+    payTable.querySelectorAll(".fc-fee-cb:checked").forEach(function (cb) {
+      var fid = cb.getAttribute("data-fee-id");
+      var inp = payTable.querySelector('.fc-pay-amt[data-fee-id="' + fid + '"]');
+      var tr = rowForFeeId(fid);
+      if (inp && !inp.disabled) syncRowHighlight(tr, true);
+      else if (cb.checked) setPayInputEnabled(cb);
+    });
+    syncSelectAllCheckbox();
+    calculateTotal();
+
+    if (selAllCb) {
+      selAllCb.addEventListener("change", function () {
+        var on = selAllCb.checked;
+        payTable.querySelectorAll(".fc-fee-cb").forEach(function (cb) {
+          cb.checked = on;
+          setPayInputEnabled(cb);
+        });
+      });
+    }
+    if (btnSelAll) {
+      btnSelAll.addEventListener("click", function () {
+        var cbs = payTable.querySelectorAll(".fc-fee-cb");
+        var allOn = Array.prototype.every.call(cbs, function (c) {
+          return c.checked;
+        });
+        var next = !allOn;
+        payTable.querySelectorAll(".fc-fee-cb").forEach(function (cb) {
+          cb.checked = next;
+          setPayInputEnabled(cb);
+        });
+      });
+    }
+    if (btnPayFull) {
+      btnPayFull.addEventListener("click", function () {
+        payTable.querySelectorAll(".fc-fee-cb:checked").forEach(function (cb) {
+          var fid = cb.getAttribute("data-fee-id");
+          var inp = payTable.querySelector('.fc-pay-amt[data-fee-id="' + fid + '"]');
+          if (!inp || inp.disabled) return;
+          var maxB = parseFloat(inp.getAttribute("data-max-balance") || "0");
+          if (!isNaN(maxB)) inp.value = maxB.toFixed(2);
+        });
+        calculateTotal();
+      });
+    }
+
+    payForm.addEventListener("submit", function (e) {
+      var total = 0;
+      var any = false;
+      var ok = true;
+      payTable.querySelectorAll(".fc-pay-amt").forEach(function (inp) {
+        if (inp.disabled) return;
+        any = true;
+        var v = parseFloat(String(inp.value || "").trim());
+        var maxB = parseFloat(inp.getAttribute("data-max-balance") || "0");
+        if (isNaN(v) || v <= 0) ok = false;
+        if (!isNaN(v) && v > maxB) ok = false;
+        if (!isNaN(v) && v > 0) total += v;
+      });
+      if (!any || total <= 0) {
+        e.preventDefault();
+        showFcErrorToast("Please select at least one fee line and enter a valid amount.");
+        return;
+      }
+      if (!ok) {
+        e.preventDefault();
+        showFcErrorToast("Each amount must be greater than zero and not more than the line balance.");
+        return;
+      }
+      var feeTot = getFeeAllocationTotal();
+      var tenTot = getTenderTotal();
+      if (Math.abs(feeTot - tenTot) > 0.02) {
+        e.preventDefault();
+        showFcErrorToast(
+          "Payment methods must add up to the fee total (fees ₹" + fmtINR(feeTot) + ", methods ₹" + fmtINR(tenTot) + ")."
+        );
+      }
+    });
+
+    if (tenderRowsEl) {
+      tenderRowsEl.addEventListener("input", function (e) {
+        if (e.target && e.target.classList && e.target.classList.contains("fc-tender-amt")) syncTenderHint();
+      });
+      syncTenderHint();
+    }
+    if (btnTenderAdd && tenderRowsEl) {
+      btnTenderAdd.addEventListener("click", function () {
+        var first = tenderRowsEl.querySelector(".fc-tender-row");
+        if (!first) return;
+        var clone = first.cloneNode(true);
+        clone.querySelectorAll("input").forEach(function (inp) {
+          if (inp.name === "tender_amount") inp.value = "";
+          if (inp.name === "tender_ref") inp.value = "";
+        });
+        var sel = clone.querySelector("select[name='tender_method']");
+        if (sel) sel.selectedIndex = 0;
+        tenderRowsEl.appendChild(clone);
+        syncTenderHint();
+      });
+    }
   }
 
   var page = document.getElementById("fc-page");

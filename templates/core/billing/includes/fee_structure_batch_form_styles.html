@@ -1,0 +1,516 @@
+{# Shared CSS for fee structure batch form (modal + full page). #}
+<style>
+  /* Create-line modal */
+  .cfs-layer {
+    display: none !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 2147483640 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 1.25rem !important;
+    box-sizing: border-box !important;
+    overflow: auto !important;
+    pointer-events: none !important;
+  }
+  .cfs-layer.cfs-open {
+    display: flex !important;
+    pointer-events: auto !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    padding-top: 0.75rem !important;
+    padding-bottom: 1.25rem !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+  /* Scrim/panel use default pointer-events; children can steal hits from parent pointer-events:none — disable when closed */
+  .cfs-layer:not(.cfs-open) .cfs-scrim,
+  .cfs-layer:not(.cfs-open) .cfs-panel {
+    pointer-events: none !important;
+  }
+  .cfs-layer .cfs-scrim {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: 0 !important;
+    background: rgba(15, 23, 42, 0.52) !important;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    cursor: default;
+    opacity: 0;
+    transition: opacity 0.28s ease;
+  }
+  .cfs-layer.cfs-open .cfs-scrim { opacity: 1; }
+  .cfs-layer .cfs-panel {
+    position: relative !important;
+    z-index: 1 !important;
+    width: 100% !important;
+    max-width: min(100%, 44rem) !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background: #f8fafc !important;
+    color: #0f172a !important;
+    border-radius: 1.1rem !important;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+      0 40px 80px -20px rgba(15, 23, 42, 0.5),
+      0 16px 40px -12px rgba(124, 58, 237, 0.25) !important;
+    border: 1px solid rgba(167, 139, 250, 0.35) !important;
+    margin: auto !important;
+    flex-shrink: 0 !important;
+    transform: translateY(16px) scale(0.97);
+    opacity: 0;
+    transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s ease;
+  }
+  @media (min-width: 576px) {
+    .cfs-layer .cfs-panel { max-width: min(100%, 50rem) !important; }
+  }
+  @media (min-width: 768px) {
+    .cfs-layer .cfs-panel { max-width: min(100%, 60rem) !important; }
+  }
+  @media (min-width: 1200px) {
+    .cfs-layer .cfs-panel { max-width: min(100%, 70rem) !important; }
+  }
+  .cfs-panel > form.cfs-panel-form {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    max-height: min(calc(100vh - 3.75rem), 760px) !important;
+    overflow: hidden !important;
+  }
+  .cfs-layer.cfs-open .cfs-panel {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  .cfs-panel-hero {
+    flex-shrink: 0;
+    background: linear-gradient(125deg, #312e81 0%, #5b21b6 38%, #4f46e5 62%, #0e7490 115%);
+    color: #fff !important;
+    padding: 0.95rem 1.15rem 1rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .cfs-panel-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 90% 70% at 100% 0%, rgba(251, 191, 36, 0.22), transparent 55%);
+    pointer-events: none;
+  }
+  .cfs-panel-hero::after {
+    content: "";
+    position: absolute;
+    bottom: -40%;
+    left: -10%;
+    width: 50%;
+    height: 80%;
+    background: radial-gradient(circle, rgba(14, 165, 233, 0.35), transparent 70%);
+    pointer-events: none;
+  }
+  .cfs-panel-hero-inner { position: relative; z-index: 1; }
+  .cfs-panel-hero .btn-close {
+    filter: brightness(0) invert(1);
+    opacity: 0.9;
+    box-shadow: none;
+  }
+  .cfs-panel-body {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: 0.9rem 1.1rem 1.1rem !important;
+    background: linear-gradient(180deg, rgba(248, 250, 252, 0.5) 0%, transparent 12rem);
+  }
+  html.dark .cfs-panel-body {
+    background: linear-gradient(180deg, rgba(30, 41, 59, 0.4) 0%, transparent 14rem);
+  }
+  .cfs-panel-form .cfs-panel-footer {
+    flex-shrink: 0;
+  }
+  .cfs-panel-footer {
+    flex-shrink: 0;
+    padding: 0.65rem 1.1rem;
+    background: linear-gradient(180deg, rgba(248, 250, 252, 0.95) 0%, #eef2ff 100%);
+    border-top: 1px solid rgba(199, 210, 254, 0.6);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+  }
+  html.dark .cfs-layer .cfs-panel {
+    background: #0f172a !important;
+    color: #f1f5f9 !important;
+    border-color: rgba(129, 140, 248, 0.35) !important;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+      0 40px 80px -16px rgba(0, 0, 0, 0.65) !important;
+  }
+  html.dark .cfs-panel-footer {
+    background: linear-gradient(180deg, rgba(30, 41, 59, 0.98) 0%, #1e1b4b 100%);
+    border-top-color: rgba(71, 85, 105, 0.5);
+  }
+  html.dark .cfs-panel-body .form-label { color: #e2e8f0; }
+  html.dark .cfs-panel-body .form-control,
+  html.dark .cfs-panel-body .form-select {
+    background: rgba(15, 23, 42, 0.65);
+    border-color: rgba(71, 85, 105, 0.55);
+    color: #f1f5f9;
+  }
+  .cfs-impact-card {
+    background: linear-gradient(145deg, rgba(79, 70, 229, 0.1) 0%, rgba(14, 165, 233, 0.08) 55%, rgba(251, 191, 36, 0.06) 100%);
+    border: 1px solid rgba(99, 102, 241, 0.28);
+    border-radius: 1rem;
+    padding: 0.85rem 1rem;
+    box-shadow: 0 4px 20px rgba(79, 70, 229, 0.1), 0 1px 0 rgba(255, 255, 255, 0.6) inset;
+  }
+  html.dark .cfs-impact-card {
+    background: linear-gradient(145deg, rgba(79, 70, 229, 0.22) 0%, rgba(30, 41, 59, 0.95) 100%);
+    border-color: rgba(129, 140, 248, 0.35);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  }
+  .cfs-impact-label {
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: #6366f1;
+    margin-bottom: 0.5rem;
+  }
+  html.dark .cfs-impact-label { color: #a5b4fc; }
+  .cfs-impact-value {
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #0f172a;
+    line-height: 1.35;
+    min-height: 1.5em;
+  }
+  html.dark .cfs-impact-value { color: #f1f5f9; }
+  .cfs-impact-hint {
+    font-size: 0.8125rem;
+    color: #64748b;
+    margin-top: 0.5rem;
+    line-height: 1.45;
+  }
+  html.dark .cfs-impact-hint { color: #94a3b8; }
+  .cfs-impact-hint:empty,
+  .cfs-impact-hint.cfs-impact-hint--hidden {
+    display: none;
+  }
+  .cfs-form-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    width: 100%;
+    max-width: 100%;
+  }
+  .cfs-impact-column {
+    width: 100%;
+    max-width: 100%;
+  }
+  .cfs-form-column {
+    width: 100%;
+    min-width: 0;
+  }
+  .cfs-form-card {
+    background: #fff;
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    border-radius: 1rem;
+    padding: 1rem 1rem 1.1rem;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05), 0 12px 40px -12px rgba(15, 23, 42, 0.12);
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .cfs-form-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem 1.15rem;
+    width: 100%;
+  }
+  @media (min-width: 576px) {
+    .cfs-form-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .cfs-field {
+    min-width: 0;
+  }
+  .cfs-field--full {
+    grid-column: 1 / -1;
+  }
+  .cfs-form-grid .form-control,
+  .cfs-form-grid .form-select {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  html.dark .cfs-form-card {
+    background: rgba(30, 41, 59, 0.85);
+    border-color: rgba(71, 85, 105, 0.45);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  }
+  .cfs-form-card .cfs-flabel {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748b;
+    margin-bottom: 0.35rem;
+  }
+  html.dark .cfs-form-card .cfs-flabel { color: #94a3b8; }
+  .cfs-form-card .form-control,
+  .cfs-form-card .form-select {
+    min-height: calc(2.35rem + 2px);
+    border-radius: 0.65rem;
+    border-color: #e2e8f0;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+  .cfs-form-card .form-control:focus,
+  .cfs-form-card .form-select:focus {
+    border-color: rgba(99, 102, 241, 0.45);
+    box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.12);
+  }
+  html.dark .cfs-form-card .form-control,
+  html.dark .cfs-form-card .form-select {
+    background: rgba(15, 23, 42, 0.55);
+    border-color: rgba(71, 85, 105, 0.55);
+    color: #f1f5f9;
+  }
+  .cfs-form-card .form-text { font-size: 0.75rem; }
+  .cfs-field--switch .form-check {
+    min-height: calc(2.35rem + 2px);
+    display: flex;
+    align-items: center;
+    padding-left: 2.35rem;
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    border-radius: 0.65rem;
+    background: rgba(248, 250, 252, 0.65);
+  }
+  html.dark .cfs-field--switch .form-check {
+    border-color: rgba(71, 85, 105, 0.45);
+    background: rgba(15, 23, 42, 0.35);
+  }
+  .cfs-field--switch .form-check-input {
+    width: 2.25rem;
+    height: 1.15rem;
+    margin-left: -2.1rem;
+  }
+  /* Keep “Add fee category” clickable in flex header row (sticky billing tabs no longer blocks — see base_billing) */
+  #cfs-add-fee-row {
+    flex-shrink: 0;
+  }
+  .cfs-section-accent {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #4f46e5;
+    margin-bottom: 0.65rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 2px solid rgba(99, 102, 241, 0.2);
+  }
+  html.dark .cfs-section-accent { color: #a5b4fc; border-bottom-color: rgba(129, 140, 248, 0.25); }
+  .cfs-section-accent .bi { font-size: 1rem; opacity: 0.9; }
+  .cfs-btn-save {
+    border: none !important;
+    background: linear-gradient(135deg, #4f46e5 0%, #6366f1 45%, #0891b2 125%) !important;
+    color: #fff !important;
+    font-weight: 700;
+    padding: 0.55rem 1.35rem !important;
+    border-radius: 999px !important;
+    box-shadow: 0 6px 20px rgba(79, 70, 229, 0.45);
+    transition: transform 0.15s ease, box-shadow 0.2s ease;
+  }
+  .cfs-btn-save:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 28px rgba(79, 70, 229, 0.55);
+    color: #fff !important;
+  }
+  .cfs-section-pick-wrap { margin-top: 0.35rem; }
+  .cfs-section-chip-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: stretch;
+    min-height: 2.5rem;
+  }
+  .cfs-section-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0;
+    padding: 0.4rem 0.85rem;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    border-radius: 0.7rem;
+    background: rgba(248, 250, 252, 0.95);
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #334155;
+    user-select: none;
+  }
+  html.dark .cfs-section-chip {
+    background: rgba(15, 23, 42, 0.45);
+    border-color: rgba(71, 85, 105, 0.55);
+    color: #e2e8f0;
+  }
+  .cfs-section-chip:hover {
+    border-color: rgba(99, 102, 241, 0.45);
+  }
+  .cfs-section-chip.cfs-section-chip--checked {
+    border-color: rgba(99, 102, 241, 0.65);
+    background: rgba(99, 102, 241, 0.1);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12);
+    color: #312e81;
+  }
+  html.dark .cfs-section-chip.cfs-section-chip--checked {
+    color: #c7d2fe;
+  }
+  .cfs-section-chip input {
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+    flex-shrink: 0;
+    accent-color: #4f46e5;
+    cursor: pointer;
+  }
+  .cfs-section-pick-wrap--disabled {
+    opacity: 0.55;
+    pointer-events: none;
+  }
+  .cfs-section-pick-wrap--disabled .cfs-section-chip {
+    cursor: not-allowed;
+  }
+  .cfs-page-batch-form {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+  }
+  .cfs-page-batch-form .cfs-panel-body {
+    overflow: visible !important;
+    max-height: none !important;
+    flex: none !important;
+    min-height: 0 !important;
+    border-radius: 1.05rem;
+    border: 1px solid rgba(226, 232, 240, 0.98);
+    background: rgba(255, 255, 255, 0.72);
+    box-shadow:
+      0 1px 2px rgba(15, 23, 42, 0.04),
+      0 14px 36px -18px rgba(15, 23, 42, 0.12);
+  }
+  html.dark .cfs-page-batch-form .cfs-panel-body {
+    border-color: rgba(71, 85, 105, 0.5);
+    background: rgba(30, 41, 59, 0.55);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  }
+  .cfs-page-batch-form .cfs-panel-footer {
+    margin-top: 0.75rem;
+    border-radius: 1.05rem;
+    border: 1px solid rgba(226, 232, 240, 0.85);
+    box-shadow: 0 4px 18px -8px rgba(15, 23, 42, 0.08);
+  }
+  html.dark .cfs-page-batch-form .cfs-panel-footer {
+    border-color: rgba(71, 85, 105, 0.45);
+  }
+  .cfs-panel-footer.cfs-panel-footer--page-actions {
+    justify-content: flex-end;
+  }
+  /* Full-width impact strip (create page) */
+  .cfs-impact-strip {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(14, 165, 233, 0.06) 100%);
+    border-color: rgba(99, 102, 241, 0.22) !important;
+  }
+  html.dark .cfs-impact-strip {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.18) 0%, rgba(30, 41, 59, 0.9) 100%);
+    border-color: rgba(129, 140, 248, 0.28) !important;
+  }
+  .cfs-impact-strip-icon {
+    width: 3.5rem;
+    height: 3.5rem;
+    background: rgba(79, 70, 229, 0.12);
+    color: #4f46e5;
+  }
+  html.dark .cfs-impact-strip-icon {
+    background: rgba(129, 140, 248, 0.15);
+    color: #a5b4fc;
+  }
+  .cfs-impact-strip-label {
+    letter-spacing: 0.08em;
+    color: #64748b;
+  }
+  html.dark .cfs-impact-strip-label { color: #94a3b8; }
+  .cfs-impact-strip-value { color: #0f172a; }
+  html.dark .cfs-impact-strip-value { color: #f1f5f9; }
+  .cfs-fee-table thead th { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .cfs-fee-table th.cfs-fee-amt-col,
+  .cfs-fee-table td.cfs-fee-amt-cell {
+    width: 6.75rem;
+    max-width: 7.5rem;
+  }
+  .cfs-batch-form input[type="number"].cfs-fee-amt {
+    max-width: 6.75rem;
+    width: 100%;
+    margin-left: auto;
+    padding-top: 0.28rem;
+    padding-bottom: 0.28rem;
+    font-variant-numeric: tabular-nums;
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  /* Hide number spinners (increment/decrement) */
+  .cfs-batch-form input[type="number"].cfs-fee-amt::-webkit-outer-spin-button,
+  .cfs-batch-form input[type="number"].cfs-fee-amt::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  tr.cfs-fee-row--off td:not(:first-child) {
+    opacity: 0.55;
+  }
+  tr.cfs-fee-row--off .cfs-fee-amt {
+    background-color: rgba(148, 163, 184, 0.12);
+  }
+  .cfs-fee-inactive-pill {
+    font-size: 0.65rem;
+    vertical-align: middle;
+  }
+  .cfs-fee-filter-hide {
+    display: none !important;
+  }
+  .cfs-fee-toolbar .input-group-text {
+    border-color: rgba(148, 163, 184, 0.45);
+  }
+  .cfs-apply-switch .form-check-input {
+    width: 2.35rem;
+    height: 1.2rem;
+    margin-left: 0;
+    cursor: pointer;
+  }
+  .cfs-select-all-wrap .form-check-input {
+    cursor: pointer;
+  }
+  /* Modal: view-only batch (hide save/reset; body non-interactive; cancel stays usable) */
+  .cfs-batch-form--view-only .cfs-panel-body {
+    pointer-events: none;
+    user-select: none;
+    opacity: 0.97;
+  }
+  .cfs-batch-form--view-only .cfs-batch-editable-actions {
+    display: none !important;
+  }
+  .cfs-batch-form--view-only .cfs-panel-footer .cfs-batch-footer-close {
+    pointer-events: auto;
+  }
+</style>

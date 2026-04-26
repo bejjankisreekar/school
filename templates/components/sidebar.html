@@ -155,13 +155,13 @@
     </a>
     {% endif %}
     {% if request|school_has_feature:'fees' and request.user.role != 'TEACHER' %}
-    <a href="{% if request.user.role == 'ADMIN' %}{% url 'core:billing_dashboard' %}{% elif request.user.role == 'STUDENT' %}{% url 'core:student_fees' %}{% else %}#{% endif %}" class="sidebar-nav-item {% if request.user.role == 'ADMIN' %}{% nav_active_names request 'billing_dashboard' 'billing_record_payment' 'billing_student_collect' 'billing_fee_structure' 'billing_fee_master' 'billing_fee_categories' 'billing_class_fee_students' 'billing_student_fee_lines' 'billing_concessions' 'school_fee_type_update' 'school_fee_type_delete' 'billing_structure_apply' 'school_fee_structure' %}{% elif request.user.role == 'STUDENT' %}{% nav_active_names request 'student_fees' %}{% endif %}">
+    <a href="{% if request.user.role == 'ADMIN' %}{% url 'core:billing_dashboard' %}{% elif request.user.role == 'STUDENT' %}{% url 'core:student_fees' %}{% else %}#{% endif %}" class="sidebar-nav-item {% if request.user.role == 'ADMIN' %}{% nav_active_names request 'billing_dashboard' 'billing_class_financial_summary' 'billing_record_payment' 'billing_student_collect' 'billing_fee_structure' 'billing_fee_master' 'billing_fee_categories' 'billing_class_fee_students' 'billing_student_fee_lines' 'billing_concessions' 'school_fee_type_update' 'school_fee_type_delete' 'billing_structure_apply' 'school_fee_structure' %}{% elif request.user.role == 'STUDENT' %}{% nav_active_names request 'student_fees' %}{% endif %}">
       <span class="sidebar-nav-icon"><i class="bi bi-currency-dollar"></i></span>
       <span class="sidebar-nav-text">Fees &amp; billing</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
     {% endif %}
-    {% if request.user.role == 'ADMIN' %}
+    {% if request.user.role == 'ADMIN' or request.user.role == 'SUPERADMIN' %}
     {% if request|feature_access:"payroll" %}
     <a href="{% url 'payroll:payroll_dashboard' %}" class="sidebar-nav-item {% nav_active_names request 'payroll_dashboard' 'salary_components_list' 'salary_component_add' 'salary_component_edit' 'salary_structure_list' 'salary_structure_add' 'salary_structure_edit' 'salary_advances_list' 'salary_advance_add' 'salary_advance_edit' 'payroll_generate' 'payslips_list' 'payslip_view' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-wallet2"></i></span>

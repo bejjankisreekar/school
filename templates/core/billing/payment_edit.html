@@ -1,0 +1,434 @@
+{% extends "core/billing/base_billing.html" %}
+{% load nav_tags %}
+{% block billing_title %}{{ page_heading }} | School ERP{% endblock %}
+
+{% block billing_extra_head %}
+<style>
+  .pe-edit {
+    --pe-card-border: rgba(148, 163, 184, 0.35);
+    --pe-muted: #64748b;
+    max-width: 56rem;
+    margin: 0 auto;
+  }
+  html.dark .pe-edit {
+    --pe-card-border: rgba(148, 163, 184, 0.22);
+    --pe-muted: #94a3b8;
+  }
+
+  .pe-edit .pe-page-head {
+    margin-bottom: 1.25rem;
+  }
+  .pe-edit .pe-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--pe-muted);
+    text-decoration: none;
+    margin-bottom: 0.35rem;
+  }
+  .pe-edit .pe-back:hover {
+    color: var(--bs-primary);
+  }
+  .pe-edit .pe-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.25rem;
+  }
+  .pe-edit .pe-sub {
+    font-size: 0.875rem;
+    color: var(--pe-muted);
+    margin: 0;
+    max-width: 40rem;
+    line-height: 1.45;
+  }
+
+  .pe-edit .pe-card {
+    border: 1px solid var(--pe-card-border);
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+    background: var(--bs-body-bg);
+    overflow: hidden;
+  }
+  html.dark .pe-edit .pe-card {
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+  }
+
+  .pe-edit .pe-card-header {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--pe-muted);
+    padding: 0.75rem 1.25rem;
+    background: rgba(248, 250, 252, 0.85);
+    border-bottom: 1px solid var(--pe-card-border);
+  }
+  html.dark .pe-edit .pe-card-header {
+    background: rgba(30, 41, 59, 0.65);
+  }
+
+  .pe-edit .pe-card-body {
+    padding: 1.25rem;
+  }
+
+  .pe-edit .pe-ro {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    margin: 0;
+    word-break: break-word;
+  }
+  .pe-edit .pe-ro-sm {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--pe-muted);
+    margin: 0.15rem 0 0;
+  }
+
+  .pe-edit .pe-label {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--pe-muted);
+    margin-bottom: 0.35rem;
+  }
+
+  .pe-edit .pe-field-errored .form-control,
+  .pe-edit .pe-field-errored .form-select,
+  .pe-edit .pe-field-errored textarea,
+  .pe-edit .input-group.pe-field-errored .form-control,
+  .pe-edit .input-group.pe-field-errored .input-group-text {
+    border-color: var(--bs-danger);
+  }
+
+  .pe-edit .pe-no-spin::-webkit-outer-spin-button,
+  .pe-edit .pe-no-spin::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .pe-edit .pe-no-spin {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
+  .pe-edit .pe-due-hint {
+    border-radius: 0.5rem;
+    padding: 0.65rem 0.85rem;
+    font-size: 0.8125rem;
+    background: rgba(234, 179, 8, 0.12);
+    border: 1px solid rgba(234, 179, 8, 0.35);
+    color: #854d0e;
+  }
+  html.dark .pe-edit .pe-due-hint {
+    color: #fbbf24;
+    background: rgba(234, 179, 8, 0.1);
+    border-color: rgba(251, 191, 36, 0.25);
+  }
+
+  .pe-edit .pe-fee-table thead th {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--pe-muted);
+    border-bottom-width: 1px;
+  }
+  .pe-edit .pe-fee-table td {
+    vertical-align: middle;
+  }
+  .pe-edit .pe-fee-table .form-control,
+  .pe-edit .pe-fee-table .form-select {
+    font-size: 0.875rem;
+  }
+  .pe-edit .pe-fee-table .form-control {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .pe-edit .pe-total-bar {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.75rem;
+    padding-top: 0.75rem;
+    margin-top: 0.5rem;
+    border-top: 1px dashed var(--pe-card-border);
+    font-size: 0.8125rem;
+  }
+  .pe-edit .pe-total-bar .pe-total-val {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--bs-success);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .pe-edit .pe-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.65rem;
+    padding-top: 0.25rem;
+  }
+  .pe-edit .pe-actions .btn {
+    min-width: 7.5rem;
+    font-weight: 600;
+    padding: 0.5rem 1.1rem;
+    border-radius: 0.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block billing_main %}
+<div class="pe-edit pb-4">
+  <div class="pe-page-head">
+    <a href="{{ next_url }}" class="pe-back"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back</a>
+    <h1 class="pe-title">{{ page_heading }}</h1>
+    <p class="pe-sub">{{ page_sub }}</p>
+    {% if batch %}
+    <p class="small text-muted mb-0 mt-2">
+      <span class="font-monospace fw-semibold text-primary">{{ batch.receipt_code|default:batch.pk }}</span>
+      <span class="mx-1">·</span>
+      Current total <strong>₹{{ batch.total_amount|inr }}</strong>
+    </p>
+    {% endif %}
+  </div>
+
+  <form method="post" novalidate id="pe-form">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next_url }}" />
+
+    {% if form.non_field_errors %}
+    <div class="alert alert-danger rounded-3 shadow-sm mb-3" role="alert">
+      {% for err in form.non_field_errors %}<div>{{ err }}</div>{% endfor %}
+    </div>
+    {% endif %}
+
+    {% if form.errors %}
+    <div class="alert alert-danger rounded-3 shadow-sm mb-3 d-flex gap-2 align-items-start" role="alert">
+      <i class="bi bi-exclamation-octagon-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+      <div>
+        <strong>Please correct the errors below.</strong>
+        <span class="d-block small mt-1 mb-0">Fields with problems are outlined in red.</span>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="row g-3">
+      {# —— Payment details —— #}
+      <div class="col-12 col-lg-6">
+        <div class="pe-card h-100">
+          <div class="pe-card-header">Payment details</div>
+          <div class="pe-card-body">
+            <div class="row g-3">
+              {% if payment and not batch %}
+              <div class="col-12 col-md-6">
+                <label class="form-label pe-label mb-1" for="{{ form.amount.id_for_label }}">Amount</label>
+                <div class="input-group{% if form.amount.errors %} pe-field-errored{% endif %}">
+                  <span class="input-group-text">₹</span>
+                  {{ form.amount }}
+                </div>
+                {% if form.amount.errors %}<div class="invalid-feedback d-block">{{ form.amount.errors.0 }}</div>{% endif %}
+                {% if form.amount.help_text %}<div class="form-text">{{ form.amount.help_text }}</div>{% endif %}
+              </div>
+              {% endif %}
+
+              <div class="col-12 col-md-6">
+                <label class="form-label pe-label mb-1" for="{{ form.payment_date.id_for_label }}">{{ form.payment_date.label }}</label>
+                <div class="{% if form.payment_date.errors %}pe-field-errored{% endif %}">{{ form.payment_date }}</div>
+                {% if form.payment_date.errors %}<div class="invalid-feedback d-block">{{ form.payment_date.errors.0 }}</div>{% endif %}
+              </div>
+
+              <div class="col-12">
+                <div class="pe-label">Payment mode</div>
+                <p class="pe-ro mb-0">{{ payment_method_display|default:"—" }}</p>
+                <p class="pe-ro-sm">Recorded mode cannot be changed on this screen.</p>
+              </div>
+
+              <div class="col-12 col-md-6">
+                <label class="form-label pe-label mb-1" for="{{ form.receipt_number.id_for_label }}">{{ form.receipt_number.label }}</label>
+                <div class="{% if form.receipt_number.errors %}pe-field-errored{% endif %}">{{ form.receipt_number }}</div>
+                {% if form.receipt_number.errors %}<div class="invalid-feedback d-block">{{ form.receipt_number.errors.0 }}</div>{% endif %}
+              </div>
+
+              <div class="col-12 col-md-6">
+                <label class="form-label pe-label mb-1" for="{{ form.transaction_reference.id_for_label }}">{{ form.transaction_reference.label }}</label>
+                <div class="{% if form.transaction_reference.errors %}pe-field-errored{% endif %}">{{ form.transaction_reference }}</div>
+                {% if form.transaction_reference.errors %}<div class="invalid-feedback d-block">{{ form.transaction_reference.errors.0 }}</div>{% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# —— Student —— #}
+      <div class="col-12 col-lg-6">
+        <div class="pe-card h-100">
+          <div class="pe-card-header">Student</div>
+          <div class="pe-card-body">
+            <div class="row g-3">
+              <div class="col-12">
+                <div class="pe-label">Name</div>
+                <p class="pe-ro mb-0">{{ student.user.get_full_name|default:student.user.username }}</p>
+              </div>
+              <div class="col-12 col-sm-6">
+                <div class="pe-label">Class</div>
+                <p class="pe-ro mb-0">
+                  {% if student.classroom %}
+                    {{ student.classroom.name }}{% if student.section %} — {{ student.section.name }}{% endif %}
+                  {% else %}
+                    —
+                  {% endif %}
+                </p>
+              </div>
+              <div class="col-12 col-sm-6">
+                <div class="pe-label">Admission no.</div>
+                <p class="pe-ro mb-0">{{ student.admission_number|default:"—" }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# —— Fee breakdown —— #}
+      <div class="col-12">
+        <div class="pe-card">
+          <div class="pe-card-header">Fee breakdown</div>
+          <div class="pe-card-body">
+            {% if batch and line_rows %}
+              {% if not fee_choice_rows %}
+              <div class="alert alert-warning mb-0 rounded-3" role="alert">
+                No fee lines for this student/year. Allocations cannot be edited until fee structure exists.
+              </div>
+              {% else %}
+              <p class="small text-muted mb-3">Assign each amount to a fee type. Per-line amounts cannot exceed net due for that fee.</p>
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 pe-fee-table">
+                  <thead>
+                    <tr>
+                      <th class="ps-0">Fee type</th>
+                      <th class="text-end" style="min-width: 9rem;">Amount (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for row in line_rows %}
+                    <tr>
+                      <td class="ps-0">
+                        <select name="fee_{{ row.payment_id }}" id="fee_{{ row.payment_id }}" class="form-select" required>
+                          {% for fid, flabel in fee_choice_rows %}
+                          <option value="{{ fid }}" {% if fid == row.fee_id %}selected{% endif %}>{{ flabel }}</option>
+                          {% endfor %}
+                        </select>
+                      </td>
+                      <td class="text-end" style="max-width: 11rem;">
+                        <input
+                          type="number"
+                          name="line_{{ row.payment_id }}"
+                          id="line_{{ row.payment_id }}"
+                          class="form-control pe-no-spin js-pe-line-amt"
+                          step="0.01"
+                          min="0.01"
+                          value="{{ row.amount }}"
+                          required
+                          inputmode="decimal"
+                          autocomplete="off"
+                        />
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              <div class="pe-total-bar">
+                <span class="text-muted text-uppercase fw-semibold small">Receipt total</span>
+                <span class="pe-total-val" id="pe-line-sum">₹{{ batch.total_amount|inr }}</span>
+              </div>
+              {% endif %}
+            {% elif payment and not batch %}
+              {% with ft=payment.fee.fee_structure.fee_type %}
+              <div class="row g-3 align-items-end">
+                <div class="col-12 col-md-6">
+                  <div class="pe-label">Fee head</div>
+                  <p class="pe-ro mb-0">{% if ft %}{{ ft.name }}{% else %}—{% endif %}</p>
+                  <p class="pe-ro-sm">Academic fee line this payment applies to.</p>
+                </div>
+                <div class="col-12 col-md-6 text-md-end">
+                  <div class="pe-label text-md-end">Allocated amount</div>
+                  <p class="pe-ro mb-0" id="pe-orphan-total-display">₹{{ form.amount.value|default:payment.amount|inr }}</p>
+                </div>
+              </div>
+              {% if orphan_max_amount is not None %}
+              <div class="pe-due-hint mt-3">
+                <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+                Maximum payable on this line: <strong>₹{{ orphan_max_amount|inr }}</strong> (balance due).
+              </div>
+              {% endif %}
+              {% endwith %}
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      {# —— Notes —— #}
+      <div class="col-12">
+        <div class="pe-card">
+          <div class="pe-card-header">Notes / remarks</div>
+          <div class="pe-card-body">
+            <label class="form-label pe-label mb-1" for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>
+            <div class="{% if form.notes.errors %}pe-field-errored{% endif %}">{{ form.notes }}</div>
+            {% if form.notes.errors %}<div class="invalid-feedback d-block">{{ form.notes.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pe-actions mt-4">
+      <a href="{{ next_url }}" class="btn btn-outline-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary" {% if batch and line_rows and not fee_choice_rows %}disabled{% endif %}>
+        Update payment
+      </button>
+    </div>
+  </form>
+</div>
+
+{% if batch and line_rows and fee_choice_rows %}
+<script>
+(function () {
+  var inputs = document.querySelectorAll('#pe-form input.js-pe-line-amt[name^="line_"]');
+  var out = document.getElementById('pe-line-sum');
+  function fmt(n) {
+    return n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function sum() {
+    var t = 0;
+    inputs.forEach(function (el) {
+      var v = parseFloat(el.value);
+      if (!isNaN(v)) t += v;
+    });
+    if (out) out.textContent = '₹' + fmt(t);
+  }
+  inputs.forEach(function (el) { el.addEventListener('input', sum); });
+})();
+</script>
+{% endif %}
+
+{% if payment and not batch %}
+<script>
+(function () {
+  var el = document.getElementById('{{ form.amount.id_for_label }}');
+  var out = document.getElementById('pe-orphan-total-display');
+  if (!el || !out) return;
+  function fmt(n) {
+    return n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function sync() {
+    var v = parseFloat(el.value);
+    out.textContent = (!isNaN(v)) ? ('₹' + fmt(v)) : '—';
+  }
+  el.addEventListener('input', sync);
+})();
+</script>
+{% endif %}
+{% endblock %}

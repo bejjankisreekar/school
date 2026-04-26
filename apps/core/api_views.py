@@ -5,6 +5,7 @@ from django_tenants.utils import tenant_context
 
 from apps.accounts.models import User
 from apps.customers.models import School
+from apps.school_data.classroom_ordering import ORDER_AY_PK_GRADE_NAME, ORDER_AY_START_GRADE_NAME
 from apps.school_data.models import Student, Fee, Payment, Marks, Exam, ClassRoom, Section, Attendance
 
 
@@ -162,7 +163,7 @@ def api_admin_classrooms(request, school_code: str):
     if not _can_access_school_admin_api(request, school):
         return JsonResponse({"error": "Forbidden"}, status=403)
     with tenant_context(school):
-        classrooms = ClassRoom.objects.select_related("academic_year").order_by("academic_year", "name")
+        classrooms = ClassRoom.objects.select_related("academic_year").order_by(*ORDER_AY_PK_GRADE_NAME)
         return JsonResponse({
             "classrooms": [{"id": c.id, "name": str(c)} for c in classrooms],
         })
@@ -223,7 +224,7 @@ def api_admin_sections(request, school_code: str):
                 }
             )
         out = []
-        for c in ClassRoom.objects.prefetch_related("sections").order_by("name"):
+        for c in ClassRoom.objects.prefetch_related("sections").order_by(*ORDER_AY_START_GRADE_NAME):
             for s in c.sections.all():
                 out.append({"id": s.id, "name": s.name, "classroom_id": c.id})
         return JsonResponse({"sections": out})

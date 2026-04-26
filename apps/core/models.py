@@ -118,6 +118,7 @@ class SidebarMenuItem(BaseModel):
         on_delete=models.CASCADE,
         related_name="children",
     )
+
     feature_code = models.CharField(
         max_length=64,
         blank=True,
@@ -133,6 +134,34 @@ class SidebarMenuItem(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.role}: {self.label}"
+
+
+class AnalyticsField(BaseModel):
+    """
+    Public-schema master fields for analytics/reporting.
+    These are global across schools (platform-level settings).
+    """
+
+    field_key = models.CharField(max_length=80, db_index=True)
+    display_label = models.CharField(max_length=160, db_index=True)
+    category = models.CharField(max_length=60, db_index=True, blank=True, default="")
+    display_order = models.PositiveIntegerField(default=0, db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        ordering = ["category", "field_key", "display_order", "display_label"]
+        constraints = [
+            models.UniqueConstraint(fields=["field_key", "display_label"], name="uniq_analyticsfield_key_label"),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.field_key = (self.field_key or "").strip()
+        self.display_label = (self.display_label or "").strip()
+        self.category = (self.category or "").strip()
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return f"{self.field_key}: {self.display_label}"
 
 
 class SubscriptionPlan(models.Model):

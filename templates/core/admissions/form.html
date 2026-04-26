@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}Edit admission{% else %}New admission{% endif %} | Admissions{% endblock %}
+{% block content %}
+<style>
+  .admission-form-wrap .af-card {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+  }
+  html.dark .admission-form-wrap .af-card {
+    border-color: rgba(148, 163, 184, 0.18);
+  }
+  .admission-form-wrap .af-section {
+    background: rgba(248, 250, 252, 0.82);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    border-radius: 1rem;
+    padding: 1rem 1rem;
+  }
+  html.dark .admission-form-wrap .af-section {
+    background: rgba(15, 23, 42, 0.35);
+    border-color: rgba(148, 163, 184, 0.12);
+  }
+  .admission-form-wrap .af-section-title {
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    margin-bottom: 0.15rem;
+  }
+  .admission-form-wrap .af-section-sub {
+    color: #64748b;
+    font-size: 0.85rem;
+    margin-bottom: 0.75rem;
+  }
+  html.dark .admission-form-wrap .af-section-sub { color: #94a3b8; }
+  .admission-form-wrap .form-label {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #334155;
+    margin-bottom: 0.35rem;
+  }
+  html.dark .admission-form-wrap .form-label { color: #cbd5e1; }
+  .admission-form-wrap .form-control,
+  .admission-form-wrap .form-select,
+  .admission-form-wrap input[type="file"].form-control {
+    min-height: 2.65rem;
+    border-radius: 0.75rem;
+  }
+  .admission-form-wrap .af-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    background: linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0.95));
+    backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(15, 23, 42, 0.08);
+  }
+  html.dark .admission-form-wrap .af-actions {
+    background: linear-gradient(180deg, rgba(15,23,42,0.55), rgba(15,23,42,0.88));
+    border-top-color: rgba(148, 163, 184, 0.14);
+  }
+  .admission-form-wrap .af-required {
+    color: #dc2626;
+    font-weight: 900;
+    margin-left: 0.2rem;
+  }
+</style>
+
+<div class="container-fluid px-0" style="max-width: 980px;">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:school_admissions_list' %}">Admissions</a></li>
+      <li class="breadcrumb-item active">{% if form.instance.pk %}Edit{% else %}New{% endif %}</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3 admission-form-wrap">
+    <div class="min-w-0">
+      <h1 class="h4 fw-bold mb-1">{% if form.instance.pk %}Edit admission{% else %}Add new admission{% endif %}</h1>
+      <div class="text-muted small">Fill student details, upload documents, and track status.</div>
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-secondary btn-sm rounded-pill px-3" href="{% url 'core:school_admissions_list' %}"><i class="bi bi-arrow-left me-1"></i> Back</a>
+    </div>
+  </div>
+
+  <form method="post" enctype="multipart/form-data" class="card border-0 rounded-4 af-card admission-form-wrap">
+    {% csrf_token %}
+    <div class="card-body p-3 p-lg-4">
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger border-0 rounded-4">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <div class="row g-3">
+        <div class="col-12">
+          <div class="af-section">
+            <div class="d-flex align-items-start justify-content-between gap-2 flex-wrap">
+              <div>
+                <div class="af-section-title"><i class="bi bi-person-badge me-2 text-primary"></i>Student details</div>
+                <div class="af-section-sub">Basic identity for the application.</div>
+              </div>
+              <div class="small text-muted">Fields marked <span class="af-required">*</span> are required.</div>
+            </div>
+            <div class="row g-3">
+              <div class="col-md-4"><label class="form-label">First name<span class="af-required">*</span></label>{{ form.first_name }}</div>
+              <div class="col-md-4"><label class="form-label">Last name</label>{{ form.last_name }}</div>
+              <div class="col-md-4"><label class="form-label">Gender</label>{{ form.gender }}</div>
+              <div class="col-md-4"><label class="form-label">Date of birth</label>{{ form.date_of_birth }}</div>
+              <div class="col-md-4"><label class="form-label">Blood group</label>{{ form.blood_group }}</div>
+              <div class="col-md-4"><label class="form-label">Aadhaar / Student ID</label>{{ form.aadhaar_or_student_id }}</div>
+              <div class="col-md-6"><label class="form-label">Passport photo</label>{{ form.passport_photo }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="af-section">
+            <div class="af-section-title"><i class="bi bi-people me-2 text-primary"></i>Parent details</div>
+            <div class="af-section-sub">Primary contacts for this admission.</div>
+            <div class="row g-3">
+              <div class="col-md-4"><label class="form-label">Father name</label>{{ form.father_name }}</div>
+              <div class="col-md-4"><label class="form-label">Mother name</label>{{ form.mother_name }}</div>
+              <div class="col-md-4"><label class="form-label">Mobile number<span class="af-required">*</span></label>{{ form.mobile_number }}</div>
+              <div class="col-md-4"><label class="form-label">Alternate mobile</label>{{ form.alternate_mobile }}</div>
+              <div class="col-md-4"><label class="form-label">Email</label>{{ form.email }}</div>
+              <div class="col-md-4"><label class="form-label">Occupation</label>{{ form.occupation }}</div>
+              <div class="col-md-4"><label class="form-label">Annual income</label>{{ form.annual_income }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="af-section">
+            <div class="af-section-title"><i class="bi bi-geo-alt me-2 text-primary"></i>Address</div>
+            <div class="af-section-sub">Residential address for records.</div>
+            <div class="row g-3">
+              <div class="col-md-3"><label class="form-label">House no</label>{{ form.house_no }}</div>
+              <div class="col-md-5"><label class="form-label">Street</label>{{ form.street }}</div>
+              <div class="col-md-4"><label class="form-label">City</label>{{ form.city }}</div>
+              <div class="col-md-4"><label class="form-label">State</label>{{ form.state }}</div>
+              <div class="col-md-4"><label class="form-label">Pincode</label>{{ form.pincode }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="af-section">
+            <div class="af-section-title"><i class="bi bi-mortarboard me-2 text-primary"></i>Academic</div>
+            <div class="af-section-sub">Application class and previous record.</div>
+            <div class="row g-3">
+              <div class="col-md-4"><label class="form-label">Applying for class</label>{{ form.applying_for_class }}</div>
+              <div class="col-md-4"><label class="form-label">Previous school</label>{{ form.previous_school_name }}</div>
+              <div class="col-md-4"><label class="form-label">Previous marks / %</label>{{ form.previous_marks_percent }}</div>
+              <div class="col-md-6"><label class="form-label">Transfer certificate</label>{{ form.transfer_certificate }}</div>
+              <div class="col-md-6"><label class="form-label">Birth certificate</label>{{ form.birth_certificate }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="af-section">
+            <div class="af-section-title"><i class="bi bi-bus-front me-2 text-primary"></i>Transport</div>
+            <div class="af-section-sub">Optional bus requirement and pickup point.</div>
+            <div class="row g-3 align-items-end">
+              <div class="col-md-4">
+                <div class="form-check mt-2">
+                  {{ form.require_bus }}
+                  <label class="form-check-label fw-semibold" for="{{ form.require_bus.id_for_label }}">Require bus</label>
+                </div>
+              </div>
+              <div class="col-md-8"><label class="form-label">Pickup point</label>{{ form.pickup_point }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="af-section">
+            <div class="af-section-title"><i class="bi bi-clipboard-check me-2 text-primary"></i>Admission tracking</div>
+            <div class="af-section-sub">Internal tracking and status workflow.</div>
+            <div class="row g-3">
+              <div class="col-md-4"><label class="form-label">Admission date</label>{{ form.admission_date }}</div>
+              <div class="col-md-4"><label class="form-label">Admission status</label>{{ form.status }}</div>
+              <div class="col-12"><label class="form-label">Notes</label>{{ form.notes }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer af-actions p-3 p-lg-4">
+      <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
+        <div class="small text-muted">
+          <i class="bi bi-shield-check me-1"></i> Saved securely. No data leaves your school tenant.
+        </div>
+        <div class="d-flex gap-2">
+          <a class="btn btn-outline-secondary rounded-pill px-4" href="{% url 'core:school_admissions_list' %}">Cancel</a>
+          <button type="submit" class="btn btn-primary rounded-pill px-4">
+            {% if form.instance.pk %}<i class="bi bi-check2-circle me-1"></i> Save changes{% else %}<i class="bi bi-plus-circle me-1"></i> Create admission{% endif %}
+          </button>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}
+

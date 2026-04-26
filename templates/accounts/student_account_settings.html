@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Account settings | Campus ERP{% endblock %}
+
+{% block content %}
+<style>
+  .sas-page { max-width: 980px; margin: 0 auto; }
+  .sas-hero {
+    border-radius: 1rem;
+    border: 1px solid var(--bs-border-color-translucent);
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.10) 0%, transparent 55%),
+      linear-gradient(225deg, rgba(34, 197, 94, 0.06) 0%, transparent 50%);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .sas-card { border-radius: 1rem; border: 1px solid var(--bs-border-color-translucent); }
+  .sas-label { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bs-secondary-color); font-weight: 700; }
+  .sas-dl dt { font-size: 0.78rem; color: var(--bs-secondary-color); }
+  .sas-dl dd { font-weight: 600; margin-bottom: 0.85rem; }
+</style>
+
+<div class="container-fluid px-0 sas-page">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{{ settings_dashboard_url }}">{{ settings_dashboard_label }}</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Account settings</li>
+    </ol>
+  </nav>
+
+  <div class="sas-hero">
+    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+      <div>
+        <h1 class="h4 fw-bold mb-1" style="letter-spacing:-0.02em;">My account</h1>
+        <p class="text-muted small mb-0">Only your student profile details are shown here.</p>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{% url 'accounts:change_password' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+          <i class="bi bi-shield-lock me-1"></i>Change password
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-7">
+      <div class="card sas-card shadow-sm">
+        <div class="card-header bg-transparent">
+          <div class="sas-label">Student details</div>
+        </div>
+        <div class="card-body">
+          <dl class="sas-dl mb-0">
+            <dt>Name</dt>
+            <dd>{{ account_user.get_full_name|default:account_user.username|default:"—" }}</dd>
+
+            <dt>Username</dt>
+            <dd>{{ account_user.username|default:"—" }}</dd>
+
+            <dt>Email</dt>
+            <dd>{{ account_user.email|default:"—" }}</dd>
+
+            <dt>Class</dt>
+            <dd>{{ student.classroom.name|default:"—" }}</dd>
+
+            <dt>Section</dt>
+            <dd>{{ student.section.name|default:"—" }}</dd>
+
+            <dt>Phone</dt>
+            <dd>{{ student.phone|default:"—" }}</dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-5">
+      <div class="card sas-card shadow-sm">
+        <div class="card-header bg-transparent">
+          <div class="sas-label">Update contact</div>
+        </div>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_student_contact" />
+            <label class="form-label small fw-semibold">Phone</label>
+            <input
+              type="text"
+              name="phone"
+              value="{{ student.phone|default:'' }}"
+              class="form-control rounded-4 border-secondary-subtle"
+              maxlength="15"
+              placeholder="Enter phone number"
+              autocomplete="tel"
+            />
+            <div class="d-flex gap-2 mt-3">
+              <button class="btn btn-primary rounded-pill px-4" type="submit">Save</button>
+              <a class="btn btn-outline-secondary rounded-pill px-4" href="{% url 'accounts:account_settings' %}">Reset</a>
+            </div>
+            <div class="small text-muted mt-2">Only contact fields are editable. School/role cannot be changed.</div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

@@ -1,0 +1,914 @@
+{% comment %}Shared scripts for fee structure batch form (list modal + full create page).{% endcomment %}
+<script>
+(function () {
+  var layerEl = document.getElementById("cfs-create-layer");
+  if (!layerEl) {
+    window.cfsOpenFeeStructureLayer = function () {};
+    return;
+  }
+  var OPEN = "cfs-open";
+  function cfsAnyOpen() {
+    return document.querySelector(".cfs-layer." + OPEN);
+  }
+  function cfsOpen(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.classList.add(OPEN);
+    el.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+  }
+  function cfsClose(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove(OPEN);
+    el.setAttribute("aria-hidden", "true");
+    if (!cfsAnyOpen()) document.body.style.overflow = "";
+  }
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-cfs-open]");
+    if (btn) {
+      e.preventDefault();
+      var oid = btn.getAttribute("data-cfs-open");
+      if (oid) cfsOpen(oid);
+      return;
+    }
+    var closeEl = e.target.closest("[data-cfs-close]");
+    if (closeEl) {
+      e.preventDefault();
+      var cid = closeEl.getAttribute("data-cfs-close");
+      if (cid) cfsClose(cid);
+    }
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && cfsAnyOpen()) {
+      e.preventDefault();
+      var layer = cfsAnyOpen();
+      if (layer && layer.id) cfsClose(layer.id);
+    }
+  });
+  {% if open_fee_line_modal %}
+  cfsOpen("cfs-create-layer");
+  {% endif %}
+  window.cfsOpenFeeStructureLayer = cfsOpen;
+})();
+
+(function () {
+  var form = document.getElementById("cfs-structure-form");
+  var urlEl = document.getElementById("cfs-impacted-url");
+  var batchUrlEl = document.getElementById("cfs-batch-detail-url");
+  var feeRowsBody = document.getElementById("cfs-fee-rows");
+  if (!form || !feeRowsBody) return;
+
+  var baseUrl = urlEl ? urlEl.textContent.trim() : "";
+  var batchDeleteUrlEl = document.getElementById("cfs-batch-delete-url");
+  var clsSel = document.getElementById("cfs-classroom");
+  var secWrap = document.getElementById("cfs-section-pick-wrap");
+  var applyAll = document.getElementById("cfs-apply-all-sections");
+  var feeLinesHidden = document.getElementById("cfs-fee-lines-json");
+  var editBatchHidden = document.getElementById("cfs-edit-batch-key");
+  var totalEl = document.getElementById("cfs-total-amount");
+  var editNote = document.getElementById("cfs-batch-edit-note");
+  var elVal = document.getElementById("cfs-p-value");
+  var elHint = document.getElementById("cfs-p-hint");
+  var filterEl = document.getElementById("cfs-fee-filter");
+  var selectAllEl = document.getElementById("cfs-fee-select-all");
+  var tmr;
+
+  var feeStructureMeta = { classesWithStructureByYear: {}, occupiedSlotKeys: [] };
+  try {
+    var metaEl = document.getElementById("cfs-fee-structure-meta");
+    if (metaEl && metaEl.textContent) {
+      feeStructureMeta = JSON.parse(metaEl.textContent);
+    }
+  } catch (ignoreMeta) {
+    feeStructureMeta = { classesWithStructureByYear: {}, occupiedSlotKeys: [] };
+  }
+  var aySel = document.getElementById("cfs-academic-year");
+  var classFilterAvail = document.getElementById("cfs-class-filter-available");
+
+  function normalizeFeeTypesArray(parsed) {
+    if (parsed == null) return [];
+    if (Array.isArray(parsed)) return parsed;
+    if (typeof parsed === "object") {
+      var vals = Object.values(parsed);
+      if (
+        vals.length &&
+        vals[0] &&
+        typeof vals[0] === "object" &&
+        ("id" in vals[0] || "name" in vals[0] || "fee_type_id" in vals[0])
+      ) {
+        return vals;
+      }
+    }
+    return [];
+  }
+
+  var feeTypes = [];
+  try {
+    var jsel = document.getElementById("cfs-fee-types-payload");
+    if (jsel && jsel.textContent) {
+      feeTypes = normalizeFeeTypesArray(JSON.parse(jsel.textContent));
+    }
+  } catch (e) {
+    feeTypes = [];
+  }
+
+  function ensureFeeTypesArray() {
+    if (!Array.isArray(feeTypes)) {
+      feeTypes = normalizeFeeTypesArray(feeTypes);
+    }
+  }
+
+  function setHintVisible(on) {
+    if (!elHint) return;
+    elHint.classList.toggle("cfs-impact-hint--hidden", !on);
+  }
+
+  function escOpt(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function feeTypeOptionsHtml() {
+    ensureFeeTypesArray();
+    var opts = '<option value="">— Select fee category —</option>';
+    feeTypes.forEach(function (ft) {
+      var label = escOpt(ft.name);
+      if (ft.code) label += " (" + escOpt(ft.code) + ")";
+      opts += '<option value="' + ft.id + '">' + label + "</option>";
+    });
+    return opts;
+  }
+
+  function isBatchEditMode(overrideLines) {
+    return overrideLines && overrideLines.length > 0;
+  }
+
+  function syncFeeRowEnabled(tr) {
+    var cb = tr.querySelector(".cfs-fee-enable");
+    var am = tr.querySelector(".cfs-fee-amt");
+    var sel = tr.querySelector("select.cfs-fee-type");
+    if (!cb || !am) return;
+    var on = cb.checked;
+    tr.classList.toggle("cfs-fee-row--off", !on);
+    am.disabled = !on;
+    if (sel) sel.disabled = !on;
+    if (!on) {
+      am.value = "";
+    }
+    if (on) {
+      am.setAttribute("required", "required");
+      if (sel) sel.setAttribute("required", "required");
+    } else {
+      am.removeAttribute("required");
+      if (sel) sel.removeAttribute("required");
+    }
+  }
+
+  function renderCatalogFeeRows(overrideLines) {
+    ensureFeeTypesArray();
+    var byId = {};
+    (overrideLines || []).forEach(function (r) {
+      if (!r || r.fee_type_id == null) return;
+      var k = parseInt(r.fee_type_id, 10);
+      if (!isNaN(k)) byId[k] = r;
+    });
+    var editing = isBatchEditMode(overrideLines);
+    feeRowsBody.innerHTML = "";
+    if (!feeTypes.length) {
+      var tr0 = document.createElement("tr");
+      tr0.className = "cfs-fee-row cfs-fee-row--empty";
+      var td0 = document.createElement("td");
+      td0.colSpan = 4;
+      td0.className = "text-center text-muted small py-3";
+      var hintEl = document.getElementById("cfs-fee-catalog-hint");
+      var catUrl = hintEl ? hintEl.getAttribute("data-fee-categories-url") : "";
+      td0.innerHTML = catUrl
+        ? 'No fee categories defined. Add them under <a href="' + catUrl + '">Fee categories</a>.'
+        : "No fee categories defined.";
+      feeRowsBody.appendChild(tr0);
+      calculateTotal();
+      return;
+    }
+    feeTypes.forEach(function (ft) {
+      var oid = ft.id;
+      var o = byId[oid];
+      var amtVal = "";
+      if (o && o.amount != null && String(o.amount).trim() !== "") amtVal = String(o.amount);
+      var enabled;
+      if (o) {
+        enabled = true;
+      } else if (editing) {
+        enabled = false;
+      } else {
+        enabled = false;
+      }
+      var tr = document.createElement("tr");
+      tr.className = "cfs-fee-row cfs-fee-row--catalog";
+      tr.setAttribute("data-ft-name", ft.name || "");
+      tr.setAttribute("data-ft-code", ft.code || "");
+      tr.setAttribute("data-fee-type-id", String(ft.id));
+      var td0 = document.createElement("td");
+      td0.className = "text-center align-middle py-2";
+      var sw = document.createElement("div");
+      sw.className = "form-check form-switch cfs-apply-switch m-0 d-inline-flex justify-content-center";
+      var applyCb = document.createElement("input");
+      applyCb.type = "checkbox";
+      applyCb.className = "form-check-input cfs-fee-enable apply-checkbox";
+      applyCb.setAttribute("role", "switch");
+      applyCb.title = "Apply this fee for this class";
+      applyCb.checked = !!enabled;
+      sw.appendChild(applyCb);
+      td0.appendChild(sw);
+      var td1 = document.createElement("td");
+      td1.className = "align-middle";
+      var nameSpan = document.createElement("span");
+      nameSpan.className = "fw-semibold";
+      nameSpan.textContent = ft.name || "";
+      td1.appendChild(nameSpan);
+      if (ft.code) {
+        var codeSpan = document.createElement("span");
+        codeSpan.className = "text-muted small ms-1";
+        codeSpan.textContent = "(" + ft.code + ")";
+        td1.appendChild(codeSpan);
+      }
+      if (ft.is_active === false) {
+        var pill = document.createElement("span");
+        pill.className = "badge text-bg-secondary cfs-fee-inactive-pill ms-1";
+        pill.textContent = "Inactive";
+        td1.appendChild(pill);
+      }
+      var hid = document.createElement("input");
+      hid.type = "hidden";
+      hid.className = "cfs-fee-type-id";
+      hid.value = String(oid);
+      td1.appendChild(hid);
+      var td2 = document.createElement("td");
+      td2.className = "text-end";
+      var inp = document.createElement("input");
+      inp.type = "number";
+      inp.className = "form-control form-control-sm cfs-fee-amt fee-amount text-end";
+      inp.min = "0";
+      inp.step = "0.01";
+      inp.setAttribute("placeholder", "-");
+      inp.setAttribute("inputmode", "decimal");
+      inp.value = amtVal;
+      td2.appendChild(inp);
+      var td3 = document.createElement("td");
+      tr.appendChild(td0);
+      tr.appendChild(td1);
+      tr.appendChild(td2);
+      tr.appendChild(td3);
+      feeRowsBody.appendChild(tr);
+      syncFeeRowEnabled(tr);
+      inp.addEventListener("input", calculateTotal);
+    });
+    calculateTotal();
+  }
+
+  function appendOrphanFeeLineRows(overrideLines) {
+    ensureFeeTypesArray();
+    var catalogIds = {};
+    feeTypes.forEach(function (ft) {
+      catalogIds[ft.id] = true;
+    });
+    (overrideLines || []).forEach(function (r) {
+      if (!r || r.fee_type_id == null) return;
+      var id = parseInt(r.fee_type_id, 10);
+      if (isNaN(id) || catalogIds[id]) return;
+      addFeeRow(r);
+    });
+  }
+
+  function syncSectionChipVisuals() {
+    form.querySelectorAll(".cfs-section-cb").forEach(function (cb) {
+      var chip = cb.closest(".cfs-section-chip");
+      if (chip) chip.classList.toggle("cfs-section-chip--checked", !!(cb.checked && !cb.disabled));
+    });
+  }
+
+  function selectedSectionIds() {
+    var sids = [];
+    form.querySelectorAll(".cfs-section-cb:checked").forEach(function (cb) {
+      if (!cb.disabled) sids.push(cb.value);
+    });
+    return sids;
+  }
+
+  function yearKeyFromSelect() {
+    if (!aySel || !aySel.value) return "none";
+    return String(aySel.value);
+  }
+
+  function getSectionTargetsForSubmit() {
+    if (applyAll && applyAll.checked) return [null];
+    var sids = selectedSectionIds();
+    if (!sids.length) return [null];
+    return sids.map(function (s) {
+      return parseInt(s, 10);
+    });
+  }
+
+  function buildSlotKey(yk, classId, feeTypeId, secPart) {
+    return yk + ":" + classId + ":" + feeTypeId + ":" + secPart;
+  }
+
+  function refreshClassroomOccupancyUi() {
+    if (!clsSel) return;
+    var editing = !!(editBatchHidden && String(editBatchHidden.value || "").trim());
+    var cur = clsSel.value;
+    var yk = yearKeyFromSelect();
+    var map = feeStructureMeta.classesWithStructureByYear || {};
+    var ids = map[yk] || [];
+    var has = {};
+    for (var hi = 0; hi < ids.length; hi++) {
+      has[String(ids[hi])] = true;
+    }
+    var onlyAvail = !!(classFilterAvail && classFilterAvail.checked);
+    clsSel.querySelectorAll("option[value]").forEach(function (opt) {
+      var vid = opt.value;
+      if (!vid) {
+        opt.hidden = false;
+        return;
+      }
+      var dis = !!has[vid];
+      if (editing && vid === cur) {
+        dis = false;
+      }
+      opt.disabled = dis;
+      opt.title = dis
+        ? "Already has fee lines for this year — edit from Class fee structure or pick another class."
+        : "";
+      if (onlyAvail) {
+        opt.hidden = dis;
+      } else {
+        opt.hidden = false;
+      }
+    });
+    if (onlyAvail && clsSel.value && has[clsSel.value] && !(editing && clsSel.value === cur)) {
+      clsSel.value = "";
+      syncSectionsForClass();
+      refreshImpacted();
+    }
+  }
+
+  function addFeeRow(data) {
+    data = data || {};
+    var tr = document.createElement("tr");
+    tr.className = "cfs-fee-row cfs-fee-row--extra";
+    tr.innerHTML =
+      '<td class="text-center align-middle py-2"><div class="form-check form-switch cfs-apply-switch m-0 d-inline-flex justify-content-center">' +
+      '<input type="checkbox" class="form-check-input cfs-fee-enable apply-checkbox" role="switch" title="Apply this fee for this class" checked></div></td>' +
+      '<td><select class="form-select form-select-sm cfs-fee-type" required>' +
+      feeTypeOptionsHtml() +
+      "</select></td>" +
+      '<td class="text-end cfs-fee-amt-cell"><input type="number" class="form-control form-control-sm cfs-fee-amt fee-amount text-end" min="0" step="0.01" placeholder="-" inputmode="decimal"></td>' +
+      '<td><button type="button" class="btn btn-sm btn-outline-danger cfs-remove-row" title="Remove"><i class="bi bi-trash"></i></button></td>';
+    feeRowsBody.appendChild(tr);
+    var applyCb = tr.querySelector(".cfs-fee-enable");
+    var sel = tr.querySelector(".cfs-fee-type");
+    var inp = tr.querySelector(".cfs-fee-amt");
+    if (data.fee_type_id) sel.value = String(data.fee_type_id);
+    if (data.amount != null && data.amount !== "") inp.value = String(data.amount);
+    if (data.apply === false) applyCb.checked = false;
+    syncFeeRowEnabled(tr);
+    sel.addEventListener("change", function () {
+      dedupeFeeTypes();
+      calculateTotal();
+    });
+    inp.addEventListener("input", calculateTotal);
+    tr.querySelector(".cfs-remove-row").addEventListener("click", function () {
+      tr.remove();
+      calculateTotal();
+      dedupeFeeTypes();
+    });
+  }
+
+  function dedupeFeeTypes() {
+    var seen = {};
+    feeRowsBody.querySelectorAll("tr.cfs-fee-row--extra select.cfs-fee-type").forEach(function (sel) {
+      var v = sel.value;
+      if (!v) return;
+      if (seen[v]) {
+        sel.value = "";
+      } else {
+        seen[v] = true;
+      }
+    });
+  }
+
+  function calculateTotal() {
+    var total = 0;
+    feeRowsBody.querySelectorAll("tr.cfs-fee-row").forEach(function (tr) {
+      if (tr.classList.contains("cfs-fee-row--empty")) return;
+      var cb = tr.querySelector(".cfs-fee-enable");
+      if (cb && !cb.checked) return;
+      var inp = tr.querySelector(".cfs-fee-amt");
+      if (!inp || inp.disabled) return;
+      var n = parseFloat(inp.value);
+      if (!isNaN(n)) total += n;
+    });
+    if (totalEl) totalEl.textContent = "₹ " + total.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+  }
+
+  function syncSectionsForClass() {
+    if (!clsSel) return;
+    var cid = clsSel.value;
+    form.querySelectorAll(".cfs-section-chip").forEach(function (chip) {
+      var csv = chip.getAttribute("data-classrooms") || "";
+      var ids = csv.split(",").filter(Boolean);
+      var show = !!(cid && ids.indexOf(cid) >= 0);
+      chip.classList.toggle("d-none", !show);
+      if (!show) {
+        var cb = chip.querySelector(".cfs-section-cb");
+        if (cb) cb.checked = false;
+      }
+    });
+    syncSectionChipVisuals();
+  }
+
+  function toggleApplyAll() {
+    if (!applyAll) return;
+    var on = applyAll.checked;
+    if (secWrap) secWrap.classList.toggle("cfs-section-pick-wrap--disabled", on);
+    form.querySelectorAll(".cfs-section-cb").forEach(function (cb) {
+      cb.disabled = on;
+      if (on) cb.checked = false;
+    });
+    syncSectionChipVisuals();
+  }
+
+  function refreshImpacted() {
+    if (!baseUrl) return;
+    if (!clsSel || !clsSel.value) {
+      if (elVal) elVal.textContent = "—";
+      if (elHint) elHint.textContent = "Select a class to count active students.";
+      setHintVisible(true);
+      return;
+    }
+    if (elVal) elVal.textContent = "…";
+    if (elHint) elHint.textContent = "Counting active students…";
+    setHintVisible(true);
+    window.clearTimeout(tmr);
+    tmr = window.setTimeout(fetchCount, 220);
+  }
+
+  function fetchCount() {
+    if (!baseUrl) return;
+    if (!clsSel || !clsSel.value) {
+      if (elVal) elVal.textContent = "—";
+      if (elHint) elHint.textContent = "Select a class to count active students.";
+      setHintVisible(true);
+      return;
+    }
+    var u = baseUrl + (baseUrl.indexOf("?") >= 0 ? "&" : "?") + "classroom_id=" + encodeURIComponent(clsSel.value);
+    if (applyAll && applyAll.checked) {
+      u += "&section_ids=";
+    } else {
+      var sids = selectedSectionIds();
+      if (sids.length) sids.forEach(function (id) { u += "&section_ids=" + encodeURIComponent(id); });
+      else u += "&section_ids=";
+    }
+    fetch(u, { credentials: "same-origin", headers: { "Accept": "application/json" } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var n = (d && typeof d.count === "number") ? d.count : 0;
+        var mid = n === 1 ? "1 active student" : n + " active students";
+        if (applyAll && applyAll.checked) mid += " (class-wide)";
+        else if (selectedSectionIds().length) mid += " across selected section(s)";
+        if (elVal) elVal.textContent = mid;
+        if (elHint) elHint.textContent = "";
+        setHintVisible(false);
+      })
+      .catch(function () {
+        if (elVal) elVal.textContent = "—";
+        if (elHint) elHint.textContent = "Could not load count.";
+        setHintVisible(true);
+      });
+  }
+
+  function hydrateFeeTypesFromDom() {
+    ensureFeeTypesArray();
+    if (feeTypes.length) return;
+    feeRowsBody.querySelectorAll("tr.cfs-fee-row--catalog").forEach(function (tr) {
+      var id = tr.getAttribute("data-fee-type-id");
+      if (!id) return;
+      feeTypes.push({
+        id: parseInt(id, 10),
+        name: tr.getAttribute("data-ft-name") || "",
+        code: tr.getAttribute("data-ft-code") || "",
+        is_active: true,
+      });
+    });
+  }
+
+  function syncSelectAllCheckbox() {
+    if (!selectAllEl) return;
+    var rows = feeRowsBody.querySelectorAll("tr.cfs-fee-row--catalog:not(.cfs-fee-filter-hide)");
+    if (!rows.length) {
+      selectAllEl.indeterminate = false;
+      selectAllEl.checked = false;
+      return;
+    }
+    var nCk = 0;
+    for (var i = 0; i < rows.length; i++) {
+      var cb = rows[i].querySelector(".cfs-fee-enable");
+      if (cb && cb.checked) nCk++;
+    }
+    selectAllEl.checked = nCk === rows.length;
+    selectAllEl.indeterminate = nCk > 0 && nCk < rows.length;
+  }
+
+  function applyFeeFilter() {
+    var q = (filterEl && filterEl.value) ? String(filterEl.value).trim().toLowerCase() : "";
+    feeRowsBody.querySelectorAll("tr.cfs-fee-row--catalog").forEach(function (tr) {
+      var name = (tr.getAttribute("data-ft-name") || "").toLowerCase();
+      var code = (tr.getAttribute("data-ft-code") || "").toLowerCase();
+      var match = !q || name.indexOf(q) >= 0 || code.indexOf(q) >= 0;
+      tr.classList.toggle("cfs-fee-filter-hide", !match);
+    });
+    syncSelectAllCheckbox();
+  }
+
+  function initFeeTable() {
+    hydrateFeeTypesFromDom();
+    var hasCatalogRows = feeRowsBody.querySelector("tr.cfs-fee-row--catalog");
+    var hasEmptyRow = feeRowsBody.querySelector("tr.cfs-fee-row--empty");
+    if (hasCatalogRows) {
+      feeRowsBody.querySelectorAll("tr.cfs-fee-row--catalog").forEach(function (tr) {
+        syncFeeRowEnabled(tr);
+        var inp = tr.querySelector(".cfs-fee-amt");
+        if (inp) inp.addEventListener("input", calculateTotal);
+      });
+      syncSelectAllCheckbox();
+      calculateTotal();
+      return;
+    }
+    if (hasEmptyRow) {
+      calculateTotal();
+      return;
+    }
+    renderCatalogFeeRows();
+  }
+
+  function resetBatchForm() {
+    if (editBatchHidden) editBatchHidden.value = "";
+    if (editNote) {
+      editNote.textContent = "";
+      editNote.classList.add("d-none");
+    }
+    hydrateFeeTypesFromDom();
+    renderCatalogFeeRows();
+    syncSelectAllCheckbox();
+    refreshClassroomOccupancyUi();
+  }
+
+  form.addEventListener("change", function (e) {
+    var t = e.target;
+    if (!t) return;
+    if (t.id === "cfs-academic-year") {
+      refreshClassroomOccupancyUi();
+      refreshImpacted();
+      return;
+    }
+    if (t.id === "cfs-class-filter-available") {
+      refreshClassroomOccupancyUi();
+      return;
+    }
+    if (t.id === "cfs-classroom") {
+      syncSectionsForClass();
+      refreshImpacted();
+      return;
+    }
+    if (t.id === "cfs-apply-all-sections") {
+      toggleApplyAll();
+      refreshImpacted();
+      return;
+    }
+    if (t.classList && t.classList.contains("cfs-section-cb")) {
+      syncSectionChipVisuals();
+      refreshImpacted();
+      return;
+    }
+    if (t.id === "cfs-fee-select-all") {
+      var on = selectAllEl && selectAllEl.checked;
+      feeRowsBody.querySelectorAll("tr.cfs-fee-row--catalog:not(.cfs-fee-filter-hide)").forEach(function (tr) {
+        var cb = tr.querySelector(".cfs-fee-enable");
+        if (cb) {
+          cb.checked = !!on;
+          syncFeeRowEnabled(tr);
+        }
+      });
+      calculateTotal();
+      return;
+    }
+    if (t.classList && (t.classList.contains("cfs-fee-enable") || t.classList.contains("apply-checkbox"))) {
+      var row = t.closest("tr.cfs-fee-row");
+      if (row) syncFeeRowEnabled(row);
+      calculateTotal();
+      syncSelectAllCheckbox();
+    }
+  });
+  form.addEventListener("input", function (e) {
+    var t = e.target;
+    if (!t) return;
+    if (t.id === "cfs-fee-filter") {
+      applyFeeFilter();
+      return;
+    }
+    if (t.classList && (t.classList.contains("fee-amount") || t.classList.contains("cfs-fee-amt"))) {
+      calculateTotal();
+    }
+  });
+  form.addEventListener("focusin", function (e) {
+    var t = e.target;
+    if (!t || !t.classList || !t.classList.contains("cfs-fee-amt") || t.disabled) return;
+    var v = String(t.value || "").trim();
+    if (v === "0" || v === "0.0" || v === "0.00" || v === "0.000") {
+      t.value = "";
+    }
+  });
+  form.addEventListener("reset", function () {
+    window.setTimeout(function () {
+      toggleApplyAll();
+      syncSectionsForClass();
+      resetBatchForm();
+      if (elVal) elVal.textContent = "—";
+      if (elHint) elHint.textContent = "Select a class to count active students.";
+      setHintVisible(true);
+    }, 0);
+  });
+
+  form.addEventListener("submit", function (e) {
+    if (form.classList.contains("cfs-batch-form--view-only")) {
+      e.preventDefault();
+      return false;
+    }
+    var lines = [];
+    var invalidApplied = false;
+    feeRowsBody.querySelectorAll("tr.cfs-fee-row").forEach(function (tr) {
+      if (tr.classList.contains("cfs-fee-row--empty")) return;
+      var applyCb = tr.querySelector(".cfs-fee-enable");
+      if (!applyCb || !applyCb.checked) return;
+      var hid = tr.querySelector("input.cfs-fee-type-id");
+      var sel = tr.querySelector("select.cfs-fee-type");
+      var am = tr.querySelector(".cfs-fee-amt");
+      if (!am) {
+        invalidApplied = true;
+        return;
+      }
+      var ftid = hid ? hid.value : sel && sel.value;
+      if (!ftid) {
+        invalidApplied = true;
+        return;
+      }
+      var raw = parseFloat(am.value);
+      if (isNaN(raw) || raw <= 0) {
+        invalidApplied = true;
+        return;
+      }
+      lines.push({ fee_type_id: parseInt(ftid, 10), amount: am.value, line_name: "" });
+    });
+    if (invalidApplied) {
+      e.preventDefault();
+      alert("For each fee category with Apply turned on, choose a category (if needed) and enter an amount greater than zero.");
+      return false;
+    }
+    var seenFt = {};
+    for (var i = 0; i < lines.length; i++) {
+      var id = lines[i].fee_type_id;
+      if (seenFt[id]) {
+        e.preventDefault();
+        alert("Each fee category can only appear once. Remove duplicates.");
+        return false;
+      }
+      seenFt[id] = true;
+    }
+    if (!lines.length) {
+      e.preventDefault();
+      alert("Turn on Apply for at least one fee category and enter an amount greater than zero.");
+      return false;
+    }
+    var editingBatch = editBatchHidden && String(editBatchHidden.value || "").trim();
+    if (!editingBatch && clsSel && clsSel.value) {
+      var yk = yearKeyFromSelect();
+      var cid = parseInt(clsSel.value, 10);
+      if (!isNaN(cid)) {
+        var targets = getSectionTargetsForSubmit();
+        var occ = feeStructureMeta.occupiedSlotKeys || [];
+        var occSet = {};
+        for (var oi = 0; oi < occ.length; oi++) {
+          occSet[occ[oi]] = true;
+        }
+        var dupMsg = null;
+        for (var ti = 0; ti < targets.length; ti++) {
+          var sp = targets[ti] == null ? "all" : String(targets[ti]);
+          for (var li = 0; li < lines.length; li++) {
+            var k = buildSlotKey(yk, cid, lines[li].fee_type_id, sp);
+            if (occSet[k]) {
+              dupMsg =
+                "A fee line for one of the selected categories already exists for this class and academic year. " +
+                "Uncheck it or edit the existing fee structure.";
+              break;
+            }
+          }
+          if (dupMsg) break;
+        }
+        if (dupMsg) {
+          e.preventDefault();
+          alert(dupMsg);
+          return false;
+        }
+      }
+    }
+    if (feeLinesHidden) feeLinesHidden.value = JSON.stringify(lines);
+  });
+
+  var PLACEHOLDER_BATCH_UUID = "00000000-0000-4000-8000-000000000000";
+
+  function expandBatchUrlTemplate(urlSpanEl, batchKey) {
+    var tpl = urlSpanEl ? urlSpanEl.getAttribute("data-base") || "" : "";
+    var bk = String(batchKey || "").trim();
+    if (!tpl || !bk) return "";
+    if (tpl.indexOf(PLACEHOLDER_BATCH_UUID) !== -1) {
+      return tpl.split(PLACEHOLDER_BATCH_UUID).join(bk);
+    }
+    return tpl.replace(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/, bk);
+  }
+
+  function cfsGetCsrfToken() {
+    var inp = form.querySelector("[name=csrfmiddlewaretoken]");
+    return inp && inp.value ? inp.value : "";
+  }
+
+  function resetBatchModalToEditMode() {
+    form.classList.remove("cfs-batch-form--view-only");
+    var titleEl = document.getElementById("cfs-create-title");
+    var lineEl = document.getElementById("cfs-modal-mode-line");
+    if (titleEl) titleEl.textContent = "Edit fee structure batch";
+    if (lineEl) {
+      lineEl.textContent =
+        "Update amounts and schedule for this batch. Section scope may be locked if student fees already exist.";
+    }
+  }
+
+  function applyBatchPayload(b) {
+    ensureFeeTypesArray();
+    if (editBatchHidden) editBatchHidden.value = b.batch_key || "";
+    document.getElementById("cfs-academic-year").value = String(b.academic_year_id || "");
+    document.getElementById("cfs-classroom").value = String(b.classroom_id || "");
+    syncSectionsForClass();
+    form.querySelectorAll(".cfs-section-cb").forEach(function (cb) {
+      cb.checked = false;
+    });
+    (b.section_ids || []).forEach(function (sid) {
+      var cb = form.querySelector('.cfs-section-cb[value="' + sid + '"]');
+      if (!cb) return;
+      var chip = cb.closest(".cfs-section-chip");
+      if (chip && !chip.classList.contains("d-none")) cb.checked = true;
+    });
+    if (applyAll) {
+      applyAll.checked = !(b.section_ids && b.section_ids.length);
+      toggleApplyAll();
+    }
+    syncSectionChipVisuals();
+    if (feeTypes.length) {
+      renderCatalogFeeRows(b.fee_lines || []);
+      appendOrphanFeeLineRows(b.fee_lines || []);
+    } else {
+      feeRowsBody.innerHTML = "";
+      (b.fee_lines || []).forEach(function (row) {
+        addFeeRow(row);
+      });
+      if (!feeRowsBody.children.length) addFeeRow({});
+    }
+    document.getElementById("cfs-frequency").value = b.frequency || "MONTHLY";
+    document.getElementById("cfs-first-due").value = b.first_due_date || "";
+    document.getElementById("cfs-due-day").value = b.due_day_of_month || "";
+    document.getElementById("cfs-late-fine").value = b.late_fine_rule || "";
+    document.getElementById("cfs-is-active").checked = !!b.is_active;
+    document.getElementById("cfs-installments").checked = !!b.installments_enabled;
+    document.getElementById("cfs-discount").checked = !!b.discount_allowed;
+    calculateTotal();
+    syncSelectAllCheckbox();
+    if (editNote) {
+      editNote.textContent = b.has_student_fees
+        ? "This batch already has student fee rows — section scope is fixed; you can change amounts and schedule."
+        : "";
+      editNote.classList.toggle("d-none", !b.has_student_fees);
+    }
+    refreshClassroomOccupancyUi();
+  }
+
+  function fetchBatchAndShowModal(batchKey) {
+    var url = expandBatchUrlTemplate(batchUrlEl, batchKey);
+    if (!url) {
+      alert("Missing batch API URL (#cfs-batch-detail-url). Refresh the page.");
+      return;
+    }
+    fetch(url, {
+      credentials: "same-origin",
+      headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+    })
+      .then(function (r) {
+        var ct = (r.headers.get("content-type") || "").toLowerCase();
+        if (!ct.includes("application/json")) {
+          return r.text().then(function () {
+            throw new Error(
+              "Could not load batch (HTTP " +
+                r.status +
+                "). Try signing in again or check that the fee structure still exists."
+            );
+          });
+        }
+        return r.json().then(function (d) {
+          if (!r.ok || !d || !d.ok || !d.batch) {
+            throw new Error((d && d.error) || "Batch not found or access denied.");
+          }
+          return d.batch;
+        });
+      })
+      .then(function (b) {
+        applyBatchPayload(b);
+        resetBatchModalToEditMode();
+        if (window.cfsOpenFeeStructureLayer) window.cfsOpenFeeStructureLayer("cfs-create-layer");
+        refreshImpacted();
+      })
+      .catch(function (err) {
+        alert(err && err.message ? err.message : "Could not load batch.");
+      });
+  }
+
+  document.addEventListener("click", function (e) {
+    if (!document.getElementById("cfs-create-layer")) return;
+    var editBtn = e.target.closest(".cfs-edit-batch");
+    var delBtn = e.target.closest(".cfs-delete-batch");
+    if (!editBtn && !delBtn) return;
+    var bk = (editBtn || delBtn).getAttribute("data-batch-key");
+    if (!bk) return;
+    e.preventDefault();
+
+    if (delBtn) {
+      if (!batchDeleteUrlEl) {
+        alert("Delete is not configured on this page.");
+        return;
+      }
+      if (
+        !confirm(
+          "Remove this fee structure batch? If students already have fee rows linked to it, lines will be deactivated instead of deleted."
+        )
+      ) {
+        return;
+      }
+      var du = expandBatchUrlTemplate(batchDeleteUrlEl, bk);
+      if (!du) {
+        alert("Invalid delete URL.");
+        return;
+      }
+      fetch(du, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          Accept: "application/json",
+          "X-CSRFToken": cfsGetCsrfToken(),
+          "X-Requested-With": "XMLHttpRequest",
+        },
+      })
+        .then(function (r) {
+          return r.json().then(function (d) {
+            if (!d || !d.ok) {
+              throw new Error((d && d.error) || "Request failed (" + r.status + ").");
+            }
+            return d;
+          });
+        })
+        .then(function (d) {
+          alert(d.message || "Done.");
+          window.location.reload();
+        })
+        .catch(function (err) {
+          alert(err && err.message ? err.message : "Could not delete batch.");
+        });
+      return;
+    }
+
+    fetchBatchAndShowModal(bk);
+  });
+
+  document.addEventListener("click", function (e) {
+    var closer = e.target.closest('[data-cfs-close="cfs-create-layer"]');
+    if (!closer) return;
+    window.setTimeout(function () {
+      form.classList.remove("cfs-batch-form--view-only");
+    }, 0);
+  });
+
+  refreshClassroomOccupancyUi();
+  syncSectionsForClass();
+  toggleApplyAll();
+  initFeeTable();
+  refreshImpacted();
+})();
+</script>

@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Homework details | School ERP{% endblock %}
+{% block extra_head %}
+<style>
+  .hwv-wrap { max-width: 1100px; }
+  .hwv-hero {
+    border-radius: 1rem;
+    border: 1px solid var(--bs-border-color-translucent);
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.10) 0%, transparent 55%),
+      linear-gradient(225deg, rgba(99, 102, 241, 0.08) 0%, transparent 50%);
+    padding: 1.1rem 1.25rem;
+  }
+  html.dark .hwv-hero {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, transparent 55%),
+      linear-gradient(225deg, rgba(96, 165, 250, 0.10) 0%, transparent 50%);
+  }
+  .hwv-title { letter-spacing: -0.02em; }
+  .hwv-meta { font-size: 0.85rem; color: var(--bs-secondary-color); }
+  .hwv-panel { border-radius: 1rem; border: 1px solid var(--bs-border-color-translucent); }
+  .hwv-panel .card-header { background: transparent; border-bottom: 1px solid var(--bs-border-color-translucent); }
+  .hwv-section-label { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bs-secondary-color); font-weight: 700; }
+  .hwv-body-text { white-space: pre-wrap; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="hwv-wrap mx-auto">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:teacher_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:homework_list' %}">Homework</a></li>
+      <li class="breadcrumb-item active">Details</li>
+    </ol>
+  </nav>
+
+  <div class="hwv-hero mb-3">
+    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+      <div class="min-w-0">
+        <h1 class="h4 fw-bold mb-1 hwv-title text-truncate">{{ hw.title }}</h1>
+        <div class="hwv-meta">
+          <span class="{% if hw.is_due_overdue %}text-danger fw-semibold{% endif %}"><i class="bi bi-calendar-event me-1"></i>Due {{ hw.due_date|date:"M j, Y" }}</span>
+          {% if hw.subject %}<span class="ms-2"><i class="bi bi-book me-1"></i>{{ hw.subject.name }}</span>{% endif %}
+        </div>
+        <div class="hwv-meta mt-1">
+          {% if hw.modified_on %}Last changed {{ hw.modified_on|date:"M j, Y, P" }}{% endif %}
+          {% if hw.modified_by %} by {{ hw.modified_by.get_full_name|default:hw.modified_by.username }}{% endif %}
+        </div>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{% url 'core:homework_list' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">Back</a>
+        <a href="{% url 'core:teacher_homework_edit' hw.id %}" class="btn btn-primary btn-sm rounded-pill px-3">
+          <i class="bi bi-pencil"></i> Edit
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-8">
+      <div class="card hwv-panel shadow-sm">
+        <div class="card-header py-3 px-3 px-lg-4">
+          <div class="hwv-section-label">Description</div>
+        </div>
+        <div class="card-body px-3 px-lg-4">
+          <div class="hwv-body-text">{{ hw.description|default:"—" }}</div>
+        </div>
+      </div>
+
+      <div class="card hwv-panel shadow-sm mt-3">
+        <div class="card-header py-3 px-3 px-lg-4">
+          <div class="hwv-section-label">Instructions</div>
+        </div>
+        <div class="card-body px-3 px-lg-4">
+          <div class="hwv-body-text">{{ hw.instructions|default:"—" }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-4">
+      <div class="card hwv-panel shadow-sm h-100">
+        <div class="card-header py-3 px-3 px-lg-4">
+          <div class="hwv-section-label">Details</div>
+        </div>
+        <div class="card-body px-3 px-lg-4">
+          <dl class="mb-0">
+            <dt class="small text-muted">Subject</dt>
+            <dd class="mb-2">{{ hw.subject.name|default:"—" }}</dd>
+
+            <dt class="small text-muted">Class</dt>
+            <dd class="mb-2">{% for c in hw.classes.all %}{{ c.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</dd>
+
+            <dt class="small text-muted">Due date</dt>
+            <dd class="mb-2">{{ hw.due_date|date:"M j, Y" }}</dd>
+
+            <dt class="small text-muted">Given on</dt>
+            <dd class="mb-2">{{ hw.assigned_date|date:"M j, Y"|default:"—" }}</dd>
+
+            <dt class="small text-muted">Assigned by</dt>
+            <dd class="mb-0">{{ hw.assigned_by.get_full_name|default:hw.assigned_by.username|default:"—" }}</dd>
+          </dl>
+        </div>
+      </div>
+
+      <div class="card hwv-panel shadow-sm mt-3">
+        <div class="card-header py-3 px-3 px-lg-4">
+          <div class="hwv-section-label">Submissions</div>
+        </div>
+        <div class="card-body px-3 px-lg-4">
+          <div class="d-flex gap-2 flex-wrap">
+            <a href="{% url 'core:homework_submission_stats' hw.id %}" class="btn btn-outline-primary btn-sm rounded-pill px-3">
+              <i class="bi bi-people me-1"></i>View stats & lists
+            </a>
+          </div>
+          <div class="small text-muted mt-2">Shows total students, submitted, and not submitted.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}
+

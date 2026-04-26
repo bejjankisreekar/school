@@ -1,14 +1,13 @@
-{% comment %}
-  Global loading UI: top progress bar + full-screen overlay.
-  Controlled by static/js/loading-system.js (window.SchoolERPLoading).
-{% endcomment %}
-<div id="erp-nav-progress" class="erp-nav-progress" aria-hidden="true">
-  <div class="erp-nav-progress__bar"></div>
-</div>
-<div id="erp-loading-overlay" class="erp-loading-overlay" aria-hidden="true" role="status" aria-live="polite">
-  <div class="erp-loading-overlay__backdrop"></div>
-  <div class="erp-loading-overlay__content">
-    <div class="erp-spinner" aria-hidden="true"></div>
-    <p class="erp-loading-overlay__text" id="erp-loading-overlay-text">Loading…</p>
+{# Global full-screen loading overlay (ErpLoading.show/hide) #}
+<div id="erp-loading-overlay" hidden aria-hidden="true" role="status" aria-live="polite">
+  <div class="erp-loading-card">
+    <div class="erp-loading-spinner-wrap" aria-hidden="true">
+      <div class="erp-loading-dots">
+        <span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span>
+      </div>
+    </div>
+    <p class="erp-loading-title">Loading…</p>
+    <p class="erp-loading-sub">This will only take a moment.</p>
   </div>
 </div>

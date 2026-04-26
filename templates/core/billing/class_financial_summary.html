@@ -1,0 +1,118 @@
+{% extends "core/billing/base_billing.html" %}
+{% load humanize nav_tags %}
+{% block billing_title %}{{ classroom.name }} — class finances | School ERP{% endblock %}
+{% block billing_extra_head %}
+<style>
+  .fee-hub-mini { --fh-bg: #f1f5f9; --fh-card: #fff; --fh-border: #e2e8f0; --fh-muted: #64748b; --fh-brand: #4f46e5; }
+  html.dark .fee-hub-mini { --fh-bg: #0f172a; --fh-card: rgba(30,41,59,.92); --fh-border: rgba(148,163,184,.2); --fh-muted: #94a3b8; }
+  .fee-hub-mini { background: var(--fh-bg); margin: -0.5rem -1rem 0; padding: 1rem 1rem 2.5rem; min-height: calc(100vh - 100px); }
+  @media (min-width: 992px) { .fee-hub-mini { margin: -0.5rem -1.5rem 0; padding: 1.25rem 1.5rem 3rem; } }
+  .fee-sum-kpi {
+    background: var(--fh-card); border: 1px solid var(--fh-border); border-radius: 1rem;
+    padding: 1rem 1.15rem; height: 100%;
+    box-shadow: 0 1px 3px rgba(15,23,42,.06);
+  }
+  .fee-sum-table { font-size: 0.875rem; }
+  .fee-sum-table thead th { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fh-muted); }
+</style>
+{% endblock %}
+{% block billing_main %}
+<div class="fee-hub-mini">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:billing_dashboard' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}">Fees &amp; billing</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{{ classroom.name }}</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <h1 class="h4 fw-bold mb-1">{{ classroom.name }}</h1>
+      <p class="small mb-0" style="color: var(--fh-muted);">Class financial summary · assigned dues and collections</p>
+      {% if summary.sections_label and summary.sections_label != "—" %}
+      <p class="small text-muted mb-0 mt-1">Sections: {{ summary.sections_label }}</p>
+      {% endif %}
+    </div>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      {% if academic_years %}
+      <form method="get" class="d-flex align-items-center gap-2">
+        <label class="small text-muted mb-0">Academic year</label>
+        <select name="ay" class="form-select form-select-sm" style="width: auto; min-width: 10rem;" onchange="this.form.submit()">
+          {% for y in academic_years %}
+          <option value="{{ y.id }}" {% if academic_year and academic_year.id == y.id %}selected{% endif %}>{{ y.name }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      {% endif %}
+      <a href="{% url 'core:billing_dashboard' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}" class="btn btn-outline-secondary btn-sm rounded-pill">← Billing dashboard</a>
+      <a href="{% url 'core:billing_class_fee_students' classroom.id %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}" class="btn btn-primary btn-sm rounded-pill">Student roster &amp; fees</a>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="fee-sum-kpi">
+        <div class="small text-muted text-uppercase fw-semibold" style="letter-spacing:.04em;">Total dues (net)</div>
+        <div class="h5 fw-bold mb-0 mt-1">₹{{ summary.total_expected|inr }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="fee-sum-kpi border-info border-opacity-25">
+        <div class="small text-info text-uppercase fw-semibold" style="letter-spacing:.04em;">Concessions</div>
+        <div class="h5 fw-bold mb-0 mt-1 text-info">₹{{ summary.total_discount_amt|inr }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="fee-sum-kpi border-success border-opacity-25">
+        <div class="small text-success text-uppercase fw-semibold" style="letter-spacing:.04em;">Collected</div>
+        <div class="h5 fw-bold mb-0 mt-1 text-success">₹{{ summary.collected|inr }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="fee-sum-kpi border-warning border-opacity-25">
+        <div class="small text-warning text-uppercase fw-semibold" style="letter-spacing:.04em;">Pending</div>
+        <div class="h5 fw-bold mb-0 mt-1 text-warning">₹{{ summary.pending|inr }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+    <h2 class="h6 fw-bold mb-0">Student breakdown</h2>
+    <span class="badge rounded-pill bg-body-secondary text-body">{{ summary.status_label }}</span>
+  </div>
+  {% if summary.preview_rows %}
+  <div class="table-responsive rounded-3 border fee-sum-table" style="border-color: var(--fh-border) !important;">
+    <table class="table table-sm align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-3">Student</th>
+          <th>Section</th>
+          <th class="text-end">Gross</th>
+          <th class="text-end">Concession</th>
+          <th class="text-end">Net due</th>
+          <th class="text-end">Paid</th>
+          <th class="text-end pe-3">Balance</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in summary.preview_rows %}
+        <tr>
+          <td class="ps-3 fw-semibold">{{ row.name }}</td>
+          <td class="text-muted">{{ row.section }}</td>
+          <td class="text-end font-monospace small">₹{{ row.total_due|inr }}</td>
+          <td class="text-end font-monospace small text-secondary">₹{{ row.discount|inr }}</td>
+          <td class="text-end font-monospace small">₹{{ row.final_due|inr }}</td>
+          <td class="text-end font-monospace small text-success">₹{{ row.paid|inr }}</td>
+          <td class="text-end font-monospace small pe-3 {% if row.balance > 0 %}text-warning fw-semibold{% else %}text-success{% endif %}">₹{{ row.balance|inr }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="small text-muted mt-2 mb-0">Up to 50 students with dues, sorted by balance.</p>
+  {% else %}
+  <p class="text-muted py-4 mb-0">No student fee lines for this class in the selected year. <a href="{% url 'core:billing_fee_structure' %}{% if academic_year %}?ay={{ academic_year.id }}{% endif %}">Configure fee structure</a>.</p>
+  {% endif %}
+</div>
+{% endblock %}

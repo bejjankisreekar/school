@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Settings | Campus ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="mb-3">
+    <a href="{% url 'accounts:account_settings' %}" class="btn btn-outline-secondary btn-sm rounded-pill">
+      <i class="bi bi-arrow-left me-1"></i>Back to account settings
+    </a>
+  </div>
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Settings</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h4 class="mb-1">Settings</h4>
+      <div class="text-muted">Configure school-wide preferences and master data.</div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    {% for it in items %}
+      <div class="col-12 col-md-6 col-xl-4">
+        <a class="card h-100 text-decoration-none border-0 shadow-sm" href="{{ it.href }}">
+          <div class="card-body">
+            <div class="d-flex align-items-start gap-3">
+              <div class="rounded-3 d-inline-flex align-items-center justify-content-center"
+                   style="width: 42px; height: 42px; background: rgba(59,130,246,.10); color: rgb(37,99,235);">
+                <i class="bi {{ it.icon }}" style="font-size: 1.1rem;"></i>
+              </div>
+              <div class="flex-grow-1">
+                <div class="fw-semibold mb-1">{{ it.title }}</div>
+                <div class="text-muted small">{{ it.desc }}</div>
+              </div>
+              <div class="text-muted">
+                <i class="bi bi-chevron-right"></i>
+              </div>
+            </div>
+          </div>
+        </a>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+

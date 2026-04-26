@@ -6,10 +6,27 @@ from calendar import monthrange
 from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
+from uuid import UUID, uuid4
+import logging
 
-from django.db.models import Count, Q, Sum
+from django.db import IntegrityError, transaction
+from django.db.models import Count, Prefetch, Q, Sum
 
-from apps.school_data.models import ClassRoom, Fee, FeeStructure, Payment, Section, Student
+from apps.school_data.classroom_ordering import ORDER_GRADE_NAME, ORDER_STUDENT_CLASS_SECTION
+from apps.school_data.models import (
+    AcademicYear,
+    ClassRoom,
+    Fee,
+    FeeStructure,
+    FeeType,
+    Payment,
+    PaymentBatch,
+    PaymentBatchTender,
+    Section,
+    Student,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def ledger_section_filter_choices():
@@ -36,7 +53,7 @@ def section_class_pairs():
     Section links to ClassRoom via M2M (classroom.sections), not a FK on Section.
     """
     pairs = []
-    for classroom in ClassRoom.objects.prefetch_related("sections").order_by("name"):
+    for classroom in ClassRoom.objects.prefetch_related("sections").order_by(*ORDER_GRADE_NAME):
         for sec in classroom.sections.all():
             pairs.append(
                 {
@@ -213,7 +230,7 @@ def chart_class_revenue(academic_year) -> tuple[list[str], list[float]]:
 def structure_table_rows(active_only: bool = False):
     """For fee structure grid."""
     qs = FeeStructure.objects.select_related("fee_type", "classroom", "academic_year").order_by(
-        "classroom__name", "fee_type__name"
+        "classroom__grade_order", "classroom__name", "fee_type__name"
     )
     if active_only:
         qs = qs.filter(is_active=True)
@@ -239,7 +256,7 @@ def build_fee_structure_class_summaries(academic_year):
     Per-class cards for fee hub: structure totals, collection stats, detail payloads
     (breakdown lines, student counts, preview rows). Scoped to academic_year when set.
     """
-    classroom_qs = ClassRoom.objects.prefetch_related("sections").order_by("name")
+    classroom_qs = ClassRoom.objects.prefetch_related("sections").order_by(*ORDER_GRADE_NAME)
     if academic_year is not None:
         classroom_qs = classroom_qs.filter(academic_year_id=academic_year.id)
 
@@ -400,6 +417,14 @@ def build_fee_structure_class_summaries(academic_year):
     return summaries
 
 
+def get_class_fee_summary_row(classroom_id: int, academic_year) -> dict | None:
+    """Single row from :func:`build_fee_structure_class_summaries` (for drill-down page)."""
+    for row in build_fee_structure_class_summaries(academic_year):
+        if row["classroom_id"] == classroom_id:
+            return row
+    return None
+
+
 def default_due_date_for_structure(structure: FeeStructure) -> date:
     """Explicit first due date on the structure, else due-day-of-month logic, else month-end."""
     if getattr(structure, "first_due_date", None):
@@ -513,6 +538,427 @@ def count_students_impacted_by_class_section(
     return qs.count()
 
 
+def count_students_impacted_by_class_sections(
+    classroom_id: int | None,
+    section_ids: list[int] | None,
+) -> int:
+    """
+    Active students in class, optionally limited to one or more sections.
+    Empty ``section_ids`` means all sections in the class (same as class-wide fee scope).
+    """
+    if not classroom_id:
+        return 0
+    qs = Student.objects.filter(classroom_id=classroom_id, user__is_active=True)
+    if section_ids:
+        qs = qs.filter(section_id__in=section_ids)
+    return qs.count()
+
+
+def fee_batch_has_student_fees(batch_key: UUID | str | None) -> bool:
+    if not batch_key:
+        return False
+    return Fee.objects.filter(fee_structure__batch_key=batch_key).exists()
+
+
+def fee_structure_slot_conflict_user_message(
+    classroom: ClassRoom,
+    academic_year: AcademicYear | None,
+    fee_type_id: int,
+    section_id: int | None,
+    *,
+    exclude_batch_key: UUID | None = None,
+) -> str | None:
+    """
+    Return None if the (fee type × class × academic year × section scope) slot is free.
+
+    Matches DB constraints ``school_data_feestructure_unique_class_wide`` / ``_unique_section``.
+    ``exclude_batch_key`` ignores rows from the batch being edited (new fee types in-place).
+    """
+    qs = FeeStructure.objects.filter(classroom_id=classroom.id, fee_type_id=fee_type_id)
+    if academic_year is not None and getattr(academic_year, "pk", None):
+        qs = qs.filter(academic_year_id=academic_year.pk)
+    else:
+        qs = qs.filter(academic_year__isnull=True)
+    if section_id is None:
+        qs = qs.filter(section__isnull=True)
+    else:
+        qs = qs.filter(section_id=section_id)
+    if exclude_batch_key is not None:
+        qs = qs.exclude(batch_key=exclude_batch_key)
+    if not qs.exists():
+        return None
+    try:
+        ft_name = FeeType.objects.only("name").get(pk=fee_type_id).name
+    except FeeType.DoesNotExist:
+        ft_name = "this fee category"
+    if section_id is None:
+        scope = "for all sections"
+    else:
+        scope = "for the selected section"
+    return (
+        f'A fee line for "{ft_name}" already exists {scope} for {classroom.name} '
+        "in this academic year. Edit the existing fee structure or choose a different fee category."
+    )
+
+
+def assert_fee_structure_slots_available(
+    classroom: ClassRoom,
+    academic_year: AcademicYear | None,
+    section_targets: list[int | None],
+    by_ft: dict[int, dict],
+    *,
+    exclude_batch_key: UUID | None,
+) -> str | None:
+    """Return first user-facing conflict message, or None if all slots are free."""
+    for sec_id in section_targets:
+        for ft_id in by_ft:
+            msg = fee_structure_slot_conflict_user_message(
+                classroom,
+                academic_year,
+                ft_id,
+                sec_id,
+                exclude_batch_key=exclude_batch_key,
+            )
+            if msg:
+                return msg
+    return None
+
+
+def fee_structure_ui_meta_for_billing() -> dict:
+    """
+    JSON for fee structure batch UI: classes that already have any lines per year,
+    and occupied slot keys for client-side duplicate checks (create flow only).
+    """
+    classes_by_year: dict[str, set[int]] = defaultdict(set)
+    slot_keys: list[str] = []
+    for r in (
+        FeeStructure.objects.filter(classroom_id__isnull=False)
+        .values("academic_year_id", "classroom_id", "fee_type_id", "section_id")
+        .iterator(chunk_size=500)
+    ):
+        aid = r["academic_year_id"]
+        yk = str(aid) if aid is not None else "none"
+        cid = r["classroom_id"]
+        classes_by_year[yk].add(cid)
+        sec = r["section_id"]
+        sec_part = "all" if sec is None else str(sec)
+        slot_keys.append(f"{yk}:{cid}:{r['fee_type_id']}:{sec_part}")
+    return {
+        "classesWithStructureByYear": {k: sorted(v) for k, v in classes_by_year.items()},
+        "occupiedSlotKeys": slot_keys,
+    }
+
+
+def save_fee_structure_batch(
+    user,
+    *,
+    academic_year: AcademicYear | None,
+    classroom: ClassRoom,
+    section_ids: list[int],
+    fee_lines: list[dict],
+    frequency: str,
+    first_due_date,
+    due_day_of_month,
+    late_fine_rule: str,
+    discount_allowed: bool,
+    installments_enabled: bool,
+    is_active: bool,
+    edit_batch_key: str | None = None,
+) -> tuple[int, list[str], str | None, int]:
+    """
+    Create or update a batch of FeeStructure rows (multi-section × multi fee type).
+
+    ``fee_lines``: [{"fee_type_id": int, "amount": Decimal|str, "line_name": str optional}, ...]
+
+    Returns (total_auto_assigned_rows, info_messages, error_message_or_none, student_fee_rows_synced).
+    """
+    messages_out: list[str] = []
+
+    # Dedupe fee types (last wins) and validate
+    by_ft: dict[int, dict] = {}
+    for row in fee_lines:
+        ft_id = row.get("fee_type_id")
+        if ft_id is None:
+            continue
+        try:
+            ft_id = int(ft_id)
+        except (TypeError, ValueError):
+            continue
+        amt = row.get("amount")
+        if amt is None or str(amt).strip() == "":
+            continue
+        try:
+            amount_dec = Decimal(str(amt))
+        except Exception:
+            return 0, messages_out, "Invalid amount for a fee line.", 0
+        if amount_dec < 0:
+            return 0, messages_out, "Amounts must be zero or greater.", 0
+        by_ft[ft_id] = {
+            "fee_type_id": ft_id,
+            "amount": amount_dec,
+            "line_name": (row.get("line_name") or "").strip(),
+        }
+
+    if not by_ft:
+        return 0, messages_out, "Add at least one fee type with an amount.", 0
+
+    valid_section_ids = set(classroom.sections.values_list("id", flat=True))
+    clean_section_ids = [sid for sid in section_ids if sid in valid_section_ids]
+    if section_ids and not clean_section_ids:
+        return 0, messages_out, "Select at least one section that belongs to this class.", 0
+
+    # Empty section_ids => class-wide (single scope: section NULL)
+    section_targets: list[int | None]
+    if clean_section_ids:
+        section_targets = list(dict.fromkeys(clean_section_ids))
+    else:
+        section_targets = [None]
+
+    shared_kwargs = {
+        "frequency": frequency or FeeStructure.Frequency.MONTHLY,
+        "first_due_date": first_due_date,
+        "due_day_of_month": due_day_of_month,
+        "late_fine_rule": (late_fine_rule or "").strip(),
+        "discount_allowed": bool(discount_allowed),
+        "installments_enabled": bool(installments_enabled),
+        "is_active": bool(is_active),
+        "academic_year": academic_year,
+        "classroom": classroom,
+    }
+
+    total_auto = 0
+
+    try:
+        with transaction.atomic():
+            batch_uuid: UUID
+            if edit_batch_key:
+                try:
+                    batch_uuid = UUID(str(edit_batch_key).strip())
+                except ValueError:
+                    return 0, messages_out, "Invalid batch id for edit.", 0
+                existing = list(
+                    FeeStructure.objects.filter(batch_key=batch_uuid, classroom_id=classroom.id).select_related(
+                        "fee_type"
+                    )
+                )
+                if not existing:
+                    return 0, messages_out, "Nothing to update for this batch.", 0
+
+                if fee_batch_has_student_fees(batch_uuid):
+                    # In-place update: shared fields + amounts per fee type (all section rows)
+                    student_fee_synced = 0
+                    fts_in_payload = set(by_ft.keys())
+                    for fs in existing:
+                        fs.frequency = shared_kwargs["frequency"]
+                        fs.first_due_date = shared_kwargs["first_due_date"]
+                        fs.due_day_of_month = shared_kwargs["due_day_of_month"]
+                        fs.late_fine_rule = shared_kwargs["late_fine_rule"]
+                        fs.discount_allowed = shared_kwargs["discount_allowed"]
+                        fs.installments_enabled = shared_kwargs["installments_enabled"]
+                        fs.is_active = shared_kwargs["is_active"]
+                        if fs.fee_type_id in by_ft:
+                            data = by_ft[fs.fee_type_id]
+                            fs.amount = data["amount"]
+                            fs.line_name = data["line_name"]
+                            fs.save_with_audit(user)
+                            student_fee_synced += sync_student_fees_to_fee_structure(fs, user)
+                        else:
+                            fs.is_active = False
+                            fs.save_with_audit(user)
+
+                    # New fee types: replicate section pattern
+                    existing_ft_ids = {fs.fee_type_id for fs in existing}
+                    new_ft_ids = fts_in_payload - existing_ft_ids
+                    sec_pattern = list(
+                        dict.fromkeys([fs.section_id for fs in existing if fs.section_id])
+                    )
+                    if not sec_pattern:
+                        sec_pattern = [None]
+                    for nft in new_ft_ids:
+                        data = by_ft[nft]
+                        try:
+                            ft_obj = FeeType.objects.get(pk=nft)
+                        except FeeType.DoesNotExist:
+                            continue
+                        for sec_id in sec_pattern:
+                            slot_err = fee_structure_slot_conflict_user_message(
+                                classroom,
+                                academic_year,
+                                nft,
+                                sec_id,
+                                exclude_batch_key=batch_uuid,
+                            )
+                            if slot_err:
+                                return 0, messages_out, slot_err, 0
+                            fs_new = FeeStructure(
+                                fee_type=ft_obj,
+                                line_name=data["line_name"],
+                                classroom=classroom,
+                                section_id=sec_id,
+                                amount=data["amount"],
+                                batch_key=batch_uuid,
+                                frequency=shared_kwargs["frequency"],
+                                first_due_date=shared_kwargs["first_due_date"],
+                                due_day_of_month=shared_kwargs["due_day_of_month"],
+                                late_fine_rule=shared_kwargs["late_fine_rule"],
+                                discount_allowed=shared_kwargs["discount_allowed"],
+                                installments_enabled=shared_kwargs["installments_enabled"],
+                                is_active=shared_kwargs["is_active"],
+                                academic_year=academic_year,
+                            )
+                            fs_new.save_with_audit(user)
+                            n, err = auto_assign_fees_for_structure(fs_new)
+                            total_auto += n
+                            if err:
+                                messages_out.append(err)
+
+                    messages_out.append("Fee batch updated (student fee rows already existed; sections unchanged).")
+                    return total_auto, messages_out, None, student_fee_synced
+
+                # No student fees yet — replace batch
+                FeeStructure.objects.filter(batch_key=batch_uuid, classroom_id=classroom.id).delete()
+            else:
+                batch_uuid = uuid4()
+
+            slot_err = assert_fee_structure_slots_available(
+                classroom,
+                academic_year,
+                section_targets,
+                by_ft,
+                exclude_batch_key=None,
+            )
+            if slot_err:
+                return 0, messages_out, slot_err, 0
+
+            # Create fresh rows
+            for sec_id in section_targets:
+                for _ft_id, data in sorted(by_ft.items()):
+                    try:
+                        ft_obj = FeeType.objects.get(pk=data["fee_type_id"])
+                    except FeeType.DoesNotExist:
+                        return 0, messages_out, f"Unknown fee type id {data['fee_type_id']}.", 0
+
+                    fs_new = FeeStructure(
+                        fee_type=ft_obj,
+                        line_name=data["line_name"],
+                        classroom=classroom,
+                        section_id=sec_id,
+                        amount=data["amount"],
+                        batch_key=batch_uuid,
+                        frequency=shared_kwargs["frequency"],
+                        first_due_date=shared_kwargs["first_due_date"],
+                        due_day_of_month=shared_kwargs["due_day_of_month"],
+                        late_fine_rule=shared_kwargs["late_fine_rule"],
+                        discount_allowed=shared_kwargs["discount_allowed"],
+                        installments_enabled=shared_kwargs["installments_enabled"],
+                        is_active=shared_kwargs["is_active"],
+                        academic_year=academic_year,
+                    )
+                    fs_new.save_with_audit(user)
+                    n, err = auto_assign_fees_for_structure(fs_new)
+                    total_auto += n
+                    if err:
+                        messages_out.append(err)
+
+            op = "updated" if edit_batch_key else "created"
+            messages_out.append(f"Fee structure batch {op} ({len(section_targets) * len(by_ft)} line(s)).")
+    except IntegrityError as exc:
+        logger.warning("save_fee_structure_batch integrity: %s", exc)
+        return (
+            0,
+            messages_out,
+            "A fee line for this category already exists for the selected class and academic year. "
+            "Edit the existing fee structure or pick another fee category.",
+            0,
+        )
+    except Exception as exc:
+        msg = str(exc)
+        low = msg.lower()
+        if "duplicate key" in low or "unique constraint" in low:
+            logger.warning("save_fee_structure_batch unique constraint: %s", exc)
+            return (
+                0,
+                messages_out,
+                "A fee line already exists for this class and academic year. "
+                "Edit the existing fee structure or pick a different fee category.",
+                0,
+            )
+        return 0, messages_out, msg, 0
+
+    return total_auto, messages_out, None, 0
+
+
+def delete_fee_structure_batch(user, batch_key: UUID | str) -> tuple[bool, str | None, bool]:
+    """
+    Remove fee structure rows for a batch. If any student ``Fee`` row references
+    those structures, structures are soft-deactivated instead of deleted.
+
+    Returns (success, error_message_or_none, deactivated_instead_of_deleted).
+    """
+    try:
+        uid = UUID(str(batch_key).strip())
+    except ValueError:
+        return False, "Invalid batch id.", False
+    structures = list(FeeStructure.objects.filter(batch_key=uid))
+    if not structures:
+        return False, "Batch not found.", False
+    structure_ids = [fs.id for fs in structures]
+    has_fees = Fee.objects.filter(fee_structure_id__in=structure_ids).exists()
+    if has_fees:
+        for fs in structures:
+            fs.is_active = False
+            fs.save_with_audit(user)
+        return True, None, True
+    FeeStructure.objects.filter(batch_key=uid).delete()
+    return True, None, False
+
+
+def fee_structure_batch_edit_payload(batch_key: UUID | str) -> dict | None:
+    """JSON-serializable payload to pre-fill the fee structure modal."""
+    try:
+        uid = UUID(str(batch_key).strip())
+    except ValueError:
+        return None
+    rows = list(
+        FeeStructure.objects.filter(batch_key=uid)
+        .select_related("fee_type", "section", "classroom", "academic_year")
+        .order_by("fee_type__name", "section__name", "id")
+    )
+    if not rows:
+        return None
+    first = rows[0]
+    section_ids = sorted({fs.section_id for fs in rows if fs.section_id})
+    # Unique fee types (amount/line from first row of each type)
+    seen_ft: dict[int, FeeStructure] = {}
+    for fs in rows:
+        if fs.fee_type_id not in seen_ft:
+            seen_ft[fs.fee_type_id] = fs
+    fee_lines = []
+    for fs in sorted(seen_ft.values(), key=lambda x: x.fee_type.name.lower()):
+        fee_lines.append(
+            {
+                "fee_type_id": fs.fee_type_id,
+                "amount": str(fs.amount),
+                "line_name": fs.line_name or "",
+            }
+        )
+    return {
+        "batch_key": str(uid),
+        "academic_year_id": first.academic_year_id,
+        "classroom_id": first.classroom_id,
+        "section_ids": section_ids,
+        "fee_lines": fee_lines,
+        "frequency": first.frequency,
+        "first_due_date": first.first_due_date.isoformat() if first.first_due_date else "",
+        "due_day_of_month": first.due_day_of_month,
+        "late_fine_rule": first.late_fine_rule or "",
+        "discount_allowed": first.discount_allowed,
+        "installments_enabled": first.installments_enabled,
+        "is_active": first.is_active,
+        "has_student_fees": fee_batch_has_student_fees(uid),
+    }
+
+
 def assign_missing_fees_for_student(student: Student, academic_year=None) -> int:
     """
     New admissions / class moves / backfill: add pending Fee rows for applicable structures.
@@ -551,7 +997,7 @@ def default_pending_fee_for_student(student: Student, academic_year=None) -> Fee
 def build_student_ledger_summaries(academic_year, search_q: str = ""):
     """List of dicts for expandable student fee ledger."""
     students = Student.objects.select_related("user", "classroom", "section").order_by(
-        "classroom__name", "section__name", "user__last_name", "user__first_name"
+        *ORDER_STUDENT_CLASS_SECTION, "user__last_name", "user__first_name"
     )
     if search_q:
         q = search_q.strip()
@@ -687,7 +1133,7 @@ def build_filtered_fee_ledger(
             student_ids_mode = set()
 
     students = Student.objects.select_related("user", "classroom", "section").order_by(
-        "classroom__name", "section__name", "user__last_name", "user__first_name"
+        *ORDER_STUDENT_CLASS_SECTION, "user__last_name", "user__first_name"
     )
     if classroom_id:
         students = students.filter(classroom_id=classroom_id)
@@ -968,6 +1414,26 @@ def chart_collection_by_fee_type(academic_year, limit: int = 10) -> tuple[list[s
     return labels, values
 
 
+def _backfill_missing_batch_keys_grouped(structs: list) -> None:
+    """
+    Legacy rows may have batch_key NULL so the list page cannot offer Edit.
+    Assign one shared UUID per academic_year group within the class card scope.
+    """
+    if not structs:
+        return
+    pending: dict[int | None, list] = defaultdict(list)
+    for st in structs:
+        if st.batch_key is None:
+            pending[st.academic_year_id].append(st)
+    for group in pending.values():
+        if not group:
+            continue
+        bk = uuid4()
+        FeeStructure.objects.filter(id__in=[x.id for x in group]).update(batch_key=bk)
+        for x in group:
+            x.batch_key = bk
+
+
 def build_class_fee_structure_cards(academic_year):
     """
     One card per class: sum of active structure line amounts and a breakdown by fee head.
@@ -976,7 +1442,7 @@ def build_class_fee_structure_cards(academic_year):
     qs = (
         FeeStructure.objects.filter(is_active=True, classroom_id__isnull=False)
         .select_related("classroom", "section", "fee_type", "academic_year")
-        .order_by("classroom__name", "section__name", "fee_type__name", "id")
+        .order_by("classroom__grade_order", "classroom__name", "section__name", "fee_type__name", "id")
     )
     if academic_year is not None:
         qs = qs.filter(Q(academic_year=academic_year) | Q(academic_year__isnull=True))
@@ -984,11 +1450,16 @@ def build_class_fee_structure_cards(academic_year):
     for s in qs:
         by_class[s.classroom_id].append(s)
     cards = []
-    for cid in sorted(by_class.keys(), key=lambda x: by_class[x][0].classroom.name):
+    for cid in sorted(
+        by_class.keys(),
+        key=lambda k: (by_class[k][0].classroom.grade_order, by_class[k][0].classroom.name.lower()),
+    ):
         structs = by_class[cid]
+        _backfill_missing_batch_keys_grouped(structs)
         classroom = structs[0].classroom
         lines = []
         total = Decimal("0")
+        batch_acc: dict[str, dict] = {}
         for st in structs:
             label = (st.line_name or "").strip() or st.fee_type.name
             if st.section_id:
@@ -1000,9 +1471,17 @@ def build_class_fee_structure_cards(academic_year):
                     "label": label,
                     "fee_type_name": st.fee_type.name,
                     "amount": st.amount,
+                    "batch_key": str(st.batch_key) if st.batch_key else "",
                 }
             )
             total += st.amount or Decimal("0")
+            if st.batch_key:
+                bk = str(st.batch_key)
+                if bk not in batch_acc:
+                    batch_acc[bk] = {"batch_key": bk, "parts": 0, "subtotal": Decimal("0")}
+                batch_acc[bk]["parts"] += 1
+                batch_acc[bk]["subtotal"] += st.amount or Decimal("0")
+        fee_batches = sorted(batch_acc.values(), key=lambda x: x["batch_key"])
         cards.append(
             {
                 "classroom": classroom,
@@ -1010,6 +1489,7 @@ def build_class_fee_structure_cards(academic_year):
                 "lines": lines,
                 "structure_total": total,
                 "line_count": len(lines),
+                "fee_batches": fee_batches,
             }
         )
     return cards
@@ -1055,6 +1535,128 @@ def build_classroom_student_fee_rollups(classroom_id: int, academic_year):
                 "fee_lines": len(flist),
             }
         )
+    return rows
+
+
+def build_fee_collect_payment_history(
+    student: Student, academic_year: AcademicYear | None, *, limit: int = 60
+) -> list[dict]:
+    """
+    Recent payments for the collect UI: one row per logical receipt.
+    Rows that share a PaymentBatch are merged with a line breakdown.
+    """
+    hist_q = (
+        Payment.objects.filter(fee__student=student)
+        .select_related(
+            "fee__fee_structure__fee_type",
+            "received_by",
+            "batch",
+        )
+        .prefetch_related(
+            Prefetch(
+                "batch__tenders",
+                queryset=PaymentBatchTender.objects.order_by("id"),
+            ),
+        )
+    )
+    if academic_year is not None:
+        hist_q = hist_q.filter(fee__academic_year=academic_year)
+
+    payments = list(hist_q.order_by("-payment_date", "-id")[: min(240, limit * 8)])
+    processed_batch_ids: set[int] = set()
+    rows: list[dict] = []
+
+    for p in payments:
+        if len(rows) >= limit:
+            break
+        if p.batch_id:
+            bid = p.batch_id
+            if bid in processed_batch_ids:
+                continue
+            processed_batch_ids.add(bid)
+            batch = p.batch
+            if batch is None:
+                continue
+            lp_qs = batch.line_payments.select_related(
+                "fee__fee_structure__fee_type"
+            ).order_by("fee__fee_structure__fee_type__name", "id")
+            if academic_year is not None:
+                lp_qs = lp_qs.filter(fee__academic_year=academic_year)
+            lines_orm = list(lp_qs)
+            if not lines_orm:
+                continue
+            line_payload = []
+            for lp in lines_orm:
+                ft = lp.fee.fee_structure.fee_type
+                line_payload.append(
+                    {
+                        "fee_type_name": ft.name if ft else "—",
+                        "amount": lp.amount,
+                    }
+                )
+            total = sum((lp.amount for lp in lines_orm), Decimal("0"))
+            tender_rows = list(batch.tenders.order_by("id"))
+            if tender_rows:
+                tender_payload = [
+                    {
+                        "payment_method": t.payment_method,
+                        "amount": t.amount,
+                        "transaction_reference": t.transaction_reference or "",
+                    }
+                    for t in tender_rows
+                ]
+            else:
+                tender_payload = [
+                    {
+                        "payment_method": batch.payment_method,
+                        "amount": total,
+                        "transaction_reference": batch.transaction_reference or "",
+                    }
+                ]
+            rc = (batch.receipt_code or "").strip() or f"RCPT-{batch.payment_date.year}-{batch.pk:06d}"
+            rows.append(
+                {
+                    "is_batch": True,
+                    "batch_id": batch.pk,
+                    "payment_id": None,
+                    "receipt_code": rc,
+                    "payment_date": batch.payment_date,
+                    "amount": total,
+                    "payment_method": batch.payment_method,
+                    "receipt_number": batch.receipt_number or "",
+                    "transaction_reference": batch.transaction_reference or "",
+                    "received_by": batch.received_by,
+                    "lines": line_payload,
+                    "tenders": tender_payload,
+                }
+            )
+        else:
+            ft = p.fee.fee_structure.fee_type
+            rc = f"RCPT-{p.payment_date.year}-P{p.pk:06d}"
+            rows.append(
+                {
+                    "is_batch": False,
+                    "batch_id": None,
+                    "payment_id": p.pk,
+                    "receipt_code": rc,
+                    "payment_date": p.payment_date,
+                    "amount": p.amount,
+                    "payment_method": p.payment_method,
+                    "receipt_number": p.receipt_number or "",
+                    "transaction_reference": p.transaction_reference or "",
+                    "received_by": p.received_by,
+                    "fee_type_name": ft.name if ft else "—",
+                    "lines": [],
+                    "tenders": [
+                        {
+                            "payment_method": p.payment_method,
+                            "amount": p.amount,
+                            "transaction_reference": p.transaction_reference or "",
+                        }
+                    ],
+                }
+            )
+
     return rows
 
 
@@ -1106,16 +1708,11 @@ def build_fee_collect_bundle(student: Student, academic_year):
             payment_targets.append(
                 {
                     "id": f.id,
-                    "label": f"{f.fee_structure.fee_type.name} · due {f.due_date}",
+                    "fee_type_name": f.fee_structure.fee_type.name,
                     "balance": bal,
                 }
             )
-    hist_q = Payment.objects.filter(fee__student=student).select_related(
-        "fee__fee_structure__fee_type", "received_by"
-    )
-    if academic_year is not None:
-        hist_q = hist_q.filter(fee__academic_year=academic_year)
-    payment_history = list(hist_q.order_by("-payment_date", "-id")[:80])
+    payment_history = build_fee_collect_payment_history(student, academic_year, limit=60)
     return {
         "ledger_rows": ledger_rows,
         "payment_targets": payment_targets,
@@ -1127,6 +1724,81 @@ def build_fee_collect_bundle(student: Student, academic_year):
         "total_balance_sum": total_balance_sum,
         "scope_fee": fee_list[0] if fee_list else None,
     }
+
+
+def record_fee_payment_batch(
+    *,
+    student: Student,
+    academic_year: AcademicYear | None,
+    allocations: list[tuple[Fee, Decimal]],
+    payment_date: date,
+    tenders: list[tuple[str, Decimal, str]],
+    receipt_number: str,
+    notes: str,
+    user,
+) -> PaymentBatch:
+    """
+    Create one PaymentBatch and one Payment row per fee line (ledger still uses Payment per Fee).
+    ``tenders`` is (payment_method, amount, transaction_reference) per mode; amounts must sum to fee total.
+    All-or-nothing inside a DB transaction.
+    """
+    if not allocations:
+        raise ValueError("No fee line allocations.")
+    if not tenders:
+        raise ValueError("Add at least one payment method and amount.")
+    total = sum((amt for _, amt in allocations), Decimal("0"))
+    if total <= 0:
+        raise ValueError("Total amount must be greater than zero.")
+    tender_sum = sum((t[1] for t in tenders), Decimal("0"))
+    if tender_sum != total:
+        raise ValueError(
+            "The sum of payment methods must equal the total allocated to fee lines."
+        )
+    for fee, amount in allocations:
+        if fee.student_id != student.pk:
+            raise ValueError("A selected fee line does not belong to this student.")
+        if amount <= 0:
+            raise ValueError("Each amount must be greater than zero.")
+        rem = fee_balance(fee)
+        if amount > rem:
+            label = fee.fee_structure.fee_type.name if fee.fee_structure_id else "Fee"
+            raise ValueError(f"Amount for {label} cannot exceed balance due ({rem}).")
+
+    summary_method = tenders[0][0] if len(tenders) == 1 else "Mixed"
+
+    with transaction.atomic():
+        batch = PaymentBatch.objects.create(
+            student=student,
+            academic_year=academic_year,
+            total_amount=total,
+            payment_date=payment_date,
+            payment_method=summary_method,
+            receipt_number=receipt_number or "",
+            transaction_reference="",
+            notes=notes or "",
+            received_by=user,
+        )
+        for method, amt, ref in tenders:
+            PaymentBatchTender.objects.create(
+                batch=batch,
+                amount=amt,
+                payment_method=method,
+                transaction_reference=ref or "",
+            )
+        for fee, amount in allocations:
+            Payment.objects.create(
+                fee=fee,
+                batch=batch,
+                amount=amount,
+                payment_date=payment_date,
+                payment_method=summary_method,
+                receipt_number=receipt_number or "",
+                transaction_reference="",
+                notes=notes or "",
+                received_by=user,
+            )
+            refresh_fee_status_from_payments(fee)
+    return batch
 
 
 def refresh_fee_status_from_payments(fee: Fee) -> None:
@@ -1143,3 +1815,224 @@ def refresh_fee_status_from_payments(fee: Fee) -> None:
     else:
         fee.status = "PENDING"
     fee.save(update_fields=["status"])
+
+
+def max_amount_for_payment_line(payment: Payment) -> Decimal:
+    """Upper bound for this payment row (current amount + remaining fee balance)."""
+    fee = payment.fee
+    return payment.amount + fee_balance(fee)
+
+
+def fee_choice_rows_for_batch_edit(batch: PaymentBatch) -> list[tuple[int, str]]:
+    """(fee_id, label) pairs for the same student + academic year as the batch."""
+    qs = Fee.objects.filter(student_id=batch.student_id).select_related(
+        "fee_structure__fee_type"
+    )
+    if batch.academic_year_id is not None:
+        qs = qs.filter(academic_year_id=batch.academic_year_id)
+    rows = []
+    for f in qs.order_by("fee_structure__fee_type__name", "id"):
+        label = (
+            f.fee_structure.fee_type.name if f.fee_structure_id else "Fee"
+        )
+        rows.append((f.id, label))
+    return rows
+
+
+def _validate_batch_line_targets(
+    batch: PaymentBatch,
+    lines: list[Payment],
+    targets: dict[int, tuple[int, Decimal]],
+) -> None:
+    """Ensure reassigned fees + amounts never exceed effective due per fee line."""
+    ids = {p.pk for p in lines}
+    if set(targets.keys()) != ids:
+        raise ValueError("Provide a fee type and amount for every line.")
+    student_id = batch.student_id
+    ay_id = batch.academic_year_id
+    fee_cache: dict[int, Fee] = {}
+
+    def get_fee(fid: int) -> Fee:
+        if fid not in fee_cache:
+            fee_cache[fid] = Fee.objects.select_related("fee_structure__fee_type").get(
+                pk=fid
+            )
+        return fee_cache[fid]
+
+    for p in lines:
+        nfid, amt = targets[p.pk]
+        if amt <= 0:
+            raise ValueError("Each amount must be greater than zero.")
+        nf = get_fee(nfid)
+        if nf.student_id != student_id:
+            raise ValueError("Selected fee does not belong to this student.")
+        if ay_id is not None and nf.academic_year_id != ay_id:
+            raise ValueError(
+                "Each fee line must be for the same academic year as this receipt."
+            )
+
+    all_fee_ids: set[int] = set()
+    for p in lines:
+        all_fee_ids.add(p.fee_id)
+        all_fee_ids.add(targets[p.pk][0])
+
+    for fid in all_fee_ids:
+        fee = get_fee(fid)
+        current_paid = fee_amount_paid(fee)
+        old_from_batch = sum(p.amount for p in lines if p.fee_id == fid)
+        new_from_batch = sum(
+            targets[p.pk][1] for p in lines if targets[p.pk][0] == fid
+        )
+        new_paid = current_paid - old_from_batch + new_from_batch
+        eff = fee.effective_due_amount
+        if new_paid > eff + Decimal("0.009"):
+            label = (
+                fee.fee_structure.fee_type.name
+                if fee.fee_structure_id
+                else "Fee line"
+            )
+            raise ValueError(
+                f"Total allocated to «{label}» would exceed ₹{eff} (net due for that fee)."
+            )
+
+
+def update_payment_batch_allocations(
+    batch: PaymentBatch,
+    *,
+    line_targets: dict[int, tuple[int, Decimal]],
+    payment_date: date,
+    receipt_number: str,
+    transaction_reference: str,
+    notes: str,
+) -> None:
+    """
+    Adjust fee line targets (fee type + amount) and keep batch/tender totals in sync.
+    Validates joint allocation so no fee is overpaid (handles fee moves + swaps).
+    """
+    from decimal import ROUND_HALF_UP
+
+    with transaction.atomic():
+        batch = PaymentBatch.objects.select_for_update().get(pk=batch.pk)
+        lines = list(
+            batch.line_payments.select_related("fee", "fee__fee_structure__fee_type").order_by(
+                "id"
+            )
+        )
+        if not lines:
+            raise ValueError("This receipt has no fee lines.")
+        _validate_batch_line_targets(batch, lines, line_targets)
+        new_total = sum((line_targets[p.pk][1] for p in lines), Decimal("0"))
+        if new_total <= 0:
+            raise ValueError("Total amount must be greater than zero.")
+        old_total = batch.total_amount
+        fee_ids_to_refresh = {p.fee_id for p in lines} | {
+            line_targets[p.pk][0] for p in lines
+        }
+        summary_method = batch.payment_method
+        for p in lines:
+            nfid, new_amt = line_targets[p.pk]
+            p.fee_id = nfid
+            p.amount = new_amt
+            p.payment_date = payment_date
+            p.receipt_number = receipt_number or ""
+            p.transaction_reference = transaction_reference or ""
+            p.notes = notes or ""
+            p.payment_method = summary_method
+            p.save(
+                update_fields=[
+                    "fee",
+                    "amount",
+                    "payment_date",
+                    "receipt_number",
+                    "transaction_reference",
+                    "notes",
+                    "payment_method",
+                ]
+            )
+        for fid in fee_ids_to_refresh:
+            refresh_fee_status_from_payments(Fee.objects.get(pk=fid))
+        batch.payment_date = payment_date
+        batch.receipt_number = receipt_number or ""
+        batch.transaction_reference = transaction_reference or ""
+        batch.notes = notes or ""
+        batch.total_amount = new_total
+        batch.save(
+            update_fields=[
+                "payment_date",
+                "receipt_number",
+                "transaction_reference",
+                "notes",
+                "total_amount",
+            ]
+        )
+        tenders = list(batch.tenders.order_by("id"))
+        if len(tenders) == 1:
+            t = tenders[0]
+            t.amount = new_total
+            t.save(update_fields=["amount"])
+        elif len(tenders) > 1:
+            if old_total <= 0:
+                raise ValueError("Cannot adjust split tender amounts for this receipt.")
+            factor = new_total / old_total
+            acc = Decimal("0")
+            for i, t in enumerate(tenders):
+                if i == len(tenders) - 1:
+                    t.amount = (new_total - acc).quantize(Decimal("0.01"))
+                else:
+                    t.amount = (t.amount * factor).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    )
+                    acc += t.amount
+                t.save(update_fields=["amount"])
+
+
+def update_orphan_payment_line(
+    payment: Payment,
+    *,
+    amount: Decimal,
+    payment_date: date,
+    receipt_number: str,
+    transaction_reference: str,
+    notes: str,
+) -> None:
+    """Update amount + metadata for a payment row that is not part of a batch."""
+    with transaction.atomic():
+        payment = Payment.objects.select_for_update().select_related("fee").get(pk=payment.pk)
+        if payment.batch_id:
+            raise ValueError("This payment is part of a combined receipt; edit the batch instead.")
+        max_amt = max_amount_for_payment_line(payment)
+        if amount <= 0 or amount > max_amt + Decimal("0.009"):
+            raise ValueError(f"Amount must be between 0 and ₹{max_amt} (cannot exceed balance due).")
+        payment.amount = amount
+        payment.payment_date = payment_date
+        payment.receipt_number = receipt_number or ""
+        payment.transaction_reference = transaction_reference or ""
+        payment.notes = notes or ""
+        payment.save(
+            update_fields=[
+                "amount",
+                "payment_date",
+                "receipt_number",
+                "transaction_reference",
+                "notes",
+            ]
+        )
+        refresh_fee_status_from_payments(payment.fee)
+
+
+def sync_student_fees_to_fee_structure(structure: FeeStructure, user) -> int:
+    """
+    Copy ``FeeStructure.amount`` onto linked ``Fee.amount`` for all student dues on this structure.
+
+    Preserves payments and per-line concession fields on ``Fee``. Refreshes ``Fee.status``
+    from amounts + payments. Returns how many ``Fee`` rows had their gross ``amount`` changed.
+    """
+    n_changed = 0
+    qs = Fee.objects.filter(fee_structure_id=structure.id)
+    for fee in qs.iterator(chunk_size=250):
+        if fee.amount != structure.amount:
+            fee.amount = structure.amount
+            fee.save_with_audit(user)
+            n_changed += 1
+        refresh_fee_status_from_payments(fee)
+    return n_changed

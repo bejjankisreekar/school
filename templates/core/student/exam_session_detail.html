@@ -2,57 +2,270 @@
 {% block title %}{{ session.name }} | School ERP{% endblock %}
 
 {% block content %}
+<style>
+  /* Compact SaaS layout */
+  .ses-wrap { max-width: 1320px; margin: 0 auto; }
+  .ses-stack { display: grid; gap: 10px; }
+  .ses-hero {
+    border-radius: 14px;
+    border: 1px solid var(--bs-border-color-translucent);
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.14) 0%, rgba(99, 102, 241, 0.10) 55%, rgba(255, 255, 255, 0.55) 100%);
+    padding: 0.7rem 0.9rem;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+  }
+  html.dark .ses-hero {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.22) 0%, rgba(99, 102, 241, 0.16) 55%, rgba(15, 23, 42, 0.35) 100%);
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.35);
+  }
+  .ses-title { letter-spacing: -0.02em; }
+  .ses-sub { color: var(--bs-secondary-color); }
+  .ses-divider { height: 1px; background: rgba(148,163,184,0.35); margin-top: 0.6rem; }
+  html.dark .ses-divider { background: rgba(148,163,184,0.22); }
+
+  .ses-top-actions .btn { border-radius: 999px; }
+  .ses-card {
+    border: 1px solid var(--bs-border-color-translucent);
+    border-radius: 1rem;
+    overflow: hidden;
+    transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  }
+  .ses-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+    border-color: rgba(59, 130, 246, 0.30);
+  }
+  html.dark .ses-card:hover { box-shadow: 0 20px 48px rgba(0, 0, 0, 0.45); border-color: rgba(99, 102, 241, 0.40); }
+  .ses-kpi {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  }
+  .ses-kpi h2 { margin: 0; letter-spacing: -0.02em; }
+  .ses-kpi .ses-icon {
+    width: 44px; height: 44px; border-radius: 14px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.65);
+    border: 1px solid rgba(15,23,42,0.06);
+  }
+  html.dark .ses-kpi .ses-icon { background: rgba(15,23,42,0.35); border-color: rgba(148,163,184,0.22); }
+
+  .ses-overall {
+    background: linear-gradient(135deg, rgba(59,130,246,0.14) 0%, rgba(99,102,241,0.10) 55%, rgba(255,255,255,0.55) 100%);
+  }
+  html.dark .ses-overall {
+    background: linear-gradient(135deg, rgba(59,130,246,0.22) 0%, rgba(99,102,241,0.16) 55%, rgba(15,23,42,0.35) 100%);
+  }
+  .ses-grade {
+    background: linear-gradient(135deg, rgba(34,197,94,0.12) 0%, rgba(168,85,247,0.08) 60%, rgba(255,255,255,0.55) 100%);
+  }
+  html.dark .ses-grade {
+    background: linear-gradient(135deg, rgba(34,197,94,0.18) 0%, rgba(168,85,247,0.12) 60%, rgba(15,23,42,0.35) 100%);
+  }
+
+  .ses-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 10px;
+    align-items: stretch;
+  }
+
+  /* Subject cards grid */
+  .ses-subjects-grid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 10px;
+  }
+  @media (min-width: 768px) {
+    .ses-subjects-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1200px) {
+    /* Most schools: 6–7 subjects ⇒ 3 per row feels balanced */
+    .ses-subjects-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1600px) {
+    /* Ultra-wide screens: allow up to 6 per row */
+    .ses-subjects-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  }
+  .ses-subject-card {
+    border-radius: 14px;
+    border: 1px solid var(--bs-border-color-translucent);
+    background: var(--bs-body-bg);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+    transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  }
+  .ses-subject-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+    border-color: rgba(99,102,241,0.30);
+  }
+  html.dark .ses-subject-card { box-shadow: 0 14px 32px rgba(0, 0, 0, 0.35); }
+  html.dark .ses-subject-card:hover { box-shadow: 0 22px 50px rgba(0, 0, 0, 0.48); }
+  .ses-mini { font-size: 0.84rem; color: var(--bs-secondary-color); }
+
+  /* Compact table */
+  .ses-table thead th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .ses-table td, .ses-table th { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+  /* Mobile: hide Date/Time columns to avoid cramped layout */
+  @media (max-width: 576px) {
+    .ses-table th:nth-child(2),
+    .ses-table td:nth-child(2),
+    .ses-table th:nth-child(3),
+    .ses-table td:nth-child(3) {
+      display: none;
+    }
+    .ses-table th,
+    .ses-table td {
+      font-size: 0.82rem;
+    }
+    .ses-table th { letter-spacing: 0.04em; }
+  }
+
+  /* Custom modal (same safe overlay approach used elsewhere) */
+  .sesm-layer {
+    display: none !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 2147483640 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 1rem !important;
+    pointer-events: none !important;
+  }
+  .sesm-layer.sesm-open { display: flex !important; pointer-events: auto !important; }
+  .sesm-scrim { position: absolute !important; inset: 0 !important; background: rgba(15,23,42,0.60) !important; backdrop-filter: blur(6px); }
+  .sesm-panel {
+    position: relative !important;
+    width: 100% !important;
+    max-width: 28rem !important;
+    border-radius: 1rem !important;
+    overflow: hidden !important;
+    background: #fff !important;
+    color: #0f172a !important;
+    border: 1px solid rgba(15,23,42,0.10) !important;
+    box-shadow: 0 26px 60px rgba(0,0,0,0.35) !important;
+    transform: scale(0.96);
+    opacity: 0;
+    transition: transform 160ms ease, opacity 160ms ease;
+  }
+  html.dark .sesm-panel { background: #1e293b !important; color: #f1f5f9 !important; border-color: rgba(148,163,184,0.22) !important; }
+  .sesm-layer.sesm-open .sesm-panel { transform: scale(1); opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { .sesm-panel { transition: none; } }
+</style>
+
 <div class="container-fluid px-0">
-  <nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb">
-      <li class="breadcrumb-item"><a href="{% url 'core:student_exams_list' %}">Exams</a></li>
-      <li class="breadcrumb-item active">{{ session.name }}</li>
-    </ol>
-  </nav>
-
-  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
-    <div>
-      <h1 class="h4 fw-bold mb-1">{{ session.name }}</h1>
-      <p class="text-muted small mb-0">
-        {{ session.class_name }} · {{ session.section }}
-        <span class="text-muted">· subject schedule and your marks</span>
-      </p>
-    </div>
-    <div class="d-flex flex-wrap gap-2 no-print">
-      <a class="btn btn-outline-primary btn-sm" href="{% url 'core:student_report_card_session_view' session.id %}">
-        <i class="bi bi-card-heading me-1"></i>Report card
-      </a>
-      <a class="btn btn-outline-success btn-sm" href="{% url 'core:student_report_card_session_pdf' session.id %}">
-        <i class="bi bi-file-earmark-pdf me-1"></i>Download PDF
+  <div class="ses-wrap">
+    <div class="ses-stack">
+    <div class="d-flex justify-content-start mb-2 ses-top-actions no-print">
+      <a class="btn btn-outline-secondary btn-sm" href="{% url 'core:student_exams_list' %}">
+        <i class="bi bi-arrow-left me-1"></i>Back
       </a>
     </div>
-  </div>
 
-  <div class="row g-3 mb-4">
-    <div class="col-md-6">
-      <div class="card border-0 shadow-sm rounded-4">
-        <div class="card-body">
-          <p class="text-muted small text-uppercase mb-1">Overall (entered subjects)</p>
-          <h2 class="display-5 fw-bold text-primary mb-0">{% if overall_pct is not None %}{{ overall_pct }}%{% else %}—{% endif %}</h2>
+    <nav aria-label="breadcrumb" class="mb-3">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'core:student_exams_list' %}">Exams</a></li>
+        <li class="breadcrumb-item active">{{ session.name }}</li>
+      </ol>
+    </nav>
+
+    <div class="ses-hero">
+      <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+        <div class="min-w-0">
+          <h1 class="h4 fw-bold mb-1 ses-title text-truncate">
+            <i class="bi bi-clipboard-check me-2 text-primary"></i>{{ session.name }}
+          </h1>
+          <div class="ses-sub">
+            {{ session.class_name }} · {{ session.section }} · <span class="fw-semibold">Subject Schedule &amp; Your Marks</span>
+          </div>
+          <div class="ses-divider" aria-hidden="true"></div>
+        </div>
+        <div class="d-flex flex-wrap gap-2 no-print">
+          <a class="btn btn-primary btn-sm rounded-pill px-3" href="{% url 'core:student_report_card_session_view' session.id %}">
+            <i class="bi bi-card-heading me-1"></i>Report card
+          </a>
         </div>
       </div>
     </div>
-    <div class="col-md-6">
-      <div class="card border-0 shadow-sm rounded-4">
-        <div class="card-body">
-          <p class="text-muted small text-uppercase mb-1">Grade</p>
-          <h2 class="display-5 fw-bold mb-0" title="{{ overall_grade_tooltip|default:'' }}">{{ grade }}</h2>
+
+  <div class="ses-kpi-grid">
+      <div class="card ses-card ses-overall shadow-sm">
+        <div class="card-body py-2">
+          <p class="text-muted small text-uppercase mb-1">Overall (entered subjects)</p>
+          <div class="ses-kpi">
+            <h2 class="display-5 fw-bold text-primary">{% if overall_pct is not None %}{{ overall_pct }}%{% else %}—{% endif %}</h2>
+            <span class="ses-icon text-primary" aria-hidden="true"><i class="bi bi-bar-chart-line fs-4"></i></span>
+          </div>
         </div>
+      </div>
+      <div class="card ses-card ses-grade shadow-sm">
+        <div class="card-body py-2">
+          <p class="text-muted small text-uppercase mb-1">Grade</p>
+          <div class="ses-kpi">
+            <h2 class="display-5 fw-bold mb-0" title="{{ overall_grade_tooltip|default:'' }}">{{ grade }}</h2>
+            <span class="ses-icon" aria-hidden="true"><i class="bi bi-award fs-4"></i></span>
+          </div>
+        </div>
+      </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+    <div class="card-header bg-white border-0 py-2">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h2 class="h6 fw-semibold mb-0">Subjects</h2>
+        {% if marks_complete %}
+          <span class="badge rounded-pill bg-success-subtle text-success border">Marks complete</span>
+        {% else %}
+          <span class="badge rounded-pill bg-warning-subtle text-warning border">Results pending</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card-body py-2">
+      <div class="ses-subjects-grid">
+        {% for row in schedule_rows %}
+          <div class="ses-subject-card">
+            <div class="p-3 py-2">
+              <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+                <div class="fw-semibold text-truncate"><i class="bi bi-book me-1 text-primary"></i>{{ row.subject }}</div>
+                {% if row.pct is not None %}
+                  <span class="badge rounded-pill bg-primary">{{ row.pct }}%</span>
+                {% else %}
+                  <span class="badge rounded-pill bg-secondary-subtle text-secondary border">—</span>
+                {% endif %}
+              </div>
+              <div class="ses-mini mb-1">
+                <i class="bi bi-calendar3 me-1"></i>{% if row.date %}{{ row.date|date:"M j, Y" }}{% else %}—{% endif %}
+              </div>
+              <div class="ses-mini mb-2">
+                <i class="bi bi-clock me-1"></i>
+                {% if row.start_time or row.end_time %}
+                  {% if row.start_time %}{{ row.start_time|time:"g:i A" }}{% endif %}
+                  {% if row.start_time and row.end_time %} – {% elif row.end_time %}{% endif %}
+                  {% if row.end_time %}{{ row.end_time|time:"g:i A" }}{% endif %}
+                {% else %}
+                  —
+                {% endif %}
+              </div>
+              <div class="d-flex justify-content-between align-items-center">
+                <div class="ses-mini">
+                  <i class="bi bi-award me-1"></i>
+                  {% if row.mark %}{{ row.mark.marks_obtained }} / {{ row.mark.total_marks }}{% else %}—{% endif %}
+                </div>
+                <span class="badge rounded-pill bg-secondary" title="{{ row.grade_tooltip|default:'' }}">{{ row.grade }}</span>
+              </div>
+            </div>
+          </div>
+        {% empty %}
+          <div class="text-center text-muted py-3">No papers in this exam session yet.</div>
+        {% endfor %}
       </div>
     </div>
   </div>
 
   <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
-    <div class="card-header bg-white border-0 py-3">
-      <h2 class="h6 fw-semibold mb-0">Schedule &amp; marks</h2>
+    <div class="card-header bg-white border-0 py-2">
+      <h2 class="h6 fw-semibold mb-0">Marks (compact)</h2>
     </div>
     <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
+      <table class="table table-sm table-hover align-middle mb-0 ses-table">
         <thead class="table-light">
           <tr>
             <th>Subject</th>
@@ -91,8 +304,78 @@
           <tr><td colspan="6" class="text-center text-muted py-4">No papers in this exam session yet.</td></tr>
           {% endfor %}
         </tbody>
+        <tfoot class="table-light">
+          <tr>
+            <th class="text-end">Total</th>
+            <th class="text-end"></th>
+            <th class="text-end"></th>
+            <th class="text-end">
+              {% if total_obtained is not None and total_max is not None %}
+                {{ total_obtained }} / {{ total_max }}
+              {% else %}
+                —
+              {% endif %}
+            </th>
+            <th class="text-end">
+              {% if overall_pct is not None %}
+                {{ overall_pct }}%
+              {% else %}
+                —
+              {% endif %}
+            </th>
+            <th>{{ grade }}</th>
+          </tr>
+        </tfoot>
       </table>
     </div>
   </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block modals %}
+{% if show_incomplete_marks_modal %}
+<div id="sesmIncomplete" class="sesm-layer sesm-open" aria-hidden="false">
+  <div class="sesm-scrim" data-sesm-close="1" role="presentation"></div>
+  <div class="sesm-panel" role="dialog" aria-modal="true" aria-labelledby="sesmTitle" aria-describedby="sesmDesc">
+    <div class="p-3 border-bottom d-flex align-items-start gap-2">
+      <div class="flex-shrink-0" aria-hidden="true">
+        <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-warning-subtle text-warning" style="width:2.25rem;height:2.25rem;">
+          <i class="bi bi-exclamation-triangle"></i>
+        </span>
+      </div>
+      <div class="flex-grow-1">
+        <h2 class="h6 fw-bold mb-1" id="sesmTitle">Incomplete Marks</h2>
+        <div class="text-muted small" id="sesmDesc">Marks are not fully entered yet. Please contact your teacher.</div>
+      </div>
+      <button type="button" class="btn-close ms-2" data-sesm-close="1" aria-label="Close"></button>
+    </div>
+    <div class="p-3 d-flex justify-content-end bg-body-tertiary bg-opacity-25">
+      <button type="button" class="btn btn-primary rounded-pill px-4" data-sesm-close="1">OK</button>
+    </div>
+  </div>
 </div>
+<script>
+  (function () {
+    var layer = document.getElementById("sesmIncomplete");
+    if (!layer) return;
+    function close() {
+      layer.classList.remove("sesm-open");
+      layer.setAttribute("aria-hidden", "true");
+    }
+    layer.addEventListener("click", function (e) {
+      var btn = e.target && e.target.closest ? e.target.closest("[data-sesm-close]") : null;
+      if (btn) close();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (!layer.classList.contains("sesm-open")) return;
+      if (e.key === "Escape") { e.preventDefault(); close(); }
+    });
+    // Focus first close control
+    setTimeout(function () {
+      try { var b = layer.querySelector("[data-sesm-close]"); if (b) b.focus(); } catch (e) {}
+    }, 0);
+  })();
+</script>
+{% endif %}
 {% endblock %}

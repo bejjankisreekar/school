@@ -2,7 +2,34 @@
 {% block title %}{{ exam_name }} | School ERP{% endblock %}
 
 {% block content %}
+<style>
+  .sed-wrap { max-width: 1080px; margin: 0 auto; }
+  .sed-hero {
+    border-radius: 14px;
+    border: 1px solid var(--bs-border-color-translucent);
+    background: linear-gradient(135deg, rgba(59,130,246,0.14) 0%, rgba(99,102,241,0.10) 55%, rgba(255,255,255,0.55) 100%);
+    padding: 0.85rem 1rem;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+    margin-bottom: 12px;
+  }
+  html.dark .sed-hero {
+    background: linear-gradient(135deg, rgba(59,130,246,0.22) 0%, rgba(99,102,241,0.16) 55%, rgba(15,23,42,0.35) 100%);
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.35);
+  }
+  .sed-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  .sed-card {
+    border-radius: 14px;
+    border: 1px solid var(--bs-border-color-translucent);
+    overflow: hidden;
+    transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  }
+  .sed-card:hover { transform: translateY(-3px); box-shadow: 0 18px 40px rgba(15,23,42,0.12); border-color: rgba(99,102,241,0.30); }
+  .sed-mini { font-size: 0.84rem; color: var(--bs-secondary-color); }
+  .sed-table thead th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .sed-table td, .sed-table th { padding-top: 0.55rem; padding-bottom: 0.55rem; }
+</style>
 <div class="container-fluid px-0">
+  <div class="sed-wrap">
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{% url 'core:student_exams_list' %}">Exams</a></li>
@@ -10,43 +37,52 @@
     </ol>
   </nav>
 
-  <h1 class="h4 fw-bold mb-2">{{ exam_name }}</h1>
-  {% if exam_date %}
-  <p class="text-muted small mb-4"><i class="bi bi-calendar3 me-1"></i>{{ exam_date }}</p>
-  {% endif %}
-
-  <!-- Overall Stats -->
-  <div class="row g-3 mb-4">
-    <div class="col-md-6">
-      <div class="card border-0 shadow-sm rounded-4">
-        <div class="card-body">
-          <p class="text-muted small text-uppercase mb-1">Overall Percentage</p>
-          <h2 class="display-5 fw-bold text-primary mb-0">{{ overall_pct }}%</h2>
-        </div>
+  <div class="sed-hero">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+      <div class="min-w-0">
+        <h1 class="h4 fw-bold mb-1 text-truncate" style="letter-spacing:-0.02em;">
+          <i class="bi bi-clipboard-check me-2 text-primary"></i>{{ exam_name }}
+        </h1>
+        {% if exam_date %}
+          <div class="sed-mini"><i class="bi bi-calendar3 me-1"></i>{{ exam_date }}</div>
+        {% endif %}
       </div>
-    </div>
-    <div class="col-md-6">
-      <div class="card border-0 shadow-sm rounded-4">
-        <div class="card-body">
-          <p class="text-muted small text-uppercase mb-1">Grade</p>
-          <h2 class="display-5 fw-bold mb-0">{{ grade }}</h2>
-        </div>
+      <div class="d-flex gap-2">
+        <a href="{% url 'core:student_exams_list' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+          <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
       </div>
     </div>
   </div>
 
+  <!-- Overall Stats -->
+  <div class="sed-grid mb-3">
+      <div class="card sed-card border-0 shadow-sm">
+        <div class="card-body py-2">
+          <p class="text-muted small text-uppercase mb-1">Overall Percentage</p>
+          <h2 class="display-5 fw-bold text-primary mb-0">{{ overall_pct }}%</h2>
+        </div>
+      </div>
+      <div class="card sed-card border-0 shadow-sm">
+        <div class="card-body py-2">
+          <p class="text-muted small text-uppercase mb-1">Grade</p>
+          <h2 class="display-5 fw-bold mb-0">{{ grade }}</h2>
+        </div>
+      </div>
+  </div>
+
   <!-- Progress Bar -->
-  <div class="mb-4">
+  <div class="mb-3">
     <div class="progress rounded-3" style="height: 10px;">
       <div class="progress-bar bg-primary" role="progressbar" style="width: {{ overall_pct }}%" aria-valuenow="{{ overall_pct }}" aria-valuemin="0" aria-valuemax="100"></div>
     </div>
   </div>
 
   <!-- Marks Table -->
-  <div class="card border-0 shadow-sm rounded-4">
+  <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
     <div class="card-body p-0">
       <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+        <table class="table table-sm table-hover align-middle mb-0 sed-table">
           <thead class="table-light">
             <tr>
               <th class="rounded-start">Subject</th>
@@ -75,5 +111,6 @@
       </div>
     </div>
   </div>
+</div>
 </div>
 {% endblock %}

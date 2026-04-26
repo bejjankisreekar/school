@@ -1,5 +1,23 @@
 from django.contrib import admin
-from .models import ContactEnquiry, Plan, SchoolEnrollmentRequest, SchoolSubscription, SubscriptionPlan
+
+from .models import (
+    AnalyticsField,
+    ContactEnquiry,
+    Plan,
+    SchoolEnrollmentRequest,
+    SchoolSubscription,
+    SubscriptionPlan,
+)
+
+
+@admin.register(AnalyticsField)
+class AnalyticsFieldAdmin(admin.ModelAdmin):
+    """Public-schema registry for report/analytics dimensions (global across all schools)."""
+
+    list_display = ("field_key", "display_label", "category", "display_order", "is_active")
+    list_filter = ("is_active", "category")
+    search_fields = ("field_key", "display_label", "category")
+    ordering = ("category", "field_key", "display_order", "display_label")
 
 
 @admin.register(Plan)

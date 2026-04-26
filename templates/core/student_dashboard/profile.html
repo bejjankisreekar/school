@@ -3,11 +3,59 @@
 {% block title %}Student Profile | School ERP{% endblock %}
 
 {% block content %}
-<div class="container py-4">
+<div class="container py-4 student-profile-page">
+  <style>
+    .student-profile-page .profile-hero {
+      border-radius: 1rem;
+      border: 1px solid var(--bs-border-color-translucent);
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.10) 0%, transparent 55%),
+        linear-gradient(225deg, rgba(99, 102, 241, 0.08) 0%, transparent 50%);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+    }
+    html.dark .student-profile-page .profile-hero {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, transparent 55%),
+        linear-gradient(225deg, rgba(96, 165, 250, 0.10) 0%, transparent 50%);
+    }
+    .student-profile-page .profile-title { letter-spacing: -0.02em; }
+    .student-profile-page .profile-card {
+      border-radius: 1rem;
+      border: 1px solid var(--bs-border-color-translucent);
+    }
+    .student-profile-page .stat-tile {
+      border-radius: 0.9rem;
+      border: 1px solid var(--bs-border-color-translucent);
+      background: rgba(248, 250, 252, 0.7);
+      padding: 0.85rem 0.75rem;
+    }
+    html.dark .student-profile-page .stat-tile { background: rgba(148, 163, 184, 0.08); }
+    .student-profile-page .avatar-img {
+      width: 120px;
+      height: 120px;
+      object-fit: cover;
+      border-radius: 999px;
+      border: 2px solid rgba(15, 23, 42, 0.08);
+    }
+  </style>
+
+  <div class="profile-hero d-flex justify-content-between align-items-start flex-wrap gap-2">
+    <div>
+      <h1 class="h4 fw-bold mb-1 profile-title">My profile</h1>
+      <div class="text-muted small">Your details, achievements, and quick stats in one place.</div>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'core:student_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+        <i class="bi bi-arrow-left me-1"></i>Back
+      </a>
+      <a href="{% url 'core:edit_profile_web' %}" class="btn btn-primary btn-sm rounded-pill px-3">
+        <i class="bi bi-pencil me-1"></i>Edit
+      </a>
+    </div>
+  </div>
   <div class="row g-4">
     <!-- LEFT: PROFILE CARD -->
     <div class="col-lg-4">
-      <div class="card shadow-sm border-0 rounded-4 text-center p-4">
+      <div class="card shadow-sm profile-card text-center p-4">
         <style>
           .avatar-placeholder {
             width: 120px;
@@ -27,9 +75,7 @@
         {% if student.profile_image %}
           <img
             src="{{ student.profile_image.url }}"
-            class="rounded-circle mb-3"
-            width="120"
-            height="120"
+            class="avatar-img mb-3"
             alt="Profile"
           >
         {% else %}
@@ -54,12 +100,12 @@
 
     <!-- RIGHT: DETAILS -->
     <div class="col-lg-8">
-      <div class="card shadow-sm border-0 rounded-4 p-4">
-        <div class="d-flex justify-content-between mb-3 flex-wrap gap-2">
-          <h6 class="mb-0">Personal Information</h6>
-          <a href="{% url 'core:edit_profile_web' %}" class="btn btn-sm btn-outline-primary">
-            Edit
-          </a>
+      <div class="card shadow-sm profile-card p-4">
+        <div class="d-flex justify-content-between mb-3 flex-wrap gap-2 align-items-center">
+          <div>
+            <div class="text-muted small text-uppercase fw-semibold" style="letter-spacing:0.06em;">Personal Information</div>
+            <div class="small text-muted">Basic contact + academic identifiers.</div>
+          </div>
         </div>
 
         <div class="row g-3">
@@ -100,7 +146,7 @@
       </div>
 
       <!-- PROFILE COMPLETION -->
-      <div class="card shadow-sm border-0 rounded-4 p-4 mt-3">
+      <div class="card shadow-sm profile-card p-4 mt-3">
         <div class="d-flex justify-content-between mb-2">
           <h6 class="mb-0">Profile Completion</h6>
           <span class="fw-semibold">{{ profile_completion }}%</span>
@@ -119,7 +165,7 @@
       </div>
 
       <!-- ACHIEVEMENTS / BADGES -->
-      <div class="card shadow-sm border-0 rounded-4 p-4 mt-3">
+      <div class="card shadow-sm profile-card p-4 mt-3">
         <h6 class="mb-3">Achievements</h6>
         <div class="d-flex flex-wrap gap-2">
           {% for badge in badges %}
@@ -136,23 +182,29 @@
       </div>
 
       <!-- QUICK STATS -->
-      <div class="card shadow-sm border-0 rounded-4 p-4 mt-3">
+      <div class="card shadow-sm profile-card p-4 mt-3">
         <h6 class="mb-3">Quick Stats</h6>
 
         <div class="row text-center g-3">
           <div class="col-md-4">
-            <h5 class="fw-bold text-success mb-0">{{ attendance_percentage }}%</h5>
-            <small class="text-muted">Attendance</small>
+            <div class="stat-tile">
+              <div class="fw-bold fs-4 text-success mb-0">{{ attendance_percentage }}%</div>
+              <div class="small text-muted">Attendance</div>
+            </div>
           </div>
 
           <div class="col-md-4">
-            <h5 class="fw-bold text-primary mb-0">{{ total_exams }}</h5>
-            <small class="text-muted">Exams Taken</small>
+            <div class="stat-tile">
+              <div class="fw-bold fs-4 text-primary mb-0">{{ total_exams }}</div>
+              <div class="small text-muted">Exams Taken</div>
+            </div>
           </div>
 
           <div class="col-md-4">
-            <h5 class="fw-bold text-warning mb-0">{{ avg_marks }}%</h5>
-            <small class="text-muted">Avg Marks</small>
+            <div class="stat-tile">
+              <div class="fw-bold fs-4 text-warning mb-0">{{ avg_marks }}%</div>
+              <div class="small text-muted">Avg Marks</div>
+            </div>
           </div>
         </div>
       </div>

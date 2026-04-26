@@ -1,0 +1,222 @@
+{% comment %}
+  Shared fee structure batch form. Expects:
+  - fee_structure_page (bool): full page vs modal embed
+  - fee_structure_form_action: POST URL (with ?ay= if needed)
+  - fee_structure_list_url: optional (e.g. parent page back link); full-page create template places “Back” above the form
+  - form_s, academic_year, academic_years, all_classrooms, all_sections, fee_types_json, fee_categories
+  - fee_structure_ui_meta: dict from fee_services.fee_structure_ui_meta_for_billing() for class/duplicate UX
+{% endcomment %}
+{{ fee_types_json|json_script:"cfs-fee-types-payload" }}
+<form method="post" action="{{ fee_structure_form_action }}" id="cfs-structure-form" class="cfs-batch-form {% if fee_structure_page %}cfs-page-batch-form{% else %}cfs-panel-form{% endif %}">
+  {% csrf_token %}
+  {{ fee_structure_ui_meta|json_script:"cfs-fee-structure-meta" }}
+  {% if academic_year %}<input type="hidden" name="ay" value="{{ academic_year.id }}">{% endif %}
+  <input type="hidden" name="fee_lines_json" id="cfs-fee-lines-json" value="[]">
+  <input type="hidden" name="edit_batch_key" id="cfs-edit-batch-key" value="">
+  <div class="cfs-panel-body">
+    {% if fee_structure_page %}
+    <div class="cfs-impact-strip border rounded-3 mb-3 mb-lg-4 p-3 p-md-4 shadow-sm" aria-live="polite">
+      <div class="row g-3 align-items-center">
+        <div class="col-auto d-none d-sm-flex align-items-center justify-content-center rounded-3 cfs-impact-strip-icon">
+          <i class="bi bi-people-fill fs-2" aria-hidden="true"></i>
+        </div>
+        <div class="col min-w-0">
+          <div class="text-uppercase small fw-bold cfs-impact-strip-label mb-1">Students impacted</div>
+          <div class="fs-3 fw-bold lh-sm cfs-impact-strip-value font-monospace" id="cfs-p-value">—</div>
+          <div class="small mt-2 cfs-impact-strip-hint text-muted" id="cfs-p-hint">Select a class to count active students in scope.</div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    <div class="cfs-form-layout">
+      <div class="cfs-form-column">
+        <div class="cfs-form-card">
+          <div class="cfs-section-accent"><i class="bi bi-sliders"></i> Scope &amp; schedule</div>
+          <div class="cfs-form-grid">
+            <div class="cfs-field">
+              <label class="form-label cfs-flabel" for="cfs-academic-year">Academic year</label>
+              <select name="academic_year" id="cfs-academic-year" class="form-select form-select-sm" required>
+                {% for y in academic_years %}
+                <option value="{{ y.id }}" {% if academic_year and academic_year.id == y.id %}selected{% endif %}>{{ y.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="cfs-field">
+              <label class="form-label cfs-flabel" for="cfs-classroom">Class</label>
+              <select name="classroom" id="cfs-classroom" class="form-select form-select-sm" required>
+                <option value="">— Select class —</option>
+                {% for cl in all_classrooms %}
+                <option value="{{ cl.id }}">{{ cl.name }}</option>
+                {% endfor %}
+              </select>
+              <div class="form-check mt-2 mb-0">
+                <input type="checkbox" class="form-check-input" id="cfs-class-filter-available">
+                <label class="form-check-label small text-muted" for="cfs-class-filter-available">Show only classes without fee structure for the selected year</label>
+              </div>
+            </div>
+            <div class="cfs-field cfs-field--full">
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="apply_all_sections" id="cfs-apply-all-sections" value="1" checked>
+                <label class="form-check-label small" for="cfs-apply-all-sections">Apply same fee to <strong>all sections</strong> in this class (class-wide)</label>
+              </div>
+              <span class="form-label cfs-flabel d-block">Sections <span class="text-muted fw-normal">(tap to include; optional if class-wide)</span></span>
+              <div id="cfs-section-pick-wrap" class="cfs-section-pick-wrap" aria-describedby="cfs-sec-help">
+                <div class="cfs-section-chip-grid" id="cfs-section-chips" role="group" aria-label="Sections for this class">
+                  {% for sec in all_sections %}
+                  <label class="cfs-section-chip" data-classrooms="{% for c in sec.classrooms.all %}{{ c.id }}{% if not forloop.last %},{% endif %}{% endfor %}" data-section-id="{{ sec.id }}">
+                    <input type="checkbox" name="section_ids" value="{{ sec.id }}" class="cfs-section-cb" id="cfs-sec-{{ sec.id }}">
+                    <span>{{ sec.name }}</span>
+                  </label>
+                  {% endfor %}
+                </div>
+              </div>
+              <div class="form-text" id="cfs-sec-help">Choose one or more sections for this fee. Disabled when “all sections” is checked.</div>
+            </div>
+            <div class="cfs-field">
+              <label class="form-label cfs-flabel" for="cfs-frequency">Frequency</label>
+              <select name="frequency" id="cfs-frequency" class="form-select form-select-sm">
+                {% for val, label in form_s.fields.frequency.choices %}
+                <option value="{{ val }}" {% if val == "MONTHLY" %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="cfs-field">
+              <label class="form-label cfs-flabel" for="cfs-first-due">First due date</label>
+              <input type="date" name="first_due_date" id="cfs-first-due" class="form-control form-control-sm">
+            </div>
+            <div class="cfs-field">
+              <label class="form-label cfs-flabel" for="cfs-due-day">Due day of month</label>
+              <input type="number" name="due_day_of_month" id="cfs-due-day" class="form-control form-control-sm" min="1" max="28" placeholder="e.g. 5">
+            </div>
+            <div class="cfs-field cfs-field--full">
+              <label class="form-label cfs-flabel" for="cfs-late-fine">Late fine rule</label>
+              <input type="text" name="late_fine_rule" id="cfs-late-fine" class="form-control form-control-sm" placeholder="Optional label">
+            </div>
+            <div class="cfs-field cfs-field--switch">
+              <div class="form-check form-switch m-0">
+                <input class="form-check-input" type="checkbox" name="cfs_is_active" id="cfs-is-active" value="on" checked>
+                <label class="form-check-label small" for="cfs-is-active">Line active</label>
+              </div>
+            </div>
+            <div class="cfs-field cfs-field--switch">
+              <div class="form-check form-switch m-0">
+                <input class="form-check-input" type="checkbox" name="cfs_installments_enabled" id="cfs-installments" value="on">
+                <label class="form-check-label small" for="cfs-installments">Allow installments</label>
+              </div>
+            </div>
+            <div class="cfs-field cfs-field--switch">
+              <div class="form-check form-switch m-0">
+                <input class="form-check-input" type="checkbox" name="cfs_discount_allowed" id="cfs-discount" value="on" checked>
+                <label class="form-check-label small" for="cfs-discount">Concessions allowed</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="cfs-form-card mt-3">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+            <div class="cfs-section-accent mb-0"><i class="bi bi-list-ul"></i> Fee categories &amp; amounts</div>
+            <button type="button" class="btn btn-sm btn-outline-primary rounded-pill" id="cfs-add-fee-row" data-bs-toggle="modal" data-bs-target="#cfsAddFeeTypeModal"><i class="bi bi-plus-lg me-1"></i>Add fee category</button>
+          </div>
+          <p class="small text-muted mb-2 d-none" id="cfs-batch-edit-note"></p>
+          <p class="small text-muted mb-2" id="cfs-fee-catalog-hint" data-fee-categories-url="{% url 'core:billing_fee_categories' %}">Active fee categories from <a href="{% url 'core:billing_fee_categories' %}">Fee categories</a> are listed below. Use <strong>Add fee category</strong> to create a new type in a popup without leaving this screen. Use the switch to include a fee for this class; when on, enter an amount greater than zero.</p>
+          {% if fee_categories %}
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-2 cfs-fee-toolbar">
+            <div class="flex-grow-1 min-w-0" style="max-width:20rem;">
+              <label class="visually-hidden" for="cfs-fee-filter">Search fee categories</label>
+              <div class="input-group input-group-sm">
+                <span class="input-group-text bg-body-secondary border-end-0"><i class="bi bi-search" aria-hidden="true"></i></span>
+                <input type="search" class="form-control border-start-0" id="cfs-fee-filter" placeholder="Filter by name or code…" autocomplete="off">
+              </div>
+            </div>
+            <div class="form-check cfs-select-all-wrap mb-0">
+              <input type="checkbox" class="form-check-input" id="cfs-fee-select-all" title="Apply all visible fees">
+              <label class="form-check-label small text-nowrap" for="cfs-fee-select-all">Select all</label>
+            </div>
+          </div>
+          {% endif %}
+          <div class="table-responsive rounded-3 border">
+            <table class="table table-sm align-middle mb-0 cfs-fee-table">
+              <thead class="table-light">
+                <tr>
+                  <th scope="col" class="text-center" style="width:3.75rem;" title="Include this fee for the class">Apply</th>
+                  <th scope="col">Fee category</th>
+                  <th scope="col" class="text-end cfs-fee-amt-col">Amount (₹)</th>
+                  <th scope="col" style="width:2.5rem;"></th>
+                </tr>
+              </thead>
+              <tbody id="cfs-fee-rows">
+                {% for fee in fee_categories %}
+                <tr class="cfs-fee-row cfs-fee-row--catalog cfs-fee-row--off"
+                    data-ft-name="{{ fee.name|escape }}"
+                    data-ft-code="{{ fee.code|default:''|escape }}"
+                    data-fee-type-id="{{ fee.id }}"
+                    title="{% if fee.code %}{{ fee.name }} · {{ fee.code }}{% else %}{{ fee.name }}{% endif %}">
+                  <td class="text-center align-middle py-2">
+                    <div class="form-check form-switch cfs-apply-switch m-0 d-inline-flex justify-content-center">
+                      <input type="checkbox"
+                             class="form-check-input cfs-fee-enable apply-checkbox"
+                             id="cfs-apply-ft-{{ fee.id }}"
+                             data-fee-type-id="{{ fee.id }}"
+                             data-fee-category-id="{{ fee.id }}"
+                             role="switch"
+                             aria-label="Apply {{ fee.name }}">
+                    </div>
+                  </td>
+                  <td class="align-middle">
+                    <span class="fw-semibold cfs-ft-label">{{ fee.name }}</span>
+                    {% if fee.code %}<span class="text-muted small ms-1">({{ fee.code }})</span>{% endif %}
+                    <input type="hidden" class="cfs-fee-type-id" value="{{ fee.id }}">
+                  </td>
+                  <td class="text-end align-middle cfs-fee-amt-cell">
+                    <input type="number"
+                           class="form-control form-control-sm cfs-fee-amt fee-amount text-end"
+                           min="0"
+                           step="0.01"
+                           placeholder="-"
+                           value=""
+                           inputmode="decimal"
+                           disabled
+                           autocomplete="off"
+                           data-fee-type-id="{{ fee.id }}"
+                           data-fee-category-id="{{ fee.id }}"
+                           aria-label="Amount for {{ fee.name }}">
+                  </td>
+                  <td class="align-middle"></td>
+                </tr>
+                {% empty %}
+                <tr class="cfs-fee-row cfs-fee-row--empty">
+                  <td colspan="4" class="text-center text-muted small py-4">
+                    No active fee categories yet. Add them under <a href="{% url 'core:billing_fee_categories' %}">Fee categories</a>.
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mt-3 p-2 rounded-3 bg-body-secondary bg-opacity-50 border">
+            <span class="fw-semibold">Total (one student, one period)</span>
+            <span class="h5 mb-0 font-monospace" id="cfs-total-amount">₹ 0</span>
+          </div>
+        </div>
+      </div>
+      {% if not fee_structure_page %}
+      <aside class="cfs-impact-column" aria-live="polite">
+        <div class="cfs-impact-card">
+          <div class="cfs-impact-label">Students impacted</div>
+          <div class="cfs-impact-value" id="cfs-p-value">—</div>
+          <div class="cfs-impact-hint" id="cfs-p-hint">Select a class to count active students.</div>
+        </div>
+      </aside>
+      {% endif %}
+    </div>
+  </div>
+  <div class="cfs-panel-footer{% if fee_structure_page %} cfs-panel-footer--page-actions{% endif %}">
+    {% if not fee_structure_page %}
+    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3 cfs-batch-footer-close" data-cfs-close="cfs-create-layer"><i class="bi bi-x-lg me-1"></i> Cancel</button>
+    {% endif %}
+    <div class="d-flex flex-wrap gap-2 {% if not fee_structure_page %}ms-md-auto{% endif %} cfs-batch-editable-actions">
+      <button type="reset" class="btn btn-outline-secondary btn-sm rounded-pill px-3" id="cfs-form-reset" title="Reset form"><i class="bi bi-arrow-counterclockwise me-1"></i> Reset</button>
+      <button type="submit" name="save_fee_structure_batch" value="1" class="btn cfs-btn-save rounded-pill px-4"><i class="bi bi-check2-circle me-1"></i> Save fee structure</button>
+    </div>
+  </div>
+</form>

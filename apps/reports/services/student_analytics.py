@@ -12,6 +12,7 @@ from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
 from apps.core.utils import get_active_academic_year_obj, get_current_academic_year_bounds
+from apps.school_data.classroom_ordering import grade_order_from_name
 from apps.school_data.models import ClassRoom, Student
 
 
@@ -27,12 +28,19 @@ def build_student_analytics_context(school) -> dict:
         ClassRoom.objects.annotate(
             total=Count("students", filter=Q(students__user__school=school))
         )
-        .values("name", "total")
-        .order_by("name")
+        .values("name", "grade_order", "total")
+        .order_by("grade_order", "name")
     )
     unassigned = qs.filter(classroom__isnull=True).count()
     if unassigned:
         class_rows.append({"name": "Unassigned", "total": unassigned})
+    class_rows.sort(
+        key=lambda r: (
+            1 if (r.get("name") or "") == "Unassigned" else 0,
+            grade_order_from_name(r["name"] or ""),
+            (r["name"] or "").lower(),
+        )
+    )
     class_labels = [r["name"] or "—" for r in class_rows]
     class_counts = [int(r["total"] or 0) for r in class_rows]
 
@@ -40,17 +48,17 @@ def build_student_analytics_context(school) -> dict:
     section_rows = list(
         qs.exclude(classroom__isnull=True)
         .exclude(section__isnull=True)
-        .values("classroom__name", "section__name")
+        .values("classroom__name", "classroom__grade_order", "section__name")
         .annotate(total=Count("id"))
-        .order_by("classroom__name", "section__name")
+        .order_by("classroom__grade_order", "classroom__name", "section__name")
     )
     section_labels = [f"{r['classroom__name']} — {r['section__name']}" for r in section_rows]
     section_counts = [int(r["total"] or 0) for r in section_rows]
     only_class = (
         qs.filter(classroom__isnull=False, section__isnull=True)
-        .values("classroom__name")
+        .values("classroom__name", "classroom__grade_order")
         .annotate(total=Count("id"))
-        .order_by("classroom__name")
+        .order_by("classroom__grade_order", "classroom__name")
     )
     for r in only_class:
         section_labels.append(f"{r['classroom__name']} — (no section)")

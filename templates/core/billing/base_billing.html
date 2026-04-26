@@ -20,6 +20,11 @@
     -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid rgba(148, 163, 184, 0.28);
     box-shadow: 0 6px 24px rgba(15, 23, 42, 0.06);
+    /* Sticky bar sits above long pages; without this, padding/gaps capture clicks meant for content below */
+    pointer-events: none;
+  }
+  .billing-tabs-sticky a.billing-tab {
+    pointer-events: auto;
   }
   @media (min-width: 992px) {
     .billing-tabs-sticky {
@@ -108,11 +113,11 @@
   <div class="billing-tabs-sticky" aria-label="Fees and billing sections">
     <div class="billing-sheet-head">Fees &amp; Billing</div>
     <nav class="billing-tabs-rail">
-      <a href="{% url 'core:billing_dashboard' %}" class="billing-tab {% if current == 'billing_dashboard' %}active{% endif %}"><i class="bi bi-speedometer2"></i><span>Dashboard</span></a>
-      <a href="{% url 'core:billing_record_payment' %}" class="billing-tab {% if current == 'billing_record_payment' or current == 'billing_student_collect' %}active{% endif %}"><i class="bi bi-cash-coin"></i><span>Record payment</span></a>
-      <a href="{% url 'core:billing_fee_structure' %}" class="billing-tab {% if current == 'billing_fee_structure' or current == 'billing_fee_master' or current == 'billing_class_fee_students' or current == 'billing_student_fee_lines' %}active{% endif %}"><i class="bi bi-ui-checks-grid"></i><span>Class fee structure</span></a>
+      <a href="{% url 'core:billing_dashboard' %}" class="billing-tab {% if current == 'billing_dashboard' or current == 'billing_class_financial_summary' %}active{% endif %}"><i class="bi bi-speedometer2"></i><span>Dashboard</span></a>
+      <a href="{% url 'core:billing_fee_structure' %}" class="billing-tab {% if current == 'billing_fee_structure' or current == 'billing_fee_structure_create' or current == 'billing_fee_master' or current == 'billing_class_fee_students' or current == 'billing_student_fee_lines' %}active{% endif %}"><i class="bi bi-ui-checks-grid"></i><span>Class fee structure</span></a>
       <a href="{% url 'core:billing_fee_categories' %}" class="billing-tab {% if current == 'billing_fee_categories' or current == 'school_fee_type_update' or current == 'school_fee_type_delete' %}active{% endif %}"><i class="bi bi-tags"></i><span>Fee categories</span></a>
       <a href="{% url 'core:billing_concessions' %}" class="billing-tab {% if current == 'billing_concessions' %}active{% endif %}"><i class="bi bi-percent"></i><span>Concessions</span></a>
+      <a href="{% url 'core:billing_record_payment' %}" class="billing-tab {% if current == 'billing_record_payment' or current == 'billing_student_collect' %}active{% endif %}"><i class="bi bi-cash-coin"></i><span>Record payment</span></a>
     </nav>
   </div>
   <div class="billing-sheet-body w-100">

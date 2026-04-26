@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from django.db.models import Count, Q
 
+from apps.school_data.classroom_ordering import grade_order_from_name
 from apps.school_data.models import AcademicYear, ClassRoom, Student
 
 
@@ -23,8 +24,8 @@ def get_students_by_class_data(school, academic_year_id: int | None) -> dict:
 
     class_rows = list(
         ClassRoom.objects.annotate(total=Count("students", filter=student_q))
-        .values("id", "name", "total")
-        .order_by("name")
+        .values("id", "name", "grade_order", "total")
+        .order_by("grade_order", "name")
     )
     for row in class_rows:
         row["total"] = int(row["total"] or 0)
@@ -33,6 +34,13 @@ def get_students_by_class_data(school, academic_year_id: int | None) -> dict:
     if unassigned:
         class_rows.append({"id": None, "name": "Unassigned", "total": unassigned})
 
+    class_rows.sort(
+        key=lambda r: (
+            1 if r.get("id") is None else 0,
+            int(r.get("grade_order") or 0) if r.get("id") is not None else grade_order_from_name(r["name"] or ""),
+            (r["name"] or "").lower(),
+        )
+    )
     chart_labels = [r["name"] or "—" for r in class_rows]
     chart_counts = [r["total"] for r in class_rows]
 
