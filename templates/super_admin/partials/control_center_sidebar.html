@@ -1,0 +1,60 @@
+<nav class="saas-cc-nav" aria-label="Control Center navigation">
+  <a class="{% if tab == 'overview' %}active{% endif %}" href="{% url 'core:super_admin:control_center_section' 'overview' %}">
+    <span>
+      <div class="saas-cc-nav-title">Overview</div>
+      <div class="saas-cc-nav-sub">KPIs &amp; distribution</div>
+    </span>
+    <i class="bi bi-chevron-right"></i>
+  </a>
+
+  <a class="{% if tab == 'schools' %}active{% endif %}" href="{% url 'core:super_admin:control_center_section' 'schools' %}">
+    <span>
+      <div class="saas-cc-nav-title">Schools</div>
+      <div class="saas-cc-nav-sub">Plan + status control</div>
+    </span>
+    <i class="bi bi-chevron-right"></i>
+  </a>
+
+  <a class="{% if tab == 'plans' %}active{% endif %}" href="{% url 'core:super_admin:control_center_section' 'plans' %}">
+    <span>
+      <div class="saas-cc-nav-title">Plans &amp; Features</div>
+      <div class="saas-cc-nav-sub">Toggles per plan</div>
+    </span>
+    <i class="bi bi-chevron-right"></i>
+  </a>
+
+  <a class="{% if tab == 'billing' %}active{% endif %}" href="{% url 'core:super_admin:control_center_section' 'billing' %}">
+    <span>
+      <div class="saas-cc-nav-title">Billing</div>
+      <div class="saas-cc-nav-sub">Per-student SaaS billing</div>
+    </span>
+    <i class="bi bi-chevron-right"></i>
+  </a>
+
+  <a class="{% if tab == 'analytics' %}active{% endif %}" href="{% url 'core:super_admin:control_center_section' 'analytics' %}">
+    <span>
+      <div class="saas-cc-nav-title">Analytics</div>
+      <div class="saas-cc-nav-sub">Usage &amp; trends</div>
+    </span>
+    <i class="bi bi-chevron-right"></i>
+  </a>
+
+  <a class="{% if tab == 'settings' %}active{% endif %}" href="{% url 'core:super_admin:control_center_section' 'settings' %}">
+    <span>
+      <div class="saas-cc-nav-title">Settings</div>
+      <div class="saas-cc-nav-sub">Platform config</div>
+    </span>
+    <i class="bi bi-chevron-right"></i>
+  </a>
+
+  <a class="{% if request.resolver_match and request.resolver_match.url_name == 'platform_messages' %}active{% endif %}" href="{% url 'core:super_admin:platform_messages' %}">
+    <span>
+      <div class="saas-cc-nav-title">Messages</div>
+      <div class="saas-cc-nav-sub">School admins</div>
+    </span>
+    <span class="d-flex align-items-center gap-2">
+      {% if platform_messaging_unread %}<span class="badge rounded-pill text-bg-danger">{{ platform_messaging_unread }}</span>{% endif %}
+      <i class="bi bi-chevron-right"></i>
+    </span>
+  </a>
+</nav>

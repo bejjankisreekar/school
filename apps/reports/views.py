@@ -27,7 +27,7 @@ from .services.students_by_class import (
 
 def _reports_redirect_no_school(request):
     if getattr(request.user, "role", None) == User.Roles.SUPERADMIN:
-        return redirect("core:super_admin_dashboard")
+        return redirect("core:super_admin:control_center")
     return redirect("core:admin_dashboard")
 
 

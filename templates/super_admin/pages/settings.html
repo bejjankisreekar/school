@@ -1,0 +1,469 @@
+{% extends "base.html" %}
+
+{% block title %}Settings | Control Center{% endblock %}
+
+{% block content %}
+<style>
+  .sts-page {
+    min-height: 100%;
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    padding-bottom: 3rem;
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sts-page {
+    background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+  }
+  .sts-shell { max-width: 1180px; margin: 0 auto; padding: 0 1rem; }
+  .sts-hero {
+    border-radius: 1.25rem;
+    padding: 1.5rem 1.6rem;
+    background: linear-gradient(120deg, #0f172a 0%, #1e293b 45%, #312e81 100%);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,.1);
+    box-shadow: 0 12px 40px -16px rgba(15,23,42,.35);
+    margin-bottom: 1.25rem;
+  }
+  .sts-hero h1 { font-size: 1.45rem; font-weight: 800; margin: 0 0 .35rem; letter-spacing: -0.02em; }
+  .sts-hero p { margin: 0; opacity: .88; font-size: .9rem; }
+  .sts-toolbar {
+    display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+  .sts-card {
+    background: #fff;
+    border: 1px solid rgba(15,23,42,.08);
+    border-radius: 1.25rem;
+    padding: 1.25rem 1.35rem;
+    box-shadow: 0 4px 20px -8px rgba(15,23,42,.1);
+    height: 100%;
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sts-card {
+    background: rgba(30,41,59,.88);
+    border-color: rgba(148,163,184,.15);
+  }
+  .sts-card h2 {
+    font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;
+    color: #64748b; margin: 0 0 1rem; padding-bottom: .75rem; border-bottom: 1px solid rgba(15,23,42,.06);
+    display: flex; align-items: center; gap: .5rem;
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sts-card h2 { color: #94a3b8; border-color: rgba(148,163,184,.12); }
+  .sts-card .form-label { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #64748b; }
+  .sts-card .form-control, .sts-card .form-select { border-radius: .65rem; font-size: .9rem; }
+  .sts-meta { font-size: .75rem; color: #64748b; }
+  .sts-banner {
+    border-radius: 1rem; padding: .85rem 1rem; margin-bottom: 1rem;
+    background: rgba(220,38,38,.12); border: 1px solid rgba(220,38,38,.25); color: #991b1b; font-weight: 600; font-size: .875rem;
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sts-banner { color: #fecaca; }
+</style>
+
+<script type="application/json" id="sts-config">{{ settings_config_json|safe }}</script>
+<form id="sts-csrf" class="d-none">{% csrf_token %}</form>
+
+<div class="sts-page py-4">
+  <div class="sts-shell">
+    <header class="sts-hero">
+      <h1>Control Center settings</h1>
+      <p>Platform, billing, notifications, security, and integrations — saved per section.</p>
+    </header>
+
+    <div class="sts-toolbar">
+      <div class="sts-meta" id="sts-updated">Last updated: —</div>
+      <div class="d-flex gap-2 flex-wrap">
+        <button type="button" class="btn btn-outline-light btn-sm rounded-pill border-secondary text-dark bg-white" id="sts-reset-all">
+          Reset all to defaults
+        </button>
+      </div>
+    </div>
+
+    <div id="sts-maint-banner" class="sts-banner d-none" role="alert">
+      Maintenance mode is ON — end users may see a degraded experience if you enforce this at the edge.
+    </div>
+
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="sts-card">
+          <h2><i class="bi bi-building text-primary"></i> Platform <i class="bi bi-info-circle text-muted" data-bs-toggle="tooltip" title="Branding and locale defaults for the control center."></i></h2>
+          <form id="sts-form-platform" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="hidden" name="section" value="platform" />
+            <div class="mb-3">
+              <label class="form-label" for="sts-platform-name">Platform name</label>
+              <input class="form-control" name="platform_name" id="sts-platform-name" maxlength="120" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="sts-logo">Logo</label>
+              <input class="form-control" type="file" name="logo" id="sts-logo" accept="image/*" />
+              <div class="form-text" id="sts-logo-hint"></div>
+            </div>
+            <div class="row g-2 mb-3">
+              <div class="col-md-6">
+                <label class="form-label" for="sts-lang">Default language</label>
+                <select class="form-select" name="default_language" id="sts-lang">
+                  <option value="en">English</option>
+                  <option value="hi">Hindi</option>
+                  <option value="te">Telugu</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="sts-tz">Timezone</label>
+                <input class="form-control" name="timezone" id="sts-tz" list="sts-tz-list" maxlength="64" />
+                <datalist id="sts-tz-list">
+                  <option value="Asia/Kolkata"></option>
+                  <option value="Asia/Dubai"></option>
+                  <option value="UTC"></option>
+                  <option value="America/New_York"></option>
+                  <option value="Europe/London"></option>
+                </datalist>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="sts-theme">Default theme</label>
+              <select class="form-select" id="sts-theme" name="default_theme">
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+              <div class="form-text">Hint only — users can still toggle theme in the shell.</div>
+            </div>
+            <button type="submit" class="btn btn-dark rounded-pill px-4">Save platform</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="col-lg-6">
+        <div class="sts-card">
+          <h2><i class="bi bi-currency-rupee text-success"></i> Billing <i class="bi bi-info-circle text-muted" data-bs-toggle="tooltip" title="Defaults for SaaS billing behaviour. Overdue days drive billing dashboards."></i></h2>
+          <form id="sts-form-billing" class="sts-json-form" data-section="billing">
+            <div class="mb-3">
+              <label class="form-label">Default billing cycle</label>
+              <select class="form-select" name="default_billing_cycle" id="sts-bill-cycle">
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </div>
+            <div class="row g-2 mb-3">
+              <div class="col-md-6">
+                <label class="form-label" for="sts-grace">Grace period (days)</label>
+                <input class="form-control" type="number" min="0" max="90" name="grace_period_days" id="sts-grace" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="sts-overdue">Auto mark overdue after (days)</label>
+                <input class="form-control" type="number" min="1" max="365" name="auto_mark_overdue_days" id="sts-overdue" />
+              </div>
+            </div>
+            <div class="mb-2 d-flex align-items-center gap-2">
+              <input class="form-check-input" type="checkbox" name="gst_enabled" id="sts-gst-on" />
+              <label class="form-check-label" for="sts-gst-on">GST / tax enabled</label>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="sts-gst-pct">GST %</label>
+              <input class="form-control" type="number" step="0.01" min="0" max="100" name="gst_percent" id="sts-gst-pct" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="sts-currency">Currency</label>
+              <input class="form-control" name="currency_code" id="sts-currency" maxlength="8" placeholder="INR" />
+            </div>
+            <div class="mb-2 d-flex align-items-center gap-2">
+              <input class="form-check-input" type="checkbox" name="extra_charges_enabled" id="sts-extra" />
+              <label class="form-check-label" for="sts-extra">Allow extra charges</label>
+            </div>
+            <div class="mb-3 d-flex align-items-center gap-2">
+              <input class="form-check-input" type="checkbox" name="concession_enabled" id="sts-conc" />
+              <label class="form-check-label" for="sts-conc">Allow concessions</label>
+            </div>
+            <button type="submit" class="btn btn-dark rounded-pill px-4">Save billing</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="col-lg-6">
+        <div class="sts-card">
+          <h2><i class="bi bi-bell text-warning"></i> Notifications</h2>
+          <form id="sts-form-notifications" class="sts-json-form" data-section="notifications">
+            <div class="mb-2 d-flex align-items-center gap-2">
+              <input class="form-check-input" type="checkbox" name="email_notifications" id="sts-email" />
+              <label class="form-check-label" for="sts-email">Email notifications</label>
+            </div>
+            <div class="mb-3 d-flex align-items-center gap-2">
+              <input class="form-check-input" type="checkbox" name="sms_notifications" id="sts-sms" />
+              <label class="form-check-label" for="sts-sms">SMS notifications</label>
+            </div>
+            <div class="mb-2">
+              <label class="form-label" for="sts-tpl-rem">Payment reminder template</label>
+              <textarea class="form-control" rows="3" name="template_payment_reminder" id="sts-tpl-rem"></textarea>
+            </div>
+            <div class="mb-2">
+              <label class="form-label" for="sts-tpl-inv">Invoice message</label>
+              <textarea class="form-control" rows="3" name="template_invoice" id="sts-tpl-inv"></textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="sts-tpl-wel">Welcome message</label>
+              <textarea class="form-control" rows="3" name="template_welcome" id="sts-tpl-wel"></textarea>
+            </div>
+            <button type="submit" class="btn btn-dark rounded-pill px-4">Save notifications</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="col-lg-6">
+        <div class="sts-card">
+          <h2><i class="bi bi-shield-lock text-danger"></i> Security</h2>
+          <form id="sts-form-security" class="sts-json-form" data-section="security">
+            <div class="mb-3">
+              <label class="form-label" for="sts-session">Admin session timeout (minutes)</label>
+              <input class="form-control" type="number" min="5" max="1440" name="admin_session_timeout_minutes" id="sts-session" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="sts-pwlen">Password min length</label>
+              <input class="form-control" type="number" min="6" max="128" name="password_min_length" id="sts-pwlen" />
+            </div>
+            <div class="mb-2 d-flex align-items-center gap-2">
+              <input class="form-check-input" type="checkbox" name="password_require_special" id="sts-pwsp" />
+              <label class="form-check-label" for="sts-pwsp">Require special characters</label>
+            </div>
+            <div class="mb-3 d-flex align-items-center gap-2">
+              <input class="form-check-input" type="checkbox" name="enable_two_factor" id="sts-2fa" />
+              <label class="form-check-label" for="sts-2fa">Enable 2FA (roadmap)</label>
+            </div>
+            <button type="submit" class="btn btn-dark rounded-pill px-4">Save security</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="col-lg-6">
+        <div class="sts-card">
+          <h2><i class="bi bi-gear-wide-connected"></i> System</h2>
+          <form id="sts-form-system" class="sts-json-form" data-section="system">
+            <div class="mb-2 d-flex align-items-center gap-2">
+              <input class="form-check-input" type="checkbox" name="auto_invoice_generation" id="sts-auto-inv" />
+              <label class="form-check-label" for="sts-auto-inv">Auto invoice generation</label>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="sts-inv-day">Invoice generation day (1–28)</label>
+              <input class="form-control" type="number" min="1" max="28" name="invoice_generation_day" id="sts-inv-day" />
+            </div>
+            <div class="mb-2 d-flex align-items-center gap-2">
+              <input class="form-check-input" type="checkbox" name="maintenance_mode" id="sts-maint" />
+              <label class="form-check-label" for="sts-maint">Maintenance mode</label>
+            </div>
+            <p class="small text-muted border-top pt-3 mb-0">
+              <strong>Backup &amp; restore:</strong> Use your database provider’s snapshot tools (or <code>pg_dump</code>) — not stored here.
+            </p>
+            <button type="submit" class="btn btn-dark rounded-pill px-4 mt-3">Save system</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="col-lg-6">
+        <div class="sts-card">
+          <h2><i class="bi bi-plugin text-info"></i> Integrations</h2>
+          <form id="sts-form-integrations" class="sts-json-form" data-section="integrations">
+            <div class="mb-2 small text-muted">Sensitive values are masked until you enter a new secret.</div>
+            <div class="mb-2">
+              <label class="form-label">Razorpay key id</label>
+              <input class="form-control font-monospace" name="razorpay_key_id" id="sts-rz-id" autocomplete="off" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Razorpay secret</label>
+              <input class="form-control font-monospace" type="password" name="razorpay_key_secret" id="sts-rz-sec" placeholder="••••••••" autocomplete="new-password" />
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Twilio account SID</label>
+              <input class="form-control font-monospace" name="twilio_account_sid" id="sts-tw-sid" autocomplete="off" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Twilio auth token</label>
+              <input class="form-control font-monospace" type="password" name="twilio_auth_token" id="sts-tw-tok" placeholder="••••••••" autocomplete="new-password" />
+            </div>
+            <button type="submit" class="btn btn-dark rounded-pill px-4">Save integrations</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080">
+  <div id="sts-toast" class="toast align-items-center text-bg-success border-0" role="status" aria-live="polite" aria-atomic="true">
+    <div class="d-flex">
+      <div class="toast-body fw-semibold" id="sts-toast-body">Saved.</div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block after_bootstrap %}
+<script>
+(function () {
+  var cfgEl = document.getElementById("sts-config");
+  var CFG = { urls: {} };
+  try { CFG = JSON.parse(cfgEl ? cfgEl.textContent : "{}"); } catch (e) {}
+
+  function csrf() {
+    var m = document.querySelector("#sts-csrf input[name=csrfmiddlewaretoken]");
+    return m ? m.value : "";
+  }
+
+  function toast(msg, ok) {
+    var el = document.getElementById("sts-toast");
+    var body = document.getElementById("sts-toast-body");
+    if (!el || !body || typeof bootstrap === "undefined" || !bootstrap.Toast) return;
+    el.classList.remove("text-bg-success", "text-bg-danger");
+    el.classList.add(ok ? "text-bg-success" : "text-bg-danger");
+    body.textContent = msg;
+    new bootstrap.Toast(el, { delay: 3200 }).show();
+  }
+
+  function setUpdated(iso) {
+    var el = document.getElementById("sts-updated");
+    if (!el || !iso) return;
+    try {
+      var d = new Date(iso);
+      el.textContent = "Last updated: " + d.toLocaleString();
+    } catch (e) {
+      el.textContent = "Last updated: " + iso;
+    }
+  }
+
+  function fillForms(s) {
+    function set(id, v) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (el.type === "checkbox") el.checked = !!v;
+      else el.value = v != null && v !== undefined ? v : "";
+    }
+    set("sts-platform-name", s.platform_name);
+    set("sts-lang", s.default_language);
+    set("sts-tz", s.timezone);
+    set("sts-theme", s.default_theme);
+    set("sts-bill-cycle", s.default_billing_cycle);
+    set("sts-grace", s.grace_period_days);
+    set("sts-overdue", s.auto_mark_overdue_days);
+    document.getElementById("sts-gst-on").checked = !!s.gst_enabled;
+    set("sts-gst-pct", s.gst_percent);
+    set("sts-currency", s.currency_code);
+    document.getElementById("sts-extra").checked = !!s.extra_charges_enabled;
+    document.getElementById("sts-conc").checked = !!s.concession_enabled;
+    document.getElementById("sts-email").checked = !!s.email_notifications;
+    document.getElementById("sts-sms").checked = !!s.sms_notifications;
+    set("sts-tpl-rem", s.template_payment_reminder);
+    set("sts-tpl-inv", s.template_invoice);
+    set("sts-tpl-wel", s.template_welcome);
+    set("sts-session", s.admin_session_timeout_minutes);
+    set("sts-pwlen", s.password_min_length);
+    document.getElementById("sts-pwsp").checked = !!s.password_require_special;
+    document.getElementById("sts-2fa").checked = !!s.enable_two_factor;
+    document.getElementById("sts-auto-inv").checked = !!s.auto_invoice_generation;
+    set("sts-inv-day", s.invoice_generation_day);
+    document.getElementById("sts-maint").checked = !!s.maintenance_mode;
+    set("sts-rz-id", s.razorpay_key_id);
+    document.getElementById("sts-rz-sec").value = "";
+    document.getElementById("sts-rz-sec").placeholder = s.razorpay_key_secret || "Empty";
+    set("sts-tw-sid", s.twilio_account_sid);
+    document.getElementById("sts-tw-tok").value = "";
+    document.getElementById("sts-tw-tok").placeholder = s.twilio_auth_token || "Empty";
+    var hint = document.getElementById("sts-logo-hint");
+    if (hint) hint.textContent = s.logo_url ? "Current logo: " + s.logo_url : "No logo uploaded.";
+    document.getElementById("sts-maint-banner").classList.toggle("d-none", !s.maintenance_mode);
+    setUpdated(s.updated_at);
+  }
+
+  function load() {
+    var u = CFG.urls && CFG.urls.get;
+    if (!u) return;
+    fetch(u, { credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.ok && d.settings) fillForms(d.settings);
+      })
+      .catch(function () { toast("Failed to load settings", false); });
+  }
+
+  function postJson(url, body) {
+    return fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrf(),
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      body: JSON.stringify(body),
+    }).then(function (r) {
+      return r.json().then(function (j) {
+        return { ok: r.ok, body: j };
+      });
+    });
+  }
+
+  document.querySelectorAll(".sts-json-form").forEach(function (form) {
+    form.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var section = form.getAttribute("data-section");
+      var payload = { section: section };
+      Array.prototype.forEach.call(form.elements, function (el) {
+        if (!el.name || el.name === "csrfmiddlewaretoken") return;
+        if (el.type === "checkbox") payload[el.name] = el.checked;
+        else if (el.type === "password") {
+          if (el.value) payload[el.name] = el.value;
+        } else payload[el.name] = el.value;
+      });
+      postJson(CFG.urls.update, payload).then(function (res) {
+        if (res.body && res.body.ok) {
+          fillForms(res.body.settings);
+          toast("Saved " + section + ".", true);
+        } else toast((res.body && res.body.error) || "Save failed", false);
+      }).catch(function () { toast("Network error", false); });
+    });
+  });
+
+  var plat = document.getElementById("sts-form-platform");
+  if (plat) {
+    plat.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var fd = new FormData(plat);
+      fetch(CFG.urls.update, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "X-CSRFToken": csrf(), "X-Requested-With": "XMLHttpRequest" },
+        body: fd,
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.ok && d.settings) {
+            fillForms(d.settings);
+            document.getElementById("sts-logo").value = "";
+            toast("Saved platform.", true);
+          } else toast((d && d.error) || "Save failed", false);
+        })
+        .catch(function () { toast("Network error", false); });
+    });
+  }
+
+  var rst = document.getElementById("sts-reset-all");
+  if (rst) rst.addEventListener("click", function () {
+    if (!window.confirm("Reset all Control Center settings to factory defaults?")) return;
+    fetch(CFG.urls.reset, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "X-CSRFToken": csrf(), "X-Requested-With": "XMLHttpRequest" },
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.ok && d.settings) {
+          fillForms(d.settings);
+          toast("Defaults restored.", true);
+        } else toast((d && d.error) || "Reset failed", false);
+      })
+      .catch(function () { toast("Network error", false); });
+  });
+
+  if (typeof bootstrap !== "undefined" && bootstrap.Tooltip) {
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+      new bootstrap.Tooltip(el);
+    });
+  }
+  load();
+})();
+</script>
+{% endblock %}

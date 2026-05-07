@@ -135,6 +135,10 @@ class School(TenantMixin):
         TRIAL = "trial", "Trial"
         SUSPENDED = "suspended", "Suspended"
 
+    class SaaSBillingCycle(models.TextChoices):
+        MONTHLY = "monthly", "Monthly"
+        YEARLY = "yearly", "Yearly"
+
     class InstitutionType(models.TextChoices):
         SCHOOL = "SCHOOL", "School"
         INTERMEDIATE_COLLEGE = "INTERMEDIATE_COLLEGE", "Intermediate College"
@@ -163,21 +167,17 @@ class School(TenantMixin):
         db_index=True,
         help_text="Lifecycle: Active, Inactive, Trial, or Suspended (syncs tenant is_active for access).",
     )
-    saas_plan = models.ForeignKey(
-        Plan,
+    # SaaS plan (v2) — controlled by apps.super_admin.Plan (new Control Center).
+    plan = models.ForeignKey(
+        "super_admin.Plan",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
+        db_index=False,
         related_name="schools",
-        help_text="Starter, Standard, or Enterprise — controls which modules are available",
+        help_text="Basic / Pro / Premium — controls which modules are available",
     )
-    enabled_features_override = models.JSONField(
-        default=None,
-        null=True,
-        blank=True,
-        help_text="Optional: list of feature codes enabled for this school. If set, overrides plan defaults.",
-    )
-    plan = models.ForeignKey(
+    billing_plan = models.ForeignKey(
         SubscriptionPlan,
         on_delete=models.SET_NULL,
         null=True,
@@ -196,6 +196,11 @@ class School(TenantMixin):
     trial_end_date = models.DateField(null=True, blank=True)
     created_on = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True, db_index=True)
+    is_archived = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="When True, the school is hidden from normal operations and tenant login is blocked; data is kept.",
+    )
     address = models.TextField(blank=True)
     contact_email = models.EmailField(blank=True)
     phone = models.CharField(max_length=20, blank=True)
@@ -250,39 +255,215 @@ class School(TenantMixin):
         help_text="Super Admin Control Center: limits, plan duration, disable_login, role_permissions JSON, etc.",
     )
 
+    # SaaS platform billing (per student) — Control Center Billing tab + API.
+    billing_extra_per_student_month = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Extra platform charge per student per month (added to plan list price).",
+    )
+    billing_concession_per_student_month = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Concession/discount per student per month on the platform bill.",
+    )
+    saas_billing_cycle = models.CharField(
+        max_length=16,
+        choices=SaaSBillingCycle.choices,
+        default=SaaSBillingCycle.MONTHLY,
+        db_index=True,
+        help_text="Whether the school is invoiced on a monthly or yearly SaaS cycle.",
+    )
+    billing_student_count_override = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="If set, Control Center billing uses this headcount instead of live tenant count.",
+    )
+    saas_billing_auto_renew = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text="When enabled, the school is treated as opting into automatic renewal for SaaS billing workflows.",
+    )
+    saas_billing_complimentary_until = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Legacy: through this date (inclusive), invoices may be ₹0. Prefer saas_free_until_date.",
+    )
+    saas_service_start_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Optional contract anchor: billing periods before this month are not issued unless overridden.",
+    )
+    saas_free_until_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Inclusive last day of free service; invoices for calendar periods ending on/before this date are blocked unless overridden.",
+    )
+    registration_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="School / contract registration anchor for billing configuration.",
+    )
+    billing_start_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="First calendar day billable SaaS charges apply (defaults to day after free-until when set).",
+    )
+
     auto_create_schema = True
     auto_drop_schema = False
 
     def __str__(self) -> str:
         return f"{self.name} ({self.code})"
 
+    def create_schema(self, check_if_exists=False, sync_schema=True, verbosity=1):
+        """
+        Create tenant schema and apply TENANT_APPS migrations.
+
+        After django-tenants ``create_schema`` (create + optional migrate), we always run
+        ``migrate_schemas`` once more for this tenant so empty/partial schemas and
+        skipped first passes still get ``school_data_*`` and other tenant tables.
+        """
+        from django_tenants.utils import get_public_schema_name
+
+        if self.schema_name == get_public_schema_name():
+            return super().create_schema(
+                check_if_exists=check_if_exists,
+                sync_schema=sync_schema,
+                verbosity=verbosity,
+            )
+
+        super().create_schema(
+            check_if_exists=check_if_exists,
+            sync_schema=sync_schema,
+            verbosity=verbosity,
+        )
+        # Always run tenant migrations after the mixin step: django-tenants skips migrate when
+        # the schema already exists; super() can also leave the recorder/connection in a state
+        # where the first migrate pass does not fully apply. A second migrate_schemas is cheap.
+        if sync_schema:
+            from apps.core.tenant_schema_repair import apply_tenant_migrations_for_school
+
+            apply_tenant_migrations_for_school(self, verbosity=verbosity)
+
     def save(self, *args, **kwargs):
-        if self.school_status in (self.SchoolStatus.INACTIVE, self.SchoolStatus.SUSPENDED):
+        if getattr(self, "is_archived", False):
             self.is_active = False
-        elif self.school_status in (self.SchoolStatus.ACTIVE, self.SchoolStatus.TRIAL):
-            self.is_active = True
+        elif self.school_status in (self.SchoolStatus.INACTIVE, self.SchoolStatus.SUSPENDED):
+            self.is_active = False
+        # Do not force is_active=True for ACTIVE/TRIAL: superadmin uses is_active=False as a soft
+        # "inactivate" while keeping trial/active status (login still allowed; see allows_tenant_user_login).
+        # Partial saves with update_fields=["school_status"] must still persist is_active;
+        # otherwise the row keeps is_active=True and tenant users can still authenticate.
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None:
+            uf = list(dict.fromkeys(list(update_fields)))
+            if "school_status" in uf and "is_active" not in uf:
+                uf.append("is_active")
+            if "is_archived" in uf and "is_active" not in uf and getattr(self, "is_archived", False):
+                uf.append("is_active")
+            kwargs["update_fields"] = uf
         super().save(*args, **kwargs)
+
+    def allows_tenant_user_login(self) -> bool:
+        """Lifecycle gate for school staff and portals (not used for superadmin)."""
+        if getattr(self, "is_archived", False):
+            return False
+        if self.school_status == self.SchoolStatus.SUSPENDED:
+            return False
+        if self.school_status == self.SchoolStatus.INACTIVE:
+            return False
+        # Soft inactivate: is_active False with trial/active — still allow sign-in (banner in middleware).
+        return True
+
+    @classmethod
+    def allows_login_for_school_code(cls, code: str | None) -> bool:
+        """Resolve School in public schema (safe when DB connection is on a tenant)."""
+        return cls.school_login_block_reason_for_code(code) is None
+
+    @classmethod
+    def school_login_block_reason_for_code(cls, code: str | None) -> str | None:
+        """
+        If tenant login should be blocked for this school code, return a stable reason key
+        for redirects and audit logs; otherwise None.
+        """
+        if not code:
+            return None
+        from django_tenants.utils import get_public_schema_name, schema_context
+
+        with schema_context(get_public_schema_name()):
+            sch = (
+                cls.objects.filter(code=code)
+                .only("school_status", "is_active", "is_archived")
+                .first()
+            )
+        if sch is None:
+            return None
+        if getattr(sch, "is_archived", False):
+            return "school_archived"
+        if sch.school_status == cls.SchoolStatus.SUSPENDED:
+            return "school_suspended"
+        if sch.school_status == cls.SchoolStatus.INACTIVE:
+            return "school_inactive_status"
+        return None
+
+    def _feature_codes_from_customer_subscription(self) -> set | None:
+        """
+        If the school has a current ``SchoolSubscription`` (customers.Plan) in effect,
+        return that plan's feature codes from the database. Otherwise return None so callers
+        fall back to ``super_admin.Plan`` / defaults.
+        """
+        from django.utils import timezone
+
+        today = timezone.localdate()
+        try:
+            sub = (
+                SchoolSubscription.objects.filter(school_id=self.pk, is_current=True)
+                .select_related("plan")
+                .first()
+            )
+        except Exception:
+            return None
+        if not sub:
+            return None
+        if not getattr(sub, "is_active", True):
+            return None
+        if sub.status not in (SchoolSubscription.Status.ACTIVE, SchoolSubscription.Status.TRIAL):
+            return None
+        if sub.start_date > today:
+            return None
+        if sub.end_date and sub.end_date < today:
+            return None
+        return set(sub.plan.features.values_list("code", flat=True))
+
+    def get_base_plan_feature_codes(self) -> set:
+        """
+        Feature codes from the school's **base** entitlement only (no add-ons).
+
+        Same resolution order as ``get_enabled_feature_codes`` but without ``SchoolFeatureAddon``.
+        Used by Control Center add-on UI so "Included in plan" matches enforcement.
+        """
+        from apps.core.plan_features import resolve_base_canonical_codes
+
+        return set(resolve_base_canonical_codes(self))
 
     def get_enabled_feature_codes(self) -> set:
         """
-        Return set of feature codes enabled for this school.
-        - If `enabled_features_override` is set, use it only (no plan merge).
-          Legacy `staff` is treated as `teachers` for module gates.
-        - Otherwise merge `saas_plan` features with DEFAULT_CORE_SCHOOL_FEATURES so new
-          schools without a plan still get Teachers, Students, etc.
+        Return materialized feature codes for gates, middleware, and sidebars.
+
+        Combines subscription / super_admin plan (see ``apps.core.plan_features``) with
+        enabled ``SchoolFeatureAddon`` rows, then expands legacy route keys.
         """
-        if self.enabled_features_override is not None:
-            codes = set(self.enabled_features_override)
-            if "staff" in codes and "teachers" not in codes:
-                codes.add("teachers")
-            return codes
-        plan_codes = set(self.saas_plan.get_feature_codes()) if self.saas_plan else set()
-        return plan_codes | set(DEFAULT_CORE_SCHOOL_FEATURES)
+        from apps.core.plan_features import build_enabled_materialized
+
+        return set(build_enabled_materialized(self))
 
     def has_feature(self, feature: str) -> bool:
-        """Check if school has access to feature via plan or override."""
-        codes = self.get_enabled_feature_codes()
-        return feature in codes
+        """Check if school has access to feature via plan or paid add-on."""
+        from apps.core.plan_features import has_feature_for_school
+
+        return has_feature_for_school(self, feature)
 
     def has_plan_module(self, module: str) -> bool:
         """Alias for has_feature (backward compat)."""
@@ -290,11 +471,8 @@ class School(TenantMixin):
 
     def is_pro_plan(self) -> bool:
         """True if school is on Enterprise tier (or legacy Advance / Pro)."""
-        if self.saas_plan:
-            t = (self.saas_plan.name or "").strip().lower()
-            return t in ("enterprise", "standard", "advance")
-        if self.plan:
-            return (self.plan.name or "").lower() == "pro"
+        if self.billing_plan:
+            return (self.billing_plan.name or "").lower() == "pro"
         if self.subscription_plan:
             return self.subscription_plan.plan_type in ("PRO", "ENTERPRISE")
         return False
@@ -306,6 +484,247 @@ class School(TenantMixin):
     def is_trial_expired(self) -> bool:
         from .subscription import is_trial_expired
         return is_trial_expired(self)
+
+    def _billing_start_auto_from_free_service(self):
+        """First billable day implied by free-until (inclusive last free day + 1)."""
+        from datetime import timedelta
+
+        fu = self.saas_free_until_date or self.saas_billing_complimentary_until
+        if not fu:
+            return None
+        return fu + timedelta(days=1)
+
+    @property
+    def billing_start_is_manual_override(self) -> bool:
+        """True when stored billing_start_date differs from the day-after-free default."""
+        auto = self._billing_start_auto_from_free_service()
+        if self.billing_start_date is None:
+            return False
+        if auto is not None:
+            return self.billing_start_date != auto
+        return True
+
+    def saas_billing_monthly_breakdown(self, tenant_student_count: int) -> dict:
+        """
+        Monthly SaaS bill components.
+
+        Uses ``billing_student_count_override`` when set; otherwise ``tenant_student_count``.
+
+        Final (monthly) =
+            (plan_price × n) + (extra_per_student × n) − (concession_per_student × n)
+        """
+        from decimal import Decimal, ROUND_HALF_UP
+
+        tenant_n = max(0, int(tenant_student_count))
+        if self.billing_student_count_override is not None:
+            n = max(0, int(self.billing_student_count_override))
+        else:
+            n = tenant_n
+        q2 = Decimal("0.01")
+
+        def q(d: Decimal) -> str:
+            return format(d.quantize(q2, rounding=ROUND_HALF_UP), "f")
+
+        plan_price = Decimal(self.plan.price) if self.plan_id else Decimal("0")
+        extra_ps = Decimal(self.billing_extra_per_student_month or 0)
+        conc_ps = Decimal(self.billing_concession_per_student_month or 0)
+        max_conc_ps = (plan_price + extra_ps).quantize(q2, rounding=ROUND_HALF_UP)
+        if conc_ps > max_conc_ps:
+            conc_ps = max_conc_ps
+        if conc_ps < 0:
+            conc_ps = Decimal("0")
+
+        base_cost = (plan_price * n).quantize(q2, rounding=ROUND_HALF_UP)
+        extra_cost = (extra_ps * n).quantize(q2, rounding=ROUND_HALF_UP)
+        concession_cost = (conc_ps * n).quantize(q2, rounding=ROUND_HALF_UP)
+        final_monthly = (base_cost + extra_cost - concession_cost).quantize(
+            q2, rounding=ROUND_HALF_UP
+        )
+        if final_monthly < 0:
+            final_monthly = Decimal("0").quantize(q2, rounding=ROUND_HALF_UP)
+
+        is_yearly = self.saas_billing_cycle == self.SaaSBillingCycle.YEARLY
+        final_period = (final_monthly * 12).quantize(q2, rounding=ROUND_HALF_UP) if is_yearly else final_monthly
+        if final_period < 0:
+            final_period = Decimal("0").quantize(q2, rounding=ROUND_HALF_UP)
+
+        return {
+            "student_count": n,
+            "tenant_student_count": tenant_n,
+            "uses_student_override": self.billing_student_count_override is not None,
+            "plan_price_per_student": q(plan_price),
+            "billing_extra_per_student_month": q(extra_ps),
+            "billing_concession_per_student_month": q(conc_ps),
+            "base_cost": q(base_cost),
+            "extra_cost": q(extra_cost),
+            "concession_cost": q(concession_cost),
+            "final_monthly": q(final_monthly),
+            "final_period": q(final_period),
+            "is_yearly": is_yearly,
+        }
+
+
+class SchoolBillingAuditLog(models.Model):
+    """Immutable audit trail for Control Center billing and related actions."""
+
+    class Kind(models.TextChoices):
+        BILLING_TERMS = "billing_terms", "Billing terms"
+        STUDENT_OVERRIDE = "student_override", "Student count override"
+        PLAN_CHANGE = "plan_change", "Plan change"
+        STATUS = "status", "Account status"
+        INVOICE = "invoice", "Invoice"
+        PAYMENT = "payment", "Payment"
+
+    school = models.ForeignKey(
+        "School",
+        on_delete=models.CASCADE,
+        related_name="billing_audit_logs",
+    )
+    kind = models.CharField(max_length=32, choices=Kind.choices, db_index=True)
+    summary = models.CharField(max_length=512)
+    payload = models.JSONField(default=dict, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="school_billing_audit_logs",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self) -> str:
+        return f"{self.school_id} {self.kind} @ {self.created_at}"
+
+
+class SchoolGeneratedInvoice(models.Model):
+    """
+    SaaS invoices generated from the Super Admin Control Center (snapshot + GST).
+    Distinct from legacy ``PlatformInvoice`` (calendar month rows).
+    """
+
+    class Status(models.TextChoices):
+        ISSUED = "issued", "Issued"
+        PAID = "paid", "Paid"
+        VOID = "void", "Void"
+
+    school = models.ForeignKey(
+        "School",
+        on_delete=models.CASCADE,
+        related_name="generated_invoices",
+    )
+    invoice_number = models.CharField(max_length=64, unique=True, db_index=True)
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.ISSUED,
+        db_index=True,
+    )
+    include_gst = models.BooleanField(default=False)
+    gst_rate_percent = models.DecimalField(max_digits=5, decimal_places=2, default=18)
+    student_count = models.PositiveIntegerField(default=0, help_text="Headcount used on invoice.")
+    tenant_student_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Live tenant student count at generation time.",
+    )
+    plan_label = models.CharField(max_length=120, blank=True)
+    plan_price_per_student = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    base_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    extra_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    concession_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text="Discount magnitude (positive rupees).",
+    )
+    subtotal_before_gst = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    gst_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    grand_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    snapshot = models.JSONField(default=dict, blank=True)
+    billing_period_year = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Calendar year of the service month/year this invoice covers.",
+    )
+    billing_period_month = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="1–12 for monthly cycle; null for yearly (see invoice_month_key).",
+    )
+    invoice_month_key = models.CharField(
+        max_length=8,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Stable period id, e.g. 2026-05 or 2026-00 for annual.",
+    )
+    due_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Payment due date for tracking overdue vs invoice period (independent of paid_at).",
+    )
+    paid_at = models.DateTimeField(null=True, blank=True)
+    paid_notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_school_generated_invoices",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self) -> str:
+        return self.invoice_number
+
+
+class SchoolFeatureAddon(models.Model):
+    """
+    Enable a super_admin feature for a school beyond their base plan, with a
+    recorded extra monthly charge (billing is tracked here; invoicing may be manual).
+    """
+
+    school = models.ForeignKey(
+        "School",
+        on_delete=models.CASCADE,
+        related_name="feature_addons",
+    )
+    feature = models.ForeignKey(
+        "super_admin.Feature",
+        on_delete=models.CASCADE,
+        related_name="school_feature_addons",
+    )
+    extra_monthly_charge = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Additional INR per month agreed for this feature (0 if bundled gratis).",
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text="Invoice ref, agreement, or internal note.",
+    )
+    is_enabled = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["school_id", "feature__category", "feature__name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["school", "feature"],
+                name="customers_schoolfeatureaddon_unique_school_feature",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.school.code} + {self.feature.code}"
 
 
 class Coupon(models.Model):
@@ -386,6 +805,11 @@ class SchoolSubscription(models.Model):
         db_index=True,
         help_text="At most one current row per school.",
     )
+    is_active = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text="When false, this subscription row is ignored for feature access (paused or superseded).",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -457,6 +881,14 @@ class SaaSPlatformPayment(models.Model):
         blank=True,
         related_name="platform_payments",
         help_text="Optional link to the subscription period this payment covers.",
+    )
+    school_generated_invoice = models.ForeignKey(
+        "SchoolGeneratedInvoice",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="platform_subscription_payments",
+        help_text="When set, this receipt row was created from Control Center generated invoice payment.",
     )
     recorded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

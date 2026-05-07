@@ -134,3 +134,51 @@ class StudentNotificationRead(models.Model):
     def __str__(self) -> str:
         return f"{self.student_id} read {self.notification_id}"
 
+
+class Message(models.Model):
+    """Realtime internal chat message (student/teacher/admin)."""
+
+    school = models.ForeignKey(
+        "customers.School",
+        on_delete=models.CASCADE,
+        related_name="chat_messages",
+        null=True,
+        blank=True,
+    )
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="sent_messages",
+    )
+    receiver = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="received_messages",
+    )
+    content = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+    is_read = models.BooleanField(default=False, db_index=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ("sent", "Sent"),
+            ("delivered", "Delivered"),
+            ("seen", "Seen"),
+            ("failed", "Failed"),
+        ],
+        default="sent",
+        db_index=True,
+    )
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    seen_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["timestamp", "id"]
+        indexes = [
+            models.Index(fields=["sender", "receiver", "-timestamp"], name="chat_sender_receiver_dt"),
+            models.Index(fields=["school", "-timestamp"], name="chat_school_dt"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.sender_id}->{self.receiver_id} @ {self.timestamp:%Y-%m-%d %H:%M:%S}"
+

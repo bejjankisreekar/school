@@ -93,18 +93,18 @@
   <div class="card border-0 shadow-sm rounded-4 mb-3">
     <div class="card-body py-2">
       <form method="get" class="d-flex flex-wrap gap-2 align-items-end erp-filter-toolbar">
-        <div>
+        <div class="flex-grow-1" style="min-width: 12rem; max-width: 22rem;">
           <label class="form-label small mb-1">Subject</label>
-          <select name="subject" class="form-select form-select-sm" style="min-width:11rem">
+          <select name="subject" class="form-select form-select-sm w-100">
             <option value="">All subjects</option>
             {% for s in subjects %}
               <option value="{{ s.id }}" {% if filters.subject_id == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
             {% endfor %}
           </select>
         </div>
-        <div>
+        <div style="min-width: 11rem;">
           <label class="form-label small mb-1">Submission</label>
-          <select name="status" class="form-select form-select-sm">
+          <select name="status" class="form-select form-select-sm w-100">
             <option value="" {% if not filters.status %}selected{% endif %}>All</option>
             <option value="PENDING" {% if filters.status == "PENDING" %}selected{% endif %}>Pending</option>
             <option value="COMPLETED" {% if filters.status == "COMPLETED" %}selected{% endif %}>Completed</option>
@@ -126,11 +126,9 @@
         <div class="p-3 d-flex flex-column h-100" style="padding-left: 1.05rem;">
           <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
             <h3 class="stu-hw-title h6 pe-2">{{ item.homework.title }}</h3>
-            {% if item.status == 'COMPLETED' %}
-              <span class="badge rounded-pill bg-success">Submitted</span>
-            {% else %}
-              <span class="badge rounded-pill bg-danger">Not submitted</span>
-            {% endif %}
+            <span class="badge rounded-pill {{ item.badge.cls }}">
+              <i class="{{ item.badge.icon }} me-1"></i>{{ item.badge.text }}
+            </span>
           </div>
 
           <div class="stu-hw-kv mb-2">
@@ -141,6 +139,11 @@
             </div>
             <div class="{% if item.is_overdue %}text-danger fw-semibold{% endif %}">
               <strong>Due</strong> · {{ item.homework.due_date|date:"M j, Y" }}
+            </div>
+            <div class="text-muted small mt-1">
+              Attempts: <strong>{{ item.attempt_count }}</strong>
+              {% if item.is_late %}· <span class="text-warning fw-semibold">Late submission</span>{% endif %}
+              {% if item.is_missing %}· <span class="text-danger fw-semibold">Missing</span>{% endif %}
             </div>
           </div>
 

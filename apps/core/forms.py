@@ -14,6 +14,7 @@ from django.contrib.auth.password_validation import (
     validate_password,
 )
 from django.core.exceptions import ValidationError
+from django.core.validators import URLValidator
 from django.db.models import Q, Sum
 from django.utils import timezone
 from apps.customers.models import Coupon, Plan, SaaSPlatformPayment, School, SchoolSubscription
@@ -59,6 +60,24 @@ from apps.school_data.models import (
 from .models import ContactEnquiry, SchoolEnrollmentRequest
 
 User = get_user_model()
+
+class StudentTeacherMessageForm(forms.Form):
+    teacher = forms.ModelChoiceField(
+        queryset=User.objects.none(),
+        required=True,
+        label="Teacher",
+        widget=forms.Select(attrs={"class": BS_INPUT}),
+    )
+    content = forms.CharField(
+        required=True,
+        label="Message",
+        widget=forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 2, "placeholder": "Type your message..."}),
+    )
+
+    def __init__(self, *args, teacher_qs=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if teacher_qs is not None:
+            self.fields["teacher"].queryset = teacher_qs
 
 
 class HomeworkForm(forms.ModelForm):
@@ -608,6 +627,56 @@ class ContactEnquiryForm(forms.ModelForm):
         }
 
 
+ENROLL_COUNTRY_CODES = (
+    ("+91", "India (+91)"),
+    ("+971", "United Arab Emirates (+971)"),
+    ("+966", "Saudi Arabia (+966)"),
+    ("+965", "Kuwait (+965)"),
+    ("+974", "Qatar (+974)"),
+    ("+973", "Bahrain (+973)"),
+    ("+968", "Oman (+968)"),
+    ("+92", "Pakistan (+92)"),
+    ("+880", "Bangladesh (+880)"),
+    ("+94", "Sri Lanka (+94)"),
+    ("+977", "Nepal (+977)"),
+    ("+1", "United States / Canada (+1)"),
+    ("+44", "United Kingdom (+44)"),
+    ("+61", "Australia (+61)"),
+    ("+65", "Singapore (+65)"),
+    ("+60", "Malaysia (+60)"),
+    ("+353", "Ireland (+353)"),
+    ("+49", "Germany (+49)"),
+    ("+33", "France (+33)"),
+)
+
+
+def _enroll_tri_bool_field(label: str) -> forms.TypedChoiceField:
+    def _coerce(v):
+        if v in (None, ""):
+            return None
+        if v == "yes":
+            return True
+        if v == "no":
+            return False
+        return None
+
+    return forms.TypedChoiceField(
+        label=label,
+        required=False,
+        choices=[("", "—"), ("yes", "Yes"), ("no", "No")],
+        coerce=_coerce,
+        empty_value=None,
+        widget=forms.Select(attrs={"class": BS_INPUT}),
+    )
+
+
+ENROLL_STREAM_CHOICES = [
+    ("science", "Science"),
+    ("commerce", "Commerce"),
+    ("arts", "Arts"),
+]
+
+
 class SchoolEnrollmentSignupForm(forms.ModelForm):
     """Public /enroll/ — request a new school tenant (no login)."""
 
@@ -635,8 +704,35 @@ class SchoolEnrollmentSignupForm(forms.ModelForm):
     )
     intended_plan = forms.CharField(
         required=False,
-        initial="core",
+        initial="premium",
         widget=forms.HiddenInput(attrs={"id": "id_intended_plan"}),
+    )
+    country_code = forms.ChoiceField(
+        label="Country code",
+        choices=ENROLL_COUNTRY_CODES,
+        initial="+91",
+        widget=forms.Select(attrs={"class": BS_INPUT}),
+    )
+    phone_local = forms.CharField(
+        label="Mobile number",
+        max_length=15,
+        widget=forms.TextInput(
+            attrs={
+                "class": INPUT_CLASS,
+                "placeholder": "Digits only (e.g. 9876543210)",
+                "autocomplete": "tel-national",
+                "inputmode": "numeric",
+                "pattern": r"[0-9]*",
+                "maxlength": "15",
+                "id": "id_phone_local",
+            }
+        ),
+    )
+    streams_offered = forms.MultipleChoiceField(
+        label="Streams offered (optional)",
+        required=False,
+        choices=ENROLL_STREAM_CHOICES,
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "d-flex flex-wrap gap-3"}),
     )
     notes = forms.CharField(
         required=False,
@@ -657,9 +753,8 @@ class SchoolEnrollmentSignupForm(forms.ModelForm):
         model = SchoolEnrollmentRequest
         fields = [
             "institution_name",
-            "institution_code",
+            "society_name",
             "email",
-            "phone",
             "contact_name",
             "address",
             "city",
@@ -671,6 +766,45 @@ class SchoolEnrollmentSignupForm(forms.ModelForm):
             "preferred_username",
             "notes",
             "intended_plan",
+            "website",
+            "affiliation_board",
+            "school_type",
+            "established_year",
+            "school_motto",
+            "affiliation_number",
+            "landmark",
+            "district",
+            "latitude",
+            "longitude",
+            "maps_url",
+            "alternate_contact_name",
+            "alternate_contact_phone",
+            "admin_designation",
+            "admin_profile_photo",
+            "instruction_medium",
+            "streams_offered",
+            "sections_per_class_notes",
+            "curriculum_type",
+            "total_classrooms",
+            "lab_physics",
+            "lab_chemistry",
+            "lab_computer",
+            "has_library",
+            "has_playground",
+            "has_transport",
+            "total_student_capacity",
+            "current_student_strength",
+            "non_teaching_staff_count",
+            "uses_erp",
+            "current_erp_name",
+            "require_data_migration",
+            "preferred_ui_language",
+            "expected_start_date",
+            "detailed_requirements",
+            "school_logo",
+            "registration_certificate",
+            "address_proof",
+            "other_documents",
         ]
         widgets = {
             "institution_name": forms.TextInput(
@@ -680,14 +814,11 @@ class SchoolEnrollmentSignupForm(forms.ModelForm):
                     "autocomplete": "organization",
                 }
             ),
-            "institution_code": forms.TextInput(
+            "society_name": forms.TextInput(
                 attrs={
                     "class": INPUT_CLASS,
-                    "placeholder": "e.g. NHS123",
-                    "autocomplete": "off",
-                    "maxlength": "6",
-                    "pattern": "[A-Za-z]{3}[0-9]{3}",
-                    "title": "3 letters + 3 digits (e.g. NHS123 or nhs123)",
+                    "placeholder": "Housing society / trust / RWA registered name",
+                    "autocomplete": "organization",
                 }
             ),
             "contact_name": forms.TextInput(
@@ -699,9 +830,6 @@ class SchoolEnrollmentSignupForm(forms.ModelForm):
             ),
             "email": forms.EmailInput(
                 attrs={"class": INPUT_CLASS, "placeholder": "school@example.com", "autocomplete": "email"}
-            ),
-            "phone": forms.TextInput(
-                attrs={"class": INPUT_CLASS, "placeholder": "+91 …", "autocomplete": "tel"}
             ),
             "address": forms.Textarea(
                 attrs={"class": INPUT_CLASS, "rows": 2, "placeholder": "Street, area, landmark"}
@@ -719,39 +847,347 @@ class SchoolEnrollmentSignupForm(forms.ModelForm):
                     "autocomplete": "username",
                 }
             ),
+            "website": forms.TextInput(
+                attrs={"class": INPUT_CLASS, "placeholder": "https://yourschool.edu (optional)"}
+            ),
+            "affiliation_board": forms.TextInput(
+                attrs={"class": INPUT_CLASS, "placeholder": "e.g. CBSE, ICSE, State Board, IB"}
+            ),
+            "school_motto": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Optional tagline"}),
+            "affiliation_number": forms.TextInput(
+                attrs={"class": INPUT_CLASS, "placeholder": "Board affiliation / registration no."}
+            ),
+            "landmark": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Nearby landmark"}),
+            "district": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "District"}),
+            "latitude": forms.TextInput(
+                attrs={"class": INPUT_CLASS, "placeholder": "e.g. 17.3850", "inputmode": "decimal"}
+            ),
+            "longitude": forms.TextInput(
+                attrs={"class": INPUT_CLASS, "placeholder": "e.g. 78.4867", "inputmode": "decimal"}
+            ),
+            "maps_url": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Google Maps link (optional)"}),
+            "alternate_contact_name": forms.TextInput(attrs={"class": INPUT_CLASS}),
+            "alternate_contact_phone": forms.TextInput(attrs={"class": INPUT_CLASS, "inputmode": "tel"}),
+            "admin_designation": forms.TextInput(
+                attrs={"class": INPUT_CLASS, "placeholder": "e.g. Principal, Director, Owner"}
+            ),
+            "admin_profile_photo": forms.ClearableFileInput(attrs={"class": INPUT_CLASS}),
+            "instruction_medium": forms.TextInput(attrs={"class": INPUT_CLASS}),
+            "sections_per_class_notes": forms.TextInput(
+                attrs={"class": INPUT_CLASS, "placeholder": "e.g. 3 sections per class (optional)"}
+            ),
+            "curriculum_type": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Annual / Semester / Other"}),
+            "total_classrooms": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 0}),
+            "total_student_capacity": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 0}),
+            "current_student_strength": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 0}),
+            "non_teaching_staff_count": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 0}),
+            "current_erp_name": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "If you use an ERP today"}),
+            "preferred_ui_language": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. English, తెలుగు"}),
+            "expected_start_date": forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
+            "detailed_requirements": forms.Textarea(
+                attrs={"class": INPUT_CLASS, "rows": 3, "placeholder": "Longer notes or requirements (optional)"}
+            ),
+            "school_logo": forms.ClearableFileInput(attrs={"class": INPUT_CLASS}),
+            "registration_certificate": forms.ClearableFileInput(attrs={"class": INPUT_CLASS}),
+            "address_proof": forms.ClearableFileInput(attrs={"class": INPUT_CLASS}),
+            "other_documents": forms.ClearableFileInput(attrs={"class": INPUT_CLASS}),
+            "established_year": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 1800, "max": 2100}),
         }
         labels = {
             "institution_name": "School name",
-            "institution_code": "School code",
+            "society_name": "Society / registered name",
             "contact_name": "Principal / admin name",
             "email": "School email",
-            "phone": "Contact number",
             "address": "School address",
             "student_count": "Number of students",
             "teacher_count": "Number of teachers",
             "branch_count": "Branches / campuses",
             "preferred_username": "Username",
+            "website": "School website",
+            "affiliation_board": "Board / affiliation",
+            "school_type": "School type",
+            "established_year": "Established year",
+            "school_motto": "School motto",
+            "affiliation_number": "Affiliation number",
+            "landmark": "Landmark",
+            "district": "District",
+            "latitude": "Latitude",
+            "longitude": "Longitude",
+            "maps_url": "Google Maps link",
+            "alternate_contact_name": "Alternate contact name",
+            "alternate_contact_phone": "Alternate contact phone",
+            "admin_designation": "Admin designation",
+            "admin_profile_photo": "Admin profile photo",
+            "instruction_medium": "Medium of instruction",
+            "sections_per_class_notes": "Sections per class",
+            "curriculum_type": "Curriculum type",
+            "total_classrooms": "Total classrooms",
+            "lab_physics": "Physics lab",
+            "lab_chemistry": "Chemistry lab",
+            "lab_computer": "Computer lab",
+            "has_library": "Library",
+            "has_playground": "Playground",
+            "has_transport": "Transport facility",
+            "total_student_capacity": "Total student capacity",
+            "current_student_strength": "Current student strength",
+            "non_teaching_staff_count": "Non-teaching staff",
+            "uses_erp": "Using an ERP today?",
+            "current_erp_name": "Current ERP name",
+            "require_data_migration": "Need data migration?",
+            "preferred_ui_language": "Preferred UI language",
+            "expected_start_date": "Expected start date",
+            "detailed_requirements": "Detailed requirements",
+            "school_logo": "School logo",
+            "registration_certificate": "Registration certificate",
+            "address_proof": "Address proof",
+            "other_documents": "Other documents",
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["phone"].required = True
         self.fields["institution_name"].required = True
-        self.fields["institution_code"].required = True
+        self.fields["society_name"].required = True
         self.fields["email"].required = True
         self.fields["contact_name"].required = True
         self.fields["preferred_username"].required = True
+        self.fields["country_code"].required = True
+        self.fields["phone_local"].required = True
+
+        self.fields["website"].required = False
+        self.fields["affiliation_board"].required = False
+
+        st_choices = [
+            ("", "—"),
+            ("public", "Public"),
+            ("private", "Private"),
+            ("international", "International"),
+        ]
+        self.fields["school_type"] = forms.ChoiceField(
+            label="School type",
+            required=False,
+            choices=st_choices,
+            widget=forms.Select(attrs={"class": BS_INPUT}),
+        )
+
+        med_choices = [
+            ("", "—"),
+            ("english", "English"),
+            ("telugu", "Telugu"),
+            ("hindi", "Hindi"),
+            ("other", "Other"),
+        ]
+        self.fields["instruction_medium"] = forms.ChoiceField(
+            label="Medium of instruction",
+            required=False,
+            choices=med_choices,
+            widget=forms.Select(attrs={"class": BS_INPUT}),
+        )
+
+        cur_choices = [
+            ("", "—"),
+            ("annual", "Annual"),
+            ("semester", "Semester"),
+            ("trimester", "Trimester"),
+            ("other", "Other / mixed"),
+        ]
+        self.fields["curriculum_type"] = forms.ChoiceField(
+            label="Curriculum type",
+            required=False,
+            choices=cur_choices,
+            widget=forms.Select(attrs={"class": BS_INPUT}),
+        )
+
+        des_choices = [
+            ("", "—"),
+            ("principal", "Principal"),
+            ("director", "Director"),
+            ("owner", "Owner"),
+            ("admin", "Administrator"),
+            ("other", "Other"),
+        ]
+        self.fields["admin_designation"] = forms.ChoiceField(
+            label="Admin designation",
+            required=False,
+            choices=des_choices,
+            widget=forms.Select(attrs={"class": BS_INPUT}),
+        )
+
+        ui_lang_choices = [
+            ("", "—"),
+            ("en", "English"),
+            ("te", "Telugu"),
+            ("hi", "Hindi"),
+        ]
+        self.fields["preferred_ui_language"] = forms.ChoiceField(
+            label="Preferred UI language",
+            required=False,
+            choices=ui_lang_choices,
+            widget=forms.Select(attrs={"class": BS_INPUT}),
+        )
+
+        for fname, lbl in (
+            ("lab_physics", "Physics lab available"),
+            ("lab_chemistry", "Chemistry lab available"),
+            ("lab_computer", "Computer lab available"),
+            ("has_library", "Library on campus"),
+            ("has_playground", "Playground"),
+            ("has_transport", "Transport facility"),
+            ("uses_erp", "Using another ERP"),
+            ("require_data_migration", "Need data migration help"),
+        ):
+            self.fields[fname] = _enroll_tri_bool_field(lbl)
+
+        for fn in (
+            "school_motto",
+            "affiliation_number",
+            "landmark",
+            "district",
+            "latitude",
+            "longitude",
+            "maps_url",
+            "alternate_contact_name",
+            "alternate_contact_phone",
+            "current_erp_name",
+            "detailed_requirements",
+        ):
+            if fn in self.fields:
+                self.fields[fn].required = False
+
+        for fn in (
+            "established_year",
+            "total_classrooms",
+            "total_student_capacity",
+            "current_student_strength",
+            "non_teaching_staff_count",
+            "expected_start_date",
+        ):
+            if fn in self.fields:
+                self.fields[fn].required = False
+
+        for fn in (
+            "admin_profile_photo",
+            "school_logo",
+            "registration_certificate",
+            "address_proof",
+            "other_documents",
+        ):
+            if fn in self.fields:
+                self.fields[fn].required = False
+
+    def clean_society_name(self):
+        name = (self.cleaned_data.get("society_name") or "").strip()
+        if not name:
+            raise ValidationError("Enter the society or registered trust / RWA name.")
+        return name
+
+    def clean_website(self):
+        w = (self.cleaned_data.get("website") or "").strip()
+        if not w:
+            return ""
+        if not re.match(r"^https?://", w, re.I):
+            w = "https://" + w
+        try:
+            URLValidator()(w)
+        except ValidationError as exc:
+            raise ValidationError("Enter a valid website URL (e.g. https://yourschool.edu).") from exc
+        return w[:500]
+
+    def clean_affiliation_board(self):
+        return (self.cleaned_data.get("affiliation_board") or "").strip()[:120]
+
+    def clean_streams_offered(self):
+        raw = self.cleaned_data.get("streams_offered")
+        if not raw:
+            return ""
+        if isinstance(raw, str):
+            return raw.strip()[:200]
+        return ",".join(raw)[:200]
+
+    def clean_established_year(self):
+        y = self.cleaned_data.get("established_year")
+        if y in (None, ""):
+            return None
+        try:
+            yi = int(y)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("Enter a valid year.") from exc
+        if yi < 1800 or yi > 2100:
+            raise ValidationError("Enter a realistic established year.")
+        return yi
+
+    def clean_latitude(self):
+        v = self.cleaned_data.get("latitude")
+        if v is None or (isinstance(v, str) and not str(v).strip()):
+            return None
+        try:
+            d = Decimal(str(v).strip())
+        except Exception as exc:
+            raise ValidationError("Enter a valid latitude.") from exc
+        if d < Decimal("-90") or d > Decimal("90"):
+            raise ValidationError("Latitude must be between -90 and 90.")
+        return d
+
+    def clean_longitude(self):
+        v = self.cleaned_data.get("longitude")
+        if v is None or (isinstance(v, str) and not str(v).strip()):
+            return None
+        try:
+            d = Decimal(str(v).strip())
+        except Exception as exc:
+            raise ValidationError("Enter a valid longitude.") from exc
+        if d < Decimal("-180") or d > Decimal("180"):
+            raise ValidationError("Longitude must be between -180 and 180.")
+        return d
+
+    def clean_maps_url(self):
+        u = (self.cleaned_data.get("maps_url") or "").strip()
+        if not u:
+            return ""
+        if not re.match(r"^https?://", u, re.I):
+            u = "https://" + u
+        try:
+            URLValidator()(u)
+        except ValidationError as exc:
+            raise ValidationError("Enter a valid maps URL (https://…).") from exc
+        return u[:500]
+
+    def clean_alternate_contact_phone(self):
+        return (self.cleaned_data.get("alternate_contact_phone") or "").strip()[:40]
+
+    def clean(self):
+        cleaned = super().clean()
+        if "phone_local" in self.errors or "country_code" in self.errors:
+            return cleaned
+        cc = (cleaned.get("country_code") or "+91").strip()
+        local = re.sub(r"\D", "", cleaned.get("phone_local") or "")
+        if not local:
+            self.add_error("phone_local", ValidationError("Enter your mobile number (digits only)."))
+        elif len(local) < 8:
+            self.add_error("phone_local", ValidationError("That number looks too short."))
+        elif len(local) > 15:
+            self.add_error("phone_local", ValidationError("That number looks too long."))
+        else:
+            cc_digits = re.sub(r"\D", "", cc)
+            combined = f"+{cc_digits}{local}" if cc_digits else local
+            cleaned["phone"] = combined[:30]
+        return cleaned
 
     def clean_intended_plan(self):
-        raw = (self.cleaned_data.get("intended_plan") or "core").strip().lower()
+        raw = (self.cleaned_data.get("intended_plan") or "premium").strip().lower()
         if raw == "monthly":
             raw = "basic"
-        # UI: Core / Advance map to billing tiers used by provisioning
-        if raw == "core":
-            return "basic"
-        if raw == "advance":
-            return "standard"
-        allowed = frozenset({"trial", "basic", "standard", "enterprise", "yearly"})
+        # Legacy UI / audit values → Basic / Pro / Premium (super_admin.Plan)
+        legacy = {
+            "core": "basic",
+            "advance": "pro",
+            "standard": "pro",
+            "enterprise": "premium",
+            "yearly": "basic",
+            "trial": "premium",
+        }
+        if raw in legacy:
+            raw = legacy[raw]
+        allowed = frozenset({"basic", "pro", "premium"})
         if raw not in allowed:
             raise ValidationError("Invalid plan selection.")
         return raw
@@ -766,24 +1202,6 @@ class SchoolEnrollmentSignupForm(forms.ModelForm):
                 "This username is already taken. Choose another or sign in if you already have an account."
             )
         return u
-
-    def clean_institution_code(self):
-        raw = (self.cleaned_data.get("institution_code") or "").strip()
-        if not raw:
-            raise ValidationError("Enter a unique school code (e.g. ABC123).")
-        from apps.core.tenant_provisioning import validate_school_code_format
-
-        try:
-            code = validate_school_code_format(raw)
-        except ValidationError as exc:
-            raise ValidationError(
-                exc.messages[0] if exc.messages else str(exc)
-            ) from None
-        if School.objects.filter(code=code).exists():
-            raise ValidationError(
-                "School code already exists. Please choose another code."
-            )
-        return code
 
     def clean_password2(self):
         p1 = self.cleaned_data.get("password1")
@@ -1023,6 +1441,27 @@ def _normalize_student_gender_to_db(value) -> str:
     return ""
 
 
+class _SectionSelectWithClassrooms(forms.Select):
+    """
+    Section <option> tags get data-classrooms="1,2,..." so student_add.html JS can
+    filter by class without iterating a ModelChoice queryset (which hits the DB).
+    """
+
+    def __init__(self, section_to_classroom_csv: dict[str, str], *, attrs=None):
+        super().__init__(attrs=attrs)
+        self.section_to_classroom_csv = section_to_classroom_csv
+
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        option = super().create_option(
+            name, value, label, selected, index, subindex=subindex, attrs=attrs
+        )
+        if value not in (None, ""):
+            csv = self.section_to_classroom_csv.get(str(value))
+            if csv:
+                option.setdefault("attrs", {})["data-classrooms"] = csv
+        return option
+
+
 # ---- School Admin: Student Add Form ----
 class StudentAddForm(forms.Form):
     # Student Basic Info
@@ -1089,9 +1528,10 @@ class StudentAddForm(forms.Form):
         widget=forms.ClearableFileInput(attrs={"class": "form-control"}),
     )
 
-    # Academic Details
-    academic_year = forms.ModelChoiceField(
-        queryset=AcademicYear.objects.none(),
+    # Academic Details (ChoiceField + materialized choices: avoids ModelChoiceIterator /
+    # server-side cursor during template render when search_path can be wrong mid-request.)
+    academic_year = forms.ChoiceField(
+        choices=[("", "— Infer from class —")],
         required=False,
         widget=forms.Select(attrs={"class": BS_INPUT}),
     )
@@ -1099,12 +1539,14 @@ class StudentAddForm(forms.Form):
         required=False,
         widget=forms.DateInput(attrs={"type": "date", "class": INPUT_CLASS}),
     )
-    classroom = forms.ModelChoiceField(
-        queryset=ClassRoom.objects.none(),
+    classroom = forms.ChoiceField(
+        choices=[("", "— Select class —")],
+        required=True,
         widget=forms.Select(attrs={"class": BS_INPUT, "id": "id_classroom"}),
     )
-    section = forms.ModelChoiceField(
-        queryset=Section.objects.none(),
+    section = forms.ChoiceField(
+        choices=[("", "— Select section —")],
+        required=True,
         widget=forms.Select(attrs={"class": BS_INPUT, "id": "id_section"}),
     )
     roll_number = forms.CharField(
@@ -1331,7 +1773,18 @@ class StudentAddForm(forms.Form):
     )
 
     def __init__(self, school, *args, **kwargs):
+        from django.db import connection
+
+        self.school = school
+        connection.set_tenant(school)
         super().__init__(*args, **kwargs)
+
+        if getattr(self, "initial", None):
+            for fname in ("academic_year", "classroom", "section"):
+                val = self.initial.get(fname)
+                if val is not None and hasattr(val, "pk"):
+                    self.initial[fname] = str(val.pk)
+
         def _master_choices(master_key: str, empty_label: str = "— Select —"):
             qs = MasterDataOption.objects.filter(key=master_key, is_active=True).order_by("name")
             return [("", empty_label)] + [(o.name, o.name) for o in qs.only("name")]
@@ -1342,18 +1795,89 @@ class StudentAddForm(forms.Form):
         self.fields["nationality"].widget.choices = _master_choices("nationality")
         self.fields["religion"].widget.choices = _master_choices("religion")
         self.fields["mother_tongue"].widget.choices = _master_choices("mother_tongue")
-        self.school = school
-        self.fields["classroom"].queryset = (
-            ClassRoom.objects.select_related("academic_year")
-            .prefetch_related("sections")
-            .order_by(*ORDER_AY_PK_GRADE_NAME)
+        # ORDER_AY_PK_GRADE_NAME includes "academic_year", which joins AcademicYear and can
+        # SELECT wizard_settings; use grade-only ordering so missing AY table does not break GET.
+        try:
+            class_rows = list(
+                ClassRoom.objects.order_by(*ORDER_GRADE_NAME).values("id", "name")
+            )
+        except Exception:
+            class_rows = []
+        self.fields["classroom"].choices = [("", "— Select class —")] + [
+            (str(r["id"]), r["name"]) for r in class_rows
+        ]
+        try:
+            sec_rows = list(Section.objects.order_by("name").values("id", "name"))
+        except Exception:
+            sec_rows = []
+        self.fields["section"].choices = [("", "— Select section —")] + [
+            (str(r["id"]), r["name"]) for r in sec_rows
+        ]
+        sec_csv: dict[str, str] = {}
+        try:
+            through = ClassRoom.sections.through
+            buckets: dict[int, list[str]] = {}
+            for cid, sid in through.objects.values_list("classroom_id", "section_id"):
+                buckets.setdefault(sid, []).append(str(cid))
+            sec_csv = {str(sid): ",".join(sorted(set(ids))) for sid, ids in buckets.items()}
+        except Exception:
+            sec_csv = {}
+        self.fields["section"].widget = _SectionSelectWithClassrooms(
+            sec_csv,
+            attrs={"class": BS_INPUT, "id": "id_section", "required": True},
         )
-        self.fields["section"].queryset = (
-            Section.objects.prefetch_related("classrooms").order_by("name")
-        )
-        self.fields["academic_year"].queryset = AcademicYear.objects.order_by("-start_date")
+        try:
+            years = list(
+                AcademicYear.objects.order_by("-start_date").only(
+                    "pk", "name", "start_date", "end_date", "is_active"
+                )
+            )
+        except Exception:
+            years = []
+        self.fields["academic_year"].choices = [("", "— Infer from class —")] + [
+            (str(y.pk), str(y)) for y in years
+        ]
         self.fields["route"].queryset = Route.objects.order_by("name")
         self.fields["hostel_room"].queryset = HostelRoom.objects.select_related("hostel").order_by("hostel__name", "room_number")
+
+    def clean_academic_year(self):
+        raw = self.cleaned_data.get("academic_year")
+        if raw in (None, ""):
+            return None
+        try:
+            pk = int(raw)
+        except (TypeError, ValueError):
+            raise forms.ValidationError("Select a valid academic year.")
+        try:
+            return AcademicYear.objects.get(pk=pk)
+        except AcademicYear.DoesNotExist:
+            raise forms.ValidationError("Select a valid academic year.")
+
+    def clean_classroom(self):
+        raw = self.cleaned_data.get("classroom")
+        if raw in (None, ""):
+            raise forms.ValidationError("Select a class.")
+        try:
+            pk = int(raw)
+        except (TypeError, ValueError):
+            raise forms.ValidationError("Select a valid class.")
+        try:
+            return ClassRoom.objects.get(pk=pk)
+        except ClassRoom.DoesNotExist:
+            raise forms.ValidationError("Select a valid class.")
+
+    def clean_section(self):
+        raw = self.cleaned_data.get("section")
+        if raw in (None, ""):
+            raise forms.ValidationError("Select a section.")
+        try:
+            pk = int(raw)
+        except (TypeError, ValueError):
+            raise forms.ValidationError("Select a valid section.")
+        try:
+            return Section.objects.get(pk=pk)
+        except Section.DoesNotExist:
+            raise forms.ValidationError("Select a valid section.")
 
     def clean_parent_phone(self):
         phone = self.cleaned_data.get("parent_phone")
@@ -1509,6 +2033,251 @@ class StudentMasterEditForm(StudentAddForm):
         return adm
 
 
+# ---- Student Self-Service: Profile Form ----
+class StudentProfileForm(forms.Form):
+    """
+    Student-facing profile form.
+    - Shows a safe, editable subset of fields.
+    - Does NOT include critical academic/system identifiers.
+    """
+
+    # Locked identifiers (visible but not editable)
+    username = forms.CharField(
+        required=False,
+        label="Username",
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS}),
+    )
+    admission_number = forms.CharField(
+        required=False,
+        label="Admission No",
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS}),
+    )
+    roll_number = forms.CharField(
+        required=False,
+        label="Roll No",
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS}),
+    )
+    classroom = forms.CharField(
+        required=False,
+        label="Class",
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS}),
+    )
+    section = forms.CharField(
+        required=False,
+        label="Section",
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS}),
+    )
+    academic_year = forms.CharField(
+        required=False,
+        label="Academic year",
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS}),
+    )
+
+    # Personal info (User + Student)
+    first_name = forms.CharField(
+        max_length=150,
+        required=False,
+        label="First name",
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS}),
+    )
+    last_name = forms.CharField(
+        max_length=150,
+        required=False,
+        label="Last name",
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS}),
+    )
+
+    # Editable core fields (Student model)
+    date_of_birth = forms.DateField(
+        required=False,
+        widget=forms.DateInput(
+            format="%Y-%m-%d",
+            attrs={
+                "class": f"{INPUT_CLASS} student-dob-flatpickr",
+                "placeholder": "DD/MM/YYYY",
+                "autocomplete": "bday",
+                "inputmode": "numeric",
+            },
+        ),
+    )
+    gender = forms.CharField(
+        max_length=60,
+        required=False,
+        widget=forms.Select(attrs={"class": BS_INPUT}),
+    )
+    student_mobile = forms.CharField(
+        max_length=20,
+        required=False,
+        label="Phone",
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. 9876543210"}),
+    )
+    address_line1 = forms.CharField(
+        max_length=200,
+        required=False,
+        label="Address line 1",
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "House no, street"}),
+    )
+    address_line2 = forms.CharField(
+        max_length=200,
+        required=False,
+        label="Address line 2",
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Area, landmark (optional)"}),
+    )
+    city = forms.CharField(max_length=80, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    district = forms.CharField(max_length=80, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    state = forms.CharField(max_length=80, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    pincode = forms.CharField(max_length=12, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    country = forms.CharField(
+        max_length=80,
+        required=False,
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "India"}),
+    )
+    profile_image = forms.ImageField(
+        required=False,
+        label="Student photo",
+        widget=forms.ClearableFileInput(attrs={"class": "form-control"}),
+    )
+
+    # Optional personal/parent details (stored in Student.extra_data + a few top-level fields)
+    blood_group = forms.CharField(
+        max_length=60,
+        required=False,
+        widget=forms.Select(attrs={"class": BS_INPUT, "data-master-key": "blood_group"}),
+    )
+    id_number = forms.CharField(
+        max_length=50,
+        required=False,
+        label="Aadhar / ID Number",
+        widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Aadhar / National ID"}),
+    )
+    nationality = forms.CharField(
+        max_length=60,
+        required=False,
+        widget=forms.Select(attrs={"class": BS_INPUT, "data-master-key": "nationality"}),
+    )
+    religion = forms.CharField(
+        max_length=60,
+        required=False,
+        widget=forms.Select(attrs={"class": BS_INPUT, "data-master-key": "religion"}),
+    )
+    mother_tongue = forms.CharField(
+        max_length=60,
+        required=False,
+        widget=forms.Select(attrs={"class": BS_INPUT, "data-master-key": "mother_tongue"}),
+    )
+
+    father_name = forms.CharField(max_length=150, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    father_mobile = forms.CharField(max_length=20, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    father_occupation = forms.CharField(max_length=120, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    mother_name = forms.CharField(max_length=150, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    mother_mobile = forms.CharField(max_length=20, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    mother_occupation = forms.CharField(max_length=120, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    guardian_name = forms.CharField(max_length=150, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    guardian_relation = forms.CharField(max_length=60, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    guardian_phone = forms.CharField(max_length=20, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+
+    parent_name = forms.CharField(max_length=150, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    parent_phone = forms.CharField(max_length=20, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    student_email = forms.EmailField(
+        required=False,
+        label="Alternate email",
+        widget=forms.EmailInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. student@example.com"}),
+    )
+    email = forms.EmailField(
+        required=False,
+        label="Email",
+        widget=forms.EmailInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. you@example.com"}),
+        help_text="This updates your account email.",
+    )
+
+    emergency_contact_name = forms.CharField(max_length=150, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    emergency_phone = forms.CharField(max_length=20, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    allergies = forms.CharField(max_length=200, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    medical_conditions = forms.CharField(max_length=200, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    doctor_name = forms.CharField(max_length=150, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    hospital = forms.CharField(max_length=150, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    insurance_details = forms.CharField(max_length=200, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        def _master_choices(master_key: str, empty_label: str = "— Select —"):
+            qs = MasterDataOption.objects.filter(key=master_key, is_active=True).order_by("name")
+            return [("", empty_label)] + [(o.name, o.name) for o in qs.only("name")]
+
+        # Student.gender stores codes (M/F/O). Use model choices so the saved value
+        # is also the displayed value after refresh.
+        from apps.school_data.models import Student
+        self.fields["gender"].widget.choices = [("", "— Not specified —")] + list(Student.Gender.choices)
+        self.fields["blood_group"].widget.choices = _master_choices("blood_group", "— Not specified —")
+        self.fields["nationality"].widget.choices = _master_choices("nationality")
+        self.fields["religion"].widget.choices = _master_choices("religion")
+        self.fields["mother_tongue"].widget.choices = _master_choices("mother_tongue")
+
+        # Lock identifiers (students must not change these)
+        for fname in ("username", "admission_number", "roll_number", "classroom", "section", "academic_year"):
+            if fname in self.fields:
+                self.fields[fname].disabled = True
+                self.fields[fname].required = False
+
+        # Security: students must NOT change phone themselves (school messaging integrity).
+        self.fields["student_mobile"].disabled = True
+        self.fields["student_mobile"].required = False
+        self.fields["student_mobile"].help_text = "Phone is managed by the school administration."
+
+    def clean_email(self):
+        email = (self.cleaned_data.get("email") or "").strip()
+        if not email:
+            return ""
+        from apps.accounts.models import User
+
+        qs = User.objects.filter(email__iexact=email)
+        # caller can pass request_user_id via initial for uniqueness exclusion
+        req_uid = self.initial.get("_request_user_id")
+        if req_uid:
+            qs = qs.exclude(pk=req_uid)
+        if qs.exists():
+            raise forms.ValidationError("This email is already in use.")
+        return email
+
+    def clean_student_mobile(self):
+        # Disabled field still flows through cleaned_data; never trust it for student self-service.
+        return self.initial.get("student_mobile") or ""
+
+    def clean_parent_phone(self):
+        phone = self.cleaned_data.get("parent_phone")
+        if phone and not str(phone).replace(" ", "").isdigit():
+            raise forms.ValidationError("Phone must contain only digits.")
+        return phone
+
+    def clean_father_mobile(self):
+        phone = self.cleaned_data.get("father_mobile")
+        if phone and not str(phone).replace(" ", "").isdigit():
+            raise forms.ValidationError("Phone must contain only digits.")
+        return phone
+
+    def clean_mother_mobile(self):
+        phone = self.cleaned_data.get("mother_mobile")
+        if phone and not str(phone).replace(" ", "").isdigit():
+            raise forms.ValidationError("Phone must contain only digits.")
+        return phone
+
+    def clean_guardian_phone(self):
+        phone = self.cleaned_data.get("guardian_phone")
+        if phone and not str(phone).replace(" ", "").isdigit():
+            raise forms.ValidationError("Phone must contain only digits.")
+        return phone
+
+    def clean_emergency_phone(self):
+        phone = self.cleaned_data.get("emergency_phone")
+        if phone and not str(phone).replace(" ", "").isdigit():
+            raise forms.ValidationError("Phone must contain only digits.")
+        return phone
+
+    def clean_gender(self):
+        return _normalize_student_gender_to_db(self.cleaned_data.get("gender"))
+
+
 # ---- School Admin: Teacher Add Form ----
 class TeacherAddForm(forms.Form):
     first_name = forms.CharField(max_length=150, widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "First Name"}))
@@ -1638,25 +2407,11 @@ class AcademicYearForm(forms.ModelForm):
     def clean(self):
         from datetime import date
 
-        from apps.core.academic_year_wizard import ranges_overlap
-
         data = super().clean()
         start = data.get("start_date")
         end = data.get("end_date")
         if start and end and end <= start:
             raise forms.ValidationError("End date must be after start date.")
-        if self.instance and self.instance.pk and end and end < date.today():
-            raise forms.ValidationError("Cannot edit an academic year that has already ended.")
-        if start and end:
-            oq = AcademicYear.objects.all()
-            if self.instance and self.instance.pk:
-                oq = oq.exclude(pk=self.instance.pk)
-            for other in oq.only("id", "name", "start_date", "end_date"):
-                if ranges_overlap(start, end, other.start_date, other.end_date):
-                    raise forms.ValidationError(
-                        f"This date range overlaps with “{other.name}” "
-                        f"({other.start_date} to {other.end_date})."
-                    )
         return data
 
 
@@ -1766,25 +2521,91 @@ class PromoteStudentsActionForm(forms.Form):
 class ClassRoomForm(forms.ModelForm):
     class Meta:
         model = ClassRoom
-        fields = ["name", "grade_order", "description", "capacity", "academic_year", "sections"]
+        # grade_order is intentionally not exposed in UI; it auto-fills from name in ClassRoom.save()
+        fields = ["name", "description", "capacity", "academic_year", "sections"]
         widgets = {
             "name": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. Grade 1, Grade 10"}),
-            "grade_order": forms.NumberInput(
-                attrs={"class": INPUT_CLASS, "min": 0, "placeholder": "0 = auto from name"}
-            ),
             "description": forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 2, "placeholder": "Optional description"}),
             "capacity": forms.NumberInput(attrs={"class": INPUT_CLASS, "min": 1, "placeholder": "Optional"}),
             "academic_year": forms.Select(attrs={"class": BS_INPUT}),
-            # CheckboxSelectMultiple renders one checkbox per section (we render them as "cards" in the template).
             "sections": forms.CheckboxSelectMultiple(),
         }
 
     def __init__(self, school, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        from django.db import connections
+        from django.db import connection as active_connection
+        from django_tenants.utils import get_tenant_database_alias
+
         self.school = school
-        self.fields["academic_year"].queryset = AcademicYear.objects.order_by("-start_date")
-        self.fields["sections"].queryset = Section.objects.order_by("name")
-        self.fields["sections"].required = False
+        self.db_alias = get_tenant_database_alias()
+        # Make tenant-bound choice lists stable across GET/POST even if the connection
+        # was recycled between requests (common with schema-per-tenant search_path).
+        try:
+            conn = connections[self.db_alias]
+            try:
+                conn.ensure_connection()
+            except Exception:
+                pass
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            try:
+                conn.set_tenant(school)
+            except Exception:
+                pass
+        except Exception:
+            pass
+        super().__init__(*args, **kwargs)
+
+        # As a second line of defense, bind the active/default connection too.
+        # Some parts of the app use the default connection directly.
+        try:
+            active_connection.set_tenant(school)
+        except Exception:
+            pass
+
+        # Always validate against real DB rows (tenant-scoped).
+        # This prevents "Select a valid choice" errors caused by stale/empty choice lists.
+        def _set_academic_year_qs():
+            # Prefer explicit alias (stable in django-tenants setups).
+            qs = AcademicYear.objects.using(self.db_alias).order_by("-start_date")
+            self.fields["academic_year"].queryset = qs
+            try:
+                self.fields["academic_year"].empty_label = "— Optional —"
+            except Exception:
+                pass
+
+        try:
+            _set_academic_year_qs()
+            # If it rendered empty due to a transient tenant bind issue, retry once.
+            if self.fields["academic_year"].queryset.count() == 0:
+                try:
+                    # Re-bind both connections and retry.
+                    conn = connections[self.db_alias]
+                    conn.set_tenant(school)
+                except Exception:
+                    pass
+                try:
+                    active_connection.set_tenant(school)
+                except Exception:
+                    pass
+                _set_academic_year_qs()
+        except Exception:
+            self.fields["academic_year"].queryset = AcademicYear.objects.none()
+        try:
+            self.fields["sections"].queryset = Section.objects.using(self.db_alias).order_by("name")
+        except Exception:
+            self.fields["sections"].queryset = Section.objects.none()
+
+        # Consistent Bootstrap styling + inline invalid feedback.
+        for name, field in self.fields.items():
+            w = field.widget
+            base = (w.attrs.get("class") or "").strip() or INPUT_CLASS
+            if self.is_bound and name in self.errors:
+                w.attrs["class"] = f"{base} is-invalid".strip()
+            else:
+                w.attrs["class"] = base
 
     def clean(self):
         data = super().clean()
@@ -1822,6 +2643,13 @@ class SubjectForm(forms.ModelForm):
         self.school = school
         self.fields["name"].required = True
         self.fields["code"].required = True
+        for fname in ("name", "code"):
+            w = self.fields[fname].widget
+            base = (w.attrs.get("class") or "").strip() or INPUT_CLASS
+            if self.is_bound and fname in self.errors:
+                w.attrs["class"] = f"{base} is-invalid".strip()
+            else:
+                w.attrs["class"] = base
 
     def save(self, commit=True):
         from django.db.models import Max
@@ -1834,45 +2662,6 @@ class SubjectForm(forms.ModelForm):
         if commit:
             obj.save()
         return obj
-
-
-# ---- Admin Frontend: School / Teacher / Student (SuperAdmin) ----
-class AdminSchoolForm(forms.ModelForm):
-    """School form for /admin/schools/ - SuperAdmin creates/edits schools."""
-    class Meta:
-        model = School
-        fields = [
-            "name",
-            "institution_type",
-            "contact_person",
-            "school_status",
-            "saas_plan",
-            "address",
-            "contact_email",
-            "phone",
-        ]
-        widgets = {
-            "name": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Institution Name"}),
-            "institution_type": forms.Select(attrs={"class": BS_INPUT}),
-            "contact_person": forms.TextInput(
-                attrs={"class": INPUT_CLASS, "placeholder": "Contact person name"}
-            ),
-            "school_status": forms.Select(attrs={"class": BS_INPUT}),
-            "saas_plan": forms.Select(attrs={"class": BS_INPUT}),
-            "address": forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 2, "placeholder": "Address"}),
-            "contact_email": forms.EmailInput(attrs={"class": INPUT_CLASS, "placeholder": "contact@school.edu"}),
-            "phone": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "+1234567890"}),
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["saas_plan"].queryset = Plan.sale_tiers()
-        self.fields["saas_plan"].required = False
-        self.fields["saas_plan"].label = "Plan"
-        self.fields["saas_plan"].help_text = "Starter or Enterprise — which modules the school can use."
-        self.fields["institution_type"].label = "Institution type"
-        self.fields["school_status"].label = "Status"
-        self.fields["contact_person"].required = False
 
 
 class AdminCouponForm(forms.ModelForm):
@@ -2022,88 +2811,6 @@ class SaaSPlatformPaymentForm(forms.ModelForm):
         if start and end and end < start:
             self.add_error("service_period_end", "End date must be on or after the start date.")
         return data
-
-
-class AdminTeacherForm(forms.Form):
-    """Teacher form - Username, Email, Password, Name, Phone, Qualification, Assigned School."""
-    username = forms.CharField(max_length=150, widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Username"}))
-    first_name = forms.CharField(max_length=150, widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "First Name"}))
-    last_name = forms.CharField(max_length=150, widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Last Name"}))
-    email = forms.EmailField(widget=forms.EmailInput(attrs={"class": INPUT_CLASS, "placeholder": "email@example.com"}))
-    password = forms.CharField(
-        required=False,
-        widget=forms.PasswordInput(attrs={"class": INPUT_CLASS, "placeholder": "Password"}),
-    )
-    confirm_password = forms.CharField(
-        required=False,
-        widget=forms.PasswordInput(attrs={"class": INPUT_CLASS, "placeholder": "Confirm Password"}),
-    )
-    phone = forms.CharField(max_length=20, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Phone"}))
-    qualification = forms.CharField(max_length=200, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "e.g. B.Ed, M.Sc"}))
-    school = forms.ModelChoiceField(queryset=School.objects.all().order_by("name"), widget=forms.Select(attrs={"class": BS_INPUT}))
-
-    def __init__(self, *args, for_create=False, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.for_create = for_create
-        if for_create:
-            self.fields["password"].required = True
-            self.fields["confirm_password"].required = True
-
-    def clean(self):
-        data = super().clean()
-        if self.for_create:
-            password = data.get("password")
-            confirm = data.get("confirm_password")
-            if password and confirm and password != confirm:
-                raise forms.ValidationError("Passwords do not match.")
-            if password and len(password) < 8:
-                raise forms.ValidationError("Password must be at least 8 characters.")
-        return data
-
-
-class AdminStudentForm(forms.Form):
-    """Student form - Name, Admission Number, Password, Class, Section, School."""
-    first_name = forms.CharField(max_length=150, widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "First Name"}))
-    last_name = forms.CharField(max_length=150, widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Last Name"}))
-    admission_number = forms.CharField(max_length=50, widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Admission Number"}))
-    password = forms.CharField(
-        required=False,
-        widget=forms.PasswordInput(attrs={"class": INPUT_CLASS, "placeholder": "Password"}),
-    )
-    confirm_password = forms.CharField(
-        required=False,
-        widget=forms.PasswordInput(attrs={"class": INPUT_CLASS, "placeholder": "Confirm Password"}),
-    )
-    school = forms.ModelChoiceField(queryset=School.objects.all().order_by("name"), widget=forms.Select(attrs={"class": BS_INPUT, "id": "id_school"}))
-    classroom = forms.ModelChoiceField(queryset=ClassRoom.objects.none(), required=False, widget=forms.Select(attrs={"class": BS_INPUT, "id": "id_classroom"}))
-    section = forms.ModelChoiceField(queryset=Section.objects.none(), required=False, widget=forms.Select(attrs={"class": BS_INPUT, "id": "id_section"}))
-    roll_number = forms.CharField(max_length=50, required=False, widget=forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "Roll Number"}))
-
-    def __init__(self, *args, for_create=False, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.for_create = for_create
-        if for_create:
-            self.fields["password"].required = True
-            self.fields["confirm_password"].required = True
-        # Classroom and section are loaded per-school via AJAX (tenant schemas)
-        self.fields["classroom"].queryset = ClassRoom.objects.none()
-        self.fields["section"].queryset = Section.objects.none()
-
-    def clean(self):
-        data = super().clean()
-        if self.for_create:
-            password = data.get("password")
-            confirm = data.get("confirm_password")
-            if password and confirm and password != confirm:
-                raise forms.ValidationError("Passwords do not match.")
-            if password and len(password) < 8:
-                raise forms.ValidationError("Password must be at least 8 characters.")
-        classroom = data.get("classroom")
-        section = data.get("section")
-        if section and classroom and section.classroom != classroom:
-            raise forms.ValidationError("Section must belong to selected class.")
-        return data
-
 
 # ---------- Fee & Billing ----------
 

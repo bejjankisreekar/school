@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+{% block title %}My profile details | School ERP{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div>
+      <h1 class="h4 fw-bold mb-1">Profile details</h1>
+      <div class="text-muted small">View and update your personal information. Some fields are locked for safety.</div>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'core:student_profile' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+        <i class="bi bi-arrow-left me-1"></i>Back
+      </a>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% else %}info{% endif %} alert-dismissible fade show rounded-3" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" class="row g-4">
+    {% csrf_token %}
+
+    <div class="col-lg-4">
+      <div class="card shadow-sm border-0 rounded-4">
+        <div class="card-body p-4 text-center">
+          <style>
+            .profile-avatar {
+              width: 120px;
+              height: 120px;
+              border-radius: 999px;
+              object-fit: cover;
+              border: 2px solid rgba(15, 23, 42, 0.08);
+            }
+            .profile-avatar-placeholder {
+              width: 120px;
+              height: 120px;
+              border-radius: 999px;
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              font-weight: 700;
+              font-size: 36px;
+              color: #0d6efd;
+              background: rgba(13, 110, 253, 0.12);
+              border: 1px dashed rgba(13, 110, 253, 0.35);
+            }
+            .locked-field {
+              background: rgba(15, 23, 42, 0.03);
+            }
+            html.dark .locked-field {
+              background: rgba(148, 163, 184, 0.08);
+            }
+          </style>
+
+          {% if student.profile_image %}
+            <img src="{{ student.profile_image.url }}" class="profile-avatar mb-3" alt="Profile photo">
+          {% else %}
+            <div class="profile-avatar-placeholder mb-3">
+              {{ request.user.first_name|default:request.user.username|slice:":1"|upper }}
+            </div>
+          {% endif %}
+
+          <div class="fw-bold">{{ request.user.get_full_name|default:request.user.username }}</div>
+          <div class="text-muted small mb-3">Student account</div>
+
+          <div class="text-start small">
+            <div class="mb-2">
+              <div class="text-muted">Username</div>
+              <input class="form-control form-control-sm locked-field" value="{{ readonly.username|default:'—' }}" disabled>
+            </div>
+            <div class="mb-2">
+              <div class="text-muted">Email</div>
+              <div class="small text-muted">Editable below</div>
+            </div>
+            <div class="mb-2">
+              <div class="text-muted">Admission No</div>
+              <input class="form-control form-control-sm locked-field" value="{{ readonly.admission_number|default:'—' }}" disabled>
+            </div>
+            <div class="mb-2">
+              <div class="text-muted">Roll No</div>
+              <input class="form-control form-control-sm locked-field" value="{{ readonly.roll_number|default:'—' }}" disabled>
+            </div>
+            <div class="mb-2">
+              <div class="text-muted">Class / Section</div>
+              <input class="form-control form-control-sm locked-field" value="{{ readonly.classroom|default:'—' }} - {{ readonly.section|default:'—' }}" disabled>
+            </div>
+            <div>
+              <div class="text-muted">Academic year</div>
+              <input class="form-control form-control-sm locked-field" value="{{ readonly.academic_year|default:'—' }}" disabled>
+            </div>
+          </div>
+
+          <hr class="my-3">
+
+          <div class="text-start">
+            <label class="form-label small text-muted mb-1" for="{{ form.profile_image.id_for_label }}">{{ form.profile_image.label }}</label>
+            {{ form.profile_image }}
+            {% if form.profile_image.errors %}<div class="text-danger small mt-1">{{ form.profile_image.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      <div class="card shadow-sm border-0 rounded-4 mb-4">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+            <div>
+              <div class="text-muted small text-uppercase fw-semibold" style="letter-spacing:0.06em;">Contact &amp; basics</div>
+              <div class="small text-muted">These details help the school reach you.</div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm rounded-pill px-3">
+              <i class="bi bi-save me-1"></i>Save
+            </button>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
+              {{ form.username }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="{{ form.admission_number.id_for_label }}">{{ form.admission_number.label }}</label>
+              {{ form.admission_number }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-muted mb-1" for="{{ form.roll_number.id_for_label }}">{{ form.roll_number.label }}</label>
+              {{ form.roll_number }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-muted mb-1" for="{{ form.classroom.id_for_label }}">{{ form.classroom.label }}</label>
+              {{ form.classroom }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-muted mb-1" for="{{ form.section.id_for_label }}">{{ form.section.label }}</label>
+              {{ form.section }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="{{ form.academic_year.id_for_label }}">{{ form.academic_year.label }}</label>
+              {{ form.academic_year }}
+            </div>
+            <div class="col-md-6"></div>
+
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="{{ form.first_name.id_for_label }}">{{ form.first_name.label }}</label>
+              {{ form.first_name }}
+              {% if form.first_name.errors %}<div class="text-danger small mt-1">{{ form.first_name.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="{{ form.last_name.id_for_label }}">{{ form.last_name.label }}</label>
+              {{ form.last_name }}
+              {% if form.last_name.errors %}<div class="text-danger small mt-1">{{ form.last_name.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+              {{ form.email }}
+              {% if form.email.errors %}<div class="text-danger small mt-1">{{ form.email.errors.0 }}</div>{% endif %}
+              {% if form.email.help_text %}<div class="form-text">{{ form.email.help_text }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="{{ form.student_mobile.id_for_label }}">{{ form.student_mobile.label }}</label>
+              {{ form.student_mobile }}
+              {% if form.student_mobile.errors %}<div class="text-danger small mt-1">{{ form.student_mobile.errors.0 }}</div>{% endif %}
+              {% if form.student_mobile.help_text %}<div class="form-text">{{ form.student_mobile.help_text }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="{{ form.date_of_birth.id_for_label }}">{{ form.date_of_birth.label }}</label>
+              {{ form.date_of_birth }}
+              {% if form.date_of_birth.errors %}<div class="text-danger small mt-1">{{ form.date_of_birth.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="{{ form.gender.id_for_label }}">{{ form.gender.label }}</label>
+              {{ form.gender }}
+              {% if form.gender.errors %}<div class="text-danger small mt-1">{{ form.gender.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="{{ form.student_email.id_for_label }}">{{ form.student_email.label }}</label>
+              {{ form.student_email }}
+              {% if form.student_email.errors %}<div class="text-danger small mt-1">{{ form.student_email.errors.0 }}</div>{% endif %}
+              <div class="form-text">This does not change your login email.</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="{{ form.address_line1.id_for_label }}">{{ form.address_line1.label }}</label>
+              {{ form.address_line1 }}
+              {% if form.address_line1.errors %}<div class="text-danger small mt-1">{{ form.address_line1.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="{{ form.address_line2.id_for_label }}">{{ form.address_line2.label }}</label>
+              {{ form.address_line2 }}
+              {% if form.address_line2.errors %}<div class="text-danger small mt-1">{{ form.address_line2.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-muted mb-1" for="{{ form.city.id_for_label }}">{{ form.city.label }}</label>
+              {{ form.city }}
+              {% if form.city.errors %}<div class="text-danger small mt-1">{{ form.city.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-muted mb-1" for="{{ form.state.id_for_label }}">{{ form.state.label }}</label>
+              {{ form.state }}
+              {% if form.state.errors %}<div class="text-danger small mt-1">{{ form.state.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-muted mb-1" for="{{ form.pincode.id_for_label }}">{{ form.pincode.label }}</label>
+              {{ form.pincode }}
+              {% if form.pincode.errors %}<div class="text-danger small mt-1">{{ form.pincode.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-muted mb-1" for="{{ form.district.id_for_label }}">{{ form.district.label }}</label>
+              {{ form.district }}
+              {% if form.district.errors %}<div class="text-danger small mt-1">{{ form.district.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-muted mb-1" for="{{ form.country.id_for_label }}">{{ form.country.label }}</label>
+              {{ form.country }}
+              {% if form.country.errors %}<div class="text-danger small mt-1">{{ form.country.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm border-0 rounded-4 mb-4">
+        <div class="card-body p-4">
+          <div class="text-muted small text-uppercase fw-semibold mb-2" style="letter-spacing:0.06em;">Personal details</div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="{{ form.blood_group.id_for_label }}">{{ form.blood_group.label }}</label>
+              {{ form.blood_group }}
+              {% if form.blood_group.errors %}<div class="text-danger small mt-1">{{ form.blood_group.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="{{ form.id_number.id_for_label }}">{{ form.id_number.label }}</label>
+              {{ form.id_number }}
+              {% if form.id_number.errors %}<div class="text-danger small mt-1">{{ form.id_number.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="{{ form.nationality.id_for_label }}">{{ form.nationality.label }}</label>
+              {{ form.nationality }}
+              {% if form.nationality.errors %}<div class="text-danger small mt-1">{{ form.nationality.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="{{ form.religion.id_for_label }}">{{ form.religion.label }}</label>
+              {{ form.religion }}
+              {% if form.religion.errors %}<div class="text-danger small mt-1">{{ form.religion.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-muted mb-1" for="{{ form.mother_tongue.id_for_label }}">{{ form.mother_tongue.label }}</label>
+              {{ form.mother_tongue }}
+              {% if form.mother_tongue.errors %}<div class="text-danger small mt-1">{{ form.mother_tongue.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm border-0 rounded-4 mb-4">
+        <div class="card-body p-4">
+          <div class="text-muted small text-uppercase fw-semibold mb-2" style="letter-spacing:0.06em;">Parent / guardian</div>
+          <div class="row g-3">
+            <div class="col-md-6"><label class="form-label small text-muted mb-1" for="{{ form.parent_name.id_for_label }}">{{ form.parent_name.label }}</label>{{ form.parent_name }}{% if form.parent_name.errors %}<div class="text-danger small mt-1">{{ form.parent_name.errors.0 }}</div>{% endif %}</div>
+            <div class="col-md-6"><label class="form-label small text-muted mb-1" for="{{ form.parent_phone.id_for_label }}">{{ form.parent_phone.label }}</label>{{ form.parent_phone }}{% if form.parent_phone.errors %}<div class="text-danger small mt-1">{{ form.parent_phone.errors.0 }}</div>{% endif %}</div>
+            <div class="col-md-6"><label class="form-label small text-muted mb-1" for="{{ form.father_name.id_for_label }}">{{ form.father_name.label }}</label>{{ form.father_name }}{% if form.father_name.errors %}<div class="text-danger small mt-1">{{ form.father_name.errors.0 }}</div>{% endif %}</div>
+            <div class="col-md-6"><label class="form-label small text-muted mb-1" for="{{ form.father_mobile.id_for_label }}">{{ form.father_mobile.label }}</label>{{ form.father_mobile }}{% if form.father_mobile.errors %}<div class="text-danger small mt-1">{{ form.father_mobile.errors.0 }}</div>{% endif %}</div>
+            <div class="col-md-6"><label class="form-label small text-muted mb-1" for="{{ form.father_occupation.id_for_label }}">{{ form.father_occupation.label }}</label>{{ form.father_occupation }}{% if form.father_occupation.errors %}<div class="text-danger small mt-1">{{ form.father_occupation.errors.0 }}</div>{% endif %}</div>
+            <div class="col-md-6"><label class="form-label small text-muted mb-1" for="{{ form.mother_name.id_for_label }}">{{ form.mother_name.label }}</label>{{ form.mother_name }}{% if form.mother_name.errors %}<div class="text-danger small mt-1">{{ form.mother_name.errors.0 }}</div>{% endif %}</div>
+            <div class="col-md-6"><label class="form-label small text-muted mb-1" for="{{ form.mother_mobile.id_for_label }}">{{ form.mother_mobile.label }}</label>{{ form.mother_mobile }}{% if form.mother_mobile.errors %}<div class="text-danger small mt-1">{{ form.mother_mobile.errors.0 }}</div>{% endif %}</div>
+            <div class="col-md-6"><label class="form-label small text-muted mb-1" for="{{ form.mother_occupation.id_for_label }}">{{ form.mother_occupation.label }}</label>{{ form.mother_occupation }}{% if form.mother_occupation.errors %}<div class="text-danger small mt-1">{{ form.mother_occupation.errors.0 }}</div>{% endif %}</div>
+            <div class="col-md-6"><label class="form-label small text-muted mb-1" for="{{ form.guardian_name.id_for_label }}">{{ form.guardian_name.label }}</label>{{ form.guardian_name }}{% if form.guardian_name.errors %}<div class="text-danger small mt-1">{{ form.guardian_name.errors.0 }}</div>{% endif %}</div>
+            <div class="col-md-3"><label class="form-label small text-muted mb-1" for="{{ form.guardian_relation.id_for_label }}">{{ form.guardian_relation.label }}</label>{{ form.guardian_relation }}{% if form.guardian_relation.errors %}<div class="text-danger small mt-1">{{ form.guardian_relation.errors.0 }}</div>{% endif %}</div>
+            <div class="col-md-3"><label class="form-label small text-muted mb-1" for="{{ form.guardian_phone.id_for_label }}">{{ form.guardian_phone.label }}</label>{{ form.guardian_phone }}{% if form.guardian_phone.errors %}<div class="text-danger small mt-1">{{ form.guardian_phone.errors.0 }}</div>{% endif %}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm border-0 rounded-4">
+        <div class="card-body p-4">
+          <div class="text-muted small text-uppercase fw-semibold mb-2" style="letter-spacing:0.06em;">Medical &amp; emergency</div>
+          <div class="row g-3">
+            <div class="col-md-6"><label class="form-label small text-muted mb-1" for="{{ form.emergency_contact_name.id_for_label }}">{{ form.emergency_contact_name.label }}</label>{{ form.emergency_contact_name }}{% if form.emergency_contact_name.errors %}<div class="text-danger small mt-1">{{ form.emergency_contact_name.errors.0 }}</div>{% endif %}</div>
+            <div class="col-md-6"><label class="form-label small text-muted mb-1" for="{{ form.emergency_phone.id_for_label }}">{{ form.emergency_phone.label }}</label>{{ form.emergency_phone }}{% if form.emergency_phone.errors %}<div class="text-danger small mt-1">{{ form.emergency_phone.errors.0 }}</div>{% endif %}</div>
+            <div class="col-md-6"><label class="form-label small text-muted mb-1" for="{{ form.allergies.id_for_label }}">{{ form.allergies.label }}</label>{{ form.allergies }}{% if form.allergies.errors %}<div class="text-danger small mt-1">{{ form.allergies.errors.0 }}</div>{% endif %}</div>
+            <div class="col-md-6"><label class="form-label small text-muted mb-1" for="{{ form.medical_conditions.id_for_label }}">{{ form.medical_conditions.label }}</label>{{ form.medical_conditions }}{% if form.medical_conditions.errors %}<div class="text-danger small mt-1">{{ form.medical_conditions.errors.0 }}</div>{% endif %}</div>
+            <div class="col-md-6"><label class="form-label small text-muted mb-1" for="{{ form.doctor_name.id_for_label }}">{{ form.doctor_name.label }}</label>{{ form.doctor_name }}{% if form.doctor_name.errors %}<div class="text-danger small mt-1">{{ form.doctor_name.errors.0 }}</div>{% endif %}</div>
+            <div class="col-md-6"><label class="form-label small text-muted mb-1" for="{{ form.hospital.id_for_label }}">{{ form.hospital.label }}</label>{{ form.hospital }}{% if form.hospital.errors %}<div class="text-danger small mt-1">{{ form.hospital.errors.0 }}</div>{% endif %}</div>
+            <div class="col-md-12"><label class="form-label small text-muted mb-1" for="{{ form.insurance_details.id_for_label }}">{{ form.insurance_details.label }}</label>{{ form.insurance_details }}{% if form.insurance_details.errors %}<div class="text-danger small mt-1">{{ form.insurance_details.errors.0 }}</div>{% endif %}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-end mt-3">
+        <button type="submit" class="btn btn-primary rounded-pill px-4">
+          <i class="bi bi-save me-1"></i>Save changes
+        </button>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}
+

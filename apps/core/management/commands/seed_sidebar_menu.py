@@ -11,7 +11,17 @@ from django.core.management.base import BaseCommand
 from apps.core.models import SidebarMenuItem
 
 
-def _mk(role: str, label: str, route_name: str, icon: str, order: int, *, feature_code: str = "", parent=None):
+def _mk(
+    role: str,
+    label: str,
+    route_name: str,
+    icon: str,
+    order: int,
+    *,
+    feature_code: str = "",
+    parent=None,
+    href: str = "",
+):
     return {
         "role": role,
         "label": label,
@@ -22,6 +32,7 @@ def _mk(role: str, label: str, route_name: str, icon: str, order: int, *, featur
         "parent": parent,
         "is_visible": True,
         "is_active": True,
+        "href": href,
     }
 
 
@@ -52,12 +63,12 @@ class Command(BaseCommand):
 
         # SUPERADMIN
         rows = [
-            _mk("SUPERADMIN", "Dashboard", "core:super_admin_dashboard", "bi bi-grid-1x2", 1),
-            _mk("SUPERADMIN", "Control Center", "core:superadmin_control_center", "bi bi-sliders2", 2),
-            _mk("SUPERADMIN", "Schools", "core:superadmin_schools_overview", "bi bi-buildings", 3),
-            _mk("SUPERADMIN", "Financials", "core:superadmin_financials", "bi bi-currency-exchange", 4),
-            _mk("SUPERADMIN", "Global Teachers", "core:superadmin_global_teachers", "bi bi-person-badge", 5),
-            _mk("SUPERADMIN", "Global Students", "core:superadmin_global_students", "bi bi-people", 6),
+            _mk("SUPERADMIN", "Overview", "", "bi bi-grid-1x2", 1, href="/super-admin/control-center/overview/"),
+            _mk("SUPERADMIN", "Schools", "", "bi bi-buildings", 2, href="/super-admin/control-center/schools/"),
+            _mk("SUPERADMIN", "Plans & Features", "", "bi bi-toggles2", 3, href="/super-admin/control-center/plans/"),
+            _mk("SUPERADMIN", "Billing", "", "bi bi-receipt", 4, href="/super-admin/control-center/billing/"),
+            _mk("SUPERADMIN", "Analytics", "", "bi bi-bar-chart", 5, href="/super-admin/control-center/analytics/"),
+            _mk("SUPERADMIN", "Settings", "", "bi bi-gear", 6, href="/super-admin/control-center/settings/"),
         ]
 
         # ADMIN (School Admin)
@@ -85,6 +96,14 @@ class Command(BaseCommand):
             _mk(admin, "Transport", "core:school_transport_index", "bi bi-bus-front", 20, feature_code="transport"),
             _mk(admin, "Branding", "core:school_branding", "bi bi-palette2", 21),
             _mk(admin, "Support", "core:school_support_create", "bi bi-life-preserver", 22),
+            _mk(
+                admin,
+                "Messages to platform",
+                "core:school_admin_platform_messages",
+                "bi bi-building-check",
+                23,
+                feature_code="platform_messaging",
+            ),
         ]
 
         # TEACHER
@@ -97,6 +116,7 @@ class Command(BaseCommand):
             _mk(teacher, "Homework", "core:homework_list", "bi bi-journal-text", 5, feature_code="homework"),
             _mk(teacher, "Exams / Marks", "core:teacher_exams", "bi bi-clipboard-check", 6, feature_code="exams"),
             _mk(teacher, "Performance", "core:teacher_class_analytics", "bi bi-bar-chart", 7, feature_code="reports"),
+            _mk(teacher, "Messages", "core:teacher_messages", "bi bi-chat-dots", 8, feature_code="reports"),
         ]
 
         # STUDENT
@@ -110,7 +130,10 @@ class Command(BaseCommand):
             _mk(student, "Fees", "core:student_fees", "bi bi-currency-dollar", 6, feature_code="fees"),
             _mk(student, "Notifications", "notifications:student_notifications", "bi bi-bell", 7),
             _mk(student, "Reports", "core:student_reports", "bi bi-graph-up-arrow", 8, feature_code="reports"),
-            _mk(student, "Profile", "core:student_profile", "bi bi-person-circle", 9),
+            _mk(student, "Messages", "core:student_messages", "bi bi-chat-dots", 9, feature_code="reports"),
+            _mk(student, "Announcements", "core:student_announcements", "bi bi-megaphone", 10),
+            _mk(student, "Resources", "core:student_resources", "bi bi-folder2-open", 11),
+            _mk(student, "Profile", "core:student_profile", "bi bi-person-circle", 12),
         ]
 
         # PARENT (future-ready minimal)

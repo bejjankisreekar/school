@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Messages to platform | {{ app_product_name }}{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="max-width: 640px;">
+  <div class="card shadow-sm border-0">
+    <div class="card-body p-4 p-md-5 text-center">
+      <div class="mb-3 text-primary" aria-hidden="true">
+        <i class="bi bi-building-up" style="font-size: 2.5rem;"></i>
+      </div>
+      <h1 class="h4 mb-2">Platform messaging is not on your current plan</h1>
+      <p class="text-body-secondary mb-4">
+        Chat with the platform team from your school admin area is available on a plan that includes
+        <strong>Platform messaging</strong>. Upgrade your plan or ask your platform administrator to enable this feature for your school.
+      </p>
+      <a href="{% url 'core:admin_dashboard' %}" class="btn btn-primary">Back to dashboard</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

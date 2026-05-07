@@ -1,0 +1,336 @@
+{% extends "super_admin/control_center_shell_page.html" %}
+
+{% block title %}Create school | Control Center{% endblock %}
+
+{% block cc_main %}
+<style>
+  .scc-create-wrap{ max-width: 920px; margin: 0 auto; }
+  .scc-create-head{
+    display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+  .scc-create-head h1{
+    font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; color: #0f172a; margin: 0 0 0.35rem;
+  }
+  .scc-create-head .lead{ font-size: 0.9rem; color: rgba(15,23,42,0.55); margin: 0; max-width: 36rem; line-height: 1.45; }
+  .scc-kicker{
+    font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em;
+    color: rgba(79, 70, 229, 0.85); margin-bottom: 0.35rem;
+  }
+  .scc-section{
+    border-radius: 1.15rem; background: #fff; border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: 0 4px 18px -6px rgba(15, 23, 42, 0.08); padding: 1.15rem 1.25rem; margin-bottom: 1rem;
+  }
+  .scc-section-h{
+    display: flex; align-items: center; gap: 0.6rem; font-size: 0.95rem; font-weight: 800; color: #0f172a;
+    margin: 0 0 1rem; padding-bottom: 0.65rem; border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  }
+  .scc-section-h i{ color: #6366f1; font-size: 1.15rem; }
+  .scc-grid2{
+    display: grid; grid-template-columns: 1fr; gap: 0.85rem 1rem;
+  }
+  @media (min-width: 768px){ .scc-grid2{ grid-template-columns: repeat(2, 1fr); } }
+  .scc-span2{ grid-column: 1 / -1; }
+  .scc-hint{ font-size: 0.75rem; color: rgba(15,23,42,0.45); margin-top: 0.2rem; }
+  .scc-actions{
+    display: flex; flex-wrap: wrap; gap: 0.65rem; justify-content: flex-end; margin-top: 0.5rem; padding-top: 1rem;
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .scc-create-head h1,
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .scc-section-h{ color: var(--text-primary, #f8fafc); }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .scc-section{
+    background: rgba(30, 41, 59, 0.55); border-color: rgba(148, 163, 184, 0.15);
+  }
+</style>
+
+<div class="scc-create-wrap">
+  <div class="scc-create-head">
+    <div>
+      <div class="scc-kicker">Schools</div>
+      <h1>Create school</h1>
+      <p class="lead">Provision a new tenant workspace, assign a SaaS plan, and create the primary school administrator account.</p>
+    </div>
+    <a href="{{ schools_list_url }}" class="btn btn-outline-secondary rounded-pill px-3">
+      <i class="bi bi-arrow-left me-1"></i>Back to schools
+    </a>
+  </div>
+
+  {% if form.non_field_errors %}
+    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" class="scc-create-form" novalidate>
+    {% csrf_token %}
+
+    <section class="scc-section" aria-labelledby="scc-h-basic">
+      <h2 id="scc-h-basic" class="scc-section-h"><i class="bi bi-building"></i> Basic school info</h2>
+      <div class="scc-grid2">
+        <div class="scc-span2">
+          <label class="form-label small fw-semibold" for="{{ form.school_name.id_for_label }}">{{ form.school_name.label }} <span class="text-danger">*</span></label>
+          {{ form.school_name }}
+          {{ form.school_name.errors }}
+        </div>
+        <div class="scc-span2">
+          <label class="form-label small fw-semibold" for="{{ form.society_registered_name.id_for_label }}">{{ form.society_registered_name.label }}</label>
+          {{ form.society_registered_name }}
+          {{ form.society_registered_name.errors }}
+        </div>
+        <div>
+          <div class="form-check mb-2">
+            {{ form.auto_generate_school_code }}
+            <label class="form-check-label small" for="{{ form.auto_generate_school_code.id_for_label }}">{{ form.auto_generate_school_code.label }}</label>
+          </div>
+          <label class="form-label small fw-semibold" for="{{ form.school_code.id_for_label }}">{{ form.school_code.label }} <span class="text-danger">*</span></label>
+          {{ form.school_code }}
+          <div class="scc-hint">Format ABC123 (three letters + three digits) when not auto-generated.</div>
+          {{ form.school_code.errors }}
+        </div>
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.school_type.id_for_label }}">{{ form.school_type.label }}</label>
+          {{ form.school_type }}
+          {{ form.school_type.errors }}
+        </div>
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.board.id_for_label }}">{{ form.board.label }}</label>
+          {{ form.board }}
+          {{ form.board.errors }}
+        </div>
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.established_year.id_for_label }}">{{ form.established_year.label }}</label>
+          {{ form.established_year }}
+          {{ form.established_year.errors }}
+        </div>
+        <div class="scc-span2">
+          <label class="form-label small fw-semibold" for="{{ form.website.id_for_label }}">{{ form.website.label }}</label>
+          {{ form.website }}
+          {{ form.website.errors }}
+        </div>
+        <div class="scc-span2">
+          <label class="form-label small fw-semibold" for="{{ form.enrollment_notes.id_for_label }}">{{ form.enrollment_notes.label }}</label>
+          {{ form.enrollment_notes }}
+          {{ form.enrollment_notes.errors }}
+        </div>
+      </div>
+    </section>
+
+    <section class="scc-section" aria-labelledby="scc-h-contact">
+      <h2 id="scc-h-contact" class="scc-section-h"><i class="bi bi-geo-alt"></i> Contact details</h2>
+      <div class="scc-grid2">
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.contact_email.id_for_label }}">{{ form.contact_email.label }} <span class="text-danger">*</span></label>
+          {{ form.contact_email }}
+          {{ form.contact_email.errors }}
+        </div>
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.phone.id_for_label }}">{{ form.phone.label }} <span class="text-danger">*</span></label>
+          {{ form.phone }}
+          <div class="scc-hint">10-digit mobile number.</div>
+          {{ form.phone.errors }}
+        </div>
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.alternate_phone.id_for_label }}">{{ form.alternate_phone.label }}</label>
+          {{ form.alternate_phone }}
+          {{ form.alternate_phone.errors }}
+        </div>
+        <div class="scc-span2">
+          <label class="form-label small fw-semibold" for="{{ form.address_line1.id_for_label }}">{{ form.address_line1.label }} <span class="text-danger">*</span></label>
+          {{ form.address_line1 }}
+          {{ form.address_line1.errors }}
+        </div>
+        <div class="scc-span2">
+          <label class="form-label small fw-semibold" for="{{ form.address_line2.id_for_label }}">{{ form.address_line2.label }}</label>
+          {{ form.address_line2 }}
+          {{ form.address_line2.errors }}
+        </div>
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.city.id_for_label }}">City <span class="text-danger">*</span></label>
+          {{ form.city }}
+          {{ form.city.errors }}
+        </div>
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.state.id_for_label }}">State <span class="text-danger">*</span></label>
+          {{ form.state }}
+          {{ form.state.errors }}
+        </div>
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.country.id_for_label }}">Country <span class="text-danger">*</span></label>
+          {{ form.country }}
+          {{ form.country.errors }}
+        </div>
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.pincode.id_for_label }}">{{ form.pincode.label }} <span class="text-danger">*</span></label>
+          {{ form.pincode }}
+          {{ form.pincode.errors }}
+        </div>
+      </div>
+    </section>
+
+    <section class="scc-section" aria-labelledby="scc-h-admin">
+      <h2 id="scc-h-admin" class="scc-section-h"><i class="bi bi-person-badge"></i> School admin (owner)</h2>
+      <div class="scc-grid2">
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.admin_name.id_for_label }}">{{ form.admin_name.label }} <span class="text-danger">*</span></label>
+          {{ form.admin_name }}
+          {{ form.admin_name.errors }}
+        </div>
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.admin_email.id_for_label }}">{{ form.admin_email.label }} <span class="text-danger">*</span></label>
+          {{ form.admin_email }}
+          <div class="scc-hint">Login username is generated from this email and must stay unique.</div>
+          {{ form.admin_email.errors }}
+        </div>
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.admin_phone.id_for_label }}">{{ form.admin_phone.label }} <span class="text-danger">*</span></label>
+          {{ form.admin_phone }}
+          {{ form.admin_phone.errors }}
+        </div>
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.password1.id_for_label }}">{{ form.password1.label }} <span class="text-danger">*</span></label>
+          {{ form.password1 }}
+          {{ form.password1.errors }}
+        </div>
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.password2.id_for_label }}">{{ form.password2.label }} <span class="text-danger">*</span></label>
+          {{ form.password2 }}
+          {{ form.password2.errors }}
+        </div>
+      </div>
+    </section>
+
+    <section class="scc-section" aria-labelledby="scc-h-academic">
+      <h2 id="scc-h-academic" class="scc-section-h"><i class="bi bi-mortarboard"></i> Academic info</h2>
+      <div class="scc-grid2">
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.medium.id_for_label }}">{{ form.medium.label }}</label>
+          {{ form.medium }}
+          {{ form.medium.errors }}
+        </div>
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.student_capacity.id_for_label }}">{{ form.student_capacity.label }}</label>
+          {{ form.student_capacity }}
+          {{ form.student_capacity.errors }}
+        </div>
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.teacher_capacity.id_for_label }}">{{ form.teacher_capacity.label }}</label>
+          {{ form.teacher_capacity }}
+          {{ form.teacher_capacity.errors }}
+        </div>
+        <div class="scc-span2">
+          <label class="form-label small fw-semibold" for="{{ form.classes_available.id_for_label }}">{{ form.classes_available.label }} <span class="text-danger">*</span></label>
+          {{ form.classes_available }}
+          <div class="scc-hint">Hold Ctrl (Windows) or ⌘ (Mac) to select multiple classes.</div>
+          {{ form.classes_available.errors }}
+        </div>
+      </div>
+    </section>
+
+    <section class="scc-section" aria-labelledby="scc-h-sub">
+      <h2 id="scc-h-sub" class="scc-section-h"><i class="bi bi-credit-card-2-front"></i> Subscription</h2>
+      <div class="scc-grid2">
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.plan.id_for_label }}">{{ form.plan.label }} <span class="text-danger">*</span></label>
+          {{ form.plan }}
+          {{ form.plan.errors }}
+        </div>
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.billing_cycle.id_for_label }}">{{ form.billing_cycle.label }}</label>
+          {{ form.billing_cycle }}
+          {{ form.billing_cycle.errors }}
+        </div>
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.subscription_start_date.id_for_label }}">{{ form.subscription_start_date.label }}</label>
+          {{ form.subscription_start_date }}
+          {{ form.subscription_start_date.errors }}
+        </div>
+        <div>
+          <label class="form-label small fw-semibold" for="subscriptionEndPreview">End date</label>
+          <input type="text" class="form-control" id="subscriptionEndPreview" readonly autocomplete="off" aria-describedby="subEndHint" />
+          <div class="scc-hint" id="subEndHint">Auto-calculated from start date and billing cycle (inclusive period end).</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="scc-section" aria-labelledby="scc-h-up">
+      <h2 id="scc-h-up" class="scc-section-h"><i class="bi bi-cloud-arrow-up"></i> Uploads</h2>
+      <div class="scc-grid2">
+        <div>
+          <label class="form-label small fw-semibold" for="{{ form.logo.id_for_label }}">{{ form.logo.label }}</label>
+          {{ form.logo }}
+          {{ form.logo.errors }}
+        </div>
+        <div>
+          <label class="form-label small fw-semibold" for="id_documents">Documents (optional)</label>
+          <input type="file" name="documents" id="id_documents" class="form-control" multiple accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" />
+          <div class="scc-hint">PDF or images, up to 5 MB each.</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="scc-actions">
+      <a href="{{ schools_list_url }}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
+      <button type="submit" class="btn btn-primary rounded-pill px-4">
+        <i class="bi bi-check2-circle me-1"></i>Create school
+      </button>
+    </div>
+  </form>
+</div>
+
+<script>
+(function () {
+  var autoChk = document.getElementById("{{ form.auto_generate_school_code.id_for_label }}");
+  var codeInp = document.getElementById("{{ form.school_code.id_for_label }}");
+  function syncCodeDisabled() {
+    if (!autoChk || !codeInp) return;
+    var on = autoChk.checked;
+    codeInp.disabled = on;
+    codeInp.classList.toggle("bg-light", on);
+    if (on) codeInp.value = "";
+  }
+  if (autoChk) autoChk.addEventListener("change", syncCodeDisabled);
+  syncCodeDisabled();
+
+  var startEl = document.getElementById("{{ form.subscription_start_date.id_for_label }}");
+  var cycleEl = document.getElementById("{{ form.billing_cycle.id_for_label }}");
+  var outEl = document.getElementById("subscriptionEndPreview");
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  function parseISODate(s) {
+    if (!s) return null;
+    var p = s.split("-");
+    if (p.length !== 3) return null;
+    var y = parseInt(p[0], 10), m = parseInt(p[1], 10) - 1, d = parseInt(p[2], 10);
+    if (isNaN(y) || isNaN(m) || isNaN(d)) return null;
+    return new Date(y, m, d);
+  }
+  function addMonths(dt, months) {
+    var y = dt.getFullYear(), m = dt.getMonth(), d = dt.getDate();
+    var nm = m + months;
+    var ny = y + Math.floor(nm / 12);
+    var mm = ((nm % 12) + 12) % 12;
+    var dim = new Date(ny, mm + 1, 0).getDate();
+    var dd = Math.min(d, dim);
+    return new Date(ny, mm, dd);
+  }
+  function addYearsClamped(dt, years) {
+    var y = dt.getFullYear() + years, m = dt.getMonth(), d = dt.getDate();
+    var dim = new Date(y, m + 1, 0).getDate();
+    var dd = Math.min(d, dim);
+    return new Date(y, m, dd);
+  }
+  function fmt(dt) {
+    if (!dt || isNaN(dt.getTime())) return "";
+    return dt.getFullYear() + "-" + pad2(dt.getMonth() + 1) + "-" + pad2(dt.getDate());
+  }
+  function syncEnd() {
+    if (!startEl || !cycleEl || !outEl) return;
+    var dt = parseISODate(startEl.value);
+    if (!dt) { outEl.value = ""; return; }
+    var yearly = (cycleEl.value || "").toLowerCase() === "yearly";
+    var anchor = yearly ? addYearsClamped(dt, 1) : addMonths(dt, 1);
+    var end = new Date(anchor.getTime() - 86400000);
+    outEl.value = fmt(end);
+  }
+  if (startEl) startEl.addEventListener("change", syncEnd);
+  if (cycleEl) cycleEl.addEventListener("change", syncEnd);
+  syncEnd();
+})();
+</script>
+{% endblock %}

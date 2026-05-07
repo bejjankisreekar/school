@@ -1,57 +1,284 @@
 {% extends "marketing/base.html" %}
-{% block title %}About Our School ERP Platform | School ERP{% endblock %}
+{% block title %}About {{ app_product_name }} | What we offer{% endblock %}
 {% block content %}
-<section class="py-5 py-lg-6">
-  <div class="container">
-    <h1 class="text-center display-5 fw-bold mb-5">About Our School ERP Platform</h1>
-
-    <div class="row g-5 mb-5">
-      <div class="col-lg-6">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-body p-4 p-lg-5">
-            <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-3 mb-3 d-inline-block"><i class="bi bi-bullseye fs-3"></i></div>
-            <h4 class="fw-bold mb-3">Mission</h4>
-            <p class="text-secondary mb-0">Our mission is to simplify school administration through modern technology.</p>
+<div class="about-page">
+  <!-- Hero -->
+  <section class="about-hero">
+    <div class="container position-relative" style="z-index:1">
+      <div class="row align-items-center g-4 g-lg-5">
+        <div class="col-lg-6 text-center text-lg-start">
+          <p class="landing-eyebrow mb-2">About</p>
+          <h1 class="landing-section-title mb-3">What {{ app_product_name }} is—and what each part does</h1>
+          <p class="about-hero-lead mb-4 mx-auto mx-lg-0">
+            A <strong>multi-tenant SaaS</strong> for schools and colleges: each institution gets an isolated workspace, role-based access, and modules gated by <strong>plan</strong> (Basic, Pro, Premium). This page is your map—clear labels, no buzzword soup.
+          </p>
+          <div class="d-flex flex-wrap justify-content-center justify-content-lg-start gap-2">
+            <a href="{% url 'core:pricing' %}" class="btn-landing-primary text-decoration-none">See plans</a>
+            <a href="{% url 'core:school_enroll' %}" class="btn-landing-secondary text-decoration-none">Enroll</a>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="about-hero-visual mx-auto" style="max-width: 380px">
+            <div class="about-hero-card about-hero-card--1">
+              <i class="bi bi-shield-lock" aria-hidden="true"></i>Tenant isolation
+            </div>
+            <div class="about-hero-card about-hero-card--2">
+              <i class="bi bi-diagram-3" aria-hidden="true"></i>Plans &amp; features
+            </div>
+            <div class="about-hero-card about-hero-card--3">
+              <i class="bi bi-people" aria-hidden="true"></i>Roles for whole campus
+            </div>
           </div>
         </div>
       </div>
-      <div class="col-lg-6">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-body p-4 p-lg-5">
-            <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-3 mb-3 d-inline-block"><i class="bi bi-eye fs-3"></i></div>
-            <h4 class="fw-bold mb-3">Vision</h4>
-            <p class="text-secondary mb-0">To empower educational institutions with secure, scalable digital tools.</p>
+    </div>
+  </section>
+
+  <!-- Product + key terms -->
+  <section class="landing-section bg-white">
+    <div class="container">
+      <div class="about-section-head is-left mb-4 mb-lg-5 col-lg-10 mx-auto ms-lg-0 me-lg-auto px-0">
+        <p class="landing-eyebrow mb-2">The product</p>
+        <h2 class="landing-section-title h2 mb-3">One workspace for your institution</h2>
+        <p class="landing-section-sub mb-0" style="max-width: 38rem">
+          Admins run operations from the web. Teachers handle attendance, exams, and homework. Students and parents see marks, fees, and announcements. What appears in the menu depends on <strong>role</strong> and <strong>plan</strong>—compare live on <a href="{% url 'core:pricing' %}" class="fw-semibold text-decoration-none" style="color:var(--saas-primary)">Pricing</a>.
+        </p>
+      </div>
+      <div class="row justify-content-center">
+        <div class="col-xl-10">
+          <h3 class="h6 fw-bold text-uppercase text-muted mb-3" style="letter-spacing: 0.1em">Key terms</h3>
+          <div class="about-term-grid">
+            <article class="about-term-tile">
+              <h3>Tenant (your school)</h3>
+              <p>Your data lives in a <strong>dedicated school context</strong>—never mixed with other institutions. That isolation is what multi-tenancy means here.</p>
+            </article>
+            <article class="about-term-tile">
+              <h3>Plan (Basic / Pro / Premium)</h3>
+              <p>A <strong>subscription tier</strong> that bundles features—exams, payroll, transport, and more unlock as you move up. Student-based pricing still applies.</p>
+            </article>
+            <article class="about-term-tile">
+              <h3>Feature</h3>
+              <p>A switchable capability: <em>timetable</em>, <em>fees</em>, <em>library</em>, etc. Operators map features to plans so the product matches what you bought.</p>
+            </article>
+            <article class="about-term-tile">
+              <h3>Roles</h3>
+              <p><strong>Admin, Teacher, Student, Parent</strong>—each sees tailored menus. Platform staff use a separate super-admin surface for support.</p>
+            </article>
           </div>
         </div>
       </div>
     </div>
+  </section>
 
-    <div class="mb-5">
-      <h3 class="fw-bold mb-4">What We Offer</h3>
-      <div class="row g-3">
-        <div class="col-md-6 col-lg-3">
-          <div class="d-flex gap-3 p-3 rounded-3 bg-light"><i class="bi bi-cloud text-primary fs-4"></i><div><strong>Multi-tenant cloud ERP</strong><p class="small text-secondary mb-0">Isolated data per school</p></div></div>
+  <!-- Plans -->
+  <section class="landing-section landing-band-muted">
+    <div class="container">
+      <div class="about-section-head mb-4 mb-lg-5">
+        <p class="landing-eyebrow mb-2">Plans</p>
+        <h2 class="landing-section-title h2 mb-2">Basic, Pro, Premium</h2>
+        <p class="landing-section-sub mb-0">
+          Same product code—<strong>different included modules</strong>. The pricing page always shows the current matrix.
+        </p>
+      </div>
+      <div class="row g-4 justify-content-center align-items-stretch">
+        <div class="col-md-6 col-lg-4 d-flex">
+          <article class="about-plan-card about-plan-card--basic w-100">
+            <span class="about-plan-pill about-plan-pill--basic">Basic</span>
+            <h3 class="h5 fw-bold mb-2">Foundation</h3>
+            <p class="text-secondary small mb-0">Students, faculty, classes, subjects, and academic year—the structural layer new digital programs need first.</p>
+          </article>
         </div>
-        <div class="col-md-6 col-lg-3">
-          <div class="d-flex gap-3 p-3 rounded-3 bg-light"><i class="bi bi-robot text-primary fs-4"></i><div><strong>AI powered academic tools</strong><p class="small text-secondary mb-0">Smart reports and summaries</p></div></div>
+        <div class="col-md-6 col-lg-4 d-flex">
+          <article class="about-plan-card about-plan-card--pro about-plan-card--featured w-100">
+            <span class="about-plan-pill about-plan-pill--pro">Pro</span>
+            <h3 class="h5 fw-bold mb-2">Daily operations</h3>
+            <p class="text-secondary small mb-0">Attendance, timetable, exams, homework, messaging, and broadcasts—fewer spreadsheets, more signal.</p>
+          </article>
         </div>
-        <div class="col-md-6 col-lg-3">
-          <div class="d-flex gap-3 p-3 rounded-3 bg-light"><i class="bi bi-gear text-primary fs-4"></i><div><strong>Automation for school operations</strong><p class="small text-secondary mb-0">Reduce admin workload</p></div></div>
-        </div>
-        <div class="col-md-6 col-lg-3">
-          <div class="d-flex gap-3 p-3 rounded-3 bg-light"><i class="bi bi-shield-lock text-primary fs-4"></i><div><strong>Secure data infrastructure</strong><p class="small text-secondary mb-0">Enterprise-grade security</p></div></div>
+        <div class="col-md-6 col-lg-4 d-flex">
+          <article class="about-plan-card about-plan-card--premium w-100">
+            <span class="about-plan-pill about-plan-pill--premium">Premium</span>
+            <h3 class="h5 fw-bold mb-2">Full campus stack</h3>
+            <p class="text-secondary small mb-0">Everything we publish: analytics, notifications, transport, hostel, library, branding—when you want the whole surface.</p>
+          </article>
         </div>
       </div>
     </div>
+  </section>
 
-    <div class="card border-0 shadow-sm">
-      <div class="card-body p-4 p-lg-5">
-        <h3 class="fw-bold mb-4">Our Story</h3>
-        <p class="text-secondary">School ERP was born from a simple observation: educational institutions spend too much time on manual administrative tasks instead of what matters most — teaching and learning.</p>
-        <p class="text-secondary">We built a team of educators and technologists to create a platform that brings together student data, fee management, attendance, exams, and communication into one unified system. Today, we serve schools and NGOs across regions, helping them digitize operations and deliver better outcomes.</p>
-        <p class="text-secondary mb-0">We are committed to continuous improvement, listening to our customers, and building features that make school administration effortless.</p>
+  <!-- Modules -->
+  <section class="landing-section landing-surface-alt">
+    <div class="container">
+      <div class="about-section-head mb-5">
+        <p class="landing-eyebrow mb-2">Modules</p>
+        <h2 class="landing-section-title h2 mb-2">What each area covers</h2>
+        <p class="landing-section-sub mb-0">Grouped the way the product is organized. Actual screens depend on role and plan.</p>
+      </div>
+      <div class="row g-4">
+        <div class="col-md-6 col-lg-4">
+          <article class="about-module-card">
+            <div class="landing-feature-icon landing-feature-icon--indigo"><i class="bi bi-mortarboard"></i></div>
+            <h3 class="h6 fw-bold mb-2">Academics &amp; records</h3>
+            <p class="text-secondary small mb-0">Rosters, sections, subjects, and terms so promotions and reporting stay aligned.</p>
+          </article>
+        </div>
+        <div class="col-md-6 col-lg-4">
+          <article class="about-module-card">
+            <div class="landing-feature-icon landing-feature-icon--violet"><i class="bi bi-calendar-week"></i></div>
+            <h3 class="h6 fw-bold mb-2">Attendance &amp; time</h3>
+            <p class="text-secondary small mb-0">Student and faculty attendance, published timetables, and the school calendar.</p>
+          </article>
+        </div>
+        <div class="col-md-6 col-lg-4">
+          <article class="about-module-card">
+            <div class="landing-feature-icon landing-feature-icon--green"><i class="bi bi-clipboard-data"></i></div>
+            <h3 class="h6 fw-bold mb-2">Exams &amp; homework</h3>
+            <p class="text-secondary small mb-0">Sessions, marks, locks, report cards, and assignments in one pipeline.</p>
+          </article>
+        </div>
+        <div class="col-md-6 col-lg-4">
+          <article class="about-module-card">
+            <div class="landing-feature-icon landing-feature-icon--indigo"><i class="bi bi-cash-stack"></i></div>
+            <h3 class="h6 fw-bold mb-2">Fees &amp; billing</h3>
+            <p class="text-secondary small mb-0">Structures, invoices, collections, and concessions—finance without shadow IT.</p>
+          </article>
+        </div>
+        <div class="col-md-6 col-lg-4">
+          <article class="about-module-card">
+            <div class="landing-feature-icon landing-feature-icon--violet"><i class="bi bi-wallet2"></i></div>
+            <h3 class="h6 fw-bold mb-2">Payroll</h3>
+            <p class="text-secondary small mb-0">Components, structures, advances, and payslip PDFs when payroll is enabled.</p>
+          </article>
+        </div>
+        <div class="col-md-6 col-lg-4">
+          <article class="about-module-card">
+            <div class="landing-feature-icon landing-feature-icon--green"><i class="bi bi-chat-heart"></i></div>
+            <h3 class="h6 fw-bold mb-2">Communication</h3>
+            <p class="text-secondary small mb-0">Messaging and broadcasts so families hear the official channel, not rumor.</p>
+          </article>
+        </div>
+        <div class="col-md-6 col-lg-4">
+          <article class="about-module-card">
+            <div class="landing-feature-icon landing-feature-icon--indigo"><i class="bi bi-bus-front"></i></div>
+            <h3 class="h6 fw-bold mb-2">Transport, hostel, library</h3>
+            <p class="text-secondary small mb-0">Routes, rooms, and circulation—<strong>when your plan includes</strong> these services.</p>
+          </article>
+        </div>
+        <div class="col-md-6 col-lg-4">
+          <article class="about-module-card">
+            <div class="landing-feature-icon landing-feature-icon--violet"><i class="bi bi-graph-up-arrow"></i></div>
+            <h3 class="h6 fw-bold mb-2">Reports &amp; analytics</h3>
+            <p class="text-secondary small mb-0">Dashboards and exports; optional <strong>AI-assisted</strong> summaries where enabled.</p>
+          </article>
+        </div>
+        <div class="col-md-6 col-lg-4">
+          <article class="about-module-card">
+            <div class="landing-feature-icon landing-feature-icon--green"><i class="bi bi-palette"></i></div>
+            <h3 class="h6 fw-bold mb-2">Branding &amp; support</h3>
+            <p class="text-secondary small mb-0">Logo and colors on supported plans; tracked <strong>support requests</strong> in-app.</p>
+          </article>
+        </div>
       </div>
     </div>
-  </div>
-</section>
+  </section>
+
+  <!-- Enrollment -->
+  <section class="landing-section bg-white">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-xl-10">
+          <div class="about-section-head is-left mb-4">
+            <p class="landing-eyebrow mb-2">Public signup</p>
+            <h2 class="landing-section-title h2 mb-2">What we ask when you enroll</h2>
+            <p class="landing-section-sub mb-0" style="max-width: 36rem">
+              The <a href="{% url 'core:school_enroll' %}" class="fw-semibold text-decoration-none" style="color:var(--saas-primary)">Enroll</a> flow creates your tenant and admin login. Fields match how schools actually register.
+            </p>
+          </div>
+          <div class="about-enroll-wrap">
+            <div class="about-enroll-inner">
+              <div class="row g-3 g-md-4">
+                <div class="col-md-6">
+                  <div class="about-enroll-card">
+                    <div class="about-enroll-card__icon" aria-hidden="true"><i class="bi bi-building-check"></i></div>
+                    <div>
+                      <h3>Society / registered name</h3>
+                      <p><strong>Required.</strong> Trust, society, or RWA legal name so records match registration papers.</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="about-enroll-card">
+                    <div class="about-enroll-card__icon" aria-hidden="true"><i class="bi bi-globe2"></i></div>
+                    <div>
+                      <h3>Country code + mobile</h3>
+                      <p>Split fields for <strong>country</strong> and <strong>national number</strong>—fewer typos; we store a full international number.</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="about-enroll-card">
+                    <div class="about-enroll-card__icon" aria-hidden="true"><i class="bi bi-link-45deg"></i></div>
+                    <div>
+                      <h3>Website &amp; board</h3>
+                      <p><strong>Optional</strong> site URL and affiliation (e.g. CBSE) to pre-fill your school profile.</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="about-enroll-card">
+                    <div class="about-enroll-card__icon" aria-hidden="true"><i class="bi bi-stars"></i></div>
+                    <div>
+                      <h3>Plan preference &amp; trial</h3>
+                      <p>Choose <strong>Basic, Pro, or Premium</strong> intent (Premium pre-selected). Trial uses that footprint before billing.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Mission / vision -->
+  <section class="landing-section landing-band-muted">
+    <div class="container">
+      <div class="about-section-head mb-4 mb-lg-5">
+        <p class="landing-eyebrow mb-2">Our promise</p>
+        <h2 class="landing-section-title h2 mb-0">Mission &amp; vision</h2>
+      </div>
+      <div class="row g-4">
+        <div class="col-lg-6">
+          <article class="about-mvv-card">
+            <div class="landing-feature-icon landing-feature-icon--indigo"><i class="bi bi-bullseye"></i></div>
+            <h3 class="h5 fw-bold mb-2">Mission</h3>
+            <p class="text-secondary small mb-0">Cut administrative drag so educators focus on learners—predictable workflows, clear permissions, fair pricing by scale.</p>
+          </article>
+        </div>
+        <div class="col-lg-6">
+          <article class="about-mvv-card">
+            <div class="landing-feature-icon landing-feature-icon--violet"><i class="bi bi-lightbulb"></i></div>
+            <h3 class="h5 fw-bold mb-2">Vision</h3>
+            <p class="text-secondary small mb-0">Trustworthy school software for the region: honest feature boundaries, isolated data, and roadmaps driven by real campuses.</p>
+          </article>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="landing-section landing-cta-gradient text-white mb-0">
+    <div class="container text-center landing-cta-inner py-lg-2">
+      <p class="small text-white text-opacity-75 text-uppercase fw-semibold mb-2" style="letter-spacing: 0.12em">Next step</p>
+      <h2 class="h3 fw-bold mb-3">Put the map into practice</h2>
+      <p class="lead mb-4 mx-auto" style="max-width: 28rem">Compare tiers, start a trial, or talk through rollout with us.</p>
+      <div class="d-flex flex-wrap justify-content-center gap-2 gap-md-3">
+        <a href="{% url 'core:pricing' %}" class="btn btn-light btn-lg px-4 fw-semibold rounded-3 shadow-sm">View pricing</a>
+        <a href="{% url 'core:school_enroll' %}" class="btn btn-outline-light btn-lg px-4 rounded-3">Enroll your school</a>
+        <a href="{% url 'core:contact' %}" class="btn btn-outline-light btn-lg px-4 rounded-3">Contact</a>
+      </div>
+    </div>
+  </section>
+</div>
 {% endblock %}

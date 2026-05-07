@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Overview | Control Center{% endblock %}
+
+{% block content %}
+<style>
+  .cc-card{ border-radius: 16px; border: 1px solid rgba(15,23,42,.10); box-shadow: 0 10px 24px rgba(2,6,23,.06); }
+  .cc-pill{ font-size:.75rem; padding:.2rem .55rem; border-radius:999px; border:1px solid rgba(15,23,42,.12); background: rgba(255,255,255,.7); }
+  .cc-list{ margin:0; padding:0; list-style:none; }
+  .cc-list li{ padding:.65rem .75rem; border-bottom:1px solid rgba(15,23,42,.08); }
+  .cc-list li:last-child{ border-bottom:0; }
+</style>
+
+<div class="container-fluid px-0 px-lg-2 pb-5">
+  <div style="max-width: 1100px; margin: 0 auto;">
+    <div class="row g-3">
+      <div class="col-12 col-md-4">
+        <div class="card cc-card border-0">
+          <div class="card-body">
+            <div class="text-muted small">Total schools</div>
+            <div class="h3 fw-bold mb-0">{{ total_schools }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div class="card cc-card border-0">
+          <div class="card-body">
+            <div class="text-muted small">Active schools</div>
+            <div class="h3 fw-bold mb-0">{{ active_schools }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div class="card cc-card border-0">
+          <div class="card-body">
+            <div class="text-muted small">Trial schools</div>
+            <div class="h3 fw-bold mb-0">{{ trial_schools }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-md-6">
+        <div class="card cc-card border-0">
+          <div class="card-body">
+            <div class="text-muted small">Total students</div>
+            <div class="h3 fw-bold mb-0">{{ total_students }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6">
+        <div class="card cc-card border-0">
+          <div class="card-body">
+            <div class="text-muted small">Total teachers</div>
+            <div class="h3 fw-bold mb-0">{{ total_teachers }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-6">
+        <div class="card cc-card border-0">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="fw-semibold">Recent schools</div>
+              <span class="cc-pill">latest 8</span>
+            </div>
+          </div>
+          <ul class="cc-list">
+            {% for s in recent_schools %}
+              <li class="d-flex justify-content-between align-items-start gap-2">
+                <div class="min-w-0">
+                  <div class="fw-semibold text-truncate">{{ s.name }}</div>
+                  <div class="text-muted small">{{ s.code }} • {{ s.schema_name }}</div>
+                </div>
+                <span class="cc-pill">{{ s.get_school_status_display }}</span>
+              </li>
+            {% empty %}
+              <li class="text-muted small">No schools found.</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-6">
+        <div class="card cc-card border-0">
+          <div class="card-body">
+            <div class="fw-semibold">Plan distribution</div>
+            <div class="small mt-2">
+              <div class="d-flex justify-content-between"><span>Basic</span><strong>{{ plan_counts.basic }}</strong></div>
+              <div class="d-flex justify-content-between"><span>Pro</span><strong>{{ plan_counts.pro }}</strong></div>
+              <div class="d-flex justify-content-between"><span>Premium</span><strong>{{ plan_counts.premium }}</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

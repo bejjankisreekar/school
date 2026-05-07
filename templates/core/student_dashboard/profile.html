@@ -3,150 +3,438 @@
 {% block title %}Student Profile | School ERP{% endblock %}
 
 {% block content %}
-<div class="container py-4 student-profile-page">
+<div class="container py-4 student-profile-page" style="max-width: 1100px;">
   <style>
-    .student-profile-page .profile-hero {
-      border-radius: 1rem;
-      border: 1px solid var(--bs-border-color-translucent);
-      background: linear-gradient(135deg, rgba(59, 130, 246, 0.10) 0%, transparent 55%),
-        linear-gradient(225deg, rgba(99, 102, 241, 0.08) 0%, transparent 50%);
-      padding: 1rem 1.25rem;
-      margin-bottom: 1rem;
+    .student-profile-page {
+      --sp-card-radius: 1.15rem;
+      --sp-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 12px 34px rgba(15, 23, 42, 0.08);
+      --sp-shadow-hover: 0 10px 28px rgba(15, 23, 42, 0.12);
+      --sp-muted: #64748b;
+      --sp-muted-2: rgba(100, 116, 139, 0.85);
+      --sp-bg: rgba(248, 250, 252, 0.9);
     }
-    html.dark .student-profile-page .profile-hero {
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, transparent 55%),
-        linear-gradient(225deg, rgba(96, 165, 250, 0.10) 0%, transparent 50%);
+    html.dark .student-profile-page {
+      --sp-muted: #94a3b8;
+      --sp-muted-2: rgba(148, 163, 184, 0.92);
+      --sp-bg: rgba(15, 23, 42, 0.25);
+      --sp-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 14px 40px rgba(0, 0, 0, 0.35);
+      --sp-shadow-hover: 0 18px 50px rgba(0, 0, 0, 0.42);
     }
-    .student-profile-page .profile-title { letter-spacing: -0.02em; }
-    .student-profile-page .profile-card {
-      border-radius: 1rem;
+
+    .student-profile-page .page-header-card {
+      border-radius: var(--sp-card-radius);
+      border: 1px solid rgba(99, 102, 241, 0.22);
+      box-shadow: var(--sp-shadow);
+      padding: 1.25rem 1.25rem;
+      background:
+        radial-gradient(900px circle at 10% 20%, rgba(59, 130, 246, 0.45) 0%, rgba(59, 130, 246, 0.0) 55%),
+        radial-gradient(700px circle at 90% 10%, rgba(168, 85, 247, 0.45) 0%, rgba(168, 85, 247, 0.0) 55%),
+        linear-gradient(135deg, #2563eb 0%, #7c3aed 55%, #4338ca 100%);
+      color: #fff;
+      position: relative;
+      overflow: hidden;
+    }
+    .student-profile-page .page-header-card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.0) 45%);
+      pointer-events: none;
+    }
+    .student-profile-page .header-subtitle {
+      color: rgba(255, 255, 255, 0.82);
+    }
+    .student-profile-page .profile-title {
+      letter-spacing: -0.03em;
+    }
+
+    .student-profile-page .ui-card {
+      border-radius: var(--sp-card-radius);
       border: 1px solid var(--bs-border-color-translucent);
+      box-shadow: var(--sp-shadow);
+      background: var(--sp-bg);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .student-profile-page .ui-card:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--sp-shadow-hover);
+    }
+
+    .student-profile-page .avatar {
+      width: 104px;
+      height: 104px;
+      border-radius: 999px;
+      object-fit: cover;
+      border: 2px solid rgba(255, 255, 255, 0.75);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+      background: rgba(255,255,255,0.1);
+    }
+    .student-profile-page .avatar-placeholder {
+      width: 104px;
+      height: 104px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 34px;
+      color: #fff;
+      background: rgba(255, 255, 255, 0.18);
+      border: 1px solid rgba(255, 255, 255, 0.32);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+    }
+
+    .student-profile-page .meta-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      background: rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.95);
+      font-weight: 650;
+      font-size: 0.85rem;
+      backdrop-filter: blur(6px);
+      white-space: nowrap;
+    }
+
+    .student-profile-page .section-title {
+      font-size: 0.9rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--sp-muted);
+    }
+    .student-profile-page .field-label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--sp-muted-2);
+      margin-bottom: 0.15rem;
+    }
+    .student-profile-page .field-value {
+      font-weight: 650;
+      color: var(--bs-body-color);
     }
     .student-profile-page .stat-tile {
-      border-radius: 0.9rem;
+      border-radius: 1rem;
       border: 1px solid var(--bs-border-color-translucent);
-      background: rgba(248, 250, 252, 0.7);
-      padding: 0.85rem 0.75rem;
+      background: rgba(255, 255, 255, 0.55);
+      padding: 0.95rem 0.85rem;
     }
     html.dark .student-profile-page .stat-tile { background: rgba(148, 163, 184, 0.08); }
-    .student-profile-page .avatar-img {
-      width: 120px;
-      height: 120px;
-      object-fit: cover;
+    .student-profile-page .btn-soft {
       border-radius: 999px;
-      border: 2px solid rgba(15, 23, 42, 0.08);
+      padding-left: 0.9rem;
+      padding-right: 0.9rem;
     }
   </style>
 
-  <div class="profile-hero d-flex justify-content-between align-items-start flex-wrap gap-2">
-    <div>
-      <h1 class="h4 fw-bold mb-1 profile-title">My profile</h1>
-      <div class="text-muted small">Your details, achievements, and quick stats in one place.</div>
-    </div>
-    <div class="d-flex gap-2">
-      <a href="{% url 'core:student_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
-        <i class="bi bi-arrow-left me-1"></i>Back
-      </a>
-      <a href="{% url 'core:edit_profile_web' %}" class="btn btn-primary btn-sm rounded-pill px-3">
-        <i class="bi bi-pencil me-1"></i>Edit
-      </a>
-    </div>
-  </div>
-  <div class="row g-4">
-    <!-- LEFT: PROFILE CARD -->
-    <div class="col-lg-4">
-      <div class="card shadow-sm profile-card text-center p-4">
-        <style>
-          .avatar-placeholder {
-            width: 120px;
-            height: 120px;
-            border-radius: 999px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 36px;
-            color: #0d6efd;
-            background: rgba(13, 110, 253, 0.12);
-            border: 1px dashed rgba(13, 110, 253, 0.35);
-          }
-        </style>
-
+  <!-- Profile Header -->
+  <div class="page-header-card mb-4">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 position-relative">
+      <div class="d-flex align-items-center gap-3">
         {% if student.profile_image %}
-          <img
-            src="{{ student.profile_image.url }}"
-            class="avatar-img mb-3"
-            alt="Profile"
-          >
+          <img src="{{ student.profile_image.url }}" class="avatar" alt="Profile">
         {% else %}
-          <div class="avatar-placeholder mb-3">
-            {{ request.user.first_name|slice:":1" }}{{ request.user.last_name|slice:":1" }}
+          <div class="avatar-placeholder" aria-hidden="true">
+            {{ request.user.first_name|default:request.user.username|slice:":1"|upper }}
           </div>
         {% endif %}
-
-        <h5 class="fw-bold mb-1">{{ request.user.get_full_name|default:request.user.username }}</h5>
-
-        <p class="text-muted mb-3">
-          {% if student.classroom %}{{ student.classroom.name }}{% else %}-{% endif %}
-          -
-          {% if student.section %}{{ student.section.name }}{% else %}-{% endif %}
-        </p>
-
-        <span class="badge bg-primary">
-          Roll No: {{ student.roll_number }}
-        </span>
+        <div class="min-w-0">
+          <div class="header-subtitle small mb-1">Student Profile</div>
+          <h1 class="h3 fw-bold mb-1 profile-title text-truncate">
+            {{ request.user.get_full_name|default:request.user.username }}
+          </h1>
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <span class="meta-pill">
+              <i class="bi bi-mortarboard"></i>
+              {% if student.classroom %}{{ student.classroom.name }}{% else %}-{% endif %}
+              {% if student.section %} · {{ student.section.name }}{% endif %}
+            </span>
+            <span class="meta-pill">
+              <i class="bi bi-hash"></i>
+              Roll: {{ student.roll_number|default:"-" }}
+            </span>
+          </div>
+        </div>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{% url 'core:student_dashboard' %}" class="btn btn-light btn-sm btn-soft">
+          <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
+        <a href="{% url 'core:student_profile_settings' %}" class="btn btn-success btn-sm btn-soft">
+          <i class="bi bi-pencil-square me-1"></i>Edit allowed fields
+        </a>
       </div>
     </div>
+  </div>
 
-    <!-- RIGHT: DETAILS -->
-    <div class="col-lg-8">
-      <div class="card shadow-sm profile-card p-4">
-        <div class="d-flex justify-content-between mb-3 flex-wrap gap-2 align-items-center">
-          <div>
-            <div class="text-muted small text-uppercase fw-semibold" style="letter-spacing:0.06em;">Personal Information</div>
-            <div class="small text-muted">Basic contact + academic identifiers.</div>
+  <div class="row g-4">
+    <!-- Main Details -->
+    <div class="col-12">
+      <div class="row g-4">
+        <div class="col-lg-6">
+          <div class="ui-card p-4 h-100">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <div class="section-title"><i class="bi bi-person-badge me-2"></i>Personal information</div>
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <div class="field-label">Name</div>
+                <div class="field-value">{{ request.user.get_full_name|default:request.user.username }}</div>
+              </div>
+              <div class="col-md-6">
+                <div class="field-label">Gender</div>
+                <div class="field-value">{% if student.gender %}{{ student.get_gender_display }}{% else %}-{% endif %}</div>
+              </div>
+              <div class="col-md-6">
+                <div class="field-label">Date of birth</div>
+                <div class="field-value">{{ student.date_of_birth|default:"-" }}</div>
+              </div>
+              <div class="col-md-6">
+                <div class="field-label">Admission no</div>
+                <div class="field-value">{{ student.admission_number|default:"-" }}</div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="row g-3">
-          <div class="col-md-6">
-            <small class="text-muted">Email</small>
-            <p class="mb-0">{{ request.user.email }}</p>
+        <div class="col-lg-6">
+          <div class="ui-card p-4 h-100">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <div class="section-title"><i class="bi bi-telephone me-2"></i>Contact information</div>
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <div class="field-label">Email</div>
+                <div class="field-value">{{ request.user.email|default:"-" }}</div>
+              </div>
+              <div class="col-md-6">
+                <div class="field-label">Phone</div>
+                <div class="field-value">{{ student.phone|default:"-" }}</div>
+              </div>
+              <div class="col-md-12">
+                <div class="field-label">Address</div>
+                <div class="field-value">{{ student.address|default:"-" }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-12">
+          <div class="ui-card p-4">
+            <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+              <div class="section-title"><i class="bi bi-buildings me-2"></i>Academic information</div>
+              <div class="d-flex gap-2">
+                <a href="{% url 'core:student_profile_settings' %}" class="btn btn-outline-primary btn-sm btn-soft">
+                  <i class="bi bi-pencil-square me-1"></i>Update allowed fields
+                </a>
+              </div>
+            </div>
+            <div class="row g-3">
+              <div class="col-md-4">
+                <div class="field-label">Class</div>
+                <div class="field-value">{% if student.classroom %}{{ student.classroom.name }}{% else %}-{% endif %}</div>
+              </div>
+              <div class="col-md-4">
+                <div class="field-label">Section</div>
+                <div class="field-value">{% if student.section %}{{ student.section.name }}{% else %}-{% endif %}</div>
+              </div>
+              <div class="col-md-4">
+                <div class="field-label">Academic year</div>
+                <div class="field-value">{% if student.academic_year %}{{ student.academic_year.name }}{% else %}-{% endif %}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      <!-- FULL PROFILE DETAILS -->
+      <div class="ui-card p-4 mt-3">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+          <div>
+            <div class="text-muted small text-uppercase fw-semibold" style="letter-spacing:0.06em;">Full profile details</div>
+            <div class="small text-muted">All details available for your student record (read-only view).</div>
+          </div>
+          <a href="{% url 'core:student_profile_settings' %}" class="btn btn-outline-primary btn-sm btn-soft">
+            <i class="bi bi-pencil-square me-1"></i>Edit
+          </a>
+        </div>
+
+        <div class="accordion" id="studentProfileAccordion">
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="headingBasic">
+              <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseBasic" aria-expanded="true" aria-controls="collapseBasic">
+                Basic
+              </button>
+            </h2>
+            <div id="collapseBasic" class="accordion-collapse collapse show" aria-labelledby="headingBasic" data-bs-parent="#studentProfileAccordion">
+              <div class="accordion-body">
+                <div class="row g-3">
+                  <div class="col-md-6"><small class="text-muted">First name</small><div class="fw-semibold">{{ request.user.first_name|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Last name</small><div class="fw-semibold">{{ request.user.last_name|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Gender</small><div class="fw-semibold">{% if student.gender %}{{ student.get_gender_display }}{% else %}-{% endif %}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Blood group</small><div class="fw-semibold">{{ extra_basic.blood_group|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">ID number</small><div class="fw-semibold">{{ extra_basic.id_number|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Nationality</small><div class="fw-semibold">{{ extra_basic.nationality|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Religion</small><div class="fw-semibold">{{ extra_basic.religion|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Mother tongue</small><div class="fw-semibold">{{ extra_basic.mother_tongue|default:"-" }}</div></div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div class="col-md-6">
-            <small class="text-muted">Phone</small>
-            <p class="mb-0">{{ student.phone|default:"-" }}</p>
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="headingAcademic">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAcademic" aria-expanded="false" aria-controls="collapseAcademic">
+                Academic
+              </button>
+            </h2>
+            <div id="collapseAcademic" class="accordion-collapse collapse" aria-labelledby="headingAcademic" data-bs-parent="#studentProfileAccordion">
+              <div class="accordion-body">
+                <div class="row g-3">
+                  <div class="col-md-6"><small class="text-muted">Academic year</small><div class="fw-semibold">{% if student.academic_year %}{{ student.academic_year.name }}{% else %}-{% endif %}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Roll number</small><div class="fw-semibold">{{ student.roll_number|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Admission number</small><div class="fw-semibold">{{ student.admission_number|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Admission date</small><div class="fw-semibold">{{ extra_academic.admission_date|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Registration number</small><div class="fw-semibold">{{ extra_academic.registration_number|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Course / Branch</small><div class="fw-semibold">{{ extra_academic.course_branch|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Semester / Year</small><div class="fw-semibold">{{ extra_academic.semester_year|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Stream</small><div class="fw-semibold">{{ extra_academic.stream|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Student type</small><div class="fw-semibold">{{ extra_academic.student_type|default:"-" }}</div></div>
+                  <div class="col-md-12"><small class="text-muted">Previous institution</small><div class="fw-semibold">{{ extra_academic.previous_institution|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Previous board</small><div class="fw-semibold">{{ extra_academic.previous_board|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Previous marks</small><div class="fw-semibold">{{ extra_academic.previous_marks|default:"-" }}</div></div>
+                  <div class="col-md-12"><small class="text-muted">Previous marks breakdown</small><div class="fw-semibold">{{ extra_academic.previous_marks_breakdown|default:"-" }}</div></div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div class="col-md-6">
-            <small class="text-muted">Date of Birth</small>
-            <p class="mb-0">{{ student.date_of_birth|default:"-" }}</p>
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="headingParents">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseParents" aria-expanded="false" aria-controls="collapseParents">
+                Parents / Guardian
+              </button>
+            </h2>
+            <div id="collapseParents" class="accordion-collapse collapse" aria-labelledby="headingParents" data-bs-parent="#studentProfileAccordion">
+              <div class="accordion-body">
+                <div class="row g-3">
+                  <div class="col-md-6"><small class="text-muted">Parent name</small><div class="fw-semibold">{{ student.parent_name|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Parent phone</small><div class="fw-semibold">{{ student.parent_phone|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Father name</small><div class="fw-semibold">{{ extra_parents.father_name|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Father mobile</small><div class="fw-semibold">{{ extra_parents.father_mobile|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Father occupation</small><div class="fw-semibold">{{ extra_parents.father_occupation|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Mother name</small><div class="fw-semibold">{{ extra_parents.mother_name|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Mother mobile</small><div class="fw-semibold">{{ extra_parents.mother_mobile|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Mother occupation</small><div class="fw-semibold">{{ extra_parents.mother_occupation|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Guardian name</small><div class="fw-semibold">{{ extra_parents.guardian_name|default:"-" }}</div></div>
+                  <div class="col-md-3"><small class="text-muted">Guardian relation</small><div class="fw-semibold">{{ extra_parents.guardian_relation|default:"-" }}</div></div>
+                  <div class="col-md-3"><small class="text-muted">Guardian phone</small><div class="fw-semibold">{{ extra_parents.guardian_phone|default:"-" }}</div></div>
+                  <div class="col-md-12"><small class="text-muted">Alternate email</small><div class="fw-semibold">{{ extra_parents.student_email|default:"-" }}</div></div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div class="col-md-6">
-            <small class="text-muted">Address</small>
-            <p class="mb-0">{{ student.address|default:"-" }}</p>
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="headingContact">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseContact" aria-expanded="false" aria-controls="collapseContact">
+                Contact
+              </button>
+            </h2>
+            <div id="collapseContact" class="accordion-collapse collapse" aria-labelledby="headingContact" data-bs-parent="#studentProfileAccordion">
+              <div class="accordion-body">
+                <div class="row g-3">
+                  <div class="col-md-6"><small class="text-muted">City</small><div class="fw-semibold">{{ extra_contact.city|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">District</small><div class="fw-semibold">{{ extra_contact.district|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">State</small><div class="fw-semibold">{{ extra_contact.state|default:"-" }}</div></div>
+                  <div class="col-md-3"><small class="text-muted">Pincode</small><div class="fw-semibold">{{ extra_contact.pincode|default:"-" }}</div></div>
+                  <div class="col-md-3"><small class="text-muted">Country</small><div class="fw-semibold">{{ extra_contact.country|default:"-" }}</div></div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div class="col-md-6">
-            <small class="text-muted">Admission No</small>
-            <p class="mb-0">{{ student.admission_number|default:"-" }}</p>
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="headingMedical">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMedical" aria-expanded="false" aria-controls="collapseMedical">
+                Medical &amp; emergency
+              </button>
+            </h2>
+            <div id="collapseMedical" class="accordion-collapse collapse" aria-labelledby="headingMedical" data-bs-parent="#studentProfileAccordion">
+              <div class="accordion-body">
+                <div class="row g-3">
+                  <div class="col-md-6"><small class="text-muted">Emergency contact name</small><div class="fw-semibold">{{ extra_medical.emergency_contact_name|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Emergency phone</small><div class="fw-semibold">{{ extra_medical.emergency_phone|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Allergies</small><div class="fw-semibold">{{ extra_medical.allergies|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Medical conditions</small><div class="fw-semibold">{{ extra_medical.medical_conditions|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Doctor name</small><div class="fw-semibold">{{ extra_medical.doctor_name|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Hospital</small><div class="fw-semibold">{{ extra_medical.hospital|default:"-" }}</div></div>
+                  <div class="col-md-12"><small class="text-muted">Insurance details</small><div class="fw-semibold">{{ extra_medical.insurance_details|default:"-" }}</div></div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div class="col-md-6">
-            <small class="text-muted">Class / Section</small>
-            <p class="mb-0">
-              {% if student.classroom %}{{ student.classroom.name }}{% else %}-{% endif %}
-              -
-              {% if student.section %}{{ student.section.name }}{% else %}-{% endif %}
-            </p>
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="headingTH">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTH" aria-expanded="false" aria-controls="collapseTH">
+                Transport / hostel
+              </button>
+            </h2>
+            <div id="collapseTH" class="accordion-collapse collapse" aria-labelledby="headingTH" data-bs-parent="#studentProfileAccordion">
+              <div class="accordion-body">
+                <div class="row g-3">
+                  <div class="col-md-6"><small class="text-muted">Transport required</small><div class="fw-semibold">{{ extra_th.transport_required|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Pickup point</small><div class="fw-semibold">{{ extra_th.pickup_point|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Hostel required</small><div class="fw-semibold">{{ extra_th.hostel_required|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Route/Room IDs</small><div class="fw-semibold">Route: {{ extra_th.route_id|default:"-" }} | Room: {{ extra_th.hostel_room_id|default:"-" }}</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="headingBilling">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseBilling" aria-expanded="false" aria-controls="collapseBilling">
+                Billing preferences
+              </button>
+            </h2>
+            <div id="collapseBilling" class="accordion-collapse collapse" aria-labelledby="headingBilling" data-bs-parent="#studentProfileAccordion">
+              <div class="accordion-body">
+                <div class="row g-3">
+                  <div class="col-md-6"><small class="text-muted">Scholarship</small><div class="fw-semibold">{{ extra_billing.scholarship|default:"-" }}</div></div>
+                  <div class="col-md-3"><small class="text-muted">Discount %</small><div class="fw-semibold">{{ extra_billing.discount_percent|default:"-" }}</div></div>
+                  <div class="col-md-3"><small class="text-muted">Installment type</small><div class="fw-semibold">{{ extra_billing.installment_type|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">First payment amount</small><div class="fw-semibold">{{ extra_billing.first_payment_amount|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Payment due date</small><div class="fw-semibold">{{ extra_billing.payment_due_date|default:"-" }}</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="headingStatus">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStatus" aria-expanded="false" aria-controls="collapseStatus">
+                Status
+              </button>
+            </h2>
+            <div id="collapseStatus" class="accordion-collapse collapse" aria-labelledby="headingStatus" data-bs-parent="#studentProfileAccordion">
+              <div class="accordion-body">
+                <div class="row g-3">
+                  <div class="col-md-6"><small class="text-muted">Record status</small><div class="fw-semibold">{{ extra_status.record_status|default:"-" }}</div></div>
+                  <div class="col-md-6"><small class="text-muted">Account active</small><div class="fw-semibold">{% if request.user.is_active %}Active{% else %}Inactive{% endif %}</div></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- PROFILE COMPLETION -->
-      <div class="card shadow-sm profile-card p-4 mt-3">
+      <div class="ui-card p-4 mt-3">
         <div class="d-flex justify-content-between mb-2">
           <h6 class="mb-0">Profile Completion</h6>
           <span class="fw-semibold">{{ profile_completion }}%</span>
@@ -165,7 +453,7 @@
       </div>
 
       <!-- ACHIEVEMENTS / BADGES -->
-      <div class="card shadow-sm profile-card p-4 mt-3">
+      <div class="ui-card p-4 mt-3">
         <h6 class="mb-3">Achievements</h6>
         <div class="d-flex flex-wrap gap-2">
           {% for badge in badges %}
@@ -182,7 +470,7 @@
       </div>
 
       <!-- QUICK STATS -->
-      <div class="card shadow-sm profile-card p-4 mt-3">
+      <div class="ui-card p-4 mt-3">
         <h6 class="mb-3">Quick Stats</h6>
 
         <div class="row text-center g-3">
@@ -207,6 +495,7 @@
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   </div>

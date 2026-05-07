@@ -1,0 +1,123 @@
+{% if comparison and comparison.plan_cols and comparison.groups %}
+<style>
+  .cmp-wrap{
+    border-radius: 18px;
+    border: 1px solid rgba(15,23,42,.10);
+    background: rgba(255,255,255,.88);
+    box-shadow: 0 14px 30px rgba(2,6,23,.08);
+    overflow: hidden;
+  }
+  .cmp-head{
+    padding: .95rem 1.05rem;
+    border-bottom: 1px solid rgba(15,23,42,.08);
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap: .75rem;
+  }
+  .cmp-title{ font-weight: 900; letter-spacing:-0.02em; }
+  .cmp-scroll{ overflow-x:auto; }
+  .cmp-grid{
+    min-width: 760px;
+    display:grid;
+    grid-template-columns: 280px repeat(3, 1fr);
+  }
+  .cmp-cell{
+    padding: .7rem .85rem;
+    border-bottom: 1px solid rgba(15,23,42,.06);
+    border-right: 1px solid rgba(15,23,42,.06);
+    background: rgba(255,255,255,.55);
+  }
+  .cmp-cell:last-child{ border-right: 0; }
+  .cmp-rowhead{
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: rgba(17,24,39,.95);
+    color: #fff;
+    font-weight: 800;
+    border-bottom: 1px solid rgba(255,255,255,.10);
+  }
+  .cmp-rowhead.cmp-premium{ background: rgba(79,70,229,.98); }
+  .cmp-feature{
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: rgba(255,255,255,.92);
+    font-weight: 800;
+  }
+  .cmp-feature .cmp-code{ display:block; font-weight: 700; font-size:.78rem; color: rgba(15,23,42,.55); }
+  .cmp-cat{
+    grid-column: 1 / -1;
+    padding: .55rem .9rem;
+    background: rgba(2,6,23,.03);
+    border-bottom: 1px solid rgba(15,23,42,.08);
+    font-size: .72rem;
+    letter-spacing: .10em;
+    text-transform: uppercase;
+    font-weight: 900;
+    color: rgba(15,23,42,.62);
+  }
+  .cmp-yes, .cmp-no{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    font-weight: 900;
+    font-size: .95rem;
+  }
+  .cmp-yes{ background: rgba(34,197,94,.14); color: #166534; border: 1px solid rgba(34,197,94,.30); }
+  .cmp-no{ background: rgba(244,63,94,.10); color: #9f1239; border: 1px solid rgba(244,63,94,.28); }
+  .cmp-premium-col{ background: rgba(79,70,229,.06); }
+</style>
+
+<div class="cmp-wrap mt-5">
+  <div class="cmp-head">
+    <div>
+      <div class="cmp-title">Feature comparison</div>
+      <div class="text-muted small">Clear view of what each plan includes.</div>
+    </div>
+    <span class="badge bg-primary rounded-pill">Premium</span>
+  </div>
+
+  <div class="cmp-scroll">
+    <div class="cmp-grid">
+      <div class="cmp-cell cmp-rowhead">Feature</div>
+      {% for col in comparison.plan_cols %}
+        <div class="cmp-cell cmp-rowhead {% if col.key == 'premium' %}cmp-premium{% endif %}">{{ col.label }}</div>
+      {% endfor %}
+
+      {% for g in comparison.groups %}
+        <div class="cmp-cat">
+          {% if g.category == "academic" %}Academic
+          {% elif g.category == "operations" %}Operations
+          {% elif g.category == "exams" %}Exams
+          {% elif g.category == "communication" %}Communication
+          {% elif g.category == "finance" %}Finance
+          {% else %}Other
+          {% endif %}
+        </div>
+
+        {% for r in g.rows %}
+          <div class="cmp-cell cmp-feature">
+            {{ r.feature.name }}
+            <span class="cmp-code"><code>{{ r.feature.code }}</code></span>
+          </div>
+          {% for st in r.states %}
+            <div class="cmp-cell text-center {% if st.key == 'premium' %}cmp-premium-col{% endif %}">
+              {% if st.enabled %}
+                <span class="cmp-yes">✓</span>
+              {% else %}
+                <span class="cmp-no">✗</span>
+              {% endif %}
+            </div>
+          {% endfor %}
+        {% endfor %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+

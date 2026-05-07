@@ -168,7 +168,8 @@
   }
 
   @media print {
-    @page { size: A4; margin: 14mm; }
+    /* Extra safe margins to avoid printer edge clipping */
+    @page { size: A4; margin: 18mm; }
     body { background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     /* Site footer (© School ERP · EduSaaS) — hide so it does not orphan on page 2 */
     .min-h-screen > footer { display: none !important; }
@@ -200,6 +201,8 @@
       max-width: 100%;
       margin: 0;
       color: #000 !important;
+      /* Some printers clip near edges even with @page margin */
+      padding: 2mm 1mm !important;
     }
     .rc-header-table,
     .rc-marks-table {

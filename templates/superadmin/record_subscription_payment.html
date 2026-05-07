@@ -1,157 +1,17 @@
 {% extends "base.html" %}
-{% block title %}{% if payment %}Edit subscription payment{% else %}Record subscription payment{% endif %} | Platform{% endblock %}
-{% block extra_head %}
-<style>
-  .sa-pay-hero {
-    background: linear-gradient(135deg, var(--bs-primary-bg-subtle, rgba(13, 110, 253, 0.12)) 0%, var(--bs-body-bg) 55%);
-    border: 1px solid var(--bs-border-color-translucent);
-    border-radius: 1rem;
-  }
-  .sa-pay-section-title {
-    font-size: 0.7rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--bs-secondary-color);
-    font-weight: 600;
-    margin-bottom: 0.75rem;
-  }
-  .sa-pay-card {
-    border-radius: 1rem;
-    border: 1px solid var(--bs-border-color-translucent);
-  }
-  .sa-pay-input-hint { font-size: 0.8125rem; }
-</style>
-{% endblock %}
+
+{% block title %}{% if payment %}Edit{% else %}Record{% endif %} subscription payment | Super Admin{% endblock %}
+
 {% block content %}
-<div class="container-fluid px-0" style="max-width: 920px;">
-  <nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb">
-      <li class="breadcrumb-item"><a href="{% url 'core:super_admin_dashboard' %}">Dashboard</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'core:superadmin_subscription_payments' %}">Payments received</a></li>
-      <li class="breadcrumb-item active">{% if payment %}Edit payment{% else %}Record payment{% endif %}</li>
-    </ol>
-  </nav>
-
-  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
-    <a href="{% url 'core:superadmin_subscription_payments' %}" class="btn btn-outline-secondary btn-sm rounded-pill">
-      <i class="bi bi-arrow-left-short fs-5 align-middle"></i><span class="align-middle">Payments log</span>
-    </a>
-  </div>
-
-  <div class="sa-pay-hero px-4 py-4 mb-4">
-    <div class="d-flex flex-wrap align-items-start gap-3">
-      <div class="rounded-3 bg-primary text-white d-flex align-items-center justify-content-center flex-shrink-0" style="width: 3rem; height: 3rem;">
-        <i class="bi bi-cash-stack fs-4"></i>
-      </div>
-      <div class="flex-grow-1 min-w-0">
-        <h1 class="h4 fw-bold mb-1">{% if payment %}Edit payment{% else %}Record payment received{% endif %}</h1>
-        <p class="text-muted small mb-0">
-          {% if payment %}
-            Update this log entry. Changes apply everywhere totals use subscription payments (dashboard, financials, billing reports).
-            {% if payment.created_at %}<span class="d-block mt-1">Originally logged {{ payment.created_at|date:"M j, Y H:i" }}.</span>{% endif %}
-          {% else %}
-            Log money collected from a school for platform subscription (UPI, bank transfer, cash, card, etc.).
-            Saved entries appear in <a href="{% url 'core:superadmin_subscription_payments' %}">Payments received</a> and feed billing reports.
-          {% endif %}
-        </p>
-      </div>
+<div class="container py-4" style="max-width: 640px;">
+  <h1 class="h4 fw-bold mb-3">{% if payment %}Edit payment{% else %}Record subscription payment{% endif %}</h1>
+  <form method="post" class="card border-0 shadow-sm rounded-4 p-4">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <div class="d-flex gap-2 mt-3">
+      <button type="submit" class="btn btn-primary rounded-pill">Save</button>
+      <a href="{% url 'core:superadmin_subscription_payments' %}" class="btn btn-outline-secondary rounded-pill">Cancel</a>
     </div>
-  </div>
-
-  <div class="card sa-pay-card shadow-sm border-0 bg-body">
-    <div class="card-body p-4 p-md-5">
-      {% if form.non_field_errors %}
-        <div class="alert alert-danger rounded-3 border-0 shadow-sm">{{ form.non_field_errors }}</div>
-      {% endif %}
-
-      <form method="post" novalidate{% if payment %} action="{% url 'core:superadmin_edit_subscription_payment' payment.pk %}"{% endif %}>
-        {% csrf_token %}
-
-        <p class="sa-pay-section-title">School &amp; allocation</p>
-        <div class="row g-3 mb-4">
-          <div class="col-md-6">
-            <label class="form-label fw-semibold" for="{{ form.school.id_for_label }}">{{ form.school.label }}</label>
-            {{ form.school }}
-            {% if form.school.errors %}<div class="invalid-feedback d-block">{{ form.school.errors.0 }}</div>{% endif %}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label fw-semibold" for="{{ form.subscription.id_for_label }}">{{ form.subscription.label }}</label>
-            {{ form.subscription }}
-            <p class="form-text sa-pay-input-hint mb-0">{{ form.subscription.help_text }}</p>
-            {% if form.subscription.errors %}<div class="text-danger small mt-1">{{ form.subscription.errors.0 }}</div>{% endif %}
-          </div>
-        </div>
-
-        <p class="sa-pay-section-title">Payment details</p>
-        <div class="row g-3 mb-4">
-          <div class="col-sm-4">
-            <label class="form-label fw-semibold" for="{{ form.amount.id_for_label }}">Amount (₹)</label>
-            <div class="input-group">
-              <span class="input-group-text bg-body-secondary border-end-0">₹</span>
-              {{ form.amount }}
-            </div>
-            {% if form.amount.errors %}<div class="invalid-feedback d-block">{{ form.amount.errors.0 }}</div>{% endif %}
-          </div>
-          <div class="col-sm-4">
-            <label class="form-label fw-semibold" for="{{ form.payment_date.id_for_label }}">{{ form.payment_date.label }}</label>
-            {{ form.payment_date }}
-            {% if form.payment_date.errors %}<div class="invalid-feedback d-block">{{ form.payment_date.errors.0 }}</div>{% endif %}
-          </div>
-          <div class="col-sm-4">
-            <label class="form-label fw-semibold" for="{{ form.payment_method.id_for_label }}">{{ form.payment_method.label }}</label>
-            {{ form.payment_method }}
-            {% if form.payment_method.errors %}<div class="invalid-feedback d-block">{{ form.payment_method.errors.0 }}</div>{% endif %}
-          </div>
-        </div>
-
-        <p class="sa-pay-section-title">References &amp; audit</p>
-        <div class="row g-3 mb-2">
-          <div class="col-md-6">
-            <label class="form-label fw-semibold" for="{{ form.reference.id_for_label }}">{{ form.reference.label }}</label>
-            {{ form.reference }}
-            {% if form.reference.errors %}<div class="invalid-feedback d-block">{{ form.reference.errors.0 }}</div>{% endif %}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label fw-semibold" for="{{ form.internal_receipt_no.id_for_label }}">{{ form.internal_receipt_no.label }}</label>
-            {{ form.internal_receipt_no }}
-            <p class="form-text sa-pay-input-hint mb-0">{{ form.internal_receipt_no.help_text }}</p>
-            {% if form.internal_receipt_no.errors %}<div class="text-danger small mt-1">{{ form.internal_receipt_no.errors.0 }}</div>{% endif %}
-          </div>
-        </div>
-        <div class="row g-3 mb-4">
-          <div class="col-md-6">
-            <label class="form-label fw-semibold" for="{{ form.service_period_start.id_for_label }}">{{ form.service_period_start.label }}</label>
-            {{ form.service_period_start }}
-            <p class="form-text sa-pay-input-hint mb-0">{{ form.service_period_start.help_text }}</p>
-            {% if form.service_period_start.errors %}<div class="text-danger small mt-1">{{ form.service_period_start.errors.0 }}</div>{% endif %}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label fw-semibold" for="{{ form.service_period_end.id_for_label }}">{{ form.service_period_end.label }}</label>
-            {{ form.service_period_end }}
-            <p class="form-text sa-pay-input-hint mb-0">{{ form.service_period_end.help_text }}</p>
-            {% if form.service_period_end.errors %}<div class="text-danger small mt-1">{{ form.service_period_end.errors.0 }}</div>{% endif %}
-          </div>
-        </div>
-
-        <p class="sa-pay-section-title">Notes</p>
-        <div class="mb-4">
-          <label class="form-label fw-semibold visually-hidden" for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>
-          {{ form.notes }}
-          {% if form.notes.errors %}<div class="invalid-feedback d-block">{{ form.notes.errors.0 }}</div>{% endif %}
-        </div>
-
-        <div class="d-flex flex-wrap align-items-center gap-2 pt-2 border-top">
-          <button type="submit" class="btn btn-primary btn-lg rounded-pill px-4">
-            <i class="bi bi-check2-circle me-2"></i>{% if payment %}Save changes{% else %}Save payment{% endif %}
-          </button>
-          <a href="{% url 'core:superadmin_subscription_payments' %}" class="btn btn-outline-secondary rounded-pill">Cancel</a>
-        </div>
-        <p class="small text-muted mt-4 mb-0">
-          <i class="bi bi-shield-check me-1"></i>
-          <strong>Recorded by</strong> is set automatically to your account. Timestamps are stored for every entry.
-        </p>
-      </form>
-    </div>
-  </div>
+  </form>
 </div>
 {% endblock %}

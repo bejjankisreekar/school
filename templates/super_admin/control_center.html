@@ -1,0 +1,223 @@
+{% extends "super_admin/base.html" %}
+{% load static %}
+
+{% block title %}Control Center | {{ app_product_name }}{% endblock %}
+
+{% block cc_main %}
+<style>
+  .cc-plan{ border-radius: 16px; border:1px solid rgba(15,23,42,.10); background: rgba(255,255,255,.85); }
+  .cc-plan-h{ display:flex; justify-content:space-between; align-items:center; gap:.75rem; padding:1rem 1rem .5rem; }
+  .cc-badge{ font-size:.75rem; padding:.2rem .55rem; border-radius:999px; border:1px solid rgba(15,23,42,.12); background: rgba(255,255,255,.7); }
+  .cc-grid{ display:grid; gap:.75rem; grid-template-columns: repeat(12, 1fr); }
+  .cc-col-4{ grid-column: span 4; }
+  .cc-col-8{ grid-column: span 8; }
+  @media (max-width: 991.98px){ .cc-col-4,.cc-col-8{ grid-column: span 12; } }
+  .cc-switch .form-check-input{ width: 2.6rem; height: 1.35rem; cursor:pointer; }
+  .cc-switch .form-check-input:checked{ background-color:#4f46e5; border-color:#4f46e5; }
+  .cc-feature-chip{ border:1px solid rgba(15,23,42,.10); border-radius: 12px; padding:.55rem .7rem; background: rgba(255,255,255,.65); display:flex; align-items:center; justify-content:space-between; gap:.6rem; }
+</style>
+
+{% if tab == 'overview' %}
+      <div class="cc-grid">
+        <div class="cc-col-4">
+          <div class="card saas-cc-card border-0">
+            <div class="card-body">
+              <div class="text-muted small">Total schools</div>
+              <div class="h3 fw-bold mb-0">{{ total_schools }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="cc-col-4">
+          <div class="card saas-cc-card border-0">
+            <div class="card-body">
+              <div class="text-muted small">Active schools</div>
+              <div class="h3 fw-bold mb-0">{{ active_schools }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="cc-col-4">
+          <div class="card saas-cc-card border-0">
+            <div class="card-body">
+              <div class="text-muted small">Plan distribution</div>
+              <div class="small mt-2">
+                <div class="d-flex justify-content-between"><span>Basic</span><strong>{{ plan_counts.basic }}</strong></div>
+                <div class="d-flex justify-content-between"><span>Pro</span><strong>{{ plan_counts.pro }}</strong></div>
+                <div class="d-flex justify-content-between"><span>Premium</span><strong>{{ plan_counts.premium }}</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+{% elif tab == 'plans' %}
+      <div class="cc-grid">
+        <div class="cc-col-4">
+          <div class="card saas-cc-card border-0">
+            <div class="card-body">
+              <div class="fw-semibold mb-2">Create Feature</div>
+              <form method="post" class="vstack gap-2">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create_feature">
+                <div>
+                  <label class="form-label small text-muted mb-1">Name</label>
+                  <input class="form-control" name="name" placeholder="e.g. Messaging" required>
+                </div>
+                <div>
+                  <label class="form-label small text-muted mb-1">Code</label>
+                  <input class="form-control" name="code" placeholder="e.g. messaging" required>
+                </div>
+                <div>
+                  <label class="form-label small text-muted mb-1">Category</label>
+                  <select class="form-select" name="category">
+                    <option value="academic">Academic</option>
+                    <option value="operations">Operations</option>
+                    <option value="exams">Exams</option>
+                    <option value="communication">Communication</option>
+                    <option value="finance">Finance</option>
+                  </select>
+                </div>
+                <button class="btn btn-primary w-100">
+                  <i class="bi bi-plus-circle me-1"></i>Save Feature
+                </button>
+              </form>
+              <div class="small text-muted mt-3">
+                Use feature codes in gates: <code>has_feature(user, "code")</code>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cc-col-8">
+          {% for p in plans %}
+            <div class="cc-plan mb-3">
+              <div class="cc-plan-h">
+                <div>
+                  <div class="fw-bold">{{ p.get_name_display }}</div>
+                  <div class="text-muted small">₹{{ p.price }} / school (edit in Billing tab later)</div>
+                </div>
+                <span class="cc-badge">{{ p.features.count }} enabled</span>
+              </div>
+              <div class="px-3 pb-3">
+                <form method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="save_plan_features">
+                  <input type="hidden" name="plan_id" value="{{ p.id }}">
+
+                  <div class="row g-2">
+                    {% for f in features %}
+                      <div class="col-12 col-md-6">
+                        <div class="cc-feature-chip">
+                          <div>
+                            <div class="fw-semibold small mb-0">{{ f.name }}</div>
+                            <div class="text-muted small">{{ f.category|title }} • <code>{{ f.code }}</code></div>
+                          </div>
+                          <div class="form-check form-switch cc-switch m-0">
+                            <input class="form-check-input" type="checkbox" name="features" value="{{ f.code }}" {% if f in p.features.all %}checked{% endif %}>
+                          </div>
+                        </div>
+                      </div>
+                    {% endfor %}
+                  </div>
+
+                  <div class="d-flex justify-content-end mt-3">
+                    <button class="btn btn-sm btn-dark rounded-pill px-3">
+                      <i class="bi bi-check2-circle me-1"></i>Save
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+{% elif tab == 'schools' %}
+      <div class="cc-grid">
+        <div class="cc-col-8">
+          {% for s in schools %}
+            <div class="card saas-cc-card border-0 mb-3">
+              <div class="card-body">
+                <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+                  <div>
+                    <div class="fw-bold">{{ s.name }}</div>
+                    <div class="text-muted small">{{ s.code }} • {{ s.schema_name }}</div>
+                  </div>
+                  <span class="cc-badge">{{ s.get_school_status_display }}</span>
+                </div>
+                <div class="row g-2 mt-2">
+                  <div class="col-12 col-md-6">
+                    <form method="post" class="d-flex gap-2">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="set_school_plan">
+                      <input type="hidden" name="school_id" value="{{ s.id }}">
+                      <select class="form-select" name="plan_id">
+                        {% for p in plans %}
+                          <option value="{{ p.id }}" {% if s.plan_id == p.id %}selected{% endif %}>{{ p.get_name_display }}</option>
+                        {% endfor %}
+                      </select>
+                      <button class="btn btn-dark">Save</button>
+                    </form>
+                  </div>
+                  <div class="col-12 col-md-6">
+                    <form method="post" class="d-flex gap-2">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="set_school_status">
+                      <input type="hidden" name="school_id" value="{{ s.id }}">
+                      <select class="form-select" name="status">
+                        {% for k,v in s.SchoolStatus.choices %}
+                          <option value="{{ k }}" {% if s.school_status == k %}selected{% endif %}>{{ v }}</option>
+                        {% endfor %}
+                      </select>
+                      <button class="btn btn-outline-dark">Save</button>
+                    </form>
+                  </div>
+                </div>
+                <div class="mt-3 pt-3 border-top border-danger border-opacity-25">
+                  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                    <span class="small fw-semibold text-danger"><i class="bi bi-trash3 me-1"></i>Delete school</span>
+                    <a class="btn btn-sm btn-outline-secondary rounded-pill" href="{% url 'core:super_admin:school_master_detail' school_id=s.id %}">Open school panel</a>
+                  </div>
+                  <p class="small text-muted mb-2">
+                    Permanently removes this school row, all linked accounts on the platform database, and drops the PostgreSQL schema
+                    <code>{{ s.schema_name }}</code> with <strong>CASCADE</strong> (every tenant table, students, fees, etc.).
+                  </p>
+                  <form method="post" class="row g-2 align-items-end" onsubmit="return confirm('Delete school {{ s.name|escapejs }} and DROP SCHEMA {{ s.schema_name|escapejs }}? This cannot be undone.');">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete_school">
+                    <input type="hidden" name="school_id" value="{{ s.id }}">
+                    <div class="col-12 col-md-5">
+                      <label class="form-label small text-muted mb-0">Type school name to confirm</label>
+                      <input class="form-control form-control-sm" name="delete_confirm_name" autocomplete="off" placeholder="{{ s.name }}" required>
+                    </div>
+                    <div class="col-12 col-md-auto">
+                      <button type="submit" class="btn btn-sm btn-outline-danger">Delete forever</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+        <div class="cc-col-4">
+          <div class="card saas-cc-card border-0">
+            <div class="card-body">
+              <div class="fw-semibold">Notes</div>
+              <div class="text-muted small mt-2">
+                Plan assignment updates feature availability instantly across the platform (menus + view gates) once we switch gates to the new <code>has_feature</code>.
+              </div>
+              <div class="alert alert-danger border-0 small mt-3 mb-0 py-2">
+                <strong>Delete school</strong> drops the entire PostgreSQL tenant schema (irreversible). Always export anything you need before confirming.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+{% else %}
+      <div class="card saas-cc-card border-0">
+        <div class="card-body">
+          <div class="fw-semibold">Coming next</div>
+          <div class="text-muted small mt-2">Billing, Analytics, and Settings will be rebuilt here with the same card-based layout (no tables).</div>
+        </div>
+      </div>
+{% endif %}
+{% endblock %}
+

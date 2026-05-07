@@ -54,6 +54,8 @@ SHARED_APPS = [
     "apps.reports",
     "apps.accounts",
     "apps.notifications",
+    "apps.super_admin",
+    "apps.platform_messaging",
 ]
 
 TENANT_APPS = [
@@ -70,6 +72,11 @@ TENANT_DOMAIN_MODEL = "customers.Domain"
 
 # When no domain matches (e.g. 127.0.0.1, localhost), use public schema for main site
 SHOW_PUBLIC_IF_NO_TENANT_FOUND = True
+
+# Run migrate_schemas from HTTP handlers when a tenant is missing tables (self-heal).
+# Default True so local/staging work even with DEBUG=False. Production: set
+# TENANT_LAZY_SCHEMA_REPAIR=False in .env and run `migrate_schemas` on deploy only.
+TENANT_LAZY_SCHEMA_REPAIR = env.bool("TENANT_LAZY_SCHEMA_REPAIR", default=True)
 
 # Database router for tenant/shared schema sync
 DATABASE_ROUTERS = [
@@ -88,12 +95,16 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "apps.core.middleware.PlatformLoginLockMiddleware",
+    "apps.core.middleware.SuspendedSchoolMiddleware",
     "apps.core.middleware.TenantSchemaFromUserMiddleware",
     "apps.core.middleware.SchoolFeaturesMiddleware",
+    "apps.core.middleware.PlanRouteGateMiddleware",
     "apps.core.middleware.TrialExpiryMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "apps.core.middleware.SchoolSoftInactiveNoticeMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "apps.core.middleware.TenantSchemaFinalEnsureMiddleware",
+    "apps.core.middleware.DbConnectionSanitizeMiddleware",
 ]
 
 ROOT_URLCONF = "school_erp_demo.urls"
@@ -111,6 +122,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "apps.core.context_processors.app_branding",
                 "apps.core.context_processors.sidebar_menu",
+                "apps.platform_messaging.context_processors.platform_messaging_badge",
             ],
         },
     },
@@ -121,7 +133,10 @@ ASGI_APPLICATION = "school_erp_demo.asgi.application"
 
 CHANNEL_LAYERS = {
     "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer",
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
     }
 }
 
@@ -151,6 +166,14 @@ DATABASES = {
         "PORT": _get_db_config("DB_PORT"),
         "CONN_MAX_AGE": 60,
         "ATOMIC_REQUESTS": True,
+        # Must be a top-level key (not inside OPTIONS): Django reads settings_dict here;
+        # OPTIONS keys are passed to psycopg and "DISABLE_SERVER_SIDE_CURSORS" is invalid DSN.
+        # ModelChoiceIterator uses QuerySet.iterator(); disabling server-side cursors avoids
+        # _django_curs_* / InvalidCursorName when a query fails mid-iteration.
+        "DISABLE_SERVER_SIDE_CURSORS": True,
+        "OPTIONS": {
+            "server_side_binding": True,
+        },
     }
 }
 
@@ -178,6 +201,14 @@ USE_I18N = True
 
 USE_TZ = True
 
+# SaaS Control Center: issued invoices older than N days are flagged overdue in billing UI / CSV.
+BILLING_INVOICE_OVERDUE_DAYS = 14
+
+# Scheduled auto-invoice (``manage.py auto_saas_invoices``). Off by default; enable with env or override.
+SAAS_BILLING_AUTO_INVOICE_ENABLED = env.bool("SAAS_BILLING_AUTO_INVOICE_ENABLED", default=False)
+SAAS_BILLING_AUTO_INVOICE_RESPECT_AUTO_RENEW = env.bool("SAAS_BILLING_AUTO_INVOICE_RESPECT_AUTO_RENEW", default=True)
+SAAS_BILLING_AUTO_INVOICE_INCLUDE_GST = env.bool("SAAS_BILLING_AUTO_INVOICE_INCLUDE_GST", default=False)
+
 
 # Tailwind configuration
 TAILWIND_APP_NAME = "theme"
@@ -201,8 +232,16 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Custom user model
 AUTH_USER_MODEL = "accounts.User"
 
-# CSRF: allow localhost and common subdomains for development
+# CSRF secret uses the `csrftoken` cookie (default). Do not set
+# CSRF_USE_SESSIONS here unless every client reliably sends the session
+# cookie on POST; otherwise Django reports "CSRF cookie not set".
+
+# CSRF: allow localhost, tenant *.localhost, and 127.0.0.1 for development
 CSRF_TRUSTED_ORIGINS = env.list(
     "CSRF_TRUSTED_ORIGINS",
-    default=["http://localhost:8000", "http://127.0.0.1:8000"],
+    default=[
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://*.localhost:8000",
+    ],
 )

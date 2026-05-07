@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Announcements | School ERP{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <style>
+    .ann-page { max-width: 1200px; margin: 0 auto; }
+    .ann-hero {
+      border-radius: 1.25rem;
+      padding: 1.1rem 1.25rem;
+      color: #fff;
+      background:
+        radial-gradient(900px circle at 10% 20%, rgba(59, 130, 246, 0.45) 0%, rgba(59, 130, 246, 0.0) 55%),
+        radial-gradient(700px circle at 90% 10%, rgba(168, 85, 247, 0.45) 0%, rgba(168, 85, 247, 0.0) 55%),
+        linear-gradient(135deg, #2563eb 0%, #7c3aed 55%, #4338ca 100%);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 14px 40px rgba(15, 23, 42, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      overflow: hidden;
+      position: relative;
+    }
+    .ann-hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.0) 45%);
+      pointer-events: none;
+    }
+    .ann-card {
+      border-radius: 1.15rem;
+      border: 1px solid var(--bs-border-color-translucent);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 12px 34px rgba(15, 23, 42, 0.08);
+      overflow: hidden;
+    }
+    .ann-item { border-bottom: 1px solid rgba(148,163,184,0.18); padding: 1rem 1.1rem; }
+    .ann-item:last-child { border-bottom: none; }
+    .ann-title { font-weight: 900; letter-spacing: -0.01em; margin-bottom: 0.15rem; }
+    .ann-meta { color: var(--bs-secondary-color); font-size: 0.85rem; }
+  </style>
+
+  <div class="ann-page">
+    <div class="ann-hero mb-4">
+      <div class="position-relative d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+          <h1 class="h4 fw-bold mb-1">Announcements</h1>
+          <div class="small" style="color: rgba(255,255,255,0.86);">School notices and updates</div>
+        </div>
+        <span class="badge bg-light text-dark border px-3 py-2">{{ announcements|length }} new</span>
+      </div>
+    </div>
+
+    <div class="card border-0 ann-card">
+      <div class="card-body p-0">
+        {% if announcements %}
+          {% for a in announcements %}
+            <div class="ann-item">
+              <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+                <div class="min-w-0">
+                  <div class="ann-title">{{ a.title }}</div>
+                  <div class="ann-meta">
+                    <i class="bi bi-clock me-1"></i>
+                    {% if a.publish_at %}{{ a.publish_at|date:"M j, Y, g:i A" }}{% else %}{{ a.created_at|date:"M j, Y, g:i A" }}{% endif %}
+                  </div>
+                </div>
+                <span class="badge rounded-pill bg-primary-subtle text-primary border">
+                  <i class="bi bi-megaphone me-1"></i>Notice
+                </span>
+              </div>
+              {% if a.content %}
+                <div class="mt-2 text-body" style="white-space: pre-wrap;">{{ a.content }}</div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        {% else %}
+          <div class="text-center py-5 text-muted">
+            <i class="bi bi-megaphone display-6"></i>
+            <div class="mt-2 fw-semibold">No announcements yet</div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

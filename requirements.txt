@@ -1,4 +1,6 @@
 asgiref==3.11.1
+channels>=4.0.0
+channels_redis>=4.2.0
 Django==6.0.2
 django-tenants==3.6.1
 django-environ==0.13.0

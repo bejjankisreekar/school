@@ -91,6 +91,7 @@ class SaaSPlatformPaymentAdmin(admin.ModelAdmin):
         "payment_method",
         "reference",
         "internal_receipt_no",
+        "school_generated_invoice",
         "recorded_by",
         "created_at",
     )
@@ -102,7 +103,7 @@ class SaaSPlatformPaymentAdmin(admin.ModelAdmin):
         "internal_receipt_no",
         "notes",
     )
-    raw_id_fields = ("school", "subscription", "recorded_by")
+    raw_id_fields = ("school", "subscription", "recorded_by", "school_generated_invoice")
     date_hierarchy = "payment_date"
 
 
@@ -122,18 +123,14 @@ class SchoolAdmin(TenantAdminMixin, admin.ModelAdmin):
         "code",
         "school_status",
         "contact_person",
-        "saas_plan",
+        "plan",
+        "billing_plan",
         "trial_end_date",
         "created_on",
         "is_active",
     )
-    list_filter = ("is_active", "school_status", "saas_plan")
+    list_filter = ("is_active", "school_status", "plan", "billing_plan")
     search_fields = ("name", "code", "contact_person")
-
-    def formfield_for_foreignkey(self, db_field, request, **kwargs):
-        if db_field.name == "saas_plan":
-            kwargs["queryset"] = Plan.sale_tiers()
-        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
 @admin.register(Domain)

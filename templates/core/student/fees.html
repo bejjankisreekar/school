@@ -4,52 +4,183 @@
 
 {% block content %}
 <div class="container-fluid px-0">
-  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <h1 class="h4 fw-bold mb-0">My Billing</h1>
-    <div class="d-flex gap-2 flex-wrap">
-      <span class="badge bg-primary-subtle text-primary border">Total: ₹{{ summary.total|inr }}</span>
-      <span class="badge bg-success-subtle text-success border">Paid: ₹{{ summary.paid|inr }}</span>
-      <span class="badge bg-danger-subtle text-danger border">Pending: ₹{{ summary.pending|inr }}</span>
-    </div>
-  </div>
+  <style>
+    .fees-page { max-width: 1200px; margin: 0 auto; }
+    .fees-hero {
+      border-radius: 1.25rem;
+      padding: 1.25rem 1.25rem;
+      color: #fff;
+      background:
+        radial-gradient(900px circle at 10% 20%, rgba(59, 130, 246, 0.45) 0%, rgba(59, 130, 246, 0.0) 55%),
+        radial-gradient(700px circle at 90% 10%, rgba(168, 85, 247, 0.45) 0%, rgba(168, 85, 247, 0.0) 55%),
+        linear-gradient(135deg, #2563eb 0%, #7c3aed 55%, #4338ca 100%);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 14px 40px rgba(15, 23, 42, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      overflow: hidden;
+      position: relative;
+    }
+    .fees-hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.0) 45%);
+      pointer-events: none;
+    }
+    .fees-hero .subtitle { color: rgba(255,255,255,0.86); }
+    .fees-card {
+      border-radius: 1.15rem;
+      border: 1px solid var(--bs-border-color-translucent);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 12px 34px rgba(15, 23, 42, 0.08);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .fees-card:hover { transform: translateY(-1px); box-shadow: 0 12px 40px rgba(15, 23, 42, 0.12); }
+    .metric { font-size: 1.6rem; font-weight: 900; letter-spacing: -0.02em; }
+    .metric-sub { font-size: 0.85rem; color: var(--bs-secondary-color); }
+    .money { text-align: right; font-variant-numeric: tabular-nums; }
+    .table thead th { white-space: nowrap; }
+    .table-striped>tbody>tr:nth-of-type(odd)>* { --bs-table-accent-bg: rgba(148, 163, 184, 0.08); }
+  </style>
 
-  <div class="card border-0 shadow-sm rounded-4">
-    <div class="card-body p-0">
-      {% if fee_rows %}
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Amount</th>
-              <th>Paid / Pending</th>
-              <th>Due Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in fee_rows %}
-            <tr class="{% if row.is_unpaid %}table-danger{% endif %}">
-              <td>₹{{ row.fee.amount|inr }}</td>
-              <td>
-                <div class="small">Paid: ₹{{ row.paid_amount|inr }}</div>
-                <div class="small {% if row.is_unpaid %}text-danger fw-semibold{% else %}text-success{% endif %}">
-                  Pending: ₹{{ row.pending_amount|inr }}
-                </div>
-                <span class="badge {% if row.fee.status == 'PAID' %}bg-success{% elif row.fee.status == 'PARTIAL' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
-                  {{ row.fee.get_status_display }}
-                </span>
-              </td>
-              <td class="{% if row.is_overdue %}text-danger fw-semibold{% endif %}">
-                {{ row.fee.due_date }}
-                {% if row.is_overdue %}<div class="small">Overdue</div>{% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+  <div class="fees-page">
+    <div class="fees-hero mb-4">
+      <div class="position-relative d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+          <h1 class="h4 fw-bold mb-1">My Fees</h1>
+          <div class="subtitle small">Track your payments and balances</div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+          <span class="badge bg-light text-dark border px-3 py-2">Gross: ₹{{ summary.gross|inr }}</span>
+          <span class="badge bg-light text-dark border px-3 py-2">Concession: ₹{{ summary.concession|inr }}</span>
+          <span class="badge bg-light text-dark border px-3 py-2">Paid: ₹{{ summary.paid|inr }}</span>
+          <span class="badge bg-warning text-dark px-3 py-2">Balance: ₹{{ summary.balance|inr }}</span>
+        </div>
       </div>
-      {% else %}
-      <div class="p-5 text-center text-muted">No fee records available.</div>
-      {% endif %}
+    </div>
+
+    <!-- Summary cards -->
+    <div class="row g-3 mb-3">
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card border-0 fees-card h-100">
+          <div class="card-body">
+            <div class="text-muted small text-uppercase fw-semibold" style="letter-spacing:0.06em;">Total Gross</div>
+            <div class="metric">₹{{ summary.gross|inr }}</div>
+            <div class="metric-sub">Original fee amount</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card border-0 fees-card h-100">
+          <div class="card-body">
+            <div class="text-muted small text-uppercase fw-semibold" style="letter-spacing:0.06em;">Concession</div>
+            <div class="metric text-primary">₹{{ summary.concession|inr }}</div>
+            <div class="metric-sub">Discounts & scholarships</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card border-0 fees-card h-100">
+          <div class="card-body">
+            <div class="text-muted small text-uppercase fw-semibold" style="letter-spacing:0.06em;">Paid</div>
+            <div class="metric text-success">₹{{ summary.paid|inr }}</div>
+            <div class="metric-sub">Total payments received</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card border-0 fees-card h-100">
+          <div class="card-body">
+            <div class="text-muted small text-uppercase fw-semibold" style="letter-spacing:0.06em;">Balance</div>
+            <div class="metric text-warning">₹{{ summary.balance|inr }}</div>
+            <div class="metric-sub">Net pending amount</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card border-0 fees-card mb-3">
+      <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+          <div class="col-12 col-md-4">
+            <label class="form-label small text-muted mb-1">Status</label>
+            <select name="status" class="form-select form-select-sm">
+              <option value="" {% if not filters.status %}selected{% endif %}>All</option>
+              <option value="PENDING" {% if filters.status == "PENDING" %}selected{% endif %}>Pending</option>
+              <option value="PARTIAL" {% if filters.status == "PARTIAL" %}selected{% endif %}>Partial</option>
+              <option value="PAID" {% if filters.status == "PAID" %}selected{% endif %}>Paid</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label small text-muted mb-1">Fee type</label>
+            <select name="fee_type" class="form-select form-select-sm">
+              <option value="" {% if not filters.fee_type %}selected{% endif %}>All fee types</option>
+              {% for ft in fee_type_choices %}
+                <option value="{{ ft }}" {% if filters.fee_type == ft %}selected{% endif %}>{{ ft }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-md-2">
+            <button class="btn btn-primary btn-sm w-100">
+              <i class="bi bi-funnel me-1"></i>Apply
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Fee breakdown table -->
+    <div class="card border-0 fees-card">
+      <div class="card-body p-0">
+        {% if fee_rows %}
+        <div class="table-responsive">
+          <table class="table table-hover table-striped align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Fee Type</th>
+                <th class="money">Gross Amount</th>
+                <th class="money">Concession</th>
+                <th class="money">Paid Amount</th>
+                <th class="money">Balance Amount</th>
+                <th>Due Date</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in fee_rows %}
+              <tr class="{% if row.is_unpaid %}table-warning{% endif %}">
+                <td class="fw-semibold">{{ row.fee_type }}</td>
+                <td class="money">₹{{ row.gross_amount|inr }}</td>
+                <td class="money text-primary">₹{{ row.concession_amount|inr }}</td>
+                <td class="money text-success">₹{{ row.paid_amount|inr }}</td>
+                <td class="money {% if row.balance_amount > 0 %}text-danger fw-semibold{% else %}text-muted{% endif %}">₹{{ row.balance_amount|inr }}</td>
+                <td class="{% if row.is_overdue %}text-danger fw-semibold{% endif %}">
+                  {{ row.fee.due_date|date:"M d, Y" }}
+                  {% if row.is_overdue %}<div class="small">Overdue</div>{% endif %}
+                </td>
+                <td>
+                  <span class="badge {% if row.fee.status == 'PAID' %}bg-success{% elif row.fee.status == 'PARTIAL' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                    {{ row.fee.get_status_display }}
+                  </span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr class="table-light">
+                <th class="text-end">Totals</th>
+                <th class="money">₹{{ summary.gross|inr }}</th>
+                <th class="money">₹{{ summary.concession|inr }}</th>
+                <th class="money">₹{{ summary.paid|inr }}</th>
+                <th class="money">₹{{ summary.balance|inr }}</th>
+                <th colspan="2"></th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        {% else %}
+        <div class="p-5 text-center text-muted">No fee records available.</div>
+        {% endif %}
+      </div>
     </div>
   </div>
 </div>

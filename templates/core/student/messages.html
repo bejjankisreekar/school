@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+{% block title %}Messages | School ERP{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <style>
+    .msg-page { max-width: 1200px; margin: 0 auto; }
+    .msg-hero {
+      border-radius: 1.25rem;
+      padding: 0.75rem 1rem;
+      color: #fff;
+      background:
+        radial-gradient(900px circle at 10% 20%, rgba(59, 130, 246, 0.45) 0%, rgba(59, 130, 246, 0.0) 55%),
+        radial-gradient(700px circle at 90% 10%, rgba(168, 85, 247, 0.45) 0%, rgba(168, 85, 247, 0.0) 55%),
+        linear-gradient(135deg, #2563eb 0%, #7c3aed 55%, #4338ca 100%);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 12px 28px rgba(15, 23, 42, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      overflow: hidden;
+      position: relative;
+    }
+    .msg-hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.0) 45%);
+      pointer-events: none;
+    }
+    .msg-card {
+      border-radius: 1.15rem;
+      border: 1px solid var(--bs-border-color-translucent);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 12px 34px rgba(15, 23, 42, 0.08);
+      overflow: hidden;
+    }
+    .msg-list a {
+      text-decoration: none;
+      color: inherit;
+    }
+    .msg-list {
+      max-height: 420px;
+      overflow: hidden;
+    }
+    .msg-list.is-expanded {
+      overflow: auto;
+    }
+    .chat-preview {
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: block;
+    }
+    .msg-peer {
+      border-radius: 0.9rem;
+      border: 1px solid rgba(148,163,184,0.28);
+      padding: 0.7rem 0.8rem;
+      background: rgba(148,163,184,0.06);
+      transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+    }
+    .msg-peer:hover { transform: translateY(-1px); border-color: rgba(59,130,246,0.30); box-shadow: 0 12px 24px rgba(15,23,42,0.10); }
+    .msg-peer.is-active { background: rgba(37,99,235,0.10); border-color: rgba(37,99,235,0.30); }
+    /* Chat layout (match teacher UI) */
+    /* Fit chat within viewport (keep composer visible) */
+    .msg-shell-h { height: calc(100vh - 300px); min-height: 500px; }
+    .msg-chat-shell { display: flex; flex-direction: column; }
+    .msg-chat-header { padding: 0.9rem 1rem; border-bottom: 1px solid var(--border-color); }
+    .msg-thread {
+      flex: 1 1 auto;
+      overflow: auto;
+      padding: 0.75rem;
+      background:
+        radial-gradient(600px 240px at 30% 10%, rgba(59,130,246,0.10), transparent 60%),
+        linear-gradient(180deg, rgba(148,163,184,0.06), transparent);
+    }
+    .msg-message { display: flex; margin: 10px 0; }
+    .msg-message.me { justify-content: flex-end; }
+    .msg-message.them { justify-content: flex-start; }
+
+    .msg-date-sep {
+      display: flex;
+      justify-content: center;
+      margin: 12px 0;
+    }
+    .msg-date-sep > span {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(148,163,184,0.22);
+      color: var(--text-secondary);
+      border: 1px solid rgba(148,163,184,0.22);
+      box-shadow: 0 1px 1px rgba(15,23,42,0.04);
+    }
+
+    .msg-bubble {
+      width: fit-content;
+      max-width: 66%;
+      border-radius: 22px;
+      padding: 10px 12px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      display: inline-flex;
+      flex-direction: column;
+      gap: 4px;
+      box-shadow: 0 1px 2px rgba(15,23,42,0.10);
+    }
+    .msg-bubble.me {
+      background: color-mix(in srgb, var(--bs-primary, #0d6efd) 92%, #0b1324);
+      color: #fff;
+      border-top-right-radius: 12px;
+    }
+    .msg-bubble.them {
+      background: rgba(148,163,184,0.16);
+      border: 1px solid rgba(148,163,184,0.22);
+      color: var(--text-primary);
+      border-top-left-radius: 12px;
+      box-shadow: none;
+    }
+    .msg-foot {
+      display: flex;
+      justify-content: flex-end;
+      align-items: baseline;
+      gap: 6px;
+      margin-top: 2px;
+      white-space: nowrap;
+    }
+    .msg-time {
+      font-size: 10px;
+      opacity: 0.70;
+      line-height: 1.1;
+    }
+    .msg-bubble.me .msg-time { color: rgba(255,255,255,0.78); }
+    .msg-status { font-size: 11px; margin-left: 6px; font-weight: 800; letter-spacing: -0.02em; }
+    .msg-status.sent { color: rgba(255,255,255,0.72); }
+    .msg-status.delivered { color: rgba(255,255,255,0.88); }
+    .msg-status.seen { color: #34d399; text-shadow: 0 0 0.5px rgba(0,0,0,0.35); }
+    .msg-status.failed { color: #fecaca; }
+
+    .msg-composer {
+      padding: 0.85rem 1rem;
+      border-top: 1px solid var(--border-color);
+      background: color-mix(in srgb, var(--bg-card) 88%, transparent);
+      position: sticky;
+      bottom: 0;
+      z-index: 2;
+    }
+    .msg-input {
+      border-radius: 18px;
+      padding: 0.7rem 0.95rem;
+      resize: none;
+      overflow: hidden;
+      line-height: 1.25;
+    }
+    .msg-send {
+      width: 46px;
+      height: 46px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+  </style>
+
+  <div class="msg-page">
+    <div class="msg-hero mb-3">
+      <div class="position-relative d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+          <h1 class="h6 fw-bold mb-0">Messages</h1>
+          <div class="small d-none d-sm-block" style="color: rgba(255,255,255,0.86);">Ask doubts and get replies from teachers</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-12 col-lg-4">
+        <div class="card border-0 msg-card">
+          <div class="card-body">
+            <div class="text-muted small text-uppercase fw-semibold mb-2" style="letter-spacing:0.06em;">Teachers</div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div class="text-muted small text-uppercase fw-semibold" style="letter-spacing:0.06em;">Teachers</div>
+              {% if not show_all %}
+                <a class="small text-decoration-none" href="?{% if active_teacher %}teacher={{ active_teacher.id }}&{% endif %}all=1">View all</a>
+              {% else %}
+                <a class="small text-decoration-none" href="{% if active_teacher %}?teacher={{ active_teacher.id }}{% else %}.{% endif %}">Compact</a>
+              {% endif %}
+            </div>
+            <div class="msg-list d-grid gap-2 {% if show_all %}is-expanded{% endif %}">
+              <div class="mb-2">
+                <input id="teacherSearch" class="form-control form-control-sm" placeholder="Search teacher...">
+              </div>
+              {% for t in teachers %}
+                <a href="?teacher={{ t.user.id }}">
+                  <div class="msg-peer {% if t.active %}is-active{% endif %}" data-teacher-search="{{ t.user.get_full_name|default:t.user.username }} {{ t.subjects_display }} {{ t.user.username|default:'' }}">
+                    <div class="d-flex justify-content-between align-items-center gap-2">
+                      <div class="fw-semibold text-truncate">
+                        <i class="bi bi-person-badge me-1"></i>{{ t.user.get_full_name|default:t.user.username }}
+                      </div>
+                      {% if t.unread %}
+                        <span class="badge rounded-pill bg-danger">{{ t.unread }}</span>
+                      {% endif %}
+                    </div>
+                    <div class="text-muted small text-truncate">
+                      {{ t.user.username }}{% if t.subjects_display %} · {{ t.subjects_display }}{% endif %}
+                    </div>
+                    {% if t.last_preview %}
+                      <span class="chat-preview small text-muted">{{ t.last_preview|truncatechars:15 }}</span>
+                    {% endif %}
+                  </div>
+                </a>
+              {% empty %}
+                <div class="text-muted small">No teachers mapped to your class/section yet.</div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-8">
+        <div class="card border-0 msg-card">
+          <div class="card-body p-0 msg-chat-shell msg-shell-h">
+            <div class="msg-chat-header d-flex justify-content-between align-items-center">
+              <div class="fw-semibold d-flex align-items-center gap-2">
+                {% if active_teacher %}
+                  <i class="bi bi-chat-dots"></i>
+                  <span>{{ active_teacher.get_full_name|default:active_teacher.username }}</span>
+                  <span class="badge bg-primary-subtle text-primary">Teacher</span>
+                {% else %}
+                  <i class="bi bi-chat-dots"></i>
+                  <span>Select a teacher</span>
+                {% endif %}
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <select id="teacherSelect" name="teacher" class="form-select form-select-sm" style="min-width: 220px;">
+                  <option value="">— Select —</option>
+                  {% for t in teachers %}
+                    <option value="{{ t.user.id }}" {% if active_teacher and active_teacher.id == t.user.id %}selected{% endif %}>
+                      {{ t.user.get_full_name|default:t.user.username }}{% if t.subjects_display %} ({{ t.subjects_display }}){% endif %}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+
+            <div class="msg-thread" id="msgThread">
+              {% if active_teacher %}
+                {% for m in thread %}
+                  {% ifchanged m.created_at|date:"Y-m-d" %}
+                    <div class="msg-date-sep">
+                      <span>{{ m.created_at|date:"F j, Y" }}</span>
+                    </div>
+                  {% endifchanged %}
+                  <div class="msg-message {% if m.sender_id == request.user.id %}me{% else %}them{% endif %}">
+                    <div class="msg-bubble {% if m.sender_id == request.user.id %}me{% else %}them{% endif %}">
+                      <div class="msg-text">{{ m.content }}</div>
+                      <div class="msg-foot">
+                        <span class="msg-time">{{ m.created_at|date:"H:i" }}</span>
+                        {% if m.sender_id == request.user.id %}
+                          {% if m.status == "sent" %}
+                            <span class="msg-status sent">✓</span>
+                          {% elif m.status == "delivered" %}
+                            <span class="msg-status delivered">✓✓</span>
+                          {% elif m.status == "seen" %}
+                            <span class="msg-status seen">✓✓</span>
+                          {% elif m.status == "failed" %}
+                            <span class="msg-status failed">❌</span>
+                          {% endif %}
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+                {% empty %}
+                  <div class="text-muted small text-center py-5">No messages yet. Start the conversation.</div>
+                {% endfor %}
+              {% else %}
+                <div class="text-muted small text-center py-5">Choose a teacher to open the conversation.</div>
+              {% endif %}
+            </div>
+
+            <div class="msg-composer">
+              <form method="post" class="d-flex gap-2 align-items-center">
+                {% csrf_token %}
+                <input type="hidden" name="teacher" id="teacherHidden" value="{% if active_teacher %}{{ active_teacher.id }}{% endif %}">
+                <textarea class="form-control msg-input flex-grow-1" id="msgComposerInput" name="content" rows="1" placeholder="Type a message..." {% if not active_teacher %}disabled{% endif %} required></textarea>
+                <button class="btn btn-primary msg-send" title="Send" aria-label="Send" {% if not active_teacher %}disabled{% endif %}>
+                  <i class="bi bi-send"></i>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var el = document.getElementById("msgThread");
+    if (!el) return;
+    try { el.scrollTop = el.scrollHeight; } catch (e) {}
+  })();
+  (function () {
+    var inp = document.getElementById("teacherSearch");
+    if (!inp) return;
+    inp.addEventListener("input", function () {
+      var q = (inp.value || "").toLowerCase();
+      var nodes = document.querySelectorAll("[data-teacher-search]");
+      for (var i = 0; i < nodes.length; i++) {
+        var hay = (nodes[i].getAttribute("data-teacher-search") || "").toLowerCase();
+        nodes[i].parentElement.style.display = hay.indexOf(q) >= 0 ? "" : "none";
+      }
+    });
+  })();
+  (function () {
+    var sel = document.getElementById("teacherSelect");
+    if (!sel) return;
+    sel.addEventListener("change", function () {
+      var v = (sel.value || "").trim();
+      if (!v) return;
+      try {
+        window.location.href = "?teacher=" + encodeURIComponent(v);
+      } catch (e) {}
+    });
+  })();
+  (function () {
+    // Keep the POSTed teacher in sync with the selected teacher.
+    var sel = document.getElementById("teacherSelect");
+    var hid = document.getElementById("teacherHidden");
+    if (!sel || !hid) return;
+    hid.value = (sel.value || hid.value || "").trim();
+    sel.addEventListener("change", function () {
+      hid.value = (sel.value || "").trim();
+    });
+  })();
+  (function () {
+    var ta = document.getElementById("msgComposerInput");
+    var form = ta ? ta.closest("form") : null;
+    if (!ta) return;
+    function autosize() {
+      try {
+        ta.style.height = "auto";
+        ta.style.height = Math.min(140, ta.scrollHeight) + "px";
+      } catch (e) {}
+    }
+    ta.addEventListener("input", autosize);
+    ta.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        if (form) form.requestSubmit ? form.requestSubmit() : form.submit();
+      }
+    });
+    autosize();
+  })();
+</script>
+{% endblock %}
+

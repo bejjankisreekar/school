@@ -126,6 +126,34 @@
 {% endblock %}
 
 {% block modals %}
+{% if subject_create_success %}
+<div class="modal fade" id="subjectCreatedSuccessModal" tabindex="-1" aria-labelledby="subjectCreatedSuccessTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-3 overflow-hidden">
+      <div class="modal-header border-0 bg-success bg-opacity-10 text-success pb-2">
+        <h5 class="modal-title d-flex align-items-center gap-2 fw-semibold" id="subjectCreatedSuccessTitle">
+          <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+          Subject created
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <p class="mb-0 lh-lg text-body">
+          The subject <strong>{{ subject_create_success.name }}</strong>
+          {% if subject_create_success.code %}
+            (code <strong>{{ subject_create_success.code }}</strong>)
+          {% endif %}
+          has been created successfully and is now available in your school's subject catalogue.
+        </p>
+        <p class="small text-muted mb-0 mt-3">This message will close on its own in a few seconds, or you can press <strong>OK</strong> when you are ready.</p>
+      </div>
+      <div class="modal-footer border-0 bg-light bg-opacity-50">
+        <button type="button" class="btn btn-success px-4" id="subjectCreatedSuccessOk" data-bs-dismiss="modal">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% if total_subjects %}
 {% for s in subjects %}
 <div class="modal fade" id="delSubject{{ s.id }}" tabindex="-1" aria-hidden="true">
@@ -148,6 +176,31 @@
 {% endblock %}
 
 {% block after_bootstrap %}
+{% if subject_create_success %}
+<script>
+(function () {
+  var el = document.getElementById("subjectCreatedSuccessModal");
+  if (!el || typeof bootstrap === "undefined" || !bootstrap.Modal) return;
+  var modal = bootstrap.Modal.getOrCreateInstance(el);
+  modal.show();
+  var autoCloseMs = 16000;
+  var t = window.setTimeout(function () {
+    modal.hide();
+  }, autoCloseMs);
+  function clearTimer() {
+    window.clearTimeout(t);
+    t = null;
+  }
+  el.addEventListener("hidden.bs.modal", clearTimer, { once: true });
+  var ok = document.getElementById("subjectCreatedSuccessOk");
+  if (ok) {
+    ok.addEventListener("click", function () {
+      clearTimer();
+    });
+  }
+})();
+</script>
+{% endif %}
 {% if can_reorder %}
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script>

@@ -1,7 +1,10 @@
 from django.urls import include, path
 from django.views.generic import RedirectView
 
-from . import admissions_views, billing_views, control_center_views, views
+from apps.platform_messaging import api as platform_messages_api
+from apps.platform_messaging import views_pages as platform_messages_pages
+
+from . import admissions_views, billing_views, views
 
 app_name = "core"
 
@@ -13,116 +16,42 @@ urlpatterns = [
     path("contact/", views.contact, name="contact"),
     path("enroll/", views.school_enrollment_signup, name="school_enroll"),
 
-    # Role-based dashboard URLs (for login redirect)
-    path("superadmin/dashboard/", views.super_admin_dashboard, name="super_admin_dashboard"),
-    path(
-        "super-admin/control-center/",
-        control_center_views.superadmin_control_center,
-        name="superadmin_control_center",
-    ),
-    path(
-        "super-admin/control-center/sidebar/",
-        control_center_views.superadmin_sidebar_management,
-        name="superadmin_sidebar_management",
-    ),
-    path(
-        "superadmin/platform/footprint/",
-        views.superadmin_platform_footprint,
-        name="superadmin_platform_footprint",
-    ),
-    path(
-        "superadmin/schools/overview/",
-        views.superadmin_schools_overview,
-        name="superadmin_schools_overview",
-    ),
-    path(
-        "superadmin/schools/<int:school_id>/students/",
-        views.superadmin_school_students,
-        name="superadmin_school_students",
-    ),
-    path(
-        "superadmin/schools/<int:school_id>/teachers/",
-        views.superadmin_school_teachers,
-        name="superadmin_school_teachers",
-    ),
-    path("superadmin/students/", views.superadmin_global_students, name="superadmin_global_students"),
-    path(
-        "superadmin/students/set-active/",
-        views.superadmin_set_student_active,
-        name="superadmin_set_student_active",
-    ),
-    path("superadmin/teachers/", views.superadmin_global_teachers, name="superadmin_global_teachers"),
-    path(
-        "superadmin/teachers/set-active/",
-        views.superadmin_set_teacher_active,
-        name="superadmin_set_teacher_active",
-    ),
-    path(
-        "superadmin/schools/<int:school_id>/financial/",
-        views.superadmin_school_financial,
-        name="superadmin_school_financial",
-    ),
-    path(
-        "superadmin/billing/platform-invoices/<int:invoice_id>/pdf/",
-        views.superadmin_platform_invoice_pdf,
-        name="superadmin_platform_invoice_pdf",
-    ),
-    path("superadmin/enquiries/", views.superadmin_enquiries, name="superadmin_enquiries"),
-    path(
-        "superadmin/enquiries/<int:enquiry_id>/mark-read/",
-        views.superadmin_enquiry_mark_read,
-        name="superadmin_enquiry_mark_read",
-    ),
-    path("superadmin/financials/", views.superadmin_financials, name="superadmin_financials"),
-    path(
-        "superadmin/payments/subscriptions/",
-        views.superadmin_subscription_payments,
-        name="superadmin_subscription_payments",
-    ),
-    path(
-        "superadmin/payments/subscriptions/record/",
-        views.superadmin_record_subscription_payment,
-        name="superadmin_record_subscription_payment",
-    ),
-    path(
-        "superadmin/payments/subscriptions/<int:pk>/edit/",
-        views.superadmin_edit_subscription_payment,
-        name="superadmin_edit_subscription_payment",
-    ),
-    path(
-        "superadmin/payments/subscriptions/<int:pk>/delete/",
-        views.superadmin_delete_subscription_payment,
-        name="superadmin_delete_subscription_payment",
-    ),
-    path(
-        "superadmin/billing/sales/",
-        views.superadmin_billing_sales,
-        name="superadmin_billing_sales",
-    ),
-    path(
-        "superadmin/billing/invoices/",
-        views.superadmin_billing_invoices,
-        name="superadmin_billing_invoices",
-    ),
-    path(
-        "superadmin/billing/invoices/<int:invoice_id>/pay/",
-        views.superadmin_billing_invoice_pay,
-        name="superadmin_billing_invoice_pay",
-    ),
-    path(
-        "superadmin/billing/receipts/<int:receipt_id>/pdf/",
-        views.superadmin_billing_receipt_pdf,
-        name="superadmin_billing_receipt_pdf",
-    ),
-    path("superadmin/enrollments/", views.superadmin_enrollments, name="superadmin_enrollments"),
-    path(
-        "superadmin/enrollments/<int:pk>/",
-        views.superadmin_enrollment_detail,
-        name="superadmin_enrollment_detail",
-    ),
+    # Super Admin SaaS Control Center (fresh module).
+    path("super-admin/", include(("apps.super_admin.urls", "super_admin"), namespace="super_admin")),
     path("school/dashboard/", views.admin_dashboard, name="admin_dashboard"),
+    path(
+        "school-admin/messages/",
+        platform_messages_pages.school_admin_messages_page,
+        name="school_admin_platform_messages",
+    ),
+    path(
+        "school-admin/messages/api/threads/",
+        platform_messages_api.school_threads,
+        name="school_admin_platform_messages_api_threads",
+    ),
+    path(
+        "school-admin/messages/api/school/<int:school_id>/messages/",
+        platform_messages_api.school_messages,
+        name="school_admin_platform_messages_api_messages",
+    ),
+    path(
+        "school-admin/messages/api/send/",
+        platform_messages_api.school_send,
+        name="school_admin_platform_messages_api_send",
+    ),
+    path(
+        "school-admin/messages/api/mark-read/",
+        platform_messages_api.school_mark_read,
+        name="school_admin_platform_messages_api_mark_read",
+    ),
+    path(
+        "school-admin/messages/api/thread-state/",
+        platform_messages_api.school_thread_state,
+        name="school_admin_platform_messages_api_thread_state",
+    ),
     path("teacher/dashboard/", views.teacher_dashboard, name="teacher_dashboard"),
     path("student/dashboard/", views.student_dashboard, name="student_dashboard"),
+    path("student/profile/", views.student_profile_settings, name="student_profile_settings"),
 
     # Public APIs (super admin)
     path("api/enquiries/unread-count/", views.enquiries_unread_count, name="enquiries_unread_count_api"),
@@ -139,8 +68,8 @@ urlpatterns = [
     path("api/master-dropdown/save-order/", views.master_dropdown_save_order, name="master_dropdown_save_order"),
     path("api/exams/create/", views.api_exam_create, name="api_exam_create"),
 
-    # Legacy/alias dashboard URLs
-    path("super-admin/", views.super_admin_dashboard, name="super_admin_dashboard_legacy"),
+    # Legacy platform snapshot (separate path; /super-admin/ is the Control Center include above)
+    path("super-admin/platform-snapshot/", views.super_admin_dashboard, name="super_admin_platform_snapshot"),
     path("school-admin/", views.admin_dashboard, name="admin_dashboard_legacy"),
     path("student-dashboard/", views.student_dashboard, name="student_dashboard_legacy"),
     path("student-dashboard/profile/", views.student_profile, name="student_profile"),
@@ -164,6 +93,13 @@ urlpatterns = [
     path("student/exam/<int:exam_id>/", views.student_exam_detail_by_id, name="student_exam_detail_by_id"),
     path("student/exam/legacy/<str:exam_name>/", views.student_exam_detail, name="student_exam_detail"),
     path("student/reports/", views.student_reports, name="student_reports"),
+    path("student/calendar/", views.student_calendar, name="student_calendar"),
+    path("student/resources/", views.student_resources, name="student_resources"),
+    path("student/messages/", views.student_messages, name="student_messages"),
+    path("student/messages/api/teachers/", views.student_messages_api_teachers, name="student_messages_api_teachers"),
+    path("student/messages/api/thread/", views.student_messages_api_thread, name="student_messages_api_thread"),
+    path("student/messages/api/send/", views.student_messages_api_send, name="student_messages_api_send"),
+    path("student/announcements/", views.student_announcements, name="student_announcements"),
     path("student/reports/report-card/<int:exam_id>/", views.student_report_card_view, name="student_report_card_view"),
     path(
         "student/reports/report-card/session/<int:session_id>/",
@@ -183,6 +119,8 @@ urlpatterns = [
 
     # Teacher Exam Management
     path("teacher/exams/", views.teacher_exams, name="teacher_exams"),
+    path("teacher/messages/", views.teacher_messages, name="teacher_messages"),
+    path("teacher/messages/api/students/search/", views.teacher_students_search_api, name="teacher_students_search_api"),
     path("teacher/exams/create/", views.teacher_exam_create, name="teacher_exam_create"),
     path(
         "teacher/exams/session/<int:session_id>/",

@@ -1,5 +1,5 @@
 {% extends "marketing/base.html" %}
-{% block title %}Enroll — EduManage ERP | School ERP SaaS{% endblock %}
+{% block title %}Enroll | {{ app_product_name }}{% endblock %}
 {% block public_main_class %}enroll-main-flush{% endblock %}
 {% block extra_head %}
 <style>
@@ -202,6 +202,15 @@
   @media (min-width: 576px) {
     .enroll-capacity-grid { grid-template-columns: repeat(3, 1fr); }
   }
+  .enroll-capacity-grid input[type="number"]::-webkit-outer-spin-button,
+  .enroll-capacity-grid input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .enroll-capacity-grid input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
   .enroll-capacity-card {
     background: linear-gradient(145deg, rgba(99, 102, 241, 0.06), rgba(255, 255, 255, 0.85));
     border: 1px solid rgba(148, 163, 184, 0.25);
@@ -323,14 +332,14 @@
   }
   .enroll-trial-banner i { color: #6366f1; font-size: 1.1rem; }
 
-  .enroll-plan-grid-two {
+  .enroll-plan-grid {
     display: grid;
     grid-template-columns: 1fr;
     gap: 1.1rem;
     align-items: stretch;
   }
   @media (min-width: 768px) {
-    .enroll-plan-grid-two { grid-template-columns: repeat(2, 1fr); }
+    .enroll-plan-grid { grid-template-columns: repeat(3, 1fr); }
   }
 
   .enroll-pc {
@@ -360,10 +369,10 @@
       0 0 0 3px rgba(99, 102, 241, 0.28),
       0 12px 32px rgba(79, 70, 229, 0.12);
   }
-  .enroll-pc--advance {
+  .enroll-pc--has-badge {
     padding-top: 1.55rem;
   }
-  .enroll-pc--advance .enroll-pc-badge {
+  .enroll-pc-badge {
     position: absolute;
     top: -11px;
     right: 14px;
@@ -400,28 +409,20 @@
     line-height: 1.15;
     margin-bottom: 0.85rem;
   }
-  .enroll-pc--core .enroll-price-now { color: #1d4ed8; }
-  .enroll-pc--advance .enroll-price-now { color: #059669; }
-  html.dark .enroll-pc--core .enroll-price-now,
-  body.dark-mode .enroll-pc--core .enroll-price-now { color: #60a5fa; }
-  html.dark .enroll-pc--advance .enroll-price-now,
-  body.dark-mode .enroll-pc--advance .enroll-price-now { color: #34d399; }
+  .enroll-pc--basic .enroll-price-now { color: #1d4ed8; }
+  .enroll-pc--pro .enroll-price-now { color: #2563eb; }
+  .enroll-pc--premium .enroll-price-now { color: #4f46e5; }
+  html.dark .enroll-pc--basic .enroll-price-now,
+  body.dark-mode .enroll-pc--basic .enroll-price-now { color: #60a5fa; }
+  html.dark .enroll-pc--pro .enroll-price-now,
+  body.dark-mode .enroll-pc--pro .enroll-price-now { color: #93c5fd; }
+  html.dark .enroll-pc--premium .enroll-price-now,
+  body.dark-mode .enroll-pc--premium .enroll-price-now { color: #a5b4fc; }
   .enroll-price-unit {
     font-size: 0.95rem;
     font-weight: 700;
     color: #64748b;
   }
-
-  .enroll-pc-list {
-    margin: 0;
-    padding-left: 1.15rem;
-    font-size: 0.8rem;
-    color: #475569;
-    line-height: 1.55;
-  }
-  html.dark .enroll-pc-list,
-  body.dark-mode .enroll-pc-list { color: #94a3b8; }
-  .enroll-pc-list li { margin-bottom: 0.25rem; }
 
   .enroll-cta-wrap {
     margin-top: 2rem;
@@ -476,13 +477,216 @@
     gap: 0.5rem 1rem;
     margin-top: 0.75rem;
   }
+
+  details.enroll-optional-details > summary::-webkit-details-marker { display: none; }
+  details.enroll-optional-details > summary::before {
+    content: "▸";
+    display: inline-block;
+    margin-right: 0.35rem;
+    transition: transform 0.15s ease;
+    color: #6366f1;
+  }
+  details.enroll-optional-details[open] > summary::before { transform: rotate(90deg); }
+
+  .enroll-panel.d-none { display: none !important; }
+
+  /* Full-screen provisioning (async submit) */
+  .enroll-prov-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.35s ease, visibility 0.35s ease;
+  }
+  .enroll-prov-overlay.is-visible {
+    opacity: 1;
+    visibility: visible;
+  }
+  .enroll-prov-overlay.is-visible .enroll-prov-card {
+    animation: enrollProvCardIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes enrollProvCardIn {
+    from { opacity: 0; transform: translateY(12px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+  }
+  .enroll-prov-overlay[aria-hidden="false"] { pointer-events: auto; }
+  .enroll-prov-overlay[aria-hidden="true"] { pointer-events: none; }
+  .enroll-prov-card {
+    width: 100%;
+    max-width: 420px;
+    border-radius: 1.35rem;
+    padding: 1.75rem 1.65rem 1.5rem;
+    background: linear-gradient(165deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.96) 100%);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    box-shadow:
+      0 4px 6px -1px rgba(15, 23, 42, 0.08),
+      0 24px 48px -12px rgba(30, 27, 75, 0.35);
+    text-align: center;
+  }
+  html.dark .enroll-prov-card,
+  body.dark-mode .enroll-prov-card {
+    background: linear-gradient(165deg, rgba(30, 41, 59, 0.96) 0%, rgba(15, 23, 42, 0.98) 100%);
+    border-color: rgba(71, 85, 105, 0.45);
+    color: #e2e8f0;
+  }
+  .enroll-prov-logo {
+    width: 3.25rem;
+    height: 3.25rem;
+    margin: 0 auto 1rem;
+    border-radius: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: #fff;
+    background: linear-gradient(135deg, #6366f1, #0ea5e9);
+    box-shadow: 0 8px 24px -8px rgba(79, 70, 229, 0.65);
+  }
+  .enroll-prov-title {
+    font-size: 1.2rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #0f172a;
+    margin: 0 0 0.35rem;
+  }
+  html.dark .enroll-prov-title,
+  body.dark-mode .enroll-prov-title { color: #f8fafc; }
+  .enroll-prov-pct {
+    font-size: 2rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    background: linear-gradient(90deg, #4f46e5, #0ea5e9);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    line-height: 1.1;
+    margin: 0.5rem 0 0.75rem;
+  }
+  .enroll-prov-track {
+    height: 10px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.28);
+    overflow: hidden;
+    margin-bottom: 1rem;
+  }
+  .enroll-prov-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #6366f1, #8b5cf6 45%, #0ea5e9);
+    background-size: 180% 100%;
+    animation: enrollProvShimmer 2.2s ease infinite;
+    transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes enrollProvShimmer {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  .enroll-prov-status {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #334155;
+    min-height: 1.6rem;
+    transition: opacity 0.25s ease;
+  }
+  html.dark .enroll-prov-status,
+  body.dark-mode .enroll-prov-status { color: #cbd5e1; }
+  .enroll-prov-note {
+    font-size: 0.78rem;
+    color: #64748b;
+    line-height: 1.45;
+    margin: 0.85rem 0 0;
+    padding: 0.65rem 0.75rem;
+    border-radius: 0.75rem;
+    background: rgba(99, 102, 241, 0.08);
+    border: 1px solid rgba(99, 102, 241, 0.15);
+  }
+  html.dark .enroll-prov-note,
+  body.dark-mode .enroll-prov-note {
+    color: #94a3b8;
+    background: rgba(99, 102, 241, 0.12);
+    border-color: rgba(129, 140, 248, 0.22);
+  }
+  .enroll-prov-spinner {
+    width: 1.35rem;
+    height: 1.35rem;
+    border-width: 2px;
+    vertical-align: text-bottom;
+    margin-right: 0.35rem;
+  }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="enroll-sky">
   <div class="enroll-container">
-    {% if success %}
+    {% if enrollment_success %}
+    <div class="enroll-glass-card">
+      <div class="enroll-brand-bar d-flex align-items-center gap-3">
+        <div class="enroll-logo-mark"><i class="bi bi-mortarboard-fill"></i></div>
+        <div>
+          <div class="enroll-product-name">EduManage ERP</div>
+          <p class="enroll-tagline mb-0">Simplify school operations with smart digital management</p>
+        </div>
+      </div>
+      <div class="enroll-form-body text-center py-4 px-3">
+        <div class="display-4 text-success mb-3"><i class="bi bi-check-circle-fill"></i></div>
+        <h2 class="h4 fw-bold mb-2">School workspace created</h2>
+        {% if enrollment_success.school_name %}
+        <p class="text-muted mx-auto mb-2" style="max-width: 32rem;">
+          <strong>{{ enrollment_success.school_name }}</strong> is ready{% if enrollment_success.school_code %} (code <code>{{ enrollment_success.school_code }}</code>){% endif %}.
+        </p>
+        {% else %}
+        <p class="text-muted mx-auto mb-2" style="max-width: 32rem;">
+          If you just finished signup, you can open the dashboard or log in again. This confirmation page is valid once — refreshing may hide these details.
+        </p>
+        {% endif %}
+        {% if enrollment_success.username %}
+        <p class="small text-secondary mb-3">
+          School admin username: <code class="user-select-all">{{ enrollment_success.username }}</code>
+        </p>
+        {% endif %}
+        <p class="small text-muted mb-4" id="enrollSuccessRedirectMsg" aria-live="polite">
+          Taking you to the <strong>login</strong> page in <span id="enrollSuccessRedirectSec">5</span>s…
+        </p>
+        <div class="d-flex flex-wrap justify-content-center gap-2">
+          <a href="{% url 'accounts:login' %}" class="btn btn-enroll-primary" id="enrollSuccessGoLogin">Go to login now</a>
+          <a href="{% url 'core:admin_dashboard' %}" class="btn btn-enroll-secondary">Open school dashboard</a>
+          <a href="{% url 'core:home' %}" class="btn btn-link text-decoration-none text-secondary small">Home</a>
+        </div>
+      </div>
+    </div>
+    {% elif enrollment_error %}
+    <div class="enroll-glass-card">
+      <div class="enroll-brand-bar d-flex align-items-center gap-3">
+        <div class="enroll-logo-mark"><i class="bi bi-mortarboard-fill"></i></div>
+        <div>
+          <div class="enroll-product-name">EduManage ERP</div>
+          <p class="enroll-tagline mb-0">Simplify school operations with smart digital management</p>
+        </div>
+      </div>
+      <div class="enroll-form-body text-center py-4 px-3">
+        <div class="display-4 text-danger mb-3"><i class="bi bi-exclamation-octagon-fill"></i></div>
+        <h2 class="h4 fw-bold mb-2">We couldn&apos;t finish signup</h2>
+        <p class="text-muted mx-auto mb-4" style="max-width: 32rem;">
+          {{ enrollment_error }}
+        </p>
+        <div class="d-flex flex-wrap justify-content-center gap-2">
+          <a href="{% url 'core:school_enroll' %}" class="btn btn-enroll-primary">Try again</a>
+          <a href="{% url 'core:contact' %}" class="btn btn-enroll-secondary">Contact support</a>
+          <a href="{% url 'core:home' %}" class="btn btn-link text-decoration-none text-secondary small">Home</a>
+        </div>
+      </div>
+    </div>
+    {% elif success %}
     <div class="enroll-glass-card">
       <div class="enroll-brand-bar d-flex align-items-center gap-3">
         <div class="enroll-logo-mark"><i class="bi bi-mortarboard-fill"></i></div>
@@ -518,9 +722,9 @@
 
       <div class="enroll-form-body">
         <h1 class="enroll-page-title">Create your school account</h1>
-        <p class="enroll-page-sub">One short form — your isolated workspace, ready after review. No wizard, no friction.</p>
+        <p class="enroll-page-sub">Three quick steps — required fields stay upfront; optional details stay tucked away so signup stays low-friction.</p>
 
-        <form method="post" novalidate id="enrollForm">
+        <form method="post" enctype="multipart/form-data" novalidate id="enrollForm">
           {% csrf_token %}
           {% if form.non_field_errors %}
           <div class="alert alert-danger rounded-3 border-0 shadow-sm small mb-4">
@@ -534,6 +738,22 @@
             <span><i class="bi bi-credit-card-2-front"></i> No card for trial</span>
           </div>
 
+          <div class="enroll-stepper-nav card border-0 shadow-sm mb-4 p-3 rounded-3" style="background:rgba(255,255,255,.55);" role="navigation" aria-label="Enrollment steps">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+              <span class="small fw-bold text-uppercase" style="letter-spacing:.08em;color:#475569;">Progress</span>
+              <span class="small text-muted" id="enrollStepLabel">Step 1 of 3</span>
+            </div>
+            <div class="progress rounded-pill mb-0" style="height:7px;background:rgba(148,163,184,.25);">
+              <div class="progress-bar rounded-pill" id="enrollProgressBar" role="progressbar" style="width:33%;background:linear-gradient(90deg,#6366f1,#0ea5e9);" aria-valuenow="1" aria-valuemin="1" aria-valuemax="3"></div>
+            </div>
+            <div class="d-flex gap-2 mt-3 flex-wrap justify-content-center">
+              <button type="button" class="btn btn-sm rounded-pill px-3 enroll-step-tab active" data-enroll-go="0">1 · School</button>
+              <button type="button" class="btn btn-sm rounded-pill px-3 btn-outline-secondary enroll-step-tab" data-enroll-go="1">2 · Details &amp; login</button>
+              <button type="button" class="btn btn-sm rounded-pill px-3 btn-outline-secondary enroll-step-tab" data-enroll-go="2">3 · Plan &amp; submit</button>
+            </div>
+          </div>
+
+          <div class="enroll-panel" data-enroll-panel="0">
           <section class="enroll-section" aria-labelledby="enroll-h-school">
             <div class="enroll-section-head">
               <i class="bi bi-building" aria-hidden="true"></i>
@@ -547,11 +767,20 @@
                 <div class="enroll-field-error d-none" id="err_institution_name" role="alert"></div>
               </div>
               <div class="col-12 col-md-6">
-                <label class="form-label small fw-semibold" for="{{ form.institution_code.id_for_label }}">{{ form.institution_code.label }} <span class="text-danger">*</span></label>
-                {{ form.institution_code }}
-                <div class="form-text small text-muted">3 letters + 3 digits, e.g. <strong>NHS123</strong> (lowercase is fine — we save as uppercase). Unique across the platform.</div>
-                {% if form.institution_code.errors %}<div class="text-danger small">{{ form.institution_code.errors.0 }}</div>{% endif %}
-                <div class="enroll-field-error d-none" id="err_institution_code"></div>
+                <label class="form-label small fw-semibold" for="{{ form.society_name.id_for_label }}">{{ form.society_name.label }} <span class="text-danger">*</span></label>
+                {{ form.society_name }}
+                <div class="form-text small text-muted">As on society / RWA / trust registration (many schools use this legal name).</div>
+                {% if form.society_name.errors %}<div class="text-danger small">{{ form.society_name.errors.0 }}</div>{% endif %}
+                <div class="enroll-field-error d-none" id="err_society_name" role="alert"></div>
+              </div>
+              <div class="col-12">
+                <div class="alert alert-light border rounded-3 py-2 px-3 small mb-0 d-flex align-items-start gap-2" role="status">
+                  <i class="bi bi-magic text-primary mt-1" aria-hidden="true"></i>
+                  <div>
+                    <span class="fw-semibold d-block">School code is auto-generated</span>
+                    <span class="text-muted">You will receive a unique <strong>6-character</strong> code (Base36, e.g. <code class="user-select-all">K9X2A7</code>) on the confirmation screen — no need to pick one here.</span>
+                  </div>
+                </div>
               </div>
               <div class="col-12 col-md-6">
                 <label class="form-label small fw-semibold" for="{{ form.email.id_for_label }}">{{ form.email.label }} <span class="text-danger">*</span></label>
@@ -559,11 +788,18 @@
                 {% if form.email.errors %}<div class="text-danger small">{{ form.email.errors.0 }}</div>{% endif %}
                 <div class="enroll-field-error d-none" id="err_email"></div>
               </div>
-              <div class="col-12 col-md-6">
-                <label class="form-label small fw-semibold" for="{{ form.phone.id_for_label }}">{{ form.phone.label }} <span class="text-danger">*</span></label>
-                {{ form.phone }}
-                {% if form.phone.errors %}<div class="text-danger small">{{ form.phone.errors.0 }}</div>{% endif %}
-                <div class="enroll-field-error d-none" id="err_phone"></div>
+              <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label small fw-semibold" for="{{ form.country_code.id_for_label }}">{{ form.country_code.label }} <span class="text-danger">*</span></label>
+                {{ form.country_code }}
+                {% if form.country_code.errors %}<div class="text-danger small">{{ form.country_code.errors.0 }}</div>{% endif %}
+                <div class="enroll-field-error d-none" id="err_country_code" role="alert"></div>
+              </div>
+              <div class="col-12 col-md-8 col-lg-9">
+                <label class="form-label small fw-semibold" for="{{ form.phone_local.id_for_label }}">{{ form.phone_local.label }} <span class="text-danger">*</span></label>
+                {{ form.phone_local }}
+                <div class="form-text small text-muted">Enter national digits only; country code is selected on the left.</div>
+                {% if form.phone_local.errors %}<div class="text-danger small">{{ form.phone_local.errors.0 }}</div>{% endif %}
+                <div class="enroll-field-error d-none" id="err_phone_local" role="alert"></div>
               </div>
               <div class="col-12 col-md-6">
                 <label class="form-label small fw-semibold" for="{{ form.contact_name.id_for_label }}">{{ form.contact_name.label }} <span class="text-danger">*</span></label>
@@ -588,9 +824,50 @@
                 <label class="form-label small fw-semibold" for="{{ form.pincode.id_for_label }}">{{ form.pincode.label }}</label>
                 {{ form.pincode }}
               </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label small fw-semibold" for="{{ form.landmark.id_for_label }}">{{ form.landmark.label }} <span class="text-muted fw-normal">(optional)</span></label>
+                {{ form.landmark }}
+                {% if form.landmark.errors %}<div class="text-danger small">{{ form.landmark.errors.0 }}</div>{% endif %}
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label small fw-semibold" for="{{ form.district.id_for_label }}">{{ form.district.label }} <span class="text-muted fw-normal">(optional)</span></label>
+                {{ form.district }}
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label small fw-semibold" for="{{ form.latitude.id_for_label }}">{{ form.latitude.label }} <span class="text-muted fw-normal">(optional)</span>
+                  <span class="text-muted ms-1" data-bs-toggle="tooltip" title="Decimal degrees for map pin">ⓘ</span>
+                </label>
+                {{ form.latitude }}
+                {% if form.latitude.errors %}<div class="text-danger small">{{ form.latitude.errors.0 }}</div>{% endif %}
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label small fw-semibold" for="{{ form.longitude.id_for_label }}">{{ form.longitude.label }} <span class="text-muted fw-normal">(optional)</span></label>
+                {{ form.longitude }}
+                {% if form.longitude.errors %}<div class="text-danger small">{{ form.longitude.errors.0 }}</div>{% endif %}
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label small fw-semibold" for="{{ form.maps_url.id_for_label }}">{{ form.maps_url.label }} <span class="text-muted fw-normal">(optional)</span></label>
+                {{ form.maps_url }}
+                {% if form.maps_url.errors %}<div class="text-danger small">{{ form.maps_url.errors.0 }}</div>{% endif %}
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label small fw-semibold" for="{{ form.website.id_for_label }}">{{ form.website.label }}</label>
+                {{ form.website }}
+                {% if form.website.errors %}<div class="text-danger small">{{ form.website.errors.0 }}</div>{% endif %}
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label small fw-semibold" for="{{ form.affiliation_board.id_for_label }}">{{ form.affiliation_board.label }}</label>
+                {{ form.affiliation_board }}
+                {% if form.affiliation_board.errors %}<div class="text-danger small">{{ form.affiliation_board.errors.0 }}</div>{% endif %}
+              </div>
             </div>
           </section>
+          <div class="d-flex justify-content-end flex-wrap gap-2 mt-2 mb-1">
+            <button type="button" class="btn btn-primary px-4 rounded-3 enroll-step-next" data-enroll-next="1">Continue <i class="bi bi-arrow-right-short fs-5 align-middle"></i></button>
+          </div>
+          </div>
 
+          <div class="enroll-panel d-none" data-enroll-panel="1">
           <section class="enroll-section" aria-labelledby="enroll-h-capacity">
             <div class="enroll-section-head">
               <i class="bi bi-people" aria-hidden="true"></i>
@@ -611,6 +888,96 @@
               </div>
             </div>
           </section>
+
+          <details class="enroll-optional-details card border-0 shadow-sm mb-4 rounded-3 overflow-hidden">
+            <summary class="px-3 py-3 fw-bold d-flex align-items-center gap-2" style="cursor:pointer;background:rgba(99,102,241,.08);list-style:none;">
+              <i class="bi bi-sliders text-primary"></i>
+              Optional school profile <span class="text-muted fw-normal small ms-1">— all fields below are optional</span>
+            </summary>
+            <div class="p-3 pt-0 border-top" style="border-color:rgba(148,163,184,.2)!important;">
+              <p class="small text-muted mb-3">Help us tailor onboarding. Skip anything you don&apos;t have handy.</p>
+
+              <div class="enroll-subcard rounded-3 p-3 mb-3" style="background:rgba(248,250,252,.9);border:1px solid rgba(148,163,184,.2);">
+                <h3 class="h6 fw-bold text-secondary mb-3">School profile</h3>
+                <div class="row g-2 g-md-3">
+                  <div class="col-12 col-md-6 col-lg-4">{{ form.school_type.label_tag }} {{ form.school_type }}{% if form.school_type.errors %}<div class="text-danger small">{{ form.school_type.errors.0 }}</div>{% endif %}</div>
+                  <div class="col-12 col-md-6 col-lg-4"><label class="form-label small fw-semibold" for="{{ form.established_year.id_for_label }}">{{ form.established_year.label }}</label> {{ form.established_year }}{% if form.established_year.errors %}<div class="text-danger small">{{ form.established_year.errors.0 }}</div>{% endif %}</div>
+                  <div class="col-12 col-md-6"><label class="form-label small fw-semibold" for="{{ form.school_motto.id_for_label }}">{{ form.school_motto.label }}</label> {{ form.school_motto }}</div>
+                  <div class="col-12 col-md-6"><label class="form-label small fw-semibold" for="{{ form.affiliation_number.id_for_label }}">{{ form.affiliation_number.label }}</label> {{ form.affiliation_number }}</div>
+                </div>
+              </div>
+
+              <div class="enroll-subcard rounded-3 p-3 mb-3" style="background:rgba(248,250,252,.9);border:1px solid rgba(148,163,184,.2);">
+                <h3 class="h6 fw-bold text-secondary mb-3">Alternate contact &amp; admin</h3>
+                <div class="row g-2 g-md-3">
+                  <div class="col-12 col-md-6"><label class="form-label small fw-semibold" for="{{ form.alternate_contact_name.id_for_label }}">{{ form.alternate_contact_name.label }}</label> {{ form.alternate_contact_name }}</div>
+                  <div class="col-12 col-md-6"><label class="form-label small fw-semibold" for="{{ form.alternate_contact_phone.id_for_label }}">{{ form.alternate_contact_phone.label }}</label> {{ form.alternate_contact_phone }}</div>
+                  <div class="col-12 col-md-6">{{ form.admin_designation.label_tag }} {{ form.admin_designation }}</div>
+                  <div class="col-12 col-md-6"><label class="form-label small fw-semibold" for="{{ form.admin_profile_photo.id_for_label }}">{{ form.admin_profile_photo.label }}</label> {{ form.admin_profile_photo }}{% if form.admin_profile_photo.errors %}<div class="text-danger small">{{ form.admin_profile_photo.errors.0 }}</div>{% endif %}</div>
+                </div>
+              </div>
+
+              <div class="enroll-subcard rounded-3 p-3 mb-3" style="background:rgba(248,250,252,.9);border:1px solid rgba(148,163,184,.2);">
+                <h3 class="h6 fw-bold text-secondary mb-3">Academic</h3>
+                <div class="row g-2 g-md-3 align-items-start">
+                  <div class="col-12 col-md-6">{{ form.instruction_medium.label_tag }} {{ form.instruction_medium }}</div>
+                  <div class="col-12 col-md-6">{{ form.curriculum_type.label_tag }} {{ form.curriculum_type }}</div>
+                  <div class="col-12"><label class="form-label small fw-semibold">{{ form.streams_offered.label }}</label>{{ form.streams_offered }}{% if form.streams_offered.errors %}<div class="text-danger small">{{ form.streams_offered.errors.0 }}</div>{% endif %}</div>
+                  <div class="col-12"><label class="form-label small fw-semibold" for="{{ form.sections_per_class_notes.id_for_label }}">{{ form.sections_per_class_notes.label }}</label> {{ form.sections_per_class_notes }}</div>
+                </div>
+              </div>
+
+              <div class="enroll-subcard rounded-3 p-3 mb-3" style="background:rgba(248,250,252,.9);border:1px solid rgba(148,163,184,.2);">
+                <h3 class="h6 fw-bold text-secondary mb-3">Infrastructure</h3>
+                <div class="row g-2 g-md-3">
+                  <div class="col-12 col-md-4"><label class="form-label small fw-semibold" for="{{ form.total_classrooms.id_for_label }}">{{ form.total_classrooms.label }}</label> {{ form.total_classrooms }}{% if form.total_classrooms.errors %}<div class="text-danger small">{{ form.total_classrooms.errors.0 }}</div>{% endif %}</div>
+                  <div class="col-12 col-md-4">{{ form.lab_physics.label_tag }} {{ form.lab_physics }}</div>
+                  <div class="col-12 col-md-4">{{ form.lab_chemistry.label_tag }} {{ form.lab_chemistry }}</div>
+                  <div class="col-12 col-md-4">{{ form.lab_computer.label_tag }} {{ form.lab_computer }}</div>
+                  <div class="col-12 col-md-4">{{ form.has_library.label_tag }} {{ form.has_library }}</div>
+                  <div class="col-12 col-md-4">{{ form.has_playground.label_tag }} {{ form.has_playground }}</div>
+                  <div class="col-12 col-md-4">{{ form.has_transport.label_tag }} {{ form.has_transport }}</div>
+                </div>
+              </div>
+
+              <div class="enroll-subcard rounded-3 p-3 mb-3" style="background:rgba(248,250,252,.9);border:1px solid rgba(148,163,184,.2);">
+                <h3 class="h6 fw-bold text-secondary mb-3">Capacity &amp; staff</h3>
+                <div class="row g-2 g-md-3">
+                  <div class="col-12 col-md-4"><label class="form-label small fw-semibold" for="{{ form.total_student_capacity.id_for_label }}">{{ form.total_student_capacity.label }}</label> {{ form.total_student_capacity }}</div>
+                  <div class="col-12 col-md-4"><label class="form-label small fw-semibold" for="{{ form.current_student_strength.id_for_label }}">{{ form.current_student_strength.label }}</label> {{ form.current_student_strength }}</div>
+                  <div class="col-12 col-md-4"><label class="form-label small fw-semibold" for="{{ form.non_teaching_staff_count.id_for_label }}">{{ form.non_teaching_staff_count.label }}</label> {{ form.non_teaching_staff_count }}</div>
+                </div>
+              </div>
+
+              <div class="enroll-subcard rounded-3 p-3 mb-3" style="background:rgba(248,250,252,.9);border:1px solid rgba(148,163,184,.2);">
+                <h3 class="h6 fw-bold text-secondary mb-3">Systems &amp; migration</h3>
+                <div class="row g-2 g-md-3">
+                  <div class="col-12 col-md-4">{{ form.uses_erp.label_tag }} {{ form.uses_erp }}</div>
+                  <div class="col-12 col-md-8"><label class="form-label small fw-semibold" for="{{ form.current_erp_name.id_for_label }}">{{ form.current_erp_name.label }}</label> {{ form.current_erp_name }}</div>
+                  <div class="col-12 col-md-6">{{ form.require_data_migration.label_tag }} {{ form.require_data_migration }}</div>
+                  <div class="col-12 col-md-6">{{ form.preferred_ui_language.label_tag }} {{ form.preferred_ui_language }}</div>
+                </div>
+              </div>
+
+              <div class="enroll-subcard rounded-3 p-3 mb-3" style="background:rgba(248,250,252,.9);border:1px solid rgba(148,163,184,.2);">
+                <h3 class="h6 fw-bold text-secondary mb-3">Go-live &amp; longer notes</h3>
+                <div class="row g-2 g-md-3">
+                  <div class="col-12 col-md-6"><label class="form-label small fw-semibold" for="{{ form.expected_start_date.id_for_label }}">{{ form.expected_start_date.label }}</label> {{ form.expected_start_date }}{% if form.expected_start_date.errors %}<div class="text-danger small">{{ form.expected_start_date.errors.0 }}</div>{% endif %}</div>
+                  <div class="col-12"><label class="form-label small fw-semibold" for="{{ form.detailed_requirements.id_for_label }}">{{ form.detailed_requirements.label }}</label> {{ form.detailed_requirements }}</div>
+                </div>
+              </div>
+
+              <div class="enroll-subcard rounded-3 p-3 mb-0" style="background:rgba(248,250,252,.9);border:1px solid rgba(148,163,184,.2);">
+                <h3 class="h6 fw-bold text-secondary mb-3">Uploads <span class="text-muted fw-normal small">(PDF / image, max per server limits)</span></h3>
+                <div class="row g-2 g-md-3">
+                  <div class="col-12 col-md-6"><label class="form-label small fw-semibold" for="{{ form.school_logo.id_for_label }}">{{ form.school_logo.label }}</label> {{ form.school_logo }}{% if form.school_logo.errors %}<div class="text-danger small">{{ form.school_logo.errors.0 }}</div>{% endif %}</div>
+                  <div class="col-12 col-md-6"><label class="form-label small fw-semibold" for="{{ form.registration_certificate.id_for_label }}">{{ form.registration_certificate.label }}</label> {{ form.registration_certificate }}</div>
+                  <div class="col-12 col-md-6"><label class="form-label small fw-semibold" for="{{ form.address_proof.id_for_label }}">{{ form.address_proof.label }}</label> {{ form.address_proof }}</div>
+                  <div class="col-12 col-md-6"><label class="form-label small fw-semibold" for="{{ form.other_documents.id_for_label }}">{{ form.other_documents.label }}</label> {{ form.other_documents }}</div>
+                </div>
+              </div>
+            </div>
+          </details>
 
           <section class="enroll-section" aria-labelledby="enroll-h-login">
             <div class="enroll-section-head">
@@ -649,7 +1016,13 @@
               </div>
             </div>
           </section>
+          <div class="d-flex justify-content-between flex-wrap gap-2 mt-2 mb-3">
+            <button type="button" class="btn btn-outline-secondary rounded-3 enroll-step-back" data-enroll-back="0"><i class="bi bi-arrow-left-short fs-5 align-middle"></i> Back</button>
+            <button type="button" class="btn btn-primary px-4 rounded-3 enroll-step-next" data-enroll-next="2">Continue <i class="bi bi-arrow-right-short fs-5 align-middle"></i></button>
+          </div>
+          </div>
 
+          <div class="enroll-panel d-none" data-enroll-panel="2">
           <section class="enroll-section" aria-labelledby="enroll-h-notes">
             <div class="enroll-section-head">
               <i class="bi bi-chat-text" aria-hidden="true"></i>
@@ -677,34 +1050,17 @@
               <i class="bi bi-gift-fill" aria-hidden="true"></i>
               <span>14 Days Free Trial Available on All Plans</span>
             </div>
-            <div class="enroll-plan-grid-two mb-2" id="enrollPlanCards" role="group" aria-label="Billing plan">
-              <button type="button" class="enroll-pc enroll-pc--core is-selected" data-plan="core" aria-pressed="true">
-                <h3 class="enroll-pc-title">Core Plan</h3>
-                <div class="enroll-price-old">₹59 / student / month</div>
-                <div class="enroll-price-now">₹39<span class="enroll-price-unit">/ student / month</span></div>
-                <ul class="enroll-pc-list">
-                  <li>Student Management</li>
-                  <li>Attendance</li>
-                  <li>Fees</li>
-                  <li>Reports</li>
-                  <li>Basic Dashboard</li>
-                </ul>
+            <div class="enroll-plan-grid mb-2" id="enrollPlanCards" role="group" aria-label="Billing plan">
+              {% for ep in enroll_plans %}
+              <button type="button" class="enroll-pc enroll-pc--{{ ep.key }}{% if ep.recommended %} enroll-pc--has-badge{% endif %}" data-plan="{{ ep.key }}" aria-pressed="false">
+                {% if ep.recommended %}<span class="enroll-pc-badge">Recommended</span>{% endif %}
+                <h3 class="enroll-pc-title">{{ ep.label }}</h3>
+                {% if ep.list_price and ep.list_price > ep.price %}
+                <div class="enroll-price-old">₹{{ ep.list_price }} / student / month</div>
+                {% endif %}
+                <div class="enroll-price-now">₹{{ ep.price }}<span class="enroll-price-unit">/ student / month</span></div>
               </button>
-              <button type="button" class="enroll-pc enroll-pc--advance" data-plan="advance" aria-pressed="false">
-                <span class="enroll-pc-badge">Most Popular</span>
-                <h3 class="enroll-pc-title">Advance Plan</h3>
-                <div class="enroll-price-old">₹79 / student / month</div>
-                <div class="enroll-price-now">₹59<span class="enroll-price-unit">/ student / month</span></div>
-                <ul class="enroll-pc-list">
-                  <li>Everything in Core</li>
-                  <li>HRMS</li>
-                  <li>Payroll</li>
-                  <li>Transport</li>
-                  <li>Advanced Reports</li>
-                  <li>Analytics Dashboard</li>
-                  <li>Priority Support</li>
-                </ul>
-              </button>
+              {% endfor %}
             </div>
             <div class="enroll-plan-links">
               <a href="{% url 'core:pricing' %}" class="btn btn-enroll-secondary btn-sm">Compare plans</a>
@@ -712,11 +1068,50 @@
             </div>
           </section>
 
+          <div class="d-flex justify-content-start mb-3">
+            <button type="button" class="btn btn-outline-secondary rounded-3 enroll-step-back" data-enroll-back="1"><i class="bi bi-arrow-left-short fs-5 align-middle"></i> Back</button>
+          </div>
           <div class="enroll-cta-wrap">
             <button type="submit" class="btn btn-enroll-primary btn-lg px-5" id="enrollSubmitBtn">Create school account</button>
             <p class="enroll-login-hint mb-0">Already have an account? <a href="{% url 'accounts:login' %}">Login</a></p>
           </div>
+          </div>
         </form>
+      </div>
+    </div>
+    <div
+      id="enrollProvisionOverlay"
+      class="enroll-prov-overlay d-none"
+      aria-hidden="true"
+      role="alertdialog"
+      aria-live="polite"
+      aria-busy="false"
+      aria-labelledby="enrollProvTitle"
+    >
+      <div class="enroll-prov-card">
+        <div id="enrollProvWorking">
+          <div class="enroll-prov-logo" aria-hidden="true"><i class="bi bi-mortarboard-fill"></i></div>
+          <h2 class="enroll-prov-title" id="enrollProvTitle">Setting up your school…</h2>
+          <div class="enroll-prov-pct" id="enrollProvPct">0%</div>
+          <div class="enroll-prov-track" aria-hidden="true">
+            <div class="enroll-prov-fill" id="enrollProvFill"></div>
+          </div>
+          <p class="enroll-prov-status mb-0" id="enrollProvStatus">
+            <span class="spinner-border spinner-border-sm enroll-prov-spinner text-primary" role="status" aria-hidden="true"></span>
+            <span id="enrollProvStatusText">Preparing your request…</span>
+          </p>
+          <p class="enroll-prov-note mb-0">
+            <strong>Please wait.</strong> First-time setup often takes <strong>20–40 seconds</strong>.
+            Do not refresh or close this page — your workspace is being created in the background.
+          </p>
+        </div>
+        <div id="enrollProvSuccess" class="d-none">
+          <div class="enroll-prov-logo bg-success" style="background: linear-gradient(135deg, #059669, #10b981);">
+            <i class="bi bi-check-lg"></i>
+          </div>
+          <h2 class="enroll-prov-title enroll-prov-success">Your school is ready!</h2>
+          <p class="text-muted small mb-0">Redirecting to your confirmation…</p>
+        </div>
       </div>
     </div>
     {% endif %}
@@ -725,7 +1120,7 @@
 {% endblock %}
 
 {% block extra_js %}
-{% if not success %}
+{% if not success and not enrollment_success and not enrollment_error %}
 <script>
 (function () {
   var MAX = 250;
@@ -740,16 +1135,69 @@
   var cards = document.querySelectorAll("#enrollPlanCards .enroll-pc");
 
   document.querySelectorAll("#enrollForm input, #enrollForm textarea, #enrollForm select").forEach(function (el) {
-    if (!el.type || el.type === "hidden" || el.type === "checkbox" || el.type === "radio") return;
+    if (!el.type || el.type === "hidden" || el.type === "checkbox" || el.type === "radio" || el.type === "file") return;
     el.classList.add("enroll-input");
   });
 
-  var codeInput = document.getElementById("id_institution_code");
-  if (codeInput) {
-    codeInput.addEventListener("blur", function () {
-      this.value = this.value.trim().toUpperCase();
+  if (typeof bootstrap !== "undefined" && bootstrap.Tooltip) {
+    document.querySelectorAll("#enrollForm [data-bs-toggle=\"tooltip\"]").forEach(function (el) {
+      try { new bootstrap.Tooltip(el); } catch (e) {}
     });
   }
+
+  var enrollStep = 0;
+  var enrollPanels = document.querySelectorAll("[data-enroll-panel]");
+  var enrollTabs = document.querySelectorAll(".enroll-step-tab");
+  var enrollStepLabel = document.getElementById("enrollStepLabel");
+  var enrollProgressBar = document.getElementById("enrollProgressBar");
+
+  function setEnrollStep(n) {
+    enrollStep = n < 0 ? 0 : n > 2 ? 2 : n;
+    enrollPanels.forEach(function (p) {
+      var i = parseInt(p.getAttribute("data-enroll-panel"), 10);
+      p.classList.toggle("d-none", i !== enrollStep);
+    });
+    enrollTabs.forEach(function (t) {
+      var g = parseInt(t.getAttribute("data-enroll-go"), 10);
+      var on = g === enrollStep;
+      t.classList.toggle("btn-primary", on);
+      t.classList.toggle("btn-outline-secondary", !on);
+      t.classList.toggle("active", on);
+    });
+    if (enrollStepLabel) enrollStepLabel.textContent = "Step " + (enrollStep + 1) + " of 3";
+    if (enrollProgressBar) enrollProgressBar.style.width = Math.round((enrollStep + 1) / 3 * 100) + "%";
+  }
+
+  document.querySelectorAll("[data-enroll-next]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var next = parseInt(btn.getAttribute("data-enroll-next"), 10);
+      if (next === 1) {
+        if (!valSchool()) return;
+      }
+      if (next === 2) {
+        if (!valLogin()) return;
+      }
+      setEnrollStep(next);
+      if (form) window.scrollTo({ top: form.getBoundingClientRect().top + window.scrollY - 24, behavior: "smooth" });
+    });
+  });
+  document.querySelectorAll("[data-enroll-back]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var prev = parseInt(btn.getAttribute("data-enroll-back"), 10);
+      setEnrollStep(prev);
+      if (form) window.scrollTo({ top: form.getBoundingClientRect().top + window.scrollY - 24, behavior: "smooth" });
+    });
+  });
+  enrollTabs.forEach(function (t) {
+    t.addEventListener("click", function () {
+      var g = parseInt(t.getAttribute("data-enroll-go"), 10);
+      if (g >= 1 && !valSchool()) return;
+      if (g >= 2 && !valLogin()) return;
+      setEnrollStep(g);
+      if (form) window.scrollTo({ top: form.getBoundingClientRect().top + window.scrollY - 24, behavior: "smooth" });
+    });
+  });
+  setEnrollStep(0);
 
   function updateChars() {
     if (!ta || !countEl) return;
@@ -783,14 +1231,23 @@
 
   cards.forEach(function (card) {
     card.addEventListener("click", function () {
-      setPlan(card.getAttribute("data-plan") || "core");
+      setPlan(card.getAttribute("data-plan") || "premium");
     });
   });
 
-  if (planInput && !planInput.value) planInput.value = "core";
-  var initialPlan = planInput ? planInput.value : "core";
-  if (initialPlan === "basic" || initialPlan === "trial" || initialPlan === "yearly" || initialPlan === "enterprise") initialPlan = "core";
-  if (initialPlan === "standard") initialPlan = "advance";
+  if (planInput && !planInput.value) planInput.value = "premium";
+  var initialPlan = (planInput && planInput.value) ? planInput.value.trim().toLowerCase() : "premium";
+  var legacyPlan = {
+    core: "basic",
+    advance: "pro",
+    standard: "pro",
+    enterprise: "premium",
+    yearly: "basic",
+    trial: "premium",
+    monthly: "basic"
+  };
+  if (legacyPlan[initialPlan]) initialPlan = legacyPlan[initialPlan];
+  if (["basic", "pro", "premium"].indexOf(initialPlan) < 0) initialPlan = "premium";
   setPlan(initialPlan);
 
   function showFieldErr(id, msg) {
@@ -806,8 +1263,15 @@
   }
 
   function clearClientErrors() {
-    ["err_institution_name", "err_institution_code", "err_email", "err_phone", "err_contact_name", "err_preferred_username", "err_password2"].forEach(function (id) {
+    ["err_institution_name", "err_society_name", "err_email", "err_country_code", "err_phone_local", "err_contact_name", "err_preferred_username", "err_password2"].forEach(function (id) {
       showFieldErr(id, "");
+    });
+  }
+
+  var phoneLocalEl = document.getElementById("id_phone_local");
+  if (phoneLocalEl) {
+    phoneLocalEl.addEventListener("input", function () {
+      this.value = this.value.replace(/\D/g, "").slice(0, 15);
     });
   }
 
@@ -815,9 +1279,11 @@
     clearClientErrors();
     var ok = true;
     var name = (document.getElementById("id_institution_name") && document.getElementById("id_institution_name").value.trim()) || "";
-    var code = (document.getElementById("id_institution_code") && document.getElementById("id_institution_code").value.trim()) || "";
+    var society = (document.getElementById("id_society_name") && document.getElementById("id_society_name").value.trim()) || "";
     var email = (document.getElementById("id_email") && document.getElementById("id_email").value.trim()) || "";
-    var phone = (document.getElementById("id_phone") && document.getElementById("id_phone").value.trim()) || "";
+    var countrySel = document.getElementById("id_country_code");
+    var cc = (countrySel && countrySel.value) ? countrySel.value.trim() : "";
+    var localDigits = (phoneLocalEl && phoneLocalEl.value.replace(/\D/g, "")) || "";
     var contact = (document.getElementById("id_contact_name") && document.getElementById("id_contact_name").value.trim()) || "";
     var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -825,11 +1291,8 @@
       showFieldErr("err_institution_name", "School name is required.");
       ok = false;
     }
-    if (!code) {
-      showFieldErr("err_institution_code", "School code is required.");
-      ok = false;
-    } else if (!/^[A-Za-z]{3}[0-9]{3}$/.test(code)) {
-      showFieldErr("err_institution_code", "Use format ABC123 (3 letters + 3 digits).");
+    if (!society) {
+      showFieldErr("err_society_name", "Society / registered name is required.");
       ok = false;
     }
     if (!email) {
@@ -839,8 +1302,18 @@
       showFieldErr("err_email", "Enter a valid email address.");
       ok = false;
     }
-    if (!phone) {
-      showFieldErr("err_phone", "Contact number is required.");
+    if (!cc) {
+      showFieldErr("err_country_code", "Select a country code.");
+      ok = false;
+    }
+    if (!localDigits) {
+      showFieldErr("err_phone_local", "Mobile number is required.");
+      ok = false;
+    } else if (localDigits.length < 8) {
+      showFieldErr("err_phone_local", "That number looks too short.");
+      ok = false;
+    } else if (localDigits.length > 15) {
+      showFieldErr("err_phone_local", "That number looks too long.");
       ok = false;
     }
     if (!contact) {
@@ -944,8 +1417,55 @@
     return ok;
   }
 
+  var submitBtn = document.getElementById("enrollSubmitBtn");
+  var overlay = document.getElementById("enrollProvisionOverlay");
+  var overlayWorking = document.getElementById("enrollProvWorking");
+  var overlaySuccess = document.getElementById("enrollProvSuccess");
+  var pctEl = document.getElementById("enrollProvPct");
+  var fillEl = document.getElementById("enrollProvFill");
+  var statusTextEl = document.getElementById("enrollProvStatusText");
+  var enrollSubmitting = false;
+
+  var stepMessages = [
+    { text: "Creating your school profile…", icon: "bi-building-gear" },
+    { text: "Setting up admin account…", icon: "bi-person-badge" },
+    { text: "Configuring academic structure…", icon: "bi-journal-richtext" },
+    { text: "Applying your selected plan…", icon: "bi-stars" },
+    { text: "Finalizing setup…", icon: "bi-check2-circle" },
+  ];
+
+  function showProvisionOverlay() {
+    if (!overlay || !overlayWorking || !overlaySuccess) return;
+    overlayWorking.classList.remove("d-none");
+    overlaySuccess.classList.add("d-none");
+    if (pctEl) pctEl.textContent = "0%";
+    if (fillEl) fillEl.style.width = "0%";
+    overlay.classList.remove("d-none");
+    overlay.setAttribute("aria-hidden", "false");
+    overlay.setAttribute("aria-busy", "true");
+    requestAnimationFrame(function () {
+      overlay.classList.add("is-visible");
+    });
+  }
+
+  function hideProvisionOverlay() {
+    if (!overlay) return;
+    overlay.classList.remove("is-visible");
+    overlay.setAttribute("aria-hidden", "true");
+    overlay.setAttribute("aria-busy", "false");
+    window.setTimeout(function () {
+      overlay.classList.add("d-none");
+    }, 320);
+  }
+
+  function setStatusMessage(idx) {
+    if (!statusTextEl) return;
+    var s = stepMessages[Math.max(0, Math.min(idx, stepMessages.length - 1))];
+    statusTextEl.innerHTML =
+      '<i class="bi ' + s.icon + ' me-1 text-primary" aria-hidden="true"></i>' + s.text;
+  }
+
   form.addEventListener("submit", function (e) {
-    if (codeInput) codeInput.value = codeInput.value.trim().toUpperCase();
     if (!valSchool()) {
       e.preventDefault();
       var first = form.querySelector(".enroll-field-error:not(.d-none)");
@@ -956,8 +1476,142 @@
       e.preventDefault();
       var first2 = form.querySelector(".enroll-field-error:not(.d-none)");
       if (first2) first2.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
     }
+    if (enrollStep !== 2) {
+      e.preventDefault();
+      setEnrollStep(2);
+      if (form) window.scrollTo({ top: form.getBoundingClientRect().top + window.scrollY - 24, behavior: "smooth" });
+      return;
+    }
+
+    e.preventDefault();
+    if (enrollSubmitting) return;
+    enrollSubmitting = true;
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.setAttribute("aria-busy", "true");
+    }
+
+    showProvisionOverlay();
+
+    var displayed = 0;
+    var target = 4;
+    var stepIdx = 0;
+    setStatusMessage(0);
+
+    var bumpTarget = window.setInterval(function () {
+      target = Math.min(target + 3 + Math.random() * 9, 94);
+    }, 480);
+
+    var stepRotate = window.setInterval(function () {
+      stepIdx = Math.min(stepIdx + 1, stepMessages.length - 1);
+      setStatusMessage(stepIdx);
+    }, 2100);
+
+    var animTimer = window.setInterval(function () {
+      displayed += (target - displayed) * 0.07;
+      if (displayed > target - 0.25) displayed = target;
+      var r = Math.min(Math.round(displayed), 94);
+      if (pctEl) pctEl.textContent = r + "%";
+      if (fillEl) fillEl.style.width = r + "%";
+    }, 70);
+
+    function stopAnim() {
+      window.clearInterval(bumpTarget);
+      window.clearInterval(stepRotate);
+      window.clearInterval(animTimer);
+    }
+
+    function beforeUnloadWarn(ev) {
+      ev.preventDefault();
+      ev.returnValue = "";
+    }
+    window.addEventListener("beforeunload", beforeUnloadWarn);
+
+    var action = form.getAttribute("action") || window.location.pathname;
+
+    fetch(action, {
+      method: "POST",
+      body: new FormData(form),
+      credentials: "same-origin",
+      redirect: "follow",
+    })
+      .then(function (res) {
+        stopAnim();
+        window.removeEventListener("beforeunload", beforeUnloadWarn);
+        var url = res.url || "";
+
+        if (url.indexOf("completed=1") !== -1) {
+          displayed = 100;
+          target = 100;
+          if (pctEl) pctEl.textContent = "100%";
+          if (fillEl) fillEl.style.width = "100%";
+          if (overlayWorking) overlayWorking.classList.add("d-none");
+          if (overlaySuccess) overlaySuccess.classList.remove("d-none");
+          window.setTimeout(function () {
+            window.location.href = url;
+          }, 850);
+          return res.text().then(function () {});
+        }
+
+        if (url.indexOf("failed=1") !== -1) {
+          hideProvisionOverlay();
+          window.location.href = url;
+          return res.text().then(function () {});
+        }
+
+        return res.text().then(function (html) {
+          if (res.ok && html.indexOf('id="enrollForm"') !== -1) {
+            document.open();
+            document.write(html);
+            document.close();
+            return;
+          }
+          hideProvisionOverlay();
+          enrollSubmitting = false;
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.removeAttribute("aria-busy");
+          }
+          window.alert("We could not complete signup. Please try again or contact support.");
+        });
+      })
+      .catch(function () {
+        stopAnim();
+        window.removeEventListener("beforeunload", beforeUnloadWarn);
+        hideProvisionOverlay();
+        enrollSubmitting = false;
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.removeAttribute("aria-busy");
+        }
+        window.alert("Network error — check your connection and try again.");
+      });
   });
+})();
+</script>
+{% elif enrollment_success %}
+<script>
+(function () {
+  var loginUrl = "{% url 'accounts:login' %}";
+  var secEl = document.getElementById("enrollSuccessRedirectSec");
+  var msgEl = document.getElementById("enrollSuccessRedirectMsg");
+  var sec = 5;
+  var t = window.setInterval(function () {
+    sec -= 1;
+    if (secEl) secEl.textContent = String(Math.max(0, sec));
+    if (sec <= 0) {
+      window.clearInterval(t);
+      window.location.href = loginUrl;
+    }
+  }, 1000);
+  var go = document.getElementById("enrollSuccessGoLogin");
+  if (go) {
+    go.addEventListener("click", function () {
+      window.clearInterval(t);
+    });
+  }
 })();
 </script>
 {% endif %}

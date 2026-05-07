@@ -145,19 +145,6 @@
 
     {% if is_add %}
 
-    <div class="ay-section-card" id="ay-terms-section">
-      <div class="ay-section-title">Terms / semesters</div>
-      <p class="ay-section-lead">Define terms inside the academic year range. Dates are validated on save.</p>
-      <div class="row g-2 mb-2 d-none d-md-flex small ay-table-head px-1">
-        <div class="col-md-4">Term name</div>
-        <div class="col-md-4">Start date</div>
-        <div class="col-md-3">End date</div>
-        <div class="col-md-1"></div>
-      </div>
-      <div id="ay-terms-container" class="d-flex flex-column gap-2"></div>
-      <button type="button" class="btn btn-sm btn-outline-primary rounded-pill mt-3" id="ay-add-term"><i class="bi bi-plus-lg me-1"></i>Add term</button>
-    </div>
-
     <div class="ay-section-card">
       <div class="ay-section-title">Working days &amp; weekly off</div>
       <p class="ay-section-lead">Used for attendance and payroll planning (stored with this academic year).</p>
@@ -171,13 +158,6 @@
         </div>
         {% endfor %}
       </div>
-    </div>
-
-    <div class="ay-section-card" id="ay-holidays-section">
-      <div class="ay-section-title">Holiday / vacation calendar</div>
-      <p class="ay-section-lead">Multi-day breaks are expanded into single-day calendar entries (school calendar model). Very long spans are truncated with a notice after save.</p>
-      <div id="ay-holidays-container" class="d-flex flex-column gap-2"></div>
-      <button type="button" class="btn btn-sm btn-outline-primary rounded-pill mt-3" id="ay-add-holiday"><i class="bi bi-plus-lg me-1"></i>Add holiday</button>
     </div>
 
     <div class="ay-section-card" id="ay-promo-section">
@@ -210,25 +190,6 @@
           <div class="form-check"><input class="form-check-input ay-copy-flag" type="checkbox" value="fee_structure" id="ay-cf-fee"><label class="form-check-label small" for="ay-cf-fee">Copy fee structure</label></div>
           <div class="form-check"><input class="form-check-input ay-copy-flag" type="checkbox" value="exam_structure" id="ay-cf-exam"><label class="form-check-label small" for="ay-cf-exam">Copy exam structure</label></div>
           <div class="form-check"><input class="form-check-input ay-copy-flag" type="checkbox" value="payroll_rules" id="ay-cf-payroll"><label class="form-check-label small" for="ay-cf-payroll">Copy payroll rules</label></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="ay-section-card">
-      <div class="ay-section-title">Exam setup</div>
-      <p class="ay-section-lead">Track which exam cycles this school uses (stored for reporting configuration).</p>
-      <div class="row g-3">
-        <div class="col-md-6">
-          <div class="form-check"><input class="form-check-input ay-exam-cb" type="checkbox" id="ay-ex-unit" data-exam="unit_tests"><label class="form-check-label small" for="ay-ex-unit">Unit tests</label></div>
-          <div class="form-check"><input class="form-check-input ay-exam-cb" type="checkbox" id="ay-ex-mid" data-exam="midterm"><label class="form-check-label small" for="ay-ex-mid">Midterm</label></div>
-          <div class="form-check"><input class="form-check-input ay-exam-cb" type="checkbox" id="ay-ex-half" data-exam="half_yearly"><label class="form-check-label small" for="ay-ex-half">Half yearly</label></div>
-          <div class="form-check"><input class="form-check-input ay-exam-cb" type="checkbox" id="ay-ex-final" data-exam="final"><label class="form-check-label small" for="ay-ex-final">Final exams</label></div>
-        </div>
-        <div class="col-md-6">
-          <label class="form-label small">Optional window (start)</label>
-          <input type="date" class="form-control form-control-sm mb-2" id="ay-exam-start">
-          <label class="form-label small">Optional window (end)</label>
-          <input type="date" class="form-control form-control-sm" id="ay-exam-end">
         </div>
       </div>
     </div>
@@ -279,30 +240,6 @@
     return '<select class="form-select form-select-sm ' + cls + '">' + o + "</select>";
   }
 
-  function addTermRow(data) {
-    data = data || {};
-    var wrap = document.createElement("div");
-    wrap.className = "ay-term-row row g-2 align-items-end";
-    wrap.innerHTML =
-      '<div class="col-md-4"><label class="form-label small d-md-none">Name</label><input type="text" class="form-control form-control-sm ay-term-name" placeholder="e.g. Term 1" value="' + esc(data.name || "") + '"></div>' +
-      '<div class="col-md-4"><label class="form-label small d-md-none">Start</label><input type="date" class="form-control form-control-sm ay-term-start" value="' + esc(data.start || "") + '"></div>' +
-      '<div class="col-md-3"><label class="form-label small d-md-none">End</label><input type="date" class="form-control form-control-sm ay-term-end" value="' + esc(data.end || "") + '"></div>' +
-      '<div class="col-md-1 text-end"><button type="button" class="btn btn-sm btn-outline-danger border-0 ay-remove-row" title="Remove">&times;</button></div>';
-    document.getElementById("ay-terms-container").appendChild(wrap);
-  }
-
-  function addHolidayRow(data) {
-    data = data || {};
-    var wrap = document.createElement("div");
-    wrap.className = "ay-holiday-row row g-2 align-items-end";
-    wrap.innerHTML =
-      '<div class="col-md-4"><label class="form-label small d-md-none">Holiday name</label><input type="text" class="form-control form-control-sm ay-hol-name" placeholder="e.g. Summer vacation" value="' + esc(data.name || "") + '"></div>' +
-      '<div class="col-md-4"><label class="form-label small d-md-none">Start</label><input type="date" class="form-control form-control-sm ay-hol-start" value="' + esc(data.start || "") + '"></div>' +
-      '<div class="col-md-3"><label class="form-label small d-md-none">End</label><input type="date" class="form-control form-control-sm ay-hol-end" value="' + esc(data.end || "") + '"></div>' +
-      '<div class="col-md-1 text-end"><button type="button" class="btn btn-sm btn-outline-danger border-0 ay-remove-row" title="Remove">&times;</button></div>';
-    document.getElementById("ay-holidays-container").appendChild(wrap);
-  }
-
   function addPromoRow(data) {
     data = data || {};
     var wrap = document.createElement("div");
@@ -315,29 +252,20 @@
     document.getElementById("ay-promo-container").appendChild(wrap);
   }
 
-  document.getElementById("ay-add-term").addEventListener("click", function () { addTermRow({ name: "Term " + (document.querySelectorAll(".ay-term-row").length + 1) }); });
-  document.getElementById("ay-add-holiday").addEventListener("click", function () { addHolidayRow({}); });
-  document.getElementById("ay-add-promo").addEventListener("click", function () { addPromoRow({}); });
+  var addPromoBtn = document.getElementById("ay-add-promo");
+  if (addPromoBtn) {
+    addPromoBtn.addEventListener("click", function () { addPromoRow({}); });
+  }
 
   form.addEventListener("click", function (e) {
     if (e.target.classList.contains("ay-remove-row")) {
-      var row = e.target.closest(".ay-term-row, .ay-holiday-row, .ay-promo-row");
+      var row = e.target.closest(".ay-promo-row");
       if (row) row.remove();
     }
   });
 
-  addTermRow({ name: "Term 1" });
-  addTermRow({ name: "Term 2" });
-  addTermRow({ name: "Term 3" });
-
   function collectWizard() {
     var terms = [];
-    document.querySelectorAll(".ay-term-row").forEach(function (row) {
-      var n = (row.querySelector(".ay-term-name") || {}).value || "";
-      var s = (row.querySelector(".ay-term-start") || {}).value || "";
-      var e = (row.querySelector(".ay-term-end") || {}).value || "";
-      if (n.trim() || s || e) terms.push({ name: n.trim(), start: s, end: e });
-    });
 
     var working_days = [];
     document.querySelectorAll(".ay-wd-cb:checked").forEach(function (cb) {
@@ -345,12 +273,6 @@
     });
 
     var holidays = [];
-    document.querySelectorAll(".ay-holiday-row").forEach(function (row) {
-      var n = (row.querySelector(".ay-hol-name") || {}).value || "";
-      var s = (row.querySelector(".ay-hol-start") || {}).value || "";
-      var e = (row.querySelector(".ay-hol-end") || {}).value || "";
-      if (n.trim() || s || e) holidays.push({ name: n.trim(), start: s, end: e || s });
-    });
 
     var promotion_map = [];
     document.querySelectorAll(".ay-promo-row").forEach(function (row) {
@@ -362,13 +284,6 @@
     });
 
     var exam_cycle = {};
-    document.querySelectorAll(".ay-exam-cb:checked").forEach(function (cb) {
-      exam_cycle[cb.getAttribute("data-exam")] = true;
-    });
-    var es = document.getElementById("ay-exam-start");
-    var ee = document.getElementById("ay-exam-end");
-    if (es && es.value) exam_cycle.window_start = es.value;
-    if (ee && ee.value) exam_cycle.window_end = ee.value;
 
     var feeEl = document.getElementById("ay-fee-cycle");
     var fee_cycle = feeEl ? feeEl.value : "monthly";
@@ -412,32 +327,6 @@
     if (ayS && ayE && ayE <= ayS) {
       e.preventDefault();
       alert("Academic year end date must be after the start date.");
-      return;
-    }
-    var badTerms = false;
-    document.querySelectorAll(".ay-term-row").forEach(function (row) {
-      var s = parseYMD((row.querySelector(".ay-term-start") || {}).value);
-      var en = parseYMD((row.querySelector(".ay-term-end") || {}).value);
-      if (!s && !en) return;
-      if (s && en && en < s) badTerms = true;
-      if (ayS && ayE && s && en && (s < ayS || en > ayE)) badTerms = true;
-    });
-    if (badTerms) {
-      e.preventDefault();
-      alert("Each term must have a valid date range inside the academic year (end on or after start).");
-      return;
-    }
-    var badHol = false;
-    document.querySelectorAll(".ay-holiday-row").forEach(function (row) {
-      var s = parseYMD((row.querySelector(".ay-hol-start") || {}).value);
-      var en = parseYMD((row.querySelector(".ay-hol-end") || {}).value) || s;
-      if (!s && !en) return;
-      if (s && en && en < s) badHol = true;
-      if (ayS && ayE && s && en && (s < ayS || en > ayE)) badHol = true;
-    });
-    if (badHol) {
-      e.preventDefault();
-      alert("Each holiday must fall within the academic year dates (end on or after start).");
       return;
     }
     var feeOn = document.getElementById("ay-cf-fee") && document.getElementById("ay-cf-fee").checked;

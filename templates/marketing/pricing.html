@@ -1,5 +1,5 @@
 {% extends "marketing/base.html" %}
-{% block title %}Pricing | School ERP{% endblock %}
+{% block title %}Pricing | {{ app_product_name }}{% endblock %}
 {% block extra_head %}
 <style>
   .pricing-card {
@@ -19,6 +19,21 @@
     background: #f8fafc;
   }
   input[type="range"] { accent-color: #403ba0; }
+
+  /* Plan-specific price accents (public pricing page) */
+  .plan-price-basic { color: #0f172a; }
+  .plan-price-pro { color: #2563eb; }
+  .plan-price-premium {
+    color: #4f46e5;
+    text-shadow: 0 10px 26px rgba(79, 70, 229, 0.22);
+  }
+  .plan-list-price-basic { color: #64748b !important; }
+  .plan-list-price-pro { color: #60a5fa !important; }
+  .plan-list-price-premium { color: #a5b4fc !important; }
+
+  .js-plan-card[data-tier="basic"] .js-total { color: #0f172a; }
+  .js-plan-card[data-tier="pro"] .js-total { color: #2563eb; }
+  .js-plan-card[data-tier="premium"] .js-total { color: #4f46e5; }
 </style>
 {% endblock %}
 {% block content %}
@@ -41,77 +56,47 @@
 
     <!-- Pricing Cards -->
     <div class="row g-4 justify-content-center">
-      <!-- Starter -->
-      <div class="col-md-6 col-lg-5">
-        <div class="pricing-card card h-100 border shadow">
-          <div class="card-body p-4 p-md-5">
-            <h2 class="h5 fw-bold mb-1">Starter</h2>
-            <div class="my-3">
-              <span class="display-5 fw-bold">₹39</span>
-              <span class="text-secondary"> / student / month</span>
-            </div>
-            <p class="small text-muted mb-3">Billed monthly</p>
-            <div class="py-3 px-4 rounded-3 bg-light border mb-4">
-              <p class="mb-0 small text-muted">Students: <strong id="starterStudents" class="text-dark">200</strong></p>
-              <p class="mb-0 fw-bold fs-5">Total: <span id="starterTotal">₹7,800</span> / month</p>
-            </div>
-            <ul class="list-unstyled mb-4">
-              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Up to 500 Students</li>
-              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Student Management</li>
-              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Attendance Tracking</li>
-              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Exam Management</li>
-              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Basic Reports</li>
-              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Email Support</li>
-            </ul>
-            <a href="{% url 'core:home' %}#trial" class="btn btn-dark w-100 py-3 fw-semibold">Start Free Trial</a>
-          </div>
-        </div>
-      </div>
-
-      <!-- Enterprise (Recommended) -->
-      <div class="col-md-6 col-lg-5">
-        <div class="pricing-card recommended card h-100 shadow position-relative">
+      {% for p in pricing_plans %}
+      <div class="col-md-6 col-lg-4">
+        <div class="pricing-card {% if p.recommended %}recommended{% endif %} card h-100 shadow position-relative border">
+          {% if p.recommended %}
           <span class="position-absolute top-0 start-50 translate-middle badge bg-primary py-2 px-3 rounded-pill">Recommended</span>
-          <div class="card-body p-4 p-md-5 pt-5">
-            <h2 class="h5 fw-bold mb-1">Enterprise</h2>
+          {% endif %}
+          <div class="card-body p-4 p-md-5 {% if p.recommended %}pt-5{% endif %}">
+            <h2 class="h5 fw-bold mb-1">{{ p.label }}</h2>
             <div class="my-3">
-              <span class="display-5 fw-bold">₹59</span>
+              <div class="d-flex align-items-end gap-2 flex-wrap">
+                <span class="display-5 fw-bold plan-price-{{ p.key }}">₹<span class="js-plan-price">{{ p.price }}</span></span>
+                {% if p.list_price and p.list_price > p.price %}
+                  <span class="fw-semibold plan-list-price-{{ p.key }}" style="text-decoration: line-through; opacity: .85;">₹{{ p.list_price }}</span>
+                {% endif %}
+              </div>
               <span class="text-secondary"> / student / month</span>
             </div>
             <p class="small text-muted mb-3">Billed monthly</p>
-            <div class="py-3 px-4 rounded-3 border mb-4" style="background-color: rgba(79,70,229,0.08);">
-              <p class="mb-0 small text-muted">Students: <strong id="enterpriseStudents" class="text-dark">200</strong></p>
-              <p class="mb-0 fw-bold fs-5">Total: <span id="enterpriseTotal">₹11,800</span> / month</p>
+            <div class="py-3 px-4 rounded-3 border mb-4 js-plan-card" data-tier="{{ p.key }}" data-price="{{ p.price }}">
+              <p class="mb-0 small text-muted">Students: <strong class="js-students text-dark">200</strong></p>
+              <p class="mb-0 fw-bold fs-5">Total: <span class="js-total">₹0</span> / month</p>
             </div>
-            <ul class="list-unstyled mb-4">
-              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Unlimited Students</li>
-              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Student + Teacher Management</li>
-              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Attendance + Exams + Payroll</li>
-              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Parent Mobile Access</li>
-              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Advanced Reports</li>
-              <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i>Priority Support</li>
-            </ul>
-            <a href="{% url 'core:home' %}#trial" class="btn btn-cta btn-primary w-100 py-3 fw-semibold">Start Free Trial</a>
+            <a href="{% url 'core:home' %}#trial" class="btn {% if p.recommended %}btn-primary{% else %}btn-dark{% endif %} w-100 py-3 fw-semibold">Start Free Trial</a>
           </div>
         </div>
       </div>
+      {% endfor %}
     </div>
 
     <p class="text-center text-muted small mt-5">All plans include a 15-day free trial. No credit card required.</p>
+
+    {% include "marketing/partials/plan_comparison.html" %}
   </div>
 </section>
 {% endblock %}
 {% block extra_js %}
 <script>
 (function() {
-  var CORE_PRICE = 39;
-  var ADV_PRICE = 59;
   var range = document.getElementById('studentCount');
   var numInput = document.getElementById('studentCountNum');
-  var coreStudents = document.getElementById('coreStudents');
-  var advStudents = document.getElementById('advStudents');
-  var coreTotal = document.getElementById('coreTotal');
-  var advTotal = document.getElementById('advTotal');
+  var cards = Array.prototype.slice.call(document.querySelectorAll('.js-plan-card'));
 
   function formatINR(n) {
     return '₹' + n.toLocaleString('en-IN');
@@ -121,10 +106,13 @@
     count = Math.max(50, Math.min(5000, Math.round(count / 50) * 50));
     range.value = count;
     numInput.value = count;
-    starterStudents.textContent = count;
-    enterpriseStudents.textContent = count;
-    starterTotal.textContent = formatINR(count * STARTER_PRICE);
-    enterpriseTotal.textContent = formatINR(count * ENTERPRISE_PRICE);
+    cards.forEach(function (card) {
+      var price = parseFloat(card.getAttribute('data-price') || '0') || 0;
+      var s = card.querySelector('.js-students');
+      var t = card.querySelector('.js-total');
+      if (s) s.textContent = count;
+      if (t) t.textContent = formatINR(Math.round(count * price));
+    });
   }
 
   range.addEventListener('input', function() {

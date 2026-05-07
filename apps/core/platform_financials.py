@@ -53,7 +53,7 @@ class SchoolBillingRow:
 
 
 def _status_for_school(school: School, today: date) -> tuple[str, str]:
-    sub = school.plan
+    sub = school.billing_plan
     sn = (sub.name if sub else "").lower()
     end = school.trial_end_date
 
@@ -66,22 +66,16 @@ def _status_for_school(school: School, today: date) -> tuple[str, str]:
         return "expired", "Trial ended — needs subscription"
 
     if sn in ("basic", "pro"):
-        tier = (school.saas_plan.name if school.saas_plan else "—")
-        return "paying", f"Paying ({tier})"
-
-    if school.saas_plan_id:
-        return "active_unsynced", "Plan assigned — check billing record"
+        return "paying", f"Paying ({sn})"
 
     return "setup", "No subscription plan"
 
 
 def _billing_row_for_school(school: School, student_count: int, today: date) -> SchoolBillingRow:
     key, label = _status_for_school(school, today)
-    tier = school.saas_plan.name if school.saas_plan else "—"
+    tier = getattr(school.billing_plan, "name", None) or "—"
     mrr = Decimal("0")
-    if key == "paying" and school.saas_plan and school.saas_plan.price_per_student is not None:
-        mrr = (Decimal(school.saas_plan.price_per_student) * student_count).quantize(Decimal("0.01"))
-    trial_end = school.trial_end_date if (school.plan and (school.plan.name or "").lower() == "trial") else None
+    trial_end = school.trial_end_date if (school.billing_plan and (school.billing_plan.name or "").lower() == "trial") else None
     return SchoolBillingRow(
         code=school.code,
         name=school.name,
@@ -100,7 +94,7 @@ def build_school_billing_rows() -> list[SchoolBillingRow]:
     rows: list[SchoolBillingRow] = []
     schools = (
         School.objects.exclude(schema_name="public")
-        .select_related("saas_plan", "plan")
+        .select_related("billing_plan")
         .order_by("name")
     )
     for school in schools:

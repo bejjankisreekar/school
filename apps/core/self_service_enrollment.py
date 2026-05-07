@@ -15,17 +15,16 @@ from django.db.utils import IntegrityError
 from django.utils import timezone
 
 from apps.accounts.models import User
-from apps.customers.models import Domain, Plan as CustomerPlan, School, SubscriptionPlan
+from apps.customers.models import Domain, School, SubscriptionPlan
+from apps.super_admin.models import Plan, PlanName
 
 from .models import SchoolEnrollmentRequest
-from apps.customers.subscription import PLAN_FEATURES
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 
 from .tenant_provisioning import (
-    generate_unique_school_code_from_name,
+    generate_unique_base36_school_code,
     schema_name_for_school_code,
-    validate_school_code_format,
 )
 
 logger = logging.getLogger(__name__)
@@ -35,16 +34,11 @@ class SelfServiceEnrollmentError(Exception):
     """User-safe message for form non-field errors."""
 
 
-def _resolve_enrollment_school_code(cleaned_data: dict[str, Any]) -> str:
-    """ABC123 from form or auto-generated from school name (unique)."""
-    raw = (cleaned_data.get("institution_code") or "").strip()
-    if not raw:
-        return generate_unique_school_code_from_name(cleaned_data["institution_name"])
-    return validate_school_code_format(raw)
-
-
 def _compose_address(data: dict[str, Any]) -> str:
     lines = []
+    soc = (data.get("society_name") or "").strip()
+    if soc:
+        lines.append(f"Society / registered name: {soc}")
     if (data.get("address") or "").strip():
         lines.append(data["address"].strip())
     loc = ", ".join(
@@ -54,6 +48,18 @@ def _compose_address(data: dict[str, Any]) -> str:
     )
     if loc:
         lines.append(loc)
+    lm = (data.get("landmark") or "").strip()
+    if lm:
+        lines.append(f"Landmark: {lm}")
+    dist = (data.get("district") or "").strip()
+    if dist:
+        lines.append(f"District: {dist}")
+    lat, lng = data.get("latitude"), data.get("longitude")
+    if lat is not None and lng is not None:
+        lines.append(f"Coordinates: {lat}, {lng}")
+    maps = (data.get("maps_url") or "").strip()
+    if maps:
+        lines.append(f"Maps: {maps}")
     if (data.get("notes") or "").strip():
         lines.append(data["notes"].strip())
     return "\n\n".join(lines).strip()
@@ -82,7 +88,8 @@ def _create_audit_enrollment_row(
     """Persist enrollment request for super-admin audit (no password stored)."""
     SchoolEnrollmentRequest.objects.create(
         institution_name=cleaned_data["institution_name"].strip(),
-        institution_code=(cleaned_data.get("institution_code") or "").strip(),
+        society_name=(cleaned_data.get("society_name") or "").strip()[:255],
+        institution_code=(school.code or "")[:100],
         contact_name=cleaned_data["contact_name"].strip(),
         email=cleaned_data["email"].strip(),
         phone=(cleaned_data.get("phone") or "")[:30],
@@ -97,6 +104,46 @@ def _create_audit_enrollment_row(
         pending_password_hash="",
         intended_plan=(cleaned_data.get("intended_plan") or "trial").strip().lower(),
         notes=(cleaned_data.get("notes") or "")[:250],
+        website=(cleaned_data.get("website") or "").strip()[:500],
+        affiliation_board=(cleaned_data.get("affiliation_board") or "").strip()[:120],
+        school_type=(cleaned_data.get("school_type") or "").strip()[:32],
+        established_year=cleaned_data.get("established_year"),
+        school_motto=(cleaned_data.get("school_motto") or "").strip()[:300],
+        affiliation_number=(cleaned_data.get("affiliation_number") or "").strip()[:120],
+        landmark=(cleaned_data.get("landmark") or "").strip()[:255],
+        district=(cleaned_data.get("district") or "").strip()[:120],
+        latitude=cleaned_data.get("latitude"),
+        longitude=cleaned_data.get("longitude"),
+        maps_url=(cleaned_data.get("maps_url") or "").strip()[:500],
+        alternate_contact_name=(cleaned_data.get("alternate_contact_name") or "").strip()[:255],
+        alternate_contact_phone=(cleaned_data.get("alternate_contact_phone") or "").strip()[:40],
+        admin_designation=(cleaned_data.get("admin_designation") or "").strip()[:64],
+        admin_profile_photo=cleaned_data.get("admin_profile_photo"),
+        instruction_medium=(cleaned_data.get("instruction_medium") or "").strip()[:32],
+        classes_offered="",
+        streams_offered=(cleaned_data.get("streams_offered") or "").strip()[:200],
+        sections_per_class_notes=(cleaned_data.get("sections_per_class_notes") or "").strip()[:200],
+        curriculum_type=(cleaned_data.get("curriculum_type") or "").strip()[:32],
+        total_classrooms=cleaned_data.get("total_classrooms"),
+        lab_physics=cleaned_data.get("lab_physics"),
+        lab_chemistry=cleaned_data.get("lab_chemistry"),
+        lab_computer=cleaned_data.get("lab_computer"),
+        has_library=cleaned_data.get("has_library"),
+        has_playground=cleaned_data.get("has_playground"),
+        has_transport=cleaned_data.get("has_transport"),
+        total_student_capacity=cleaned_data.get("total_student_capacity"),
+        current_student_strength=cleaned_data.get("current_student_strength"),
+        non_teaching_staff_count=cleaned_data.get("non_teaching_staff_count"),
+        uses_erp=cleaned_data.get("uses_erp"),
+        current_erp_name=(cleaned_data.get("current_erp_name") or "").strip()[:120],
+        require_data_migration=cleaned_data.get("require_data_migration"),
+        preferred_ui_language=(cleaned_data.get("preferred_ui_language") or "").strip()[:32],
+        expected_start_date=cleaned_data.get("expected_start_date"),
+        detailed_requirements=(cleaned_data.get("detailed_requirements") or "").strip(),
+        school_logo=cleaned_data.get("school_logo"),
+        registration_certificate=cleaned_data.get("registration_certificate"),
+        address_proof=cleaned_data.get("address_proof"),
+        other_documents=cleaned_data.get("other_documents"),
         status=SchoolEnrollmentRequest.Status.PROVISIONED,
         school=school,
         provisioned_schema_name=school.schema_name,
@@ -118,76 +165,87 @@ def provision_school_and_admin_user(cleaned_data: dict[str, Any]) -> tuple[Schoo
     if UserModel.objects.filter(username=username).exists():
         raise SelfServiceEnrollmentError("That username is already taken. Please choose another.")
 
-    try:
-        code = _resolve_enrollment_school_code(cleaned_data)
-    except DjangoValidationError as exc:
-        msg = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
-        raise SelfServiceEnrollmentError(msg) from None
-
-    if School.objects.filter(code=code).exists():
-        raise SelfServiceEnrollmentError(
-            "School code already exists. Please choose another code."
-        )
-
-    schema_name = schema_name_for_school_code(code)
-
-    trial_sp = SubscriptionPlan.objects.filter(name__iexact="trial", is_active=True).first()
-    starter = CustomerPlan.objects.filter(name="Starter").first()
-    standard_tier = CustomerPlan.objects.filter(name="Standard").first()
-    enterprise = CustomerPlan.objects.filter(name="Enterprise").first()
+    trial_bp = SubscriptionPlan.objects.filter(name__iexact="trial", is_active=True).first()
 
     addr = _compose_address(cleaned_data)
 
-    intended = (cleaned_data.get("intended_plan") or "trial").strip().lower()
+    intended = (cleaned_data.get("intended_plan") or "premium").strip().lower()
     if intended == "monthly":
         intended = "basic"
-    if intended not in {"trial", "basic", "standard", "enterprise", "yearly"}:
-        intended = "trial"
+    legacy = {
+        "core": "basic",
+        "advance": "pro",
+        "standard": "pro",
+        "enterprise": "premium",
+        "yearly": "basic",
+        "trial": "premium",
+    }
+    if intended in legacy:
+        intended = legacy[intended]
+    if intended not in {"basic", "pro", "premium"}:
+        intended = "premium"
 
-    if intended == "enterprise":
-        saas_tier = enterprise or standard_tier or starter
-    elif intended == "standard":
-        saas_tier = standard_tier or enterprise or starter
-    elif intended in ("basic", "yearly"):
-        saas_tier = starter
-    else:
-        saas_tier = starter
-    if not saas_tier:
-        saas_tier = starter or standard_tier or enterprise
+    tier_plan = Plan.objects.filter(name=intended, is_active=True).first()
+    if not tier_plan:
+        tier_plan = (
+            Plan.objects.filter(name=PlanName.PREMIUM, is_active=True).first()
+            or Plan.objects.filter(name=PlanName.PRO, is_active=True).first()
+            or Plan.objects.filter(name=PlanName.BASIC, is_active=True).first()
+        )
 
     trial_days = 14
-    if trial_sp and getattr(trial_sp, "duration_days", None):
-        trial_days = int(trial_sp.duration_days) or 14
+    if trial_bp and getattr(trial_bp, "duration_days", None):
+        trial_days = int(trial_bp.duration_days) or 14
 
-    # Full feature access during trial (conversion-friendly); billing still trial.
-    pro_codes = list(dict.fromkeys(PLAN_FEATURES.get("pro", []) + PLAN_FEATURES.get("basic", [])))
-    if "teachers" not in pro_codes:
-        pro_codes.append("teachers")
+    school: School | None = None
+    for attempt in range(5):
+        try:
+            code = generate_unique_base36_school_code()
+        except DjangoValidationError as exc:
+            msg = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
+            raise SelfServiceEnrollmentError(msg) from None
 
-    school = School(
-        name=cleaned_data["institution_name"].strip(),
-        code=code,
-        schema_name=schema_name,
-        contact_email=cleaned_data["email"].strip(),
-        phone=(cleaned_data.get("phone") or "")[:20],
-        address=addr,
-        contact_person=cleaned_data["contact_name"].strip(),
-        school_status=School.SchoolStatus.TRIAL,
-        plan=trial_sp,
-        saas_plan=saas_tier,
-        trial_end_date=date.today() + timedelta(days=trial_days),
-        enabled_features_override=pro_codes if pro_codes else None,
-    )
+        schema_name = schema_name_for_school_code(code)
+        if School.objects.filter(code=code).exists() or School.objects.filter(schema_name=schema_name).exists():
+            continue
 
-    try:
-        school.save()
-    except Exception as exc:
-        logger.exception("School.save() failed during self-service enrollment")
-        msg = "We could not finish creating your school workspace. Please try again or contact support."
-        if settings.DEBUG:
-            detail = str(exc).strip() or exc.__class__.__name__
-            msg = f"{msg} (debug: {detail})"
-        raise SelfServiceEnrollmentError(msg) from None
+        candidate = School(
+            name=cleaned_data["institution_name"].strip(),
+            code=code,
+            schema_name=schema_name,
+            contact_email=cleaned_data["email"].strip(),
+            phone=(cleaned_data.get("phone") or "")[:20],
+            address=addr,
+            contact_person=cleaned_data["contact_name"].strip(),
+            website=(cleaned_data.get("website") or "").strip()[:500],
+            board_affiliation=(cleaned_data.get("affiliation_board") or "").strip()[:120],
+            school_status=School.SchoolStatus.TRIAL,
+            plan=tier_plan,
+            billing_plan=trial_bp,
+            trial_end_date=date.today() + timedelta(days=trial_days),
+        )
+        try:
+            candidate.save()
+            school = candidate
+            break
+        except IntegrityError:
+            logger.warning(
+                "Self-service enrollment: IntegrityError on school.save (attempt %s), retrying new code",
+                attempt + 1,
+            )
+            continue
+        except Exception as exc:
+            logger.exception("School.save() failed during self-service enrollment")
+            msg = "We could not finish creating your school workspace. Please try again or contact support."
+            if settings.DEBUG:
+                detail = str(exc).strip() or exc.__class__.__name__
+                msg = f"{msg} (debug: {detail})"
+            raise SelfServiceEnrollmentError(msg) from None
+
+    if school is None:
+        raise SelfServiceEnrollmentError(
+            "Could not assign a unique school code. Please try again or contact support."
+        )
 
     if not Domain.objects.filter(tenant=school).exists():
         Domain.objects.create(

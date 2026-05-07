@@ -316,6 +316,13 @@ class TeacherMasterForm(forms.Form):
                 "record_status",
                 status_block.get("record_status") or ("ACTIVE" if teacher.user.is_active else "INACTIVE"),
             )
+        # Warm choice querysets once so SelectMultiple widgets do not trigger a second
+        # chunked server-side cursor pass during template render (InvalidCursorName risk).
+        try:
+            list(self.fields["subjects"].queryset)
+            list(self.fields["classrooms"].queryset)
+        except Exception:
+            pass
         # Never allow changing portal role from this form.
         if "role" in self.fields:
             del self.fields["role"]

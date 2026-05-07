@@ -1,0 +1,643 @@
+{% extends "base.html" %}
+{% block title %}Messages | School ERP{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <style>
+    .tmsg-page { max-width: 1240px; margin: 0 auto; }
+    .tmsg-card {
+      border-radius: 1.2rem;
+      border: 1px solid var(--bs-border-color-translucent);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 14px 30px rgba(15, 23, 42, 0.08);
+      overflow: hidden;
+    }
+    .tmsg-sidebar-shell { height: 620px; display: flex; flex-direction: column; }
+    .tmsg-sidebar { overflow: hidden; padding-right: 2px; }
+    .tmsg-sidebar.is-expanded { overflow: auto; }
+    .tmsg-search-wrap {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: color-mix(in srgb, var(--bg-card) 92%, transparent);
+      padding-bottom: 0.5rem;
+      backdrop-filter: blur(8px);
+    }
+    .tmsg-search-clear {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      border: 0;
+      background: transparent;
+      color: var(--text-secondary);
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .tmsg-search-clear:hover { background: var(--hover-bg); color: var(--text-primary); }
+
+    .tmsg-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: color-mix(in srgb, var(--bs-primary, #0d6efd) 16%, transparent);
+      color: color-mix(in srgb, var(--bs-primary, #0d6efd) 88%, #111827);
+      font-weight: 800;
+      font-size: .9rem;
+      border: 1px solid color-mix(in srgb, var(--bs-primary, #0d6efd) 22%, transparent);
+      flex: 0 0 auto;
+    }
+
+    .tmsg-conv {
+      border-radius: 1rem;
+      border: 1px solid rgba(148,163,184,0.22);
+      padding: 0.65rem 0.7rem;
+      background: rgba(148,163,184,0.06);
+      transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+    }
+    .tmsg-conv:hover { transform: translateY(-1px); border-color: rgba(59,130,246,0.28); box-shadow: 0 12px 24px rgba(15,23,42,0.10); }
+    .tmsg-conv.is-active { background: color-mix(in srgb, var(--bs-primary, #0d6efd) 12%, transparent); border-color: rgba(37,99,235,0.30); }
+    .tmsg-conv-name { font-weight: 700; line-height: 1.15; }
+    .tmsg-conv-sub { font-size: .80rem; color: var(--text-secondary); }
+    .tmsg-conv-preview { font-size: .82rem; color: var(--text-secondary); }
+    .tmsg-conv-time { font-size: .75rem; color: var(--text-secondary); white-space: nowrap; }
+
+    .tmsg-chat-shell { height: 620px; display: flex; flex-direction: column; }
+    .tmsg-chat-header { padding: 0.9rem 1rem; border-bottom: 1px solid var(--border-color); }
+    .tmsg-thread {
+      flex: 1 1 auto;
+      overflow: auto;
+      padding: 1rem;
+      background:
+        radial-gradient(600px 240px at 30% 10%, rgba(59,130,246,0.10), transparent 60%),
+        linear-gradient(180deg, rgba(148,163,184,0.06), transparent);
+    }
+    .tmsg-message { display: flex; margin: 10px 0; }
+    .tmsg-message.me { justify-content: flex-end; }
+    .tmsg-message.them { justify-content: flex-start; }
+
+    .tmsg-bubble {
+      width: fit-content;
+      max-width: 66%;
+      border-radius: 22px;
+      padding: 10px 12px;
+      box-shadow: 0 1px 2px rgba(15,23,42,0.10);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      display: inline-flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .tmsg-bubble.me {
+      background: color-mix(in srgb, var(--bs-primary, #0d6efd) 92%, #0b1324);
+      color: #fff;
+      border-top-right-radius: 12px;
+    }
+    .tmsg-bubble.them {
+      background: rgba(148,163,184,0.16);
+      border: 1px solid rgba(148,163,184,0.22);
+      color: var(--text-primary);
+      border-top-left-radius: 12px;
+      box-shadow: none;
+    }
+    .tmsg-meta {
+      font-size: 11px;
+      opacity: 0.78;
+      align-self: flex-end;
+      line-height: 1.1;
+      margin-top: 2px;
+      white-space: nowrap;
+    }
+    .tmsg-bubble.me .tmsg-meta { color: rgba(255,255,255,0.78); }
+    .tmsg-status { font-size: 11px; margin-left: 6px; font-weight: 800; letter-spacing: -0.02em; }
+    .tmsg-status.sent { color: rgba(255,255,255,0.72); }
+    .tmsg-status.delivered { color: rgba(255,255,255,0.88); }
+    .tmsg-status.seen { color: #34d399; text-shadow: 0 0 0.5px rgba(0,0,0,0.35); }
+    .tmsg-status.failed { color: #fecaca; }
+
+    .tmsg-composer {
+      padding: 0.85rem 1rem;
+      border-top: 1px solid var(--border-color);
+      background: color-mix(in srgb, var(--bg-card) 88%, transparent);
+      position: sticky;
+      bottom: 0;
+    }
+    .tmsg-input {
+      border-radius: 18px;
+      padding: 0.7rem 0.95rem;
+      resize: none;
+      overflow: hidden;
+      line-height: 1.25;
+    }
+    .tmsg-send {
+      width: 46px;
+      height: 46px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Fix: modal behind backdrop (z-index + pointer-events stacking conflicts) */
+    .modal { position: fixed; z-index: 2000; pointer-events: auto !important; }
+    .modal-dialog, .modal-content { pointer-events: auto !important; }
+    .modal-backdrop { position: fixed; z-index: 1990; pointer-events: auto; }
+  </style>
+
+  <div class="tmsg-page">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+      <h1 class="h5 fw-bold mb-0"><i class="bi bi-chat-dots me-2"></i>Messages</h1>
+      <div class="d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" data-bs-toggle="modal" data-bs-target="#broadcastModal">
+          <i class="bi bi-megaphone me-1"></i>Broadcast
+        </button>
+        <div class="text-muted small">Teacher ↔ Student, Teacher ↔ Admin</div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-12 col-lg-4">
+        <div class="card border-0 tmsg-card">
+          <div class="card-body p-3 tmsg-sidebar-shell">
+            <div class="tmsg-search-wrap">
+              <div class="position-relative">
+                <input id="studentSearch" class="form-control tmsg-input" placeholder="Search students..." autocomplete="off">
+                <button id="studentSearchClear" class="tmsg-search-clear" type="button" aria-label="Clear search" title="Clear">
+                  <i class="bi bi-x-lg"></i>
+                </button>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mt-2">
+                <div class="small text-muted">Recent chats</div>
+                {% if not show_all %}
+                  <a class="small text-decoration-none" href="?{% if active_peer_type %}peer_type={{ active_peer_type }}&{% endif %}{% if active_student %}peer_id={{ active_student.id }}&{% elif active_admin %}peer_id={{ active_admin.id }}&{% endif %}all=1">View all</a>
+                {% else %}
+                  {% if active_student %}
+                    <a class="small text-decoration-none" href="?peer_type=student&peer_id={{ active_student.id }}">Compact</a>
+                  {% elif active_admin %}
+                    <a class="small text-decoration-none" href="?peer_type=admin&peer_id={{ active_admin.id }}">Compact</a>
+                  {% else %}
+                    <a class="small text-decoration-none" href=".">Compact</a>
+                  {% endif %}
+                {% endif %}
+              </div>
+            </div>
+            <div class="tmsg-sidebar d-grid gap-2 {% if show_all %}is-expanded{% endif %}" id="tmsgConvList">
+              {% if admin_user %}
+                <a class="text-decoration-none tmsg-conv-link" href="?peer_type=admin&peer_id={{ admin_user.id }}" data-search="{{ admin_user.get_full_name|default:admin_user.username }} admin">
+                  <div class="tmsg-conv {% if active_admin %}is-active{% endif %}">
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="tmsg-avatar">A</span>
+                      <div class="flex-grow-1 min-w-0">
+                        <div class="d-flex justify-content-between align-items-center gap-2">
+                          <div class="tmsg-conv-name text-truncate">{{ admin_user.get_full_name|default:admin_user.username }}</div>
+                          <div class="d-flex align-items-center gap-2">
+                            <div class="tmsg-conv-time">Admin</div>
+                            {% if unread_admin_count %}<span class="badge rounded-pill bg-danger">{{ unread_admin_count }}</span>{% endif %}
+                          </div>
+                        </div>
+                        <div class="tmsg-conv-preview text-truncate">{{ admin_user.role }}</div>
+                      </div>
+                    </div>
+                  </div>
+                </a>
+              {% endif %}
+
+              {% for row in student_rows %}
+                {% with s=row.obj %}
+                <a class="text-decoration-none tmsg-conv-link" href="?peer_type=student&peer_id={{ s.id }}"
+                   data-search="{{ s.user.get_full_name|default:s.user.username }} {{ s.classroom.name|default:'' }} {{ s.section.name|default:'' }} {{ s.roll_number|default:'' }} {{ s.user.username|default:'' }}">
+                  <div class="tmsg-conv {% if active_student and active_student.id == s.id %}is-active{% endif %}">
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="tmsg-avatar">{{ s.user.first_name|default:s.user.username|slice:":1"|upper }}</span>
+                      <div class="flex-grow-1 min-w-0">
+                        <div class="d-flex justify-content-between align-items-center gap-2">
+                          <div class="tmsg-conv-name text-truncate">{{ s.user.get_full_name|default:s.user.username }}</div>
+                          <div class="d-flex align-items-center gap-2">
+                            <div class="tmsg-conv-time">
+                              {% if row.last_ts %}{{ row.last_ts|date:"g:i A" }}{% endif %}
+                            </div>
+                            {% if row.unread %}<span class="badge rounded-pill bg-danger">{{ row.unread }}</span>{% endif %}
+                          </div>
+                        </div>
+                        <div class="tmsg-conv-sub text-truncate">
+                          {{ s.classroom.name|default:"—" }} • {{ s.section.name|default:"—" }} • {{ s.roll_number|default:"—" }}
+                        </div>
+                        <div class="tmsg-conv-preview text-truncate">
+                          {{ row.last_preview|default:""|truncatechars:15 }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </a>
+                {% endwith %}
+              {% empty %}
+                <div class="text-muted small px-2 py-3">No recent conversations</div>
+              {% endfor %}
+            </div>
+            <div id="tmsgNoStudents" class="text-muted small px-2 py-3" style="display:none;">No students found</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-8">
+        <div class="card border-0 tmsg-card">
+          <div class="card-body p-0 tmsg-chat-shell">
+            <div class="tmsg-chat-header d-flex justify-content-between align-items-center">
+              <div class="fw-semibold d-flex align-items-center gap-2">
+                {% if active_student %}
+                  <span class="tmsg-avatar">{{ active_student.user.first_name|default:active_student.user.username|slice:":1"|upper }}</span>
+                  <span>Chat with: {{ active_student.user.get_full_name|default:active_student.user.username }}</span>
+                  <span class="badge bg-primary-subtle text-primary">Student</span>
+                {% elif active_admin %}
+                  <span class="tmsg-avatar">A</span>
+                  <span>Chat with: {{ active_admin.get_full_name|default:active_admin.username }}</span>
+                  <span class="badge bg-warning-subtle text-warning">Admin</span>
+                {% else %}
+                  Select a student or school admin
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="tmsg-thread" id="tmsgThread">
+              {% if active_student or active_admin %}
+                {% for m in thread %}
+                  <div class="tmsg-message {% if m.sender_id == request.user.id %}me{% else %}them{% endif %}">
+                    <div class="tmsg-bubble {% if m.sender_id == request.user.id %}me{% else %}them{% endif %}">
+                      <div class="tmsg-text">{{ m.content }}</div>
+                      <div class="tmsg-meta">
+                        {% if m.timestamp %}{{ m.timestamp|date:"g:i A" }}{% else %}{{ m.created_at|date:"g:i A" }}{% endif %}
+                        {% if m.sender_id == request.user.id %}
+                          {% if m.status == "sent" %}
+                            <span class="tmsg-status sent">✓</span>
+                          {% elif m.status == "delivered" %}
+                            <span class="tmsg-status delivered">✓✓</span>
+                          {% elif m.status == "seen" %}
+                            <span class="tmsg-status seen">✓✓</span>
+                          {% elif m.status == "failed" %}
+                            <span class="tmsg-status failed">❌</span>
+                          {% endif %}
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+                {% empty %}
+                  <div class="text-muted small">No messages yet.</div>
+                {% endfor %}
+              {% else %}
+                <div class="text-muted small">Choose a student to open the conversation.</div>
+              {% endif %}
+            </div>
+
+            <div class="tmsg-composer">
+              <form method="post" class="d-flex gap-2 align-items-center">
+                {% csrf_token %}
+                <input type="hidden" name="peer_type" value="{% if active_admin %}admin{% else %}student{% endif %}">
+                <input type="hidden" name="peer_id" value="{% if active_student %}{{ active_student.id }}{% elif active_admin %}{{ active_admin.id }}{% endif %}">
+                <textarea class="form-control tmsg-input flex-grow-1" id="tmsgComposerInput" name="content" rows="1" placeholder="Type a message..." {% if not active_student and not active_admin %}disabled{% endif %} required></textarea>
+                <button class="btn btn-primary tmsg-send" title="Send" aria-label="Send" {% if not active_student and not active_admin %}disabled{% endif %}>
+                  <i class="bi bi-send"></i>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var el = document.getElementById("tmsgThread");
+    if (!el) return;
+    try { el.scrollTop = el.scrollHeight; } catch (e) {}
+  })();
+  (function () {
+    var ta = document.getElementById("tmsgComposerInput");
+    var form = ta ? ta.closest("form") : null;
+    if (!ta) return;
+    function autosize() {
+      try {
+        ta.style.height = "auto";
+        ta.style.height = Math.min(140, ta.scrollHeight) + "px";
+      } catch (e) {}
+    }
+    ta.addEventListener("input", autosize);
+    ta.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        if (form) form.requestSubmit ? form.requestSubmit() : form.submit();
+      }
+    });
+    autosize();
+  })();
+  (function () {
+    var search = document.getElementById("studentSearch");
+    if (!search) return;
+
+    var clearBtn = document.getElementById("studentSearchClear");
+    var list = document.getElementById("tmsgConvList");
+    var emptyEl = document.getElementById("tmsgNoStudents");
+
+    // Two data sources:
+    // - recentChats: rendered conversation rows (students with existing conversations)
+    // - searchResults: fetched via API (can include new students)
+    var recentChats = Array.prototype.slice.call(document.querySelectorAll(".tmsg-conv-link"));
+    var debounceT = null;
+    var reqSeq = 0;
+
+    function escapeHtml(s) {
+      return String(s || "").replace(/[&<>"]/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c];
+      });
+    }
+
+    function clearSearchResults() {
+      if (!list) return;
+      var old = list.querySelectorAll("[data-search-result='1']");
+      for (var i = 0; i < old.length; i++) old[i].remove();
+    }
+
+    function showRecentChats() {
+      clearSearchResults();
+      for (var i = 0; i < recentChats.length; i++) recentChats[i].style.display = "";
+      if (emptyEl) emptyEl.style.display = "none";
+      if (list) list.style.display = "";
+      if (clearBtn) clearBtn.style.display = "none";
+    }
+
+    function showSearchResults(query, results) {
+      if (!list) return;
+      query = (query || "").trim();
+      if (!query) return;
+
+      // Hide recent chats while searching (but keep them in DOM for quick restore)
+      for (var i = 0; i < recentChats.length; i++) recentChats[i].style.display = "none";
+      clearSearchResults();
+
+      if (clearBtn) clearBtn.style.display = "inline-flex";
+
+      if (!results || !results.length) {
+        if (emptyEl) emptyEl.style.display = "";
+        if (list) list.style.display = "none";
+        return;
+      }
+
+      if (emptyEl) emptyEl.style.display = "none";
+      if (list) list.style.display = "";
+
+      // Insert results at top (after admin row, if present).
+      var insertBeforeEl = null;
+      for (var i = 0; i < recentChats.length; i++) {
+        var href = recentChats[i].getAttribute("href") || "";
+        if (href.indexOf("peer_type=student") >= 0) { insertBeforeEl = recentChats[i]; break; }
+      }
+
+      for (var i = 0; i < results.length; i++) {
+        var r = results[i] || {};
+        var cls = (r.classroom || "—");
+        var sec = (r.section || "—");
+        var rn = (r.roll_number || "—");
+        var name = (r.name || "Student");
+
+        var a = document.createElement("a");
+        a.className = "text-decoration-none tmsg-conv-link";
+        a.href = "?peer_type=student&peer_id=" + encodeURIComponent(String(r.id));
+        a.setAttribute("data-search-result", "1");
+        a.setAttribute("data-search", (name + " " + cls + " " + sec + " " + rn));
+
+        a.innerHTML =
+          '<div class="tmsg-conv">' +
+            '<div class="d-flex align-items-center gap-2">' +
+              '<span class="tmsg-avatar">' + escapeHtml((name || "").slice(0, 1).toUpperCase()) + "</span>" +
+              '<div class="flex-grow-1 min-w-0">' +
+                '<div class="d-flex justify-content-between align-items-center gap-2">' +
+                  '<div class="tmsg-conv-name text-truncate">' + escapeHtml(name) + "</div>" +
+                  '<div class="tmsg-conv-time">New</div>' +
+                "</div>" +
+                '<div class="tmsg-conv-sub text-truncate">' + escapeHtml(cls) + " • " + escapeHtml(sec) + " • " + escapeHtml(rn) + "</div>" +
+                '<div class="tmsg-conv-preview text-truncate text-primary">Start new conversation</div>' +
+              "</div>" +
+            "</div>" +
+          "</div>";
+
+        if (insertBeforeEl && insertBeforeEl.parentNode) insertBeforeEl.parentNode.insertBefore(a, insertBeforeEl);
+        else list.appendChild(a);
+      }
+    }
+
+    function debouncedApply(q) {
+      if (debounceT) window.clearTimeout(debounceT);
+      debounceT = window.setTimeout(function () {
+        var query = (q || "").trim();
+        if (!query) {
+          showRecentChats();
+          return;
+        }
+
+        var mySeq = ++reqSeq;
+        fetch("{% url 'core:teacher_students_search_api' %}?q=" + encodeURIComponent(query), { credentials: "same-origin" })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (mySeq !== reqSeq) return;
+            showSearchResults(query, (data && data.results) ? data.results : []);
+          })
+          .catch(function () {
+            if (mySeq !== reqSeq) return;
+            showSearchResults(query, []);
+          });
+      }, 300);
+    }
+
+    search.addEventListener("input", function () {
+      debouncedApply(search.value || "");
+    });
+
+    if (clearBtn) {
+      clearBtn.addEventListener("click", function () {
+        search.value = "";
+        debouncedApply("");
+        try { search.focus(); } catch (e) {}
+      });
+    }
+
+    showRecentChats();
+  })();
+
+  // (Removed) Send-to-all button in composer.
+
+  document.addEventListener("DOMContentLoaded", function () {
+    // Note: Broadcast modal markup is rendered after the main content (base template modals area),
+    // so we must initialize after DOMContentLoaded.
+    // So we must initialize after DOMContentLoaded, otherwise elements are not found.
+    var payloadEl = document.getElementById("broadcastPayload");
+    var classEl = document.getElementById("broadcastClass");
+    var sectionsEl = document.getElementById("broadcastSections");
+    var selectAllEl = document.getElementById("broadcastSelectAll");
+    var summaryEl = document.getElementById("broadcastSummary");
+    var toLineEl = document.getElementById("broadcastToLine");
+    var previewWrapEl = document.getElementById("broadcastPreviewWrap");
+    var previewEl = document.getElementById("broadcastPreview");
+    if (!payloadEl || !classEl || !sectionsEl) return;
+
+    var payload = {};
+    try { payload = JSON.parse(payloadEl.textContent || "{}"); } catch (e) { payload = {}; }
+    var classes = (payload && payload.classes) ? payload.classes : [];
+    var byId = {};
+    for (var i = 0; i < classes.length; i++) byId[String(classes[i].id)] = classes[i];
+
+    function renderSections(classId) {
+      sectionsEl.innerHTML = "";
+      var c = byId[String(classId)];
+      var secs = (c && c.sections) ? c.sections : [];
+      if (!secs.length) {
+        sectionsEl.innerHTML = "<div class=\"text-muted small\">No sections found for this class.</div>";
+        return;
+      }
+      for (var i = 0; i < secs.length; i++) {
+        var s = secs[i];
+        var id = "bsec_" + String(classId) + "_" + String(s.id);
+        var badge = document.createElement("label");
+        badge.className = "btn btn-outline-secondary btn-sm rounded-pill";
+        badge.setAttribute("for", id);
+        badge.innerHTML = "<input class=\"form-check-input me-2\" type=\"checkbox\" name=\"section_ids\" value=\"" + s.id + "\" id=\"" + id + "\">"
+          + "<span>" + (s.name || "—") + "</span>"
+          + "<span class=\"ms-2 text-muted\">(" + (s.count || 0) + ")</span>";
+        sectionsEl.appendChild(badge);
+      }
+    }
+
+    function getSelectedSectionIds() {
+      var boxes = sectionsEl.querySelectorAll("input[type='checkbox'][name='section_ids']");
+      var ids = [];
+      for (var i = 0; i < boxes.length; i++) {
+        if (boxes[i].checked) ids.push(String(boxes[i].value));
+      }
+      return ids;
+    }
+
+    function updateSummary() {
+      var classId = classEl.value;
+      var c = byId[String(classId)];
+      if (!c) {
+        if (summaryEl) summaryEl.style.display = "none";
+        return;
+      }
+
+      var selected = getSelectedSectionIds();
+      var secs = (c.sections || []);
+      var picked = [];
+      if (selected.length) {
+        for (var i = 0; i < secs.length; i++) if (selected.indexOf(String(secs[i].id)) >= 0) picked.push(secs[i]);
+      } else {
+        picked = secs;
+      }
+
+      var total = 0;
+      var sectionNames = [];
+      var previewLines = [];
+      for (var i = 0; i < picked.length; i++) {
+        total += Number(picked[i].count || 0);
+        sectionNames.push(picked[i].name || "—");
+        var pv = picked[i].preview || [];
+        if (pv.length) previewLines.push("<div><span class=\"fw-semibold\">" + (picked[i].name || "—") + ":</span> " + pv.join(", ") + "</div>");
+      }
+
+      if (toLineEl) {
+        toLineEl.textContent = c.name + " • Sections: " + (sectionNames.length ? sectionNames.join(", ") : "—") + " • Students: " + total;
+      }
+      if (previewEl) previewEl.innerHTML = previewLines.join("");
+      if (previewWrapEl) previewWrapEl.style.display = previewLines.length ? "" : "none";
+      if (summaryEl) summaryEl.style.display = "";
+    }
+
+    classEl.addEventListener("change", function () {
+      renderSections(classEl.value);
+      updateSummary();
+    });
+    sectionsEl.addEventListener("change", function () {
+      updateSummary();
+    });
+    if (selectAllEl) {
+      selectAllEl.addEventListener("click", function () {
+        var boxes = sectionsEl.querySelectorAll("input[type='checkbox'][name='section_ids']");
+        var anyUnchecked = false;
+        for (var i = 0; i < boxes.length; i++) if (!boxes[i].checked) { anyUnchecked = true; break; }
+        for (var i = 0; i < boxes.length; i++) boxes[i].checked = anyUnchecked;
+        updateSummary();
+      });
+    }
+  });
+</script>
+{% endblock %}
+
+{% block modals %}
+<div class="modal fade" id="broadcastModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Broadcast message</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post">
+        <div class="modal-body">
+          {% csrf_token %}
+          <input type="hidden" name="peer_type" value="broadcast">
+          <div class="text-muted small mb-3">Send the same message to a specific class and (optionally) selected sections.</div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Class</label>
+            <select class="form-select" name="classroom_id" id="broadcastClass" required>
+              <option value="" selected disabled>Select class…</option>
+              {% for c in broadcast_classes %}
+                <option value="{{ c.id }}">{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <label class="form-label small fw-semibold mb-1">Sections (optional)</label>
+              <button type="button" class="btn btn-link btn-sm text-decoration-none px-0" id="broadcastSelectAll">Select all</button>
+            </div>
+            <div id="broadcastSections" class="d-flex flex-wrap gap-2"></div>
+            <div class="form-text">Leave empty to broadcast to all sections in the selected class.</div>
+          </div>
+
+          <div class="alert alert-info py-2 px-3 mb-3" id="broadcastSummary" style="display:none;">
+            <div class="small">
+              <div class="fw-semibold">Sending to:</div>
+              <div id="broadcastToLine"></div>
+              <div class="mt-2" id="broadcastPreviewWrap" style="display:none;">
+                <div class="text-muted small">Preview (first 12 per section):</div>
+                <div id="broadcastPreview" class="small"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-0">
+            <label class="form-label small fw-semibold">Message</label>
+            <textarea class="form-control" name="content" rows="4" placeholder="Type your broadcast..." required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-send me-1"></i>Send broadcast
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{{ broadcast_payload|json_script:"broadcastPayload" }}
+{{ allowed_students_payload|json_script:"allowedStudentsPayload" }}
+{% endblock %}
+

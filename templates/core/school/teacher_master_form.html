@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{% if teacher %}Edit{% else %}Add{% endif %} teacher | Campus ERP{% endblock %}
+{% block title %}{% if teacher %}Edit{% else %}Add{% endif %} teacher | {{ app_product_name }}{% endblock %}
 {% block extra_head %}
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
 <style>
@@ -21,6 +21,40 @@
     background: rgba(248, 250, 252, 0.85);
     border-radius: 1rem;
     padding: 1.25rem 1.25rem;
+  }
+
+  .teacher-master-sections-wrap {
+    display: grid;
+    gap: 0.75rem;
+  }
+  .tm-sec-card {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: rgba(255, 255, 255, 0.75);
+    border-radius: 0.85rem;
+    padding: 0.9rem 0.9rem;
+  }
+  html.dark .tm-sec-card {
+    border-color: rgba(148, 163, 184, 0.2);
+    background: rgba(30, 41, 59, 0.5);
+  }
+  .tm-sec-pill {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: rgba(248, 250, 252, 0.75);
+    cursor: pointer;
+    user-select: none;
+  }
+  .tm-sec-pill:hover {
+    border-color: rgba(99, 102, 241, 0.3);
+    background: rgba(99, 102, 241, 0.06);
+  }
+  html.dark .tm-sec-pill {
+    border-color: rgba(148, 163, 184, 0.18);
+    background: rgba(15, 23, 42, 0.35);
   }
   html.dark .teacher-master-section-card {
     border-color: rgba(148, 163, 184, 0.2);
@@ -370,6 +404,42 @@
               {# Portal role removed (security) #}
               <div class="col-12"><label class="form-label" for="{{ form.subjects.id_for_label }}">Subjects</label>{{ form.subjects }}</div>
               <div class="col-12"><label class="form-label" for="{{ form.classrooms.id_for_label }}">Assigned classes</label>{{ form.classrooms }}</div>
+              <div class="col-12">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-2">
+                  <label class="form-label mb-0">Assigned sections (optional)</label>
+                  <span class="small text-muted">Pick sections inside the selected classes.</span>
+                </div>
+                <div class="teacher-master-sections-wrap mt-2" id="tmSectionPicker">
+                  {% for c in classrooms_with_sections %}
+                    <div class="tm-sec-card" data-class-id="{{ c.id }}">
+                      <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                        <div class="fw-semibold text-body">{{ c.name }}</div>
+                        {% if c.academic_year %}<span class="badge text-bg-light border">{{ c.academic_year }}</span>{% endif %}
+                      </div>
+                      <div class="row g-2">
+                        {% for s in c.sections.all %}
+                          <div class="col-12 col-sm-6 col-lg-4">
+                            <label class="tm-sec-pill">
+                              <input
+                                type="checkbox"
+                                class="form-check-input me-2"
+                                name="class_sections"
+                                value="{{ c.id }}:{{ s.id }}"
+                                {% with key=c.id|stringformat:"s"|add:":"|add:s.id|stringformat:"s" %}
+                                  {% if key in assigned_class_section_pairs %}checked{% endif %}
+                                {% endwith %}
+                              >
+                              <span class="fw-semibold">{{ s.name }}</span>
+                            </label>
+                          </div>
+                        {% empty %}
+                          <div class="col-12"><span class="small text-muted">No sections configured for this class.</span></div>
+                        {% endfor %}
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -555,6 +625,25 @@
       });
     });
   }
+
+  function refreshSectionPickerVisibility() {
+    if (!window.jQuery) return;
+    var $ = window.jQuery;
+    var selected = ($("#id_teacher_classrooms").val() || []).map(function(v){ return String(v); });
+    var selectedSet = new Set(selected);
+    var any = false;
+    $("#tmSectionPicker .tm-sec-card").each(function() {
+      var clsId = String(this.getAttribute("data-class-id") || "");
+      var show = selectedSet.has(clsId);
+      this.style.display = show ? "block" : "none";
+      if (show) any = true;
+    });
+    var wrap = document.getElementById("tmSectionPicker");
+    if (wrap) {
+      wrap.style.opacity = selected.length ? "1" : "0.65";
+      wrap.style.pointerEvents = selected.length ? "auto" : "none";
+    }
+  }
   const panes = ["#tpane-1", "#tpane-2", "#tpane-3", "#tpane-4", "#tpane-5"];
   let idx = 0;
   const total = panes.length;
@@ -596,6 +685,10 @@
     });
     showStep(0);
     initSelect2();
+    refreshSectionPickerVisibility();
+    if (window.jQuery) {
+      window.jQuery("#id_teacher_classrooms").on("change", refreshSectionPickerVisibility);
+    }
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", bindWizard);

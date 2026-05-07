@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% load static %}
+
+{# Shared Control Center chrome: hero + left nav + main column (same as legacy super_admin/base). #}
+{% block content %}
+<style>
+  .saas-cc-shell{ max-width: 1240px; margin: 0 auto; }
+  .saas-cc-hero{
+    border-radius: 16px;
+    border: 1px solid rgba(15,23,42,.08);
+    background: linear-gradient(135deg, rgba(79,70,229,.10), rgba(34,197,94,.06));
+    padding: 1.1rem 1.15rem;
+  }
+  .saas-cc-layout{ display:grid; grid-template-columns: 270px 1fr; gap: 1rem; align-items:start; }
+  @media (max-width: 991.98px){ .saas-cc-layout{ grid-template-columns: 1fr; } }
+  .saas-cc-left{ position: sticky; top: 84px; }
+  @media (max-width: 991.98px){ .saas-cc-left{ position: static; top:auto; } }
+
+  .saas-cc-nav{
+    border-radius: 16px;
+    border: 1px solid rgba(15,23,42,.10);
+    background: rgba(255,255,255,.85);
+    box-shadow: 0 10px 24px rgba(2,6,23,.06);
+    overflow:hidden;
+  }
+  .saas-cc-nav a{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:.75rem;
+    padding:.75rem .9rem;
+    text-decoration:none;
+    color:inherit;
+    border-bottom:1px solid rgba(15,23,42,.08);
+  }
+  .saas-cc-nav a:last-child{ border-bottom:0; }
+  .saas-cc-nav-title{ font-weight:800; letter-spacing:-0.01em; }
+  .saas-cc-nav-sub{ font-weight:600; font-size:.85rem; color: rgba(15,23,42,.70); }
+  .saas-cc-nav a.active{ background:#111827; color:#fff; }
+  .saas-cc-nav a.active .saas-cc-nav-sub{ color: rgba(255,255,255,.86); }
+
+  .saas-cc-card{ border-radius: 16px; border: 1px solid rgba(15,23,42,.10); box-shadow: 0 10px 24px rgba(2,6,23,.06); }
+</style>
+
+<div class="container-fluid px-0 px-lg-2 pb-5">
+  <div class="saas-cc-shell">
+    <div class="saas-cc-hero mb-3">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+        <div>
+          <div class="text-muted small fw-semibold" style="letter-spacing:.06em;">SUPER ADMIN</div>
+          <h1 class="h4 fw-bold mb-1" style="letter-spacing:-0.02em;">Control Center</h1>
+          <div class="text-muted small">Centralized SaaS management: schools, plans, features, billing and analytics.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="saas-cc-layout">
+      <aside class="saas-cc-left">
+        {% include "super_admin/partials/control_center_sidebar.html" %}
+      </aside>
+
+      <main class="saas-cc-right">
+        {% block cc_main %}{% endblock %}
+      </main>
+    </div>
+  </div>
+</div>
+{% endblock %}

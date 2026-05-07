@@ -1,20 +1,21 @@
 {% extends "marketing/base.html" %}
-{% block title %}Campus ERP | The All-in-One Campus Management Platform{% endblock %}
+{% block title %}{{ app_product_name }} | The All-in-One Campus Management Platform{% endblock %}
 {% block content %}
 
 <!-- HERO -->
 <section class="landing-hero text-center">
   <div class="container landing-hero-inner">
     <div class="landing-hero-badge">
-      <span aria-hidden="true">🚀</span> Smart Campus ERP
+      <i class="bi bi-stars" aria-hidden="true"></i>
+      <span>Campus operations platform</span>
     </div>
-    <h1>Manage Learners, Academics, Attendance,<br class="d-none d-md-inline" /> and Billing in One Powerful Platform</h1>
+    <h1>Run your campus—learners, academics, attendance, and billing—in one place</h1>
     <p class="landing-hero-lead mb-4">
-      The modern SaaS for educational institutions—centralize admissions, academics, billing, and analytics with a secure, role-based experience your whole campus will love.
+      A focused SaaS workspace for schools and colleges: structured data, role-based access, and workflows your admin, faculty, and families can trust.
     </p>
-    <div class="d-flex flex-wrap justify-content-center gap-3">
-      <a href="#trial" class="btn-landing-primary text-decoration-none">Get Started</a>
-      <a href="{% url 'accounts:login' %}" class="btn-landing-secondary text-decoration-none">Login</a>
+    <div class="landing-hero-actions d-flex flex-wrap justify-content-center">
+      <a href="#trial" class="btn-landing-primary text-decoration-none">Get started</a>
+      <a href="{% url 'accounts:login' %}" class="btn-landing-secondary text-decoration-none">Log in</a>
     </div>
   </div>
 </section>
@@ -43,8 +44,9 @@
   <div class="container">
     <div class="row align-items-center g-5">
       <div class="col-lg-6">
-        <h2 class="landing-section-title display-6 mb-4">A Unified Platform for Your Entire Campus</h2>
-        <p class="landing-section-sub lead mb-4">Everything your institution needs in one colorful, intuitive workspace.</p>
+        <p class="landing-eyebrow mb-0">Why {{ app_product_name }}</p>
+        <h2 class="landing-section-title display-6 mb-4">One platform for your entire institution</h2>
+        <p class="landing-section-sub lead mb-4">Structured modules, clear permissions, and reporting that leadership can act on—without stitching spreadsheets together.</p>
         <ul class="list-unstyled mb-4">
           <li class="d-flex align-items-start gap-3 mb-3">
             <span class="landing-feature-icon landing-feature-icon--green flex-shrink-0" style="width:40px;height:40px;margin:0;"><i class="bi bi-check-lg"></i></span>
@@ -62,11 +64,11 @@
         <a href="{% url 'core:about' %}" class="btn-landing-primary text-decoration-none">Learn More</a>
       </div>
       <div class="col-lg-6 d-none d-lg-block">
-        <div class="rounded-4 p-4" style="background: linear-gradient(145deg, rgba(99,102,241,0.12), rgba(34,197,94,0.08)); border: 1px solid rgba(79,70,229,0.1);">
+        <div class="landing-stat-panel">
           <div class="row g-3">
-            <div class="col-6"><div class="landing-feature-card text-center py-4"><strong class="text-indigo" style="color:var(--saas-primary)">99.9%</strong><div class="small text-muted">Uptime</div></div></div>
-            <div class="col-6"><div class="landing-feature-card text-center py-4"><strong style="color:var(--saas-accent)">24/7</strong><div class="small text-muted">Cloud</div></div></div>
-            <div class="col-12"><div class="landing-feature-card py-3 text-center small text-muted mb-0">Multi-tenant · Encrypted · GDPR-ready patterns</div></div>
+            <div class="col-6"><div class="landing-feature-card text-center py-4"><strong class="text-indigo" style="color:var(--saas-primary)">99.9%</strong><div class="small text-muted">Target uptime</div></div></div>
+            <div class="col-6"><div class="landing-feature-card text-center py-4"><strong style="color:var(--saas-accent)">24/7</strong><div class="small text-muted">Cloud delivery</div></div></div>
+            <div class="col-12"><div class="landing-feature-card py-3 text-center small text-muted mb-0">Isolated tenant data · Encryption in transit · Role-based access</div></div>
           </div>
         </div>
       </div>
@@ -77,16 +79,17 @@
 <!-- DASHBOARD PREVIEW -->
 <section class="landing-section landing-band-muted">
   <div class="container">
-    <h2 class="text-center landing-section-title display-6 mb-2">Dashboard Preview</h2>
-    <p class="text-center landing-section-sub mb-5">A glimpse of your admin command center</p>
+    <p class="landing-eyebrow text-center mx-auto d-block" style="width: fit-content;">Product preview</p>
+    <h2 class="text-center landing-section-title display-6 mb-2">Admin dashboard</h2>
+    <p class="text-center landing-section-sub mb-5">A calm command center for heads and registrars—numbers, navigation, and next actions in one view.</p>
     <div class="landing-mock-card">
-      <div class="d-flex align-items-center gap-2 px-3 py-2 small text-white" style="background: linear-gradient(90deg, #312e81, #4f46e5);">
-        <span class="rounded-circle bg-white bg-opacity-40" style="width:8px;height:8px"></span>
-        <span class="rounded-circle bg-white bg-opacity-40" style="width:8px;height:8px"></span>
-        <span class="rounded-circle bg-white bg-opacity-40" style="width:8px;height:8px"></span>
-        <span class="ms-2 opacity-90">Campus Admin · Campus ERP</span>
+      <div class="landing-mock-chrome">
+        <span class="landing-mock-dot landing-mock-dot--r" aria-hidden="true"></span>
+        <span class="landing-mock-dot landing-mock-dot--y" aria-hidden="true"></span>
+        <span class="landing-mock-dot landing-mock-dot--g" aria-hidden="true"></span>
+        <span class="ms-2 opacity-95">Campus Admin · {{ app_product_name }}</span>
       </div>
-      <div class="row g-0 p-4">
+      <div class="row g-0 p-4 landing-mock-body">
         <div class="col-3 d-none d-md-block border-end">
           <div class="mb-3"><span class="badge rounded-pill px-3 py-2" style="background: var(--saas-primary);">Dashboard</span></div>
           <div class="mb-2 text-muted small">Students</div>
@@ -97,7 +100,7 @@
         <div class="col-12 col-md-9 ps-md-4">
           <div class="row g-2 mb-3">
             <div class="col-4"><div class="rounded-3 p-3 text-center" style="background: linear-gradient(180deg, rgba(79,70,229,0.12), rgba(99,102,241,0.06));"><span class="fw-bold" style="color:var(--saas-primary)">156</span><br><span class="small text-muted">Students</span></div></div>
-            <div class="col-4"><div class="rounded-3 p-3 text-center" style="background: linear-gradient(180deg, rgba(34,197,94,0.15), rgba(34,197,94,0.05));"><span class="fw-bold" style="color:#15803d">24</span><br><span class="small text-muted">Teachers</span></div></div>
+            <div class="col-4"><div class="rounded-3 p-3 text-center" style="background: linear-gradient(180deg, rgba(16,185,129,0.14), rgba(16,185,129,0.05));"><span class="fw-bold" style="color:#047857">24</span><br><span class="small text-muted">Teachers</span></div></div>
             <div class="col-4"><div class="rounded-3 p-3 text-center" style="background: linear-gradient(180deg, rgba(124,58,237,0.12), rgba(124,58,237,0.05));"><span class="fw-bold" style="color:#7c3aed">12</span><br><span class="small text-muted">Classes</span></div></div>
           </div>
           <div class="border rounded-3 p-3 bg-light bg-opacity-50"><div class="text-muted small">Charts, activity feed, and alerts—always up to date.</div></div>
@@ -108,51 +111,150 @@
 </section>
 
 <!-- FEATURES -->
-<section id="features" class="landing-section bg-white">
+<section id="features" class="landing-section landing-surface-alt">
   <div class="container">
-    <h2 class="text-center landing-section-title display-6 mb-2">Built for Every Team</h2>
-    <p class="text-center landing-section-sub mb-5 mx-auto" style="max-width:520px">Colorful modules that work together—student ops, finance, academics, and more.</p>
+    <p class="landing-eyebrow text-center mx-auto d-block mb-0" style="width: fit-content;">Capabilities</p>
+    <h2 class="text-center landing-section-title display-6 mb-2">Built for every team on campus</h2>
+    <p class="text-center landing-section-sub landing-features-intro mb-5 mx-auto" style="max-width:640px">Academics, operations, finance, and communication in one product surface. What you enable follows your plan—see the <a href="{% url 'core:pricing' %}" class="text-decoration-none fw-semibold" style="color:var(--saas-primary)">pricing comparison</a> for the full matrix.</p>
     <div class="row g-4">
       <div class="col-md-6 col-lg-4">
         <div class="landing-feature-card">
           <div class="landing-feature-icon landing-feature-icon--indigo"><i class="bi bi-people"></i></div>
-          <h5 class="mb-2">📚 Student Management</h5>
-          <p class="text-secondary small mb-0">Track admissions, profiles, and guardians in one secure directory.</p>
+          <h5 class="mb-2">Students &amp; admissions</h5>
+          <p class="text-secondary small mb-0">Learner profiles, sections, guardians, and imports—one directory for your whole student body.</p>
         </div>
       </div>
       <div class="col-md-6 col-lg-4">
         <div class="landing-feature-card">
-          <div class="landing-feature-icon landing-feature-icon--violet"><i class="bi bi-journal-bookmark"></i></div>
-          <h5 class="mb-2">📝 Exam Management</h5>
-          <p class="text-secondary small mb-0">Create exams, capture marks, and share results with clarity.</p>
+          <div class="landing-feature-icon landing-feature-icon--violet"><i class="bi bi-person-badge"></i></div>
+          <h5 class="mb-2">Faculty &amp; staff</h5>
+          <p class="text-secondary small mb-0">Teacher records, roles, and staff workflows aligned with how your school is organized.</p>
         </div>
       </div>
       <div class="col-md-6 col-lg-4">
         <div class="landing-feature-card">
-          <div class="landing-feature-icon landing-feature-icon--green"><i class="bi bi-calendar-check"></i></div>
-          <h5 class="mb-2">📊 Attendance Tracking</h5>
-          <p class="text-secondary small mb-0">Monitor daily attendance with calendars and instant insights.</p>
+          <div class="landing-feature-icon landing-feature-icon--green"><i class="bi bi-diagram-3"></i></div>
+          <h5 class="mb-2">Classes, subjects &amp; academic year</h5>
+          <p class="text-secondary small mb-0">Structure grades, subjects, and terms so timetables, exams, and fees stay consistent.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="landing-feature-card">
+          <div class="landing-feature-icon landing-feature-icon--indigo"><i class="bi bi-calendar-check"></i></div>
+          <h5 class="mb-2">Student attendance</h5>
+          <p class="text-secondary small mb-0">Daily marks, calendars, and quick views for admins and teachers—students see their own history.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="landing-feature-card">
+          <div class="landing-feature-icon landing-feature-icon--violet"><i class="bi bi-person-check"></i></div>
+          <h5 class="mb-2">Faculty attendance</h5>
+          <p class="text-secondary small mb-0">Track staff presence alongside student attendance for a complete operations picture.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="landing-feature-card">
+          <div class="landing-feature-icon landing-feature-icon--green"><i class="bi bi-calendar3"></i></div>
+          <h5 class="mb-2">Timetable &amp; schedules</h5>
+          <p class="text-secondary small mb-0">Published periods and room logic for admins, teachers, and students—fewer clashes, clearer days.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="landing-feature-card">
+          <div class="landing-feature-icon landing-feature-icon--indigo"><i class="bi bi-calendar-event"></i></div>
+          <h5 class="mb-2">School calendar &amp; holidays</h5>
+          <p class="text-secondary small mb-0">Institution-wide events and holidays so academics and attendance stay in sync.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="landing-feature-card">
+          <div class="landing-feature-icon landing-feature-icon--violet"><i class="bi bi-clipboard-check"></i></div>
+          <h5 class="mb-2">Exams &amp; results</h5>
+          <p class="text-secondary small mb-0">Exam sessions, marks entry, locks, and report cards—transparent grading from paper to portal.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="landing-feature-card">
+          <div class="landing-feature-icon landing-feature-icon--green"><i class="bi bi-journal-text"></i></div>
+          <h5 class="mb-2">Homework</h5>
+          <p class="text-secondary small mb-0">Assign, collect, and track work with class context so learners always know what is due.</p>
         </div>
       </div>
       <div class="col-md-6 col-lg-4">
         <div class="landing-feature-card">
           <div class="landing-feature-icon landing-feature-icon--indigo"><i class="bi bi-currency-dollar"></i></div>
-          <h5 class="mb-2">Fee &amp; Finance</h5>
-          <p class="text-secondary small mb-0">Automate fee reminders and simplify collections.</p>
+          <h5 class="mb-2">Fees &amp; billing</h5>
+          <p class="text-secondary small mb-0">Fee types, structures, concessions, invoices, and collections—money flows with fewer follow-ups.</p>
         </div>
       </div>
       <div class="col-md-6 col-lg-4">
         <div class="landing-feature-card">
-          <div class="landing-feature-icon landing-feature-icon--green"><i class="bi bi-bus-front"></i></div>
-          <h5 class="mb-2">Transport &amp; Hostel</h5>
-          <p class="text-secondary small mb-0">Routes, vehicles, rooms, and residents—organized.</p>
+          <div class="landing-feature-icon landing-feature-icon--violet"><i class="bi bi-wallet2"></i></div>
+          <h5 class="mb-2">Payroll &amp; payslips</h5>
+          <p class="text-secondary small mb-0">Salary components, structures, advances, and payslip PDFs when payroll is enabled for your school.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="landing-feature-card">
+          <div class="landing-feature-icon landing-feature-icon--green"><i class="bi bi-chat-dots"></i></div>
+          <h5 class="mb-2">Messaging &amp; broadcasts</h5>
+          <p class="text-secondary small mb-0">In-app messaging, announcements, and notification hooks so the right people hear at the right time.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="landing-feature-card">
+          <div class="landing-feature-icon landing-feature-icon--indigo"><i class="bi bi-megaphone"></i></div>
+          <h5 class="mb-2">Parent engagement</h5>
+          <p class="text-secondary small mb-0">Parent dashboards and announcements keep families aligned with attendance, fees, and academics.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="landing-feature-card">
+          <div class="landing-feature-icon landing-feature-icon--violet"><i class="bi bi-bus-front"></i></div>
+          <h5 class="mb-2">Transport</h5>
+          <p class="text-secondary small mb-0">Routes, vehicles, drivers, and student assignments when transport is part of your subscription.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="landing-feature-card">
+          <div class="landing-feature-icon landing-feature-icon--green"><i class="bi bi-building"></i></div>
+          <h5 class="mb-2">Hostel</h5>
+          <p class="text-secondary small mb-0">Hostels, rooms, and allocations for residential programs—optional by plan.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="landing-feature-card">
+          <div class="landing-feature-icon landing-feature-icon--indigo"><i class="bi bi-book"></i></div>
+          <h5 class="mb-2">Library</h5>
+          <p class="text-secondary small mb-0">Catalogue, issue, and return tracking so your physical library stays accountable.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="landing-feature-card">
+          <div class="landing-feature-icon landing-feature-icon--violet"><i class="bi bi-bar-chart-line-fill"></i></div>
+          <h5 class="mb-2">Reports &amp; analytics</h5>
+          <p class="text-secondary small mb-0">Dashboards, trends, class summaries, and export-friendly views for leadership and compliance.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="landing-feature-card">
+          <div class="landing-feature-icon landing-feature-icon--green"><i class="bi bi-palette"></i></div>
+          <h5 class="mb-2">Branding &amp; theme</h5>
+          <p class="text-secondary small mb-0">Logo, colors, and header text on supported plans so your portal feels like your institution.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="landing-feature-card">
+          <div class="landing-feature-icon landing-feature-icon--indigo"><i class="bi bi-headset"></i></div>
+          <h5 class="mb-2">Support requests</h5>
+          <p class="text-secondary small mb-0">Raise tickets from the app so your team has a paper trail when something needs platform help.</p>
         </div>
       </div>
       <div class="col-md-6 col-lg-4">
         <div class="landing-feature-card">
           <div class="landing-feature-icon landing-feature-icon--violet"><i class="bi bi-shield-lock"></i></div>
-          <h5 class="mb-2">Secure Multi-Tenant</h5>
-          <p class="text-secondary small mb-0">Isolated data per school with enterprise-grade patterns.</p>
+          <h5 class="mb-2">Multi-tenant &amp; RBAC</h5>
+          <p class="text-secondary small mb-0">Isolated data per school, role-based access for admins, teachers, students, and parents—built for SaaS scale.</p>
         </div>
       </div>
     </div>
@@ -160,18 +262,21 @@
 </section>
 
 <!-- PRICING TEASER -->
-<section class="landing-section landing-band-muted">
-  <div class="container text-center">
-    <h2 class="landing-section-title display-6 mb-2">Simple, Transparent Pricing</h2>
-    <p class="landing-section-sub mb-4">Start with a full-featured 15-day free trial.</p>
-    <a href="{% url 'core:pricing' %}" class="btn-landing-primary btn-lg text-decoration-none px-4">View Pricing Plans</a>
+<section class="landing-section landing-band-muted landing-pricing-teaser">
+  <div class="container text-center position-relative" style="z-index:1">
+    <p class="landing-eyebrow mx-auto d-block mb-2" style="width: fit-content;">Pricing</p>
+    <h2 class="landing-section-title display-6 mb-2">Simple, transparent plans</h2>
+    <p class="landing-section-sub mb-4 mx-auto" style="max-width: 28rem">Start with a full-featured trial—upgrade when you are ready. No surprises on the bill.</p>
+    <a href="{% url 'core:pricing' %}" class="btn-landing-primary btn-lg text-decoration-none px-4">View plans</a>
   </div>
 </section>
 
 <!-- FAQ -->
 <section class="landing-section bg-white">
   <div class="container">
-    <h2 class="text-center landing-section-title display-6 mb-5">Frequently Asked Questions</h2>
+    <p class="landing-eyebrow text-center mx-auto d-block mb-0" style="width: fit-content;">FAQ</p>
+    <h2 class="text-center landing-section-title display-6 mb-2">Questions we hear often</h2>
+    <p class="text-center landing-section-sub mb-5 mx-auto" style="max-width: 36rem">Straight answers about SaaS ERP, security, and how billing works.</p>
     <div class="row justify-content-center">
       <div class="col-lg-8">
         <div class="accordion landing-accordion" id="faqAccordion">
@@ -208,8 +313,9 @@
 <!-- CTA -->
 <section id="trial" class="landing-section landing-cta-gradient text-white mb-0">
   <div class="container text-center landing-cta-inner">
-    <h2 class="display-6 fw-bold mb-3">Transform Your Campus Today</h2>
-    <p class="lead opacity-90 mb-4">Join institutions running on EduSaaS—colorful, fast, and dependable.</p>
+    <p class="small text-white text-opacity-75 text-uppercase fw-semibold mb-2" style="letter-spacing: 0.12em;">Get started</p>
+    <h2 class="display-6 fw-bold mb-3">Ready when your team is</h2>
+    <p class="lead opacity-90 mb-4 mx-auto" style="max-width: 32rem">Provision a workspace, invite staff, and run your trial on real workflows—not a slide deck.</p>
     <div class="d-flex flex-wrap justify-content-center gap-3">
       <a href="{% url 'accounts:school_login' %}" class="btn btn-light btn-lg px-4 py-3 fw-semibold rounded-3 shadow" style="color: var(--saas-primary);">Start 15-Day Free Trial</a>
       <a href="{% url 'core:contact' %}" class="btn btn-outline-light btn-lg px-4 py-3 rounded-3 border-2">Contact Sales</a>

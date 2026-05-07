@@ -1,0 +1,381 @@
+{% extends "base.html" %}
+
+{% block title %}Schools | Control Center{% endblock %}
+
+{% block content %}
+<style>
+  .sc-master{ max-width: 1240px; margin: 0 auto; }
+  .sc-hero{
+    margin-bottom: 1rem;
+    padding: 1.25rem 1.35rem;
+    border-radius: 1.25rem;
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(14, 165, 233, 0.06));
+    border: 1px solid rgba(15, 23, 42, 0.08);
+  }
+  .sc-hero h1{ font-size: 1.4rem; font-weight: 800; letter-spacing: -0.03em; color: #0f172a; margin: 0 0 0.35rem; }
+  .sc-hero .lead{ font-size: 0.9rem; color: rgba(15, 23, 42, 0.55); margin: 0; max-width: 48rem; line-height: 1.45; }
+  .sc-hero-kicker{
+    font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em;
+    color: rgba(79, 70, 229, 0.85); margin-bottom: 0.35rem;
+  }
+
+  .sc-dash{
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 0.75rem; margin-bottom: 1rem;
+  }
+
+  .sc-stat{
+    border-radius: 1.25rem; background: #fff; border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: 0 4px 18px -6px rgba(15, 23, 42, 0.1); padding: 0.85rem 1rem; position: relative; overflow: hidden;
+  }
+  .sc-stat::before{
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 1.25rem 0 0 1.25rem; background: #6366f1;
+  }
+  .sc-stat--act::before{ background: #22c55e; }
+  .sc-stat--trial::before{ background: #eab308; }
+  .sc-stat--sus::before{ background: #f43f5e; }
+  .sc-stat--arc::before{ background: #64748b; }
+  .sc-stat--inact::before{ background: #94a3b8; }
+  .sc-stat .lbl{ font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(15, 23, 42, 0.45); }
+  .sc-stat .val{ font-size: 1.45rem; font-weight: 800; color: #0f172a; margin-top: 0.2rem; }
+
+  .sc-toolbar{
+    display: flex; flex-wrap: wrap; gap: 0.65rem; align-items: flex-end; margin-bottom: 1rem;
+    padding: 0.75rem 1rem; border-radius: 1rem; background: #fff; border: 1px solid rgba(15, 23, 42, 0.08);
+  }
+  .sc-toolbar label{ font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(15, 23, 42, 0.45); display: block; margin-bottom: 0.2rem; }
+  .sc-toolbar .sc-field{ flex: 2 1 200px; min-width: 0; }
+  .sc-toolbar input{ border-radius: 0.65rem; font-size: 0.875rem; border: 1px solid rgba(15, 23, 42, 0.12); }
+  .sc-count{ font-size: 0.78rem; font-weight: 600; color: rgba(15, 23, 42, 0.5); margin-left: auto; align-self: center; }
+
+  .sc-grid{
+    display: grid; grid-template-columns: 1fr; gap: 0.85rem;
+  }
+  @media (min-width: 560px){ .sc-grid{ grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width: 900px){ .sc-grid{ grid-template-columns: repeat(3, 1fr); } }
+
+  .sc-card{
+    position: relative;
+    border-radius: 1.25rem; background: #fff; border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: 0 4px 18px -6px rgba(15, 23, 42, 0.08);
+    padding: 1rem 1.1rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    height: 100%;
+  }
+  .sc-card:hover{
+    transform: translateY(-2px);
+    box-shadow: 0 14px 36px -12px rgba(79, 70, 229, 0.14);
+    border-color: rgba(99, 102, 241, 0.28);
+  }
+  .sc-card-head{ display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.5rem; }
+  .sc-card-head h2{ flex: 1; min-width: 0; }
+  .sc-card .dropdown-toggle::after{ display: none; }
+  /* Grid + scroll/blur ancestors otherwise paint sibling cards over open menus */
+  .sc-card.sc-card--dropdown-open{ z-index: 1060; }
+  .sc-card .dropdown-menu{ z-index: 1061; }
+  .sc-filter-pills{ display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+  .sc-filter-pills .btn{ border-radius: 999px; font-size: 0.78rem; font-weight: 700; padding: 0.28rem 0.75rem; }
+  .sc-filter-pills .btn.active{ background: #4f46e5; border-color: #4f46e5; color: #fff; }
+
+  .sc-card-title{ font-size: 1.05rem; font-weight: 800; letter-spacing: -0.02em; color: #0f172a; margin: 0 0 0.5rem; line-height: 1.25; }
+  .sc-card-meta{ display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin-bottom: 0.65rem; }
+  .sc-badge-plan{
+    font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;
+    padding: 0.22rem 0.5rem; border-radius: 999px; background: rgba(79, 70, 229, 0.1); color: #4338ca; border: 1px solid rgba(79, 70, 229, 0.25);
+  }
+  .sc-badge-plan--none{ background: rgba(148, 163, 184, 0.15); color: #64748b; border-color: rgba(148, 163, 184, 0.35); }
+  .sc-badge-st{ font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.22rem 0.5rem; border-radius: 999px; border: 1px solid transparent; }
+  .sc-badge-st--active{ background: rgba(34, 197, 94, 0.12); color: #15803d; border-color: rgba(34, 197, 94, 0.35); }
+  .sc-badge-st--trial{ background: rgba(234, 179, 8, 0.14); color: #a16207; border-color: rgba(234, 179, 8, 0.4); }
+  .sc-badge-st--suspended{ background: rgba(244, 63, 94, 0.1); color: #be123c; border-color: rgba(244, 63, 94, 0.28); }
+  .sc-badge-st--inactive{ background: rgba(148, 163, 184, 0.18); color: #475569; border-color: rgba(148, 163, 184, 0.35); }
+
+  .sc-card-stu{ font-size: 0.88rem; font-weight: 700; color: rgba(15, 23, 42, 0.75); }
+  .sc-card-stu span{ font-weight: 600; color: rgba(15, 23, 42, 0.45); font-size: 0.72rem; margin-left: 0.25rem; }
+  .sc-card-date{ font-size: 0.72rem; color: rgba(15, 23, 42, 0.42); margin-top: 0.75rem; padding-top: 0.65rem; border-top: 1px solid rgba(15, 23, 42, 0.06); }
+
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sc-hero h1,
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sc-card-title{ color: var(--text-primary, #f8fafc); }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sc-stat,
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sc-toolbar,
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sc-card{
+    background: rgba(30, 41, 59, 0.55); border-color: rgba(148, 163, 184, 0.15);
+  }
+</style>
+
+<div class="container-fluid px-0 px-lg-2 pb-5">
+  <div class="sc-master">
+    <div class="sc-hero">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+        <div class="flex-grow-1" style="min-width: 0;">
+          <div class="sc-hero-kicker">Directory</div>
+          <h1>Schools</h1>
+          <p class="lead">Select a school to open its control panel — plans, billing configuration, and actions live on the detail page.</p>
+        </div>
+        <div class="flex-shrink-0">
+          <a href="{% url 'core:super_admin:control_center_school_create' %}" class="btn btn-primary rounded-pill px-4 shadow-sm">
+            <i class="bi bi-plus-lg me-1"></i>Create school
+          </a>
+        </div>
+      </div>
+    </div>
+
+    {% if schools_dashboard %}
+      <div class="sc-dash" aria-label="School counts summary">
+        <div class="sc-stat">
+          <div class="lbl">Total schools</div>
+          <div class="val">{{ schools_dashboard.total }}</div>
+        </div>
+        <div class="sc-stat sc-stat--act">
+          <div class="lbl">Active</div>
+          <div class="val">{{ schools_dashboard.active }}</div>
+        </div>
+        <div class="sc-stat sc-stat--trial">
+          <div class="lbl">Trial</div>
+          <div class="val">{{ schools_dashboard.trial }}</div>
+        </div>
+        <div class="sc-stat sc-stat--sus">
+          <div class="lbl">Suspended</div>
+          <div class="val">{{ schools_dashboard.suspended }}</div>
+        </div>
+        <div class="sc-stat sc-stat--arc">
+          <div class="lbl">Archived</div>
+          <div class="val">{{ schools_dashboard.archived }}</div>
+        </div>
+        <div class="sc-stat sc-stat--inact">
+          <div class="lbl">Inactive</div>
+          <div class="val">{{ schools_dashboard.inactive }}</div>
+        </div>
+      </div>
+    {% endif %}
+
+    {% url 'core:super_admin:control_center_section' 'schools' as sc_schools_url %}
+    <div class="sc-toolbar flex-column align-items-stretch gap-2" role="search">
+      <div class="d-flex flex-wrap gap-2 align-items-end w-100">
+        <div class="sc-field flex-grow-1">
+          <label for="scSearch">Search</label>
+          <input type="search" id="scSearch" class="form-control" placeholder="School name or code…" autocomplete="off" />
+        </div>
+        <span id="scVisibleCount" class="sc-count align-self-center ms-md-auto" aria-live="polite"></span>
+      </div>
+      <div class="sc-filter-pills flex-wrap" aria-label="Lifecycle filters">
+        <span class="small fw-bold text-muted text-uppercase me-1" style="font-size:0.62rem;letter-spacing:0.06em;">Filter</span>
+        <a href="{{ sc_schools_url }}" class="btn btn-sm btn-outline-secondary{% if lifecycle_filter == 'all' or not lifecycle_filter %} active{% endif %}">All</a>
+        <a href="{{ sc_schools_url }}?lifecycle=active" class="btn btn-sm btn-outline-secondary{% if lifecycle_filter == 'active' %} active{% endif %}">Active</a>
+        <a href="{{ sc_schools_url }}?lifecycle=inactive" class="btn btn-sm btn-outline-secondary{% if lifecycle_filter == 'inactive' %} active{% endif %}">Inactive</a>
+        <a href="{{ sc_schools_url }}?lifecycle=suspended" class="btn btn-sm btn-outline-secondary{% if lifecycle_filter == 'suspended' %} active{% endif %}">Suspended</a>
+        <a href="{{ sc_schools_url }}?lifecycle=archived" class="btn btn-sm btn-outline-secondary{% if lifecycle_filter == 'archived' %} active{% endif %}">Archived</a>
+      </div>
+    </div>
+
+    <div class="sc-grid" id="scGrid">
+      {% for row in school_cards %}
+        {% with s=row.school %}
+          <div
+            class="sc-card"
+            data-search="{{ s.name|lower }} {{ s.code|lower }} {{ row.admin_display|lower }}"
+          >
+            <div class="sc-card-head">
+              <h2 class="sc-card-title mb-0">{{ s.name }}</h2>
+              <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary rounded-pill px-2" type="button" data-bs-toggle="dropdown" data-bs-auto-close="true" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" title="Actions" onclick="event.stopPropagation();">
+                  <i class="bi bi-three-dots-vertical"></i><span class="visually-hidden"> Actions</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                  <li>
+                    <a class="dropdown-item" href="{% url 'core:super_admin:school_master_detail' s.id %}"><i class="bi bi-eye me-2"></i>View</a>
+                  </li>
+                  <li>
+                    <a class="dropdown-item" href="{% url 'core:super_admin:school_master_detail' s.id %}"><i class="bi bi-pencil-square me-2"></i>Edit</a>
+                  </li>
+                  <li><hr class="dropdown-divider"></li>
+                  {% if not s.is_archived and s.school_status != 'suspended' %}
+                    <li>
+                      <form method="post" action="{{ sc_schools_url }}" class="m-0">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="suspend_school_lifecycle">
+                        <input type="hidden" name="school_id" value="{{ s.id }}">
+                        <button type="submit" class="dropdown-item"><i class="bi bi-pause-circle me-2"></i>Suspend</button>
+                      </form>
+                    </li>
+                    <li>
+                      <form method="post" action="{{ sc_schools_url }}" class="m-0">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="school_soft_inactivate">
+                        <input type="hidden" name="school_id" value="{{ s.id }}">
+                        <button type="submit" class="dropdown-item"><i class="bi bi-toggle-off me-2"></i>Inactivate</button>
+                      </form>
+                    </li>
+                    <li>
+                      <form method="post" action="{{ sc_schools_url }}" class="m-0">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="archive_school">
+                        <input type="hidden" name="school_id" value="{{ s.id }}">
+                        <button type="submit" class="dropdown-item"><i class="bi bi-archive me-2"></i>Archive</button>
+                      </form>
+                    </li>
+                  {% endif %}
+                  {% if s.is_archived %}
+                    <li>
+                      <form method="post" action="{{ sc_schools_url }}" class="m-0">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="unarchive_school">
+                        <input type="hidden" name="school_id" value="{{ s.id }}">
+                        <button type="submit" class="dropdown-item"><i class="bi bi-archive me-2"></i>Unarchive</button>
+                      </form>
+                    </li>
+                  {% endif %}
+                  {% if s.school_status == 'suspended' or s.school_status == 'inactive' %}
+                    <li>
+                      <form method="post" action="{{ sc_schools_url }}" class="m-0">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="restore_school_access">
+                        <input type="hidden" name="school_id" value="{{ s.id }}">
+                        <button type="submit" class="dropdown-item text-success"><i class="bi bi-unlock me-2"></i>Restore access</button>
+                      </form>
+                    </li>
+                  {% endif %}
+                  {% if not s.is_active and s.school_status != 'suspended' and s.school_status != 'inactive' and not s.is_archived %}
+                    <li>
+                      <form method="post" action="{{ sc_schools_url }}" class="m-0">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="school_soft_reactivate">
+                        <input type="hidden" name="school_id" value="{{ s.id }}">
+                        <button type="submit" class="dropdown-item"><i class="bi bi-toggle-on me-2"></i>Re-enable (soft)</button>
+                      </form>
+                    </li>
+                  {% endif %}
+                  <li><hr class="dropdown-divider"></li>
+                  <li>
+                    <button
+                      type="button"
+                      class="dropdown-item text-danger sc-open-delete"
+                      data-school-id="{{ s.id }}"
+                      data-school-name="{{ s.name }}"
+                    ><i class="bi bi-trash3 me-2"></i>Delete</button>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <div class="sc-card-meta">
+              {% if s.plan %}
+                <span class="sc-badge-plan">{{ row.plan_label }}</span>
+              {% else %}
+                <span class="sc-badge-plan sc-badge-plan--none">No plan</span>
+              {% endif %}
+              {% if s.is_archived %}
+                <span class="sc-badge-st sc-badge-st--inactive">Archived</span>
+              {% elif s.school_status == "active" %}
+                <span class="sc-badge-st sc-badge-st--active">Active</span>
+              {% elif s.school_status == "trial" %}
+                <span class="sc-badge-st sc-badge-st--trial">Trial</span>
+              {% elif s.school_status == "suspended" %}
+                <span class="sc-badge-st sc-badge-st--suspended">Suspended</span>
+              {% else %}
+                <span class="sc-badge-st sc-badge-st--inactive">{{ s.get_school_status_display }}</span>
+              {% endif %}
+              {% if not s.is_active and not s.is_archived and s.school_status != 'suspended' and s.school_status != 'inactive' %}
+                <span class="sc-badge-st sc-badge-st--inactive">Soft off</span>
+              {% endif %}
+            </div>
+            <div class="sc-card-stu" style="font-size:0.82rem;">
+              <span class="text-muted" style="font-weight:600;">Admin</span>
+              {{ row.admin_display }}
+            </div>
+            <div class="sc-card-stu">{{ row.students }} students<span>· {{ row.teachers }} teachers</span></div>
+            <div class="sc-card-date d-flex flex-wrap align-items-center justify-content-between gap-2">
+              <span>Created {{ s.created_on|date:"M j, Y" }}</span>
+              <a href="{% url 'core:super_admin:school_master_detail' s.id %}" class="btn btn-sm btn-primary rounded-pill">Open panel</a>
+            </div>
+          </div>
+        {% endwith %}
+      {% empty %}
+        <p class="text-muted py-4">No schools found.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{# Modal must live in {% block modals %} (see base.html) — inside overflow/blur panel it breaks backdrop/pointer events. #}
+{% block modals %}
+  {% url 'core:super_admin:control_center_section' 'schools' as sc_schools_url %}
+  <div class="modal fade" id="scDeleteModal" tabindex="-1" aria-labelledby="scDeleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-danger border-opacity-25">
+        <div class="modal-header border-0 pb-0">
+          <h2 class="modal-title h5 fw-bold" id="scDeleteModalLabel">Delete school permanently</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body pt-2">
+          <p class="text-danger small fw-semibold mb-2">⚠️ This will permanently delete the school and all its data. This action cannot be undone.</p>
+          <p class="small text-muted mb-3">Includes users, classes, exams, attendance, messages, and logs in the tenant schema.</p>
+          <form method="post" action="{{ sc_schools_url }}" id="scDeleteForm">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="delete_school">
+            <input type="hidden" name="school_id" value="" id="scDeleteSchoolId">
+            <label for="scDeleteConfirmName" class="form-label small fw-semibold">Type school name to confirm:</label>
+            <input type="text" class="form-control" name="delete_confirm_name" id="scDeleteConfirmName" autocomplete="off" required placeholder="">
+            <div class="d-flex gap-2 mt-4 justify-content-end">
+              <button type="button" class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" class="btn btn-danger rounded-pill">Delete permanently</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block after_bootstrap %}
+<script>
+(function () {
+  var grid = document.getElementById("scGrid");
+  var search = document.getElementById("scSearch");
+  var countEl = document.getElementById("scVisibleCount");
+  if (!grid) return;
+  function applyFilters() {
+    var q = (search && search.value ? search.value : "").trim().toLowerCase();
+    var cards = grid.querySelectorAll(".sc-card");
+    var n = 0;
+    var total = cards.length;
+    cards.forEach(function (el) {
+      var hay = (el.getAttribute("data-search") || "").toLowerCase();
+      var ok = !q || hay.indexOf(q) !== -1;
+      el.style.display = ok ? "" : "none";
+      if (ok) n += 1;
+    });
+    if (countEl) countEl.textContent = n + " / " + total + " visible";
+  }
+  if (search) search.addEventListener("input", applyFilters);
+  applyFilters();
+
+  grid.querySelectorAll(".sc-card .dropdown").forEach(function (dd) {
+    var card = dd.closest(".sc-card");
+    if (!card) return;
+    dd.addEventListener("show.bs.dropdown", function () {
+      card.classList.add("sc-card--dropdown-open");
+    });
+    dd.addEventListener("hide.bs.dropdown", function () {
+      card.classList.remove("sc-card--dropdown-open");
+    });
+  });
+
+  var delModal = document.getElementById("scDeleteModal");
+  var delForm = document.getElementById("scDeleteForm");
+  var delId = document.getElementById("scDeleteSchoolId");
+  var delNameInput = document.getElementById("scDeleteConfirmName");
+  if (delModal && delForm && delId && delNameInput && window.bootstrap) {
+    grid.querySelectorAll(".sc-open-delete").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        delId.value = btn.getAttribute("data-school-id") || "";
+        var nm = btn.getAttribute("data-school-name") || "";
+        delNameInput.value = "";
+        delNameInput.placeholder = nm;
+        var m = window.bootstrap.Modal.getOrCreateInstance(delModal);
+        m.show();
+      });
+    });
+  }
+})();
+</script>
+{% endblock %}

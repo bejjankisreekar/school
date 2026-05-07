@@ -1,0 +1,485 @@
+{% extends "base.html" %}
+
+{% block title %}Billing — {{ school.name }} | Control Center{% endblock %}
+
+{% block content %}
+<style>
+  .bsd-page{
+    min-height: 100%;
+    background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+    padding-bottom: 3rem;
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bsd-page{
+    background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+  }
+  .bsd-shell{ max-width: 1100px; margin: 0 auto; padding: 0 1rem; }
+
+  .bsd-sticky{
+    position: sticky; top: 0; z-index: 1020;
+    background: rgba(248,250,252,.92);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(15,23,42,.08);
+    margin: 0 -1rem 1rem;
+    padding: .75rem 1rem;
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bsd-sticky{
+    background: rgba(15,23,42,.9);
+    border-bottom-color: rgba(148,163,184,.15);
+  }
+
+  .bsd-back{
+    display: inline-flex; align-items: center; gap: .4rem;
+    font-size: .8125rem; font-weight: 700; color: #475569; text-decoration: none;
+    padding: .35rem .75rem; border-radius: 999px;
+    background: #fff; border: 1px solid rgba(15,23,42,.08);
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bsd-back{ color: #cbd5e1; background: rgba(30,41,59,.8); border-color: rgba(148,163,184,.2); }
+
+  .bsd-hero{
+    border-radius: 1.25rem;
+    padding: 1.25rem 1.35rem;
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,.08);
+    box-shadow: 0 20px 50px -18px rgba(15,23,42,.45);
+  }
+  .bsd-hero h1{ font-size: 1.35rem; font-weight: 800; margin: 0 0 .35rem; letter-spacing: -.02em; }
+  .bsd-hero .meta{ opacity: .85; font-size: .875rem; }
+  .bsd-hero-stat{
+    text-align: right;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 14px;
+    padding: .75rem 1rem;
+    min-width: 140px;
+  }
+  .bsd-hero-stat .lbl{ font-size: .65rem; text-transform: uppercase; letter-spacing: .08em; opacity: .75; }
+  .bsd-hero-stat .val{ font-size: 1.35rem; font-weight: 800; margin-top: .15rem; }
+
+  .bsd-summary{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: .75rem;
+    margin: 1rem 0 1.25rem;
+  }
+  .bsd-sum-card{
+    border-radius: 1rem;
+    padding: .85rem 1rem;
+    background: #fff;
+    border: 1px solid rgba(15,23,42,.08);
+    box-shadow: 0 4px 14px -8px rgba(15,23,42,.12);
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bsd-sum-card{
+    background: rgba(30,41,59,.65);
+    border-color: rgba(148,163,184,.15);
+  }
+  .bsd-sum-card .lbl{ font-size: .65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: #64748b; }
+  .bsd-sum-card .val{ font-size: 1.2rem; font-weight: 800; color: #0f172a; margin-top: .2rem; }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bsd-sum-card .val{ color: #f1f5f9; }
+
+  .bsd-config{
+    border-radius: 1.25rem;
+    background: #fff;
+    border: 1px solid rgba(15,23,42,.08);
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bsd-config{
+    background: rgba(30,41,59,.55);
+    border-color: rgba(148,163,184,.15);
+  }
+  .bsd-timeline{
+    display: flex; align-items: center; flex-wrap: wrap; gap: .35rem;
+    font-size: .8rem; font-weight: 600; color: #475569; margin-top: .75rem;
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bsd-timeline{ color: #94a3b8; }
+  .bsd-timeline .seg{ padding: .25rem .5rem; border-radius: 8px; background: rgba(99,102,241,.1); color: #4338ca; }
+  .bsd-timeline .arrow{ opacity: .45; }
+
+  .bsd-month-list{ display: flex; flex-direction: column; gap: .65rem; }
+  .bsd-month{
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: .75rem;
+    align-items: start;
+    border-radius: 1rem;
+    padding: .9rem 1rem;
+    background: #fff;
+    border: 1px solid rgba(15,23,42,.08);
+    box-shadow: 0 2px 10px -6px rgba(15,23,42,.1);
+    transition: border-color .2s, box-shadow .2s;
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bsd-month{
+    background: rgba(30,41,59,.55);
+    border-color: rgba(148,163,184,.12);
+  }
+  .bsd-month--current{
+    border-color: rgba(99,102,241,.45);
+    box-shadow: 0 8px 24px -12px rgba(79,70,229,.35);
+  }
+  .bsd-month--free,
+  .bsd-month--free_period{ border-left: 4px solid #3b82f6; }
+  .bsd-month--paid{ border-left: 4px solid #22c55e; }
+  .bsd-month--pending{ border-left: 4px solid #eab308; }
+  .bsd-month--overdue{ border-left: 4px solid #ef4444; }
+
+  .bsd-month .when{ font-weight: 800; font-size: .95rem; color: #0f172a; }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bsd-month .when{ color: #f8fafc; }
+  .bsd-month .sub{ font-size: .75rem; color: #64748b; margin-top: .15rem; }
+  .bsd-badge{
+    display: inline-block; font-size: .65rem; font-weight: 800; text-transform: uppercase;
+    letter-spacing: .06em; padding: .2rem .5rem; border-radius: 999px;
+  }
+  .bsd-badge--free{ background: rgba(59,130,246,.15); color: #1d4ed8; }
+  .bsd-badge--paid{ background: rgba(34,197,94,.18); color: #15803d; }
+  .bsd-badge--pending{ background: rgba(234,179,8,.2); color: #a16207; }
+  .bsd-badge--overdue{ background: rgba(239,68,68,.18); color: #b91c1c; }
+
+  .bsd-amt{ font-size: 1.1rem; font-weight: 800; color: #0f172a; text-align: right; }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bsd-amt{ color: #f1f5f9; }
+  .bsd-actions{ display: flex; flex-wrap: wrap; gap: .35rem; justify-content: flex-end; margin-top: .5rem; }
+  .bsd-actions .btn{ font-size: .75rem; padding: .25rem .55rem; }
+</style>
+
+<div class="bsd-page">
+  <div class="bsd-sticky">
+    <div class="bsd-shell d-flex flex-wrap align-items-center gap-2 justify-content-between">
+      <a class="bsd-back" href="{{ billing_list_url }}"><i class="bi bi-arrow-left"></i> All schools billing</a>
+      <a class="bsd-back" href="{{ school_master_detail_url }}"><i class="bi bi-building"></i> School profile</a>
+    </div>
+  </div>
+
+  <div class="bsd-shell">
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'debug' %}secondary{% else %}{{ message.tags|default:'info' }}{% endif %} small py-2 mb-2">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+    <div class="bsd-hero mb-3">
+      <div class="row g-3 align-items-start">
+        <div class="col">
+          <h1>{{ school.name }}</h1>
+          <div class="meta">
+            <span class="me-2">Plan: <strong>{{ plan_label }}</strong></span>
+            <span class="me-2">·</span>
+            <span class="me-2">Status: <strong>{{ school.get_school_status_display }}</strong></span>
+            <span class="me-2">·</span>
+            <span>Billing: <strong>{{ school.get_saas_billing_cycle_display }}</strong></span>
+          </div>
+          <div class="meta mt-1 small opacity-75">{{ stu_live }} students (live tenant) · Override: {% if school.billing_student_count_override %}{{ school.billing_student_count_override }}{% else %}—{% endif %}</div>
+        </div>
+        <div class="col-auto">
+          <div class="bsd-hero-stat">
+            <div class="lbl">Outstanding</div>
+            <div class="val">₹{{ totals.outstanding }}</div>
+            {% if last_payment_date %}
+              <div class="small mt-1 opacity-80">Last payment<br>{{ last_payment_date }}</div>
+            {% else %}
+              <div class="small mt-1 opacity-80">No payments recorded</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bsd-summary">
+      <div class="bsd-sum-card">
+        <div class="lbl">Total billed</div>
+        <div class="val">₹{{ totals.total_billed }}</div>
+      </div>
+      <div class="bsd-sum-card">
+        <div class="lbl">Total paid</div>
+        <div class="val">₹{{ totals.total_paid }}</div>
+      </div>
+      <div class="bsd-sum-card">
+        <div class="lbl">Outstanding</div>
+        <div class="val">₹{{ totals.outstanding }}</div>
+      </div>
+    </div>
+
+    <div class="bsd-config">
+      <div class="fw-bold mb-2">Billing configuration</div>
+      <div class="row g-2 small">
+        <div class="col-md-4"><span class="text-muted">Registration</span><br><strong>{% if registration_date %}{{ registration_date }}{% else %}—{% endif %}</strong></div>
+        <div class="col-md-4"><span class="text-muted">Free until</span><br><strong>{% if free_until_date %}{{ free_until_date }}{% else %}—{% endif %}</strong></div>
+        <div class="col-md-4"><span class="text-muted">Billing start</span><br><strong>{% if effective_billing_start %}{{ effective_billing_start }}{% else %}—{% endif %}</strong></div>
+      </div>
+      {% if registration_date or free_until_date or effective_billing_start %}
+      <div class="bsd-timeline mt-2">
+        {% if registration_date %}<span class="seg">{{ registration_date }}</span>{% endif %}
+        {% if free_until_date %}<span class="arrow">—</span><span class="seg">Free → {{ free_until_date }}</span>{% endif %}
+        {% if effective_billing_start %}<span class="arrow">—</span><span class="seg">Billing from {{ effective_billing_start }}</span>{% endif %}
+      </div>
+      {% endif %}
+      <div class="mt-3 d-flex flex-wrap gap-2">
+        <button type="button" class="btn btn-dark btn-sm rounded-pill" id="bsdGenMissing">Generate missing invoices</button>
+        <span class="small text-muted align-self-center">Creates platform invoices for billable months without an issued row (respects free windows).</span>
+      </div>
+    </div>
+
+    <h2 class="h6 fw-bold mb-2">Monthly billing lifecycle</h2>
+    <p class="small text-muted mb-3">From registration through the current month. Free months are ₹0; billable months use plan × students + extra − concession (preview until invoiced).</p>
+
+    <div class="bsd-month-list" id="bsdMonthList">
+      {% for row in timeline_rows %}
+        <article
+          class="bsd-month bsd-month--{{ row.status_slug }}{% if row.is_current %} bsd-month--current{% endif %}"
+          data-year="{{ row.year }}"
+          data-month="{{ row.month|default:'' }}"
+          data-key="{{ row.invoice_month_key }}"
+          data-billable="{% if row.is_billable %}1{% else %}0{% endif %}"
+          data-inv-id="{{ row.invoice_id|default:'' }}"
+          data-status="{{ row.status_slug }}"
+        >
+          <div>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <span class="when">{{ row.label }}</span>
+              {% if row.is_complimentary %}
+                <span class="bsd-badge bsd-badge--free">Complimentary</span>
+              {% elif row.is_free_period %}
+                <span class="bsd-badge bsd-badge--free">Free period</span>
+              {% elif row.status_slug == "paid" %}
+                <span class="bsd-badge bsd-badge--paid">Paid</span>
+              {% elif row.status_slug == "overdue" %}
+                <span class="bsd-badge bsd-badge--overdue">Overdue</span>
+              {% elif row.status_slug == "pending" %}
+                <span class="bsd-badge bsd-badge--pending">Pending</span>
+              {% else %}
+                <span class="bsd-badge bsd-badge--free">{{ row.status_label }}</span>
+              {% endif %}
+              {% if row.is_current %}<span class="badge text-bg-primary rounded-pill" style="font-size:.6rem;">Current</span>{% endif %}
+            </div>
+            <div class="sub">
+              Period {{ row.invoice_month_key }}
+              {% if row.invoice_number %} · {{ row.invoice_number }}{% endif %}
+              {% if row.paid_at_display and row.paid_at_display != "—" %} · Paid {{ row.paid_at_display }}{% endif %}
+            </div>
+          </div>
+          <div>
+            <div class="bsd-amt">{{ row.amount_display }}</div>
+            <div class="bsd-actions">
+              {% if row.is_billable and not row.invoice_id %}
+                <button type="button" class="btn btn-primary btn-sm rounded-pill bsd-gen">Generate invoice</button>
+              {% endif %}
+              {% if row.invoice_id %}
+                {% if row.status_slug == "pending" or row.status_slug == "overdue" %}
+                <a class="btn btn-success btn-sm rounded-pill" href="{% url 'core:super_admin:billing_school_receive_payment' school.pk row.invoice_id %}">Record payment</a>
+                <button type="button" class="btn btn-outline-dark btn-sm rounded-pill bsd-edit-amt" data-inv="{{ row.invoice_id }}" data-grand="{{ row.amount_value }}">Edit amount</button>
+                {% endif %}
+              {% endif %}
+              {% if row.invoice_id %}
+                <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill bsd-view" data-inv="{{ row.invoice_id }}">View breakdown</button>
+              {% elif row.is_billable %}
+                <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill bsd-preview">Preview breakdown</button>
+              {% endif %}
+            </div>
+          </div>
+        </article>
+      {% empty %}
+        <p class="text-muted">No timeline rows (check registration / billing dates).</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<form id="bsdCsrfForm" class="d-none" aria-hidden="true">{% csrf_token %}</form>
+
+{% endblock %}
+
+{# Modal must live in block modals (direct under body) — inside erp-dashboard-panel backdrop-blur traps stacking so backdrop covers an in-content .modal. #}
+{% block modals %}
+<div class="modal fade" id="bsdInvModal" tabindex="-1" aria-labelledby="bsdInvModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-4">
+      <div class="modal-header border-0">
+        <h3 class="modal-title h6 fw-bold" id="bsdInvModalTitle">Invoice breakdown</h3>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body pt-0 small" id="bsdInvModalBody"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block after_bootstrap %}
+<script>
+(function () {
+  var actionUrl = "{{ billing_school_action_url|escapejs }}";
+  var detailsUrl = "{{ billing_school_details_url|escapejs }}";
+
+  function getCsrf() {
+    var m = document.cookie.match(/csrftoken=([^;]+)/);
+    if (m && m[1]) return decodeURIComponent(m[1].trim());
+    var inp = document.querySelector("#bsdCsrfForm input[name=csrfmiddlewaretoken]");
+    return inp ? inp.value : "";
+  }
+
+  function postJson(body) {
+    return fetch(actionUrl, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCsrf(),
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      body: JSON.stringify(body),
+    }).then(function (r) {
+      return r.text().then(function (txt) {
+        var j = {};
+        try {
+          j = txt ? JSON.parse(txt) : {};
+        } catch (e) {
+          j = { error: txt || "Invalid response (" + r.status + ")" };
+        }
+        return { ok: r.ok, body: j };
+      });
+    });
+  }
+
+  function esc(s) {
+    var d = document.createElement("div");
+    d.textContent = s == null ? "" : String(s);
+    return d.innerHTML;
+  }
+
+  var invModal = document.getElementById("bsdInvModal");
+  var bsInv = invModal && typeof bootstrap !== "undefined" ? new bootstrap.Modal(invModal) : null;
+
+  document.getElementById("bsdMonthList") &&
+    document.getElementById("bsdMonthList").addEventListener("click", function (ev) {
+      var t = ev.target.closest(".bsd-gen, .bsd-edit-amt, .bsd-view, .bsd-preview");
+      if (!t) return;
+      var art = t.closest(".bsd-month");
+      if (!art) return;
+      if (t.classList.contains("bsd-gen")) {
+        var y = parseInt(art.getAttribute("data-year"), 10);
+        var m = art.getAttribute("data-month");
+        var body = { action: "generate_invoice", billing_year: y, include_gst: false };
+        if (m !== "" && m != null) body.billing_month = parseInt(m, 10);
+        postJson(body).then(function (res) {
+          if (res.ok && res.body && res.body.ok) window.location.reload();
+          else window.alert((res.body && res.body.error) || "Could not generate");
+        });
+        return;
+      }
+      if (t.classList.contains("bsd-edit-amt")) {
+        var invE = t.getAttribute("data-inv");
+        var curG = t.getAttribute("data-grand") || "";
+        var ng = window.prompt("New grand total (INR)", curG);
+        if (ng === null) return;
+        ng = String(ng).trim();
+        if (!ng) return;
+        postJson({ action: "update_generated_invoice", invoice_id: parseInt(invE, 10), grand_total: ng }).then(
+          function (res) {
+            if (res.ok && res.body && res.body.ok) window.location.reload();
+            else window.alert((res.body && res.body.error) || "Update failed");
+          }
+        );
+        return;
+      }
+      if (t.classList.contains("bsd-view")) {
+        var id = t.getAttribute("data-inv");
+        fetch(detailsUrl, { credentials: "same-origin", headers: { Accept: "application/json" } })
+          .then(function (r) {
+            if (!r.ok) throw new Error("bad status");
+            return r.json();
+          })
+          .then(function (d) {
+            var rows = (d && d.invoices_control_center) || [];
+            var inv = null;
+            for (var i = 0; i < rows.length; i++) {
+              if (String(rows[i].id) === String(id)) {
+                inv = rows[i];
+                break;
+              }
+            }
+            if (!inv) {
+              window.alert("Invoice not found in latest list.");
+              return;
+            }
+            document.getElementById("bsdInvModalTitle").textContent = inv.invoice_number || "Invoice";
+            var html = "<table class='table table-sm mb-0'><tbody>";
+            html += "<tr><td>Period</td><td>" + esc(inv.invoice_month_key || inv.period_label || "—") + "</td></tr>";
+            html += "<tr><td>Status</td><td>" + esc(inv.status_display || inv.status || "—") + "</td></tr>";
+            html += "<tr><td>Base</td><td>₹" + esc(inv.base_amount) + "</td></tr>";
+            html += "<tr><td>Extra</td><td>₹" + esc(inv.extra_amount) + "</td></tr>";
+            html += "<tr><td>Concession</td><td>₹" + esc(inv.concession_amount) + "</td></tr>";
+            html += "<tr><td>Subtotal (pre-GST)</td><td>₹" + esc(inv.subtotal_before_gst) + "</td></tr>";
+            if (inv.include_gst) {
+              html += "<tr><td>GST</td><td>₹" + esc(inv.gst_amount) + "</td></tr>";
+            }
+            html +=
+              "<tr class='fw-bold'><td>Grand total</td><td>₹" +
+              esc(inv.grand_total) +
+              "</td></tr>";
+            if (inv.payment_received && typeof inv.payment_received === "object") {
+              var pr = inv.payment_received;
+              html += "<tr><td colspan='2' class='pt-3 fw-semibold'>Recorded payment</td></tr>";
+              html += "<tr><td>Mode</td><td>" + esc(pr.payment_method_display || pr.payment_method) + "</td></tr>";
+              if (pr.reference) html += "<tr><td>Reference</td><td>" + esc(pr.reference) + "</td></tr>";
+              if (pr.internal_receipt_no)
+                html += "<tr><td>Internal receipt</td><td>" + esc(pr.internal_receipt_no) + "</td></tr>";
+            }
+            html += "</tbody></table>";
+            document.getElementById("bsdInvModalBody").innerHTML = html;
+            if (bsInv) bsInv.show();
+            else window.alert("Bootstrap not loaded — cannot show modal.");
+          })
+          .catch(function () {
+            window.alert("Failed to load invoice details.");
+          });
+        return;
+      }
+      if (t.classList.contains("bsd-preview")) {
+        var py = parseInt(art.getAttribute("data-year"), 10);
+        var pm = art.getAttribute("data-month");
+        var u = detailsUrl + (detailsUrl.indexOf("?") >= 0 ? "&" : "?") + "preview_year=" + py;
+        if (pm) u += "&preview_month=" + encodeURIComponent(pm);
+        fetch(u, { credentials: "same-origin" })
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (d) {
+            var bd = (d && d.breakdown) || {};
+            document.getElementById("bsdInvModalTitle").textContent = "Preview — " + (art.querySelector(".when") || {}).textContent;
+            document.getElementById("bsdInvModalBody").innerHTML =
+              "<table class='table table-sm'>" +
+              "<tr><td>Base</td><td>₹" +
+              esc(bd.base_cost) +
+              "</td></tr>" +
+              "<tr><td>Extra</td><td>₹" +
+              esc(bd.extra_cost) +
+              "</td></tr>" +
+              "<tr><td>Concession</td><td>₹" +
+              esc(bd.concession_cost) +
+              "</td></tr>" +
+              "<tr class='fw-bold'><td>Total (ex GST)</td><td>₹" +
+              esc(bd.final_monthly || bd.final_period) +
+              "</td></tr></table>";
+            if (bsInv) bsInv.show();
+            else window.alert("Bootstrap not loaded — cannot show modal.");
+          })
+          .catch(function () {
+            window.alert("Failed to load preview.");
+          });
+      }
+    });
+
+  document.getElementById("bsdGenMissing") &&
+    document.getElementById("bsdGenMissing").addEventListener("click", function () {
+      if (!window.confirm("Generate invoices for all billable months that are still missing an issued invoice?")) return;
+      postJson({ action: "generate_missing_invoices" }).then(function (res) {
+        if (!res.body || !res.body.ok) {
+          window.alert((res.body && res.body.error) || "Failed");
+          return;
+        }
+        var n = res.body.created || 0;
+        var err = (res.body.errors && res.body.errors.length) || 0;
+        window.alert("Created " + n + " invoice(s)." + (err ? " " + err + " period(s) skipped or failed." : ""));
+        window.location.reload();
+      });
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,774 @@
+{% extends "base.html" %}
+{% load nav_tags %}
+{% block title %}Messages | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <style>
+    .tmsg-page { max-width: 1240px; margin: 0 auto; padding: 0 0.25rem; }
+    .tmsg-card {
+      border-radius: 1.2rem;
+      border: 1px solid var(--bs-border-color-translucent);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 12px 26px rgba(15, 23, 42, 0.07);
+      overflow: hidden;
+    }
+    /* Make chat fill viewport so composer stays visible */
+    .tmsg-shell-h { height: calc(100vh - 190px); min-height: 560px; }
+    .tmsg-sidebar-shell { display: flex; flex-direction: column; }
+    .tmsg-sidebar { overflow: hidden; padding-right: 2px; }
+    .tmsg-sidebar.is-expanded { overflow: auto; }
+    .chat-section { border-radius: 1rem; }
+    .chat-section + .chat-section { margin-top: 0.65rem; }
+    .section-header {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.55rem 0.6rem;
+      border-radius: 0.9rem;
+      background: color-mix(in srgb, var(--bg-card) 94%, transparent);
+      border: 1px solid rgba(148,163,184,0.18);
+      backdrop-filter: blur(8px);
+    }
+    .section-title {
+      font-size: 0.78rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-secondary);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .toggle-btn {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      border: 0;
+      font-weight: 900;
+      line-height: 1;
+      background: rgba(148,163,184,0.12);
+      color: var(--text-primary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 0 0 1px rgba(148,163,184,0.18);
+    }
+    .toggle-btn:hover { background: rgba(148,163,184,0.18); }
+
+    /* Visual differentiation: Students vs Teachers */
+    .section-students .section-header {
+      background: rgba(14,165,233,0.10);
+      border-color: rgba(14,165,233,0.22);
+    }
+    .section-teachers .section-header {
+      background: rgba(245,158,11,0.12);
+      border-color: rgba(245,158,11,0.22);
+    }
+    .section-students .toggle-btn { background: rgba(14,165,233,0.16); box-shadow: inset 0 0 0 1px rgba(14,165,233,0.28); }
+    .section-teachers .toggle-btn { background: rgba(245,158,11,0.18); box-shadow: inset 0 0 0 1px rgba(245,158,11,0.30); }
+    .section-body.hidden { display: none; }
+    .hidden { display: none !important; }
+    .tmsg-search-wrap {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      background: color-mix(in srgb, var(--bg-card) 92%, transparent);
+      padding-bottom: 0.5rem;
+      backdrop-filter: blur(8px);
+    }
+    .tmsg-filter-box {
+      border: 1px solid rgba(148,163,184,0.18);
+      border-radius: 1rem;
+      background: rgba(148,163,184,0.04);
+      padding: 0.75rem;
+    }
+    .tmsg-search-clear {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      border: 0;
+      background: transparent;
+      color: var(--text-secondary);
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .tmsg-search-clear:hover { background: var(--hover-bg); color: var(--text-primary); }
+    .tmsg-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: color-mix(in srgb, var(--bs-primary, #0d6efd) 16%, transparent);
+      color: color-mix(in srgb, var(--bs-primary, #0d6efd) 88%, #111827);
+      font-weight: 800;
+      font-size: .9rem;
+      border: 1px solid color-mix(in srgb, var(--bs-primary, #0d6efd) 22%, transparent);
+      flex: 0 0 auto;
+    }
+    .tmsg-conv {
+      border-radius: 1rem;
+      border: 1px solid rgba(148,163,184,0.22);
+      padding: 0.65rem 0.7rem;
+      background: rgba(148,163,184,0.06);
+      transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+    }
+    .tmsg-conv:hover { transform: translateY(-1px); border-color: rgba(59,130,246,0.28); box-shadow: 0 12px 24px rgba(15,23,42,0.10); }
+    .tmsg-conv.is-active { background: color-mix(in srgb, var(--bs-primary, #0d6efd) 12%, transparent); border-color: rgba(37,99,235,0.30); }
+    .tmsg-conv-name { font-weight: 700; line-height: 1.15; }
+    .tmsg-conv-sub { font-size: .80rem; color: var(--text-secondary); }
+    .tmsg-conv-preview { font-size: .82rem; color: var(--text-secondary); }
+    .tmsg-conv-time { font-size: .75rem; color: var(--text-secondary); white-space: nowrap; }
+
+    .tmsg-chat-shell { display: flex; flex-direction: column; }
+    .tmsg-chat-header { padding: 0.75rem 0.9rem; border-bottom: 1px solid var(--border-color); }
+    .tmsg-thread {
+      flex: 1 1 auto;
+      overflow: auto;
+      padding: 0.75rem;
+      background:
+        radial-gradient(600px 240px at 30% 10%, rgba(59,130,246,0.10), transparent 60%),
+        linear-gradient(180deg, rgba(148,163,184,0.06), transparent);
+    }
+    .tmsg-message { display: flex; margin: 8px 0; }
+    .tmsg-message.me { justify-content: flex-end; }
+    .tmsg-message.them { justify-content: flex-start; }
+    .tmsg-bubble {
+      width: fit-content;
+      max-width: min(66%, 620px);
+      border-radius: 22px;
+      padding: 10px 12px;
+    @media (max-width: 576px) {
+      .tmsg-shell-h { height: calc(100vh - 170px); min-height: 520px; }
+      .tmsg-bubble { max-width: 88%; }
+      .tmsg-chat-header { padding: 0.65rem 0.75rem; }
+      .tmsg-composer { padding: 0.7rem 0.75rem; }
+    }
+      box-shadow: 0 1px 2px rgba(15,23,42,0.10);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      display: inline-flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .tmsg-bubble.me {
+      background: color-mix(in srgb, var(--bs-primary, #0d6efd) 92%, #0b1324);
+      color: #fff;
+      border-top-right-radius: 12px;
+    }
+    .tmsg-bubble.them {
+      background: rgba(148,163,184,0.16);
+      border: 1px solid rgba(148,163,184,0.22);
+      color: var(--text-primary);
+      border-top-left-radius: 12px;
+      box-shadow: none;
+    }
+    .tmsg-meta {
+      font-size: 11px;
+      opacity: 0.78;
+      align-self: flex-end;
+      line-height: 1.1;
+      margin-top: 2px;
+      white-space: nowrap;
+    }
+    .tmsg-bubble.me .tmsg-meta { color: rgba(255,255,255,0.78); }
+    .tmsg-status { font-size: 11px; margin-left: 6px; font-weight: 800; letter-spacing: -0.02em; }
+    .tmsg-status.sent { color: rgba(255,255,255,0.72); }
+    .tmsg-status.delivered { color: rgba(255,255,255,0.88); }
+    .tmsg-status.seen { color: #34d399; text-shadow: 0 0 0.5px rgba(0,0,0,0.35); }
+    .tmsg-status.failed { color: #fecaca; }
+    .tmsg-composer {
+      padding: 0.85rem 1rem;
+      border-top: 1px solid var(--border-color);
+      background: color-mix(in srgb, var(--bg-card) 88%, transparent);
+      position: sticky;
+      bottom: 0;
+      z-index: 2;
+    }
+    .tmsg-input { border-radius: 999px; padding: 0.8rem 1rem; }
+    .tmsg-send {
+      width: 46px;
+      height: 46px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+  </style>
+
+  <div class="tmsg-page">
+    {% if request|feature_access:'platform_messaging' %}
+    <div class="alert alert-info border-0 shadow-sm mb-3 d-flex flex-wrap align-items-center justify-content-between gap-2" role="status">
+      <div class="small">
+        <strong>Super Admin</strong> replies and notices live in <strong>Platform messages</strong>, not in this staff chat list.
+      </div>
+      <a class="btn btn-sm btn-primary rounded-pill flex-shrink-0" href="{% url 'core:school_admin_platform_messages' %}">
+        Open platform messages
+      </a>
+    </div>
+    {% endif %}
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+      <h1 class="h5 fw-bold mb-0"><i class="bi bi-chat-dots me-2"></i>Messages</h1>
+      <div class="d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" data-bs-toggle="modal" data-bs-target="#broadcastModal">
+          <i class="bi bi-megaphone me-1"></i>Broadcast
+        </button>
+        <div class="text-muted small">Admin ↔ Student, Admin ↔ Teacher</div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-12 col-lg-4">
+        <div class="card border-0 tmsg-card">
+          <div class="card-body p-3 tmsg-sidebar-shell tmsg-shell-h">
+            <div class="tmsg-search-wrap">
+              <div class="position-relative">
+                <input id="peerSearch" class="form-control tmsg-input" placeholder="Search conversations..." autocomplete="off">
+                <button id="peerSearchClear" class="tmsg-search-clear" type="button" aria-label="Clear search" title="Clear">
+                  <i class="bi bi-x-lg"></i>
+                </button>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mt-2">
+                <div class="small text-muted">Recent chats</div>
+                {% if not show_all %}
+                  <a class="small text-decoration-none" href="?{% if active_peer_id %}peer={{ active_peer_id }}&{% endif %}all=1">View all</a>
+                {% else %}
+                  <a class="small text-decoration-none" href="{% if active_peer_id %}?peer={{ active_peer_id }}{% else %}.{% endif %}">Compact</a>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="tmsg-sidebar {% if show_all %}is-expanded{% endif %}" id="peerList">
+              <div class="chat-section section-students" data-section-key="students">
+                <div class="section-header">
+                  <span class="section-title"><i class="bi bi-mortarboard"></i>Students</span>
+                  <button class="toggle-btn" type="button" aria-label="Toggle students section" title="Collapse/expand">
+                    −
+                  </button>
+                </div>
+                <div class="section-body d-grid gap-2 mt-2">
+                  <div class="tmsg-filter-box mb-2">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                      <div class="small fw-semibold text-uppercase text-muted" style="letter-spacing:.06em;">Start new chat</div>
+                      <a href="{% url 'notifications:admin_messages' %}" class="small text-decoration-none">Reset</a>
+                    </div>
+                    <div class="row g-2">
+                      <div class="col-12">
+                        <select id="classSelect" class="form-select form-select-sm">
+                          <option value="">Select class…</option>
+                          {% for c in classes %}
+                            <option value="{{ c.id }}">{{ c.name }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="col-6">
+                        <select id="sectionSelect" class="form-select form-select-sm" disabled>
+                          <option value="">Section…</option>
+                        </select>
+                      </div>
+                      <div class="col-6">
+                        <select id="studentSelect" class="form-select form-select-sm" disabled>
+                          <option value="">Student…</option>
+                        </select>
+                      </div>
+                      <div class="col-12">
+                        <input id="studentSearch" class="form-control form-control-sm" placeholder="Search student…" disabled>
+                      </div>
+                    </div>
+                    <div class="small text-muted mt-2">Pick Class → Section → Student to open a new chat.</div>
+                  </div>
+                  {% for p in student_peers %}
+                    <a class="text-decoration-none tmsg-conv-link" href="?peer={{ p.id }}" data-search="{{ p.name }} {{ p.role }} {{ p.last_preview }}">
+                      <div class="tmsg-conv {% if active_peer_id == p.id %}is-active{% endif %}">
+                        <div class="d-flex align-items-center gap-2">
+                          <span class="tmsg-avatar">{{ p.name|slice:":1"|upper }}</span>
+                          <div class="flex-grow-1 min-w-0">
+                            <div class="d-flex justify-content-between align-items-center gap-2">
+                              <div class="tmsg-conv-name text-truncate">{{ p.name }}</div>
+                              <div class="d-flex align-items-center gap-2">
+                                <div class="tmsg-conv-time">{% if p.last_ts %}{{ p.last_ts|date:"g:i A" }}{% endif %}</div>
+                                {% if p.unread %}<span class="badge rounded-pill bg-danger">{{ p.unread }}</span>{% endif %}
+                              </div>
+                            </div>
+                            <div class="tmsg-conv-sub text-truncate">
+                              <span class="badge bg-primary-subtle text-primary">Student</span>
+                            </div>
+                            <div class="tmsg-conv-preview text-truncate">{{ p.last_preview|default:""|truncatechars:15 }}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </a>
+                  {% empty %}
+                    <div class="text-muted small px-2 py-2">No student conversations yet.</div>
+                  {% endfor %}
+                </div>
+              </div>
+
+              <div class="chat-section section-teachers" data-section-key="teachers">
+                <div class="section-header">
+                  <span class="section-title"><i class="bi bi-person-badge"></i>Teachers</span>
+                  <button class="toggle-btn" type="button" aria-label="Toggle teachers section" title="Collapse/expand">
+                    −
+                  </button>
+                </div>
+                <div class="section-body d-grid gap-2 mt-2">
+                  {% for p in teacher_peers %}
+                    <a class="text-decoration-none tmsg-conv-link" href="?peer={{ p.id }}" data-search="{{ p.name }} {{ p.role }} {{ p.last_preview }}">
+                      <div class="tmsg-conv {% if active_peer_id == p.id %}is-active{% endif %}">
+                        <div class="d-flex align-items-center gap-2">
+                          <span class="tmsg-avatar">{{ p.name|slice:":1"|upper }}</span>
+                          <div class="flex-grow-1 min-w-0">
+                            <div class="d-flex justify-content-between align-items-center gap-2">
+                              <div class="tmsg-conv-name text-truncate">{{ p.name }}</div>
+                              <div class="d-flex align-items-center gap-2">
+                                <div class="tmsg-conv-time">{% if p.last_ts %}{{ p.last_ts|date:"g:i A" }}{% endif %}</div>
+                                {% if p.unread %}<span class="badge rounded-pill bg-danger">{{ p.unread }}</span>{% endif %}
+                              </div>
+                            </div>
+                            <div class="tmsg-conv-sub text-truncate">
+                              <span class="badge bg-warning-subtle text-warning">{{ p.role|default:"Teacher" }}</span>
+                            </div>
+                            <div class="tmsg-conv-preview text-truncate">{{ p.last_preview|default:""|truncatechars:15 }}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </a>
+                  {% empty %}
+                    <div class="text-muted small px-2 py-2">No teacher conversations yet.</div>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+            <div id="peerNoResults" class="text-muted small px-2 py-3" style="display:none;">No matches</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-8">
+        <div class="card border-0 tmsg-card">
+          <div class="card-body p-0 tmsg-chat-shell tmsg-shell-h">
+            <div class="tmsg-chat-header d-flex justify-content-between align-items-center">
+              <div class="fw-semibold d-flex align-items-center gap-2">
+                {% if active_peer %}
+                  <span class="tmsg-avatar">{{ active_peer.get_full_name|default:active_peer.username|slice:":1"|upper }}</span>
+                  <span>Chat with: {{ active_peer.get_full_name|default:active_peer.username }}</span>
+                  {% if active_peer.role %}<span class="badge bg-primary-subtle text-primary">{{ active_peer.role }}</span>{% endif %}
+                {% else %}
+                  <i class="bi bi-chat-dots"></i>
+                  <span>Select a conversation or choose a student from filters</span>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="tmsg-thread" id="tmsgThread">
+              {% if active_peer %}
+                {% for m in thread %}
+                  <div class="tmsg-message {% if m.sender_id == request.user.id %}me{% else %}them{% endif %}">
+                    <div class="tmsg-bubble {% if m.sender_id == request.user.id %}me{% else %}them{% endif %}">
+                      <div class="tmsg-text">{{ m.content }}</div>
+                      <div class="tmsg-meta">
+                        {{ m.timestamp|date:"g:i A" }}
+                        {% if m.sender_id == request.user.id %}
+                          {% if m.status == "sent" %}
+                            <span class="tmsg-status sent">✓</span>
+                          {% elif m.status == "delivered" %}
+                            <span class="tmsg-status delivered">✓✓</span>
+                          {% elif m.status == "seen" %}
+                            <span class="tmsg-status seen">✓✓</span>
+                          {% elif m.status == "failed" %}
+                            <span class="tmsg-status failed">❌</span>
+                          {% endif %}
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+                {% empty %}
+                  <div class="text-muted small text-center py-5">No messages yet. Start the conversation.</div>
+                {% endfor %}
+              {% else %}
+                <div class="text-muted small text-center py-5">Choose a user from the left panel to open chat.</div>
+              {% endif %}
+            </div>
+
+            <div class="tmsg-composer">
+              <form method="post" class="d-flex gap-2 align-items-center">
+                {% csrf_token %}
+                <input type="hidden" name="receiver_id" id="receiverId" value="{% if active_peer %}{{ active_peer.id }}{% endif %}">
+                <textarea class="form-control tmsg-input flex-grow-1" id="composerInput" name="content" rows="1" placeholder="Type a message..." {% if not active_peer %}disabled{% endif %} required></textarea>
+                <button class="btn btn-primary tmsg-send" title="Send" aria-label="Send" {% if not active_peer %}disabled{% endif %}>
+                  <i class="bi bi-send"></i>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="broadcastModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-megaphone me-2"></i>Broadcast message</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post">
+        <div class="modal-body">
+          {% csrf_token %}
+          <input type="hidden" name="mode" value="broadcast">
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Send to</label>
+            <select class="form-select" name="broadcast_scope" id="broadcastScope" required>
+              <option value="school">Entire school</option>
+              <option value="class">Specific class</option>
+              <option value="section">Specific section</option>
+            </select>
+            <div class="form-text">Broadcast sends the same message to all matching students.</div>
+          </div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-12">
+              <label class="form-label small fw-semibold">Class</label>
+              <select class="form-select" name="class_id" id="broadcastClass">
+                <option value="">Select class…</option>
+                {% for c in classes %}
+                  <option value="{{ c.id }}">{{ c.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-semibold">Section</label>
+              <select class="form-select" name="section_id" id="broadcastSection" disabled>
+                <option value="">Select section…</option>
+              </select>
+              <div class="form-text">Required only when “Specific section” is selected.</div>
+            </div>
+          </div>
+
+          <div class="mb-0">
+            <label class="form-label small fw-semibold">Message</label>
+            <textarea class="form-control" name="content" rows="4" placeholder="Type your broadcast…" required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-send me-1"></i>Send broadcast
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var el = document.getElementById("tmsgThread");
+    if (!el) return;
+    try { el.scrollTop = el.scrollHeight; } catch (e) {}
+  })();
+
+  (function () {
+    var search = document.getElementById("peerSearch");
+    var clearBtn = document.getElementById("peerSearchClear");
+    var list = document.getElementById("peerList");
+    var emptyEl = document.getElementById("peerNoResults");
+    if (!search || !list) return;
+
+    function applyFilter(q) {
+      q = (q || "").trim().toLowerCase();
+      var items = list.querySelectorAll(".tmsg-conv-link");
+      var shown = 0;
+      for (var i = 0; i < items.length; i++) {
+        var hay = (items[i].getAttribute("data-search") || "").toLowerCase();
+        var ok = !q || hay.indexOf(q) >= 0;
+        items[i].style.display = ok ? "" : "none";
+        if (ok) shown++;
+      }
+      if (emptyEl) emptyEl.style.display = shown ? "none" : "";
+      if (clearBtn) clearBtn.style.display = q ? "inline-flex" : "none";
+    }
+
+    search.addEventListener("input", function () { applyFilter(search.value || ""); });
+    if (clearBtn) clearBtn.addEventListener("click", function () { search.value = ""; applyFilter(""); try { search.focus(); } catch (e) {} });
+    applyFilter("");
+  })();
+
+  document.addEventListener("DOMContentLoaded", function () {
+    function keyFor(sectionKey) { return "admin_messages_section_" + String(sectionKey || ""); }
+
+    function setCollapsed(sectionEl, collapsed) {
+      if (!sectionEl) return;
+      var body = sectionEl.querySelector(".section-body");
+      var btn = sectionEl.querySelector(".toggle-btn");
+      if (!body || !btn) return;
+      body.classList.toggle("hidden", !!collapsed);
+      btn.textContent = collapsed ? "+" : "−";
+    }
+
+    // Restore collapse state
+    var sections = document.querySelectorAll(".chat-section");
+    for (var i = 0; i < sections.length; i++) {
+      var k = sections[i].getAttribute("data-section-key") || "";
+      var stored = null;
+      try { stored = window.localStorage.getItem(keyFor(k)); } catch (e) { stored = null; }
+      if (stored === "collapsed") setCollapsed(sections[i], true);
+      else if (stored === "expanded") setCollapsed(sections[i], false);
+    }
+
+    // Bind toggle buttons
+    var btns = document.querySelectorAll(".toggle-btn");
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].addEventListener("click", function () {
+        // Debug tip: uncomment next line if needed
+        // console.log("Toggle clicked");
+        var section = this.closest ? this.closest(".chat-section") : null;
+        if (!section) {
+          var p = this.parentNode;
+          while (p && p !== document.documentElement) {
+            if (p.classList && p.classList.contains("chat-section")) { section = p; break; }
+            p = p.parentNode;
+          }
+        }
+        if (!section) return;
+        var body = section.querySelector(".section-body");
+        if (!body) return;
+        var collapsed = !body.classList.contains("hidden");
+        setCollapsed(section, collapsed);
+        try { window.localStorage.setItem(keyFor(section.getAttribute("data-section-key")), collapsed ? "collapsed" : "expanded"); } catch (e) {}
+      });
+    }
+
+    // Auto-expand active chat’s section
+    var active = document.querySelector(".tmsg-conv.is-active");
+    if (active) {
+      var parent = active.closest ? active.closest(".chat-section") : null;
+      if (parent) setCollapsed(parent, false);
+    }
+  });
+
+  (function () {
+    var ta = document.getElementById("composerInput");
+    var form = ta ? ta.closest("form") : null;
+    if (!ta) return;
+    function autosize() {
+      try {
+        ta.style.height = "auto";
+        ta.style.height = Math.min(140, ta.scrollHeight) + "px";
+      } catch (e) {}
+    }
+    ta.addEventListener("input", autosize);
+    ta.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        if (form) form.requestSubmit ? form.requestSubmit() : form.submit();
+      }
+    });
+    autosize();
+  })();
+
+  (function () {
+    var classEl = document.getElementById("classSelect");
+    var sectionEl = document.getElementById("sectionSelect");
+    var studentEl = document.getElementById("studentSelect");
+    var studentSearchEl = document.getElementById("studentSearch");
+    if (!classEl || !sectionEl || !studentEl) return;
+
+    var allStudents = [];
+
+    function setDisabled(el, dis) {
+      if (!el) return;
+      el.disabled = !!dis;
+    }
+
+    function resetSections() {
+      sectionEl.innerHTML = '<option value="">Section…</option>';
+      setDisabled(sectionEl, true);
+    }
+    function resetStudents() {
+      studentEl.innerHTML = '<option value="">Student…</option>';
+      setDisabled(studentEl, true);
+      allStudents = [];
+      if (studentSearchEl) { studentSearchEl.value = ""; setDisabled(studentSearchEl, true); }
+    }
+
+    function renderStudents(filterQ) {
+      filterQ = (filterQ || "").trim().toLowerCase();
+      studentEl.innerHTML = '<option value="">Student…</option>';
+      var shown = 0;
+      for (var i = 0; i < allStudents.length; i++) {
+        var s = allStudents[i];
+        if (filterQ && String(s.hay || "").indexOf(filterQ) < 0) continue;
+        if (!s.user_id) continue;
+        var opt = document.createElement("option");
+        opt.value = String(s.user_id);
+        opt.textContent = (s.name || "Student") + " • " + (s.roll_number || "—");
+        studentEl.appendChild(opt);
+        shown++;
+      }
+      setDisabled(studentEl, shown === 0);
+    }
+
+    classEl.addEventListener("change", function () {
+      var classId = (classEl.value || "").trim();
+      resetSections();
+      resetStudents();
+      if (!classId) return;
+
+      sectionEl.innerHTML = '<option value="">Loading…</option>';
+      setDisabled(sectionEl, false);
+
+      fetch("{% url 'notifications:admin_sections_api' %}?class_id=" + encodeURIComponent(classId), { credentials: "include" })
+        .then(function (r) {
+          var ct = (r.headers && r.headers.get) ? (r.headers.get("content-type") || "") : "";
+          if (ct.indexOf("application/json") < 0) throw new Error("Not JSON");
+          return r.json().then(function (data) { return { ok: r.ok, status: r.status, data: data }; });
+        })
+        .then(function (resp) {
+          var data = resp && resp.data ? resp.data : {};
+          if (!resp.ok) throw Object.assign(new Error("HTTP " + String(resp.status || "")), { _data: data, _status: resp.status });
+          var res = (data && data.results) ? data.results : [];
+          sectionEl.innerHTML = '<option value="">Select section…</option>';
+          for (var i = 0; i < res.length; i++) {
+            var o = document.createElement("option");
+            o.value = String(res[i].id);
+            o.textContent = res[i].name || "—";
+            sectionEl.appendChild(o);
+          }
+          setDisabled(sectionEl, false);
+
+          // Auto-select if there is only one section.
+          if (res.length === 1) {
+            sectionEl.value = String(res[0].id);
+            try { sectionEl.dispatchEvent(new Event("change")); } catch (e) {}
+          }
+        })
+        .catch(function (err) {
+          var d = err && err._data ? err._data : null;
+          if (d && d.error === "auth_required") sectionEl.innerHTML = '<option value="">Session expired — refresh page</option>';
+          else if (d && d.error === "forbidden") sectionEl.innerHTML = '<option value="">Not allowed</option>';
+          else sectionEl.innerHTML = '<option value="">Failed to load sections</option>';
+          setDisabled(sectionEl, true);
+        });
+    });
+
+    function loadStudents() {
+      var classId = (classEl.value || "").trim();
+      var sectionId = (sectionEl.value || "").trim();
+      resetStudents();
+      if (!sectionId) return;
+
+      studentEl.innerHTML = '<option value="">Loading…</option>';
+      setDisabled(studentEl, false);
+
+      var url = "{% url 'notifications:admin_students_api' %}?section_id=" + encodeURIComponent(sectionId);
+      if (classId) url += "&class_id=" + encodeURIComponent(classId);
+
+      fetch(url, { credentials: "include" })
+        .then(function (r) {
+          var ct = (r.headers && r.headers.get) ? (r.headers.get("content-type") || "") : "";
+          if (ct.indexOf("application/json") < 0) throw new Error("Not JSON");
+          return r.json().then(function (data) { return { ok: r.ok, status: r.status, data: data }; });
+        })
+        .then(function (resp) {
+          var data = resp && resp.data ? resp.data : {};
+          if (!resp.ok) throw Object.assign(new Error("HTTP " + String(resp.status || "")), { _data: data, _status: resp.status });
+          allStudents = (data && data.results) ? data.results : [];
+          setDisabled(studentSearchEl, false);
+          renderStudents(studentSearchEl ? studentSearchEl.value : "");
+        })
+        .catch(function (err) {
+          allStudents = [];
+          var d = err && err._data ? err._data : null;
+          if (d && d.error === "auth_required") studentEl.innerHTML = '<option value="">Session expired — refresh page</option>';
+          else if (d && d.error === "forbidden") studentEl.innerHTML = '<option value="">Not allowed</option>';
+          else studentEl.innerHTML = '<option value="">Failed to load students</option>';
+          setDisabled(studentEl, true);
+        });
+    }
+
+    sectionEl.addEventListener("change", function () { loadStudents(); });
+    if (studentSearchEl) studentSearchEl.addEventListener("input", function () { renderStudents(studentSearchEl.value || ""); });
+
+    studentEl.addEventListener("change", function () {
+      var uid = (studentEl.value || "").trim();
+      if (!uid) return;
+      try { window.location.href = "?peer=" + encodeURIComponent(uid); } catch (e) {}
+    });
+  })();
+
+  (function () {
+    // Broadcast modal: load sections when class changes.
+    var scopeEl = document.getElementById("broadcastScope");
+    var classEl = document.getElementById("broadcastClass");
+    var sectionEl = document.getElementById("broadcastSection");
+    if (!scopeEl || !classEl || !sectionEl) return;
+
+    function setDisabled(el, dis) { if (!el) return; el.disabled = !!dis; }
+
+    function resetSections() {
+      sectionEl.innerHTML = '<option value="">Select section…</option>';
+      setDisabled(sectionEl, true);
+    }
+
+    function refreshSectionRequired() {
+      var scope = (scopeEl.value || "school");
+      var needsSection = scope === "section";
+      if (!needsSection) {
+        // Allow submit without section.
+        sectionEl.value = "";
+      }
+      // Enable when a class is chosen (section is optional unless scope=section).
+      var classId = (classEl.value || "").trim();
+      setDisabled(sectionEl, !classId);
+      // (Optional) if scope=section and no class/section, server will validate.
+    }
+
+    scopeEl.addEventListener("change", function () {
+      refreshSectionRequired();
+    });
+
+    classEl.addEventListener("change", function () {
+      var classId = (classEl.value || "").trim();
+      resetSections();
+      refreshSectionRequired();
+      if (!classId) return;
+
+      fetch("{% url 'notifications:admin_sections_api' %}?class_id=" + encodeURIComponent(classId), { credentials: "include" })
+        .then(function (r) {
+          var ct = (r.headers && r.headers.get) ? (r.headers.get("content-type") || "") : "";
+          if (ct.indexOf("application/json") < 0) throw new Error("Not JSON");
+          return r.json().then(function (data) { return { ok: r.ok, status: r.status, data: data }; });
+        })
+        .then(function (resp) {
+          var data = resp && resp.data ? resp.data : {};
+          if (!resp.ok) throw Object.assign(new Error("HTTP " + String(resp.status || "")), { _data: data, _status: resp.status });
+          var res = (data && data.results) ? data.results : [];
+          for (var i = 0; i < res.length; i++) {
+            var o = document.createElement("option");
+            o.value = String(res[i].id);
+            o.textContent = res[i].name || "—";
+            sectionEl.appendChild(o);
+          }
+          refreshSectionRequired();
+        })
+        .catch(function () {});
+    });
+
+    resetSections();
+    refreshSectionRequired();
+  })();
+</script>
+{% endblock %}

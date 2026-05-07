@@ -11,12 +11,12 @@
 
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
     <h1 class="h4 fw-bold mb-0">Class Management</h1>
-    {% if total_classes %}
+    {% if classes and classes.paginator.count %}
       <a href="{% url 'core:school_class_add' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Class</a>
     {% endif %}
   </div>
 
-  {% if total_classes == 0 %}
+  {% if not classes or classes.paginator.count == 0 %}
     {% url 'core:school_academic_years' as academic_years_url %}
     {% url 'core:school_class_add' as class_add_url %}
     {% include "core/school/includes/empty_module_state.html" with em_title="No classes created yet" em_body="Create an academic year if needed, then add grade levels for your school. Only your workspace is shown — data from other schools is never mixed in." em_icon="bi-mortarboard" em_cta_label="+ Create first class" em_url=class_add_url %}

@@ -23,7 +23,7 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 from django.db import connection, transaction
-from django.db.models import Case, Count, F, IntegerField, Max, Min, Prefetch, Q, Sum, Value, When
+from django.db.models import Case, Count, F, IntegerField, Max, Min, OuterRef, Prefetch, Q, Subquery, Sum, Value, When
 from django.db.models.functions import Lower
 from django.core.paginator import Paginator
 from django.db.utils import DatabaseError, InternalError, IntegrityError, OperationalError, ProgrammingError
@@ -56,6 +56,7 @@ from apps.school_data.models import (
     Attendance,
     Homework,
     HomeworkSubmission,
+    HomeworkSubmissionAttempt,
     Marks,
     Subject,
     ClassRoom,
@@ -63,6 +64,7 @@ from apps.school_data.models import (
     ExamSession,
     Section,
     ClassSectionSubjectTeacher,
+    ClassSectionTeacher,
     AcademicYear,
     FeeType,
     FeeStructure,
@@ -95,6 +97,9 @@ from apps.school_data.models import (
     HolidayEvent,
     WorkingSundayOverride,
     MasterDataOption,
+    StudentResource,
+    StudentMessage,
+    StudentAnnouncement,
 )
 User = get_user_model()
 from .utils import (
@@ -129,6 +134,92 @@ from apps.accounts.decorators import (
 )
 from apps.core.pdf_utils import pdf_response, render_pdf_bytes
 from apps.core.student_attendance_services import get_student_attendance_summary
+from apps.notifications.models import Message as InternalMessage
+
+
+def _distinct_day_streak(dates_desc: list[date]) -> int:
+    """
+    Return consecutive-day streak length from a descending list of dates (deduped not required).
+    """
+    if not dates_desc:
+        return 0
+    # Dedup while keeping desc order
+    seen = set()
+    days = []
+    for d in dates_desc:
+        if d in seen:
+            continue
+        seen.add(d)
+        days.append(d)
+    if not days:
+        return 0
+    streak = 1
+    for i in range(1, len(days)):
+        if (days[i - 1] - days[i]).days == 1:
+            streak += 1
+        else:
+            break
+    return streak
+
+
+def _compute_student_achievement_badges(*, student, attendance_pct: float, overall_pct: float) -> list[dict]:
+    """
+    Compute and award student achievement badges (safe, idempotent).
+    Returns template-friendly list of dicts.
+    """
+    try:
+        # Homework streak: consecutive submission days (based on attempt log)
+        hw_days = list(
+            HomeworkSubmissionAttempt.objects.filter(student=student)
+            .exclude(submitted_at__isnull=True)
+            .order_by("-submitted_at")
+            .values_list("submitted_at", flat=True)[:40]
+        )
+        hw_day_dates = [dt.date() for dt in hw_days if dt]
+        homework_streak_days = _distinct_day_streak(hw_day_dates)
+    except Exception:
+        homework_streak_days = 0
+
+    earned = []
+    try:
+        perfect_attendance, _ = Badge.objects.get_or_create(
+            name="Perfect Attendance 🏆",
+            defaults={"description": "Awarded for 100% attendance in the academic year.", "icon": "bi bi-award-fill"},
+        )
+        top_scorer, _ = Badge.objects.get_or_create(
+            name="Top Scorer 🎖️",
+            defaults={"description": "Awarded for 90%+ overall marks.", "icon": "bi bi-trophy-fill"},
+        )
+        homework_streak, _ = Badge.objects.get_or_create(
+            name="Homework Streak 🔥",
+            defaults={"description": "Awarded for 5+ consecutive homework submission days.", "icon": "bi bi-fire"},
+        )
+    except (OperationalError, ProgrammingError):
+        return []
+
+    def _award(badge, *, tone: str, meta: str):
+        try:
+            StudentBadge.objects.get_or_create(student=student, badge=badge)
+        except Exception:
+            pass
+        earned.append(
+            {
+                "name": badge.name,
+                "icon": getattr(badge, "icon", "") or "bi bi-star-fill",
+                "description": getattr(badge, "description", "") or "",
+                "tone": tone,  # success | danger | primary | warning
+                "meta": meta,
+            }
+        )
+
+    if attendance_pct >= 100 and attendance_pct > 0:
+        _award(perfect_attendance, tone="success", meta=f"{attendance_pct}% attendance")
+    if overall_pct >= 90:
+        _award(top_scorer, tone="primary", meta=f"{overall_pct}% overall")
+    if homework_streak_days >= 5:
+        _award(homework_streak, tone="warning", meta=f"{homework_streak_days} day streak")
+
+    return earned
 
 # ======================
 # Public Pages
@@ -139,7 +230,74 @@ def home(request):
 
 
 def pricing(request):
-    return render(request, "marketing/pricing.html")
+    # Public page: always use public schema for plan marketing.
+    try:
+        from django.db import connection
+
+        connection.set_schema_to_public()
+    except Exception:
+        pass
+
+    comparison = None
+    pricing_plans = []
+    try:
+        from apps.super_admin.models import Feature, Plan, PlanName
+
+        plans_by_key = {p.name: p for p in Plan.objects.filter(is_active=True).prefetch_related("features")}
+        ordered_plans = [plans_by_key.get(PlanName.BASIC), plans_by_key.get(PlanName.PRO), plans_by_key.get(PlanName.PREMIUM)]
+        ordered_plans = [p for p in ordered_plans if p is not None]
+
+        pricing_plans = [
+            {
+                "id": p.id,
+                "key": p.name,
+                "label": p.get_name_display(),
+                "price": p.price,
+                "list_price": getattr(p, "list_price", None) or 0,
+                "recommended": p.name == PlanName.PREMIUM,
+            }
+            for p in ordered_plans
+        ]
+
+        plan_cols = [{"id": p.id, "key": p.name, "label": p.get_name_display()} for p in ordered_plans]
+        plan_codes = {p.id: set(p.features.values_list("code", flat=True)) for p in ordered_plans}
+
+        features = list(Feature.objects.all().order_by("category", "name"))
+        groups: list[dict] = []
+        current_cat = None
+        current_rows = []
+
+        def _flush():
+            nonlocal current_cat, current_rows
+            if current_cat is None:
+                return
+            groups.append({"category": current_cat, "rows": current_rows})
+            current_cat = None
+            current_rows = []
+
+        for f in features:
+            cat = (getattr(f, "category", "") or "other").strip().lower()
+            if current_cat is None:
+                current_cat = cat
+            if cat != current_cat:
+                _flush()
+                current_cat = cat
+            states = []
+            for col in plan_cols:
+                states.append(
+                    {
+                        "key": col["key"],
+                        "enabled": bool(f.code in plan_codes.get(col["id"], set())),
+                    }
+                )
+            current_rows.append({"feature": f, "states": states})
+        _flush()
+
+        comparison = {"plan_cols": plan_cols, "groups": groups}
+    except Exception:
+        comparison = None
+
+    return render(request, "marketing/pricing.html", {"comparison": comparison, "pricing_plans": pricing_plans})
 
 
 def about(request):
@@ -150,38 +308,144 @@ def about(request):
 def school_enrollment_signup(request):
     """
     Public self-service signup: creates School (tenant + migrations), admin User, seeds tenant,
-    logs the user in, redirects to school admin dashboard.
+    then redirects to this page (GET) with a success screen so the browser gets a light response
+    after the heavy provisioning work (avoids connection resets on long POSTs).
     """
     from .enrollment_storage import ensure_school_enrollment_storage
     from .self_service_enrollment import SelfServiceEnrollmentError, provision_school_and_admin_user
 
     success = request.GET.get("success") == "1"
+    enrollment_success = None
+    enrollment_error = None
+    if request.GET.get("completed") == "1":
+        enrollment_success = request.session.pop("enrollment_success", None)
+        if not enrollment_success:
+            return redirect(reverse("core:school_enroll"))
+    if request.GET.get("failed") == "1":
+        enrollment_error = request.session.pop("enrollment_error", None)
+        if not enrollment_error:
+            return redirect(reverse("core:school_enroll"))
+
     enroll_generic_error = (
         "We couldn't complete your enrollment right now. Please try again in a few moments, "
         "or contact support if the problem continues."
     )
     if request.method == "POST":
-        form = SchoolEnrollmentSignupForm(request.POST)
+        form = SchoolEnrollmentSignupForm(request.POST, request.FILES)
         if form.is_valid():
             ensure_school_enrollment_storage()
             try:
-                _, user = provision_school_and_admin_user(form.cleaned_data)
+                school, user = provision_school_and_admin_user(form.cleaned_data)
             except SelfServiceEnrollmentError as exc:
                 form.add_error(None, str(exc))
             except Exception:
                 logger.exception("Self-service enrollment failed")
-                form.add_error(None, enroll_generic_error)
+                request.session["enrollment_error"] = enroll_generic_error
+                return redirect(f"{reverse('core:school_enroll')}?failed=1")
             else:
-                auth_login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-                request.session["show_enrollment_welcome"] = True
-                return redirect("core:admin_dashboard")
+                request.session["enrollment_success"] = {
+                    "school_name": school.name,
+                    "school_code": school.code,
+                    "username": user.username,
+                    "schema_name": school.schema_name,
+                }
+                # After provisioning, send the user to login rather than keeping them on /enroll/.
+                # This avoids being "stuck" on the enrollment page and aligns with production UX.
+                try:
+                    messages.success(
+                        request,
+                        f"School created successfully. Login with username “{user.username}”.",
+                    )
+                except Exception:
+                    pass
+                return redirect(reverse("accounts:login"))
     else:
         form = SchoolEnrollmentSignupForm()
-    return render(request, "marketing/enroll.html", {"form": form, "success": success})
+
+    enroll_plans: list[dict] = []
+    try:
+        from django.db import connection
+
+        connection.set_schema_to_public()
+        from apps.super_admin.models import Plan, PlanName
+
+        plans_by_key = {p.name: p for p in Plan.objects.filter(is_active=True)}
+        ordered = [
+            plans_by_key.get(PlanName.BASIC),
+            plans_by_key.get(PlanName.PRO),
+            plans_by_key.get(PlanName.PREMIUM),
+        ]
+        enroll_plans = [
+            {
+                "key": p.name,
+                "label": p.get_name_display(),
+                "price": p.price,
+                "list_price": getattr(p, "list_price", None) or 0,
+                "recommended": p.name == PlanName.PREMIUM,
+            }
+            for p in ordered
+            if p is not None
+        ]
+    except Exception:
+        enroll_plans = []
+
+    if not enroll_plans:
+        from decimal import Decimal
+
+        enroll_plans = [
+            {
+                "key": "basic",
+                "label": "Basic",
+                "price": Decimal("49"),
+                "list_price": Decimal("59"),
+                "recommended": False,
+            },
+            {
+                "key": "pro",
+                "label": "Pro",
+                "price": Decimal("79"),
+                "list_price": Decimal("89"),
+                "recommended": False,
+            },
+            {
+                "key": "premium",
+                "label": "Premium",
+                "price": Decimal("89"),
+                "list_price": Decimal("99"),
+                "recommended": True,
+            },
+        ]
+
+    return render(
+        request,
+        "marketing/enroll.html",
+        {
+            "form": form,
+            "success": success,
+            "enrollment_success": enrollment_success,
+            "enrollment_error": enrollment_error,
+            "enroll_plans": enroll_plans,
+        },
+    )
 
 
 def contact(request):
     success = request.GET.get("success") == "1"
+    # Company contact details are stored in DB on the public tenant record.
+    # We reuse the public tenant School row (schema_name="public") as the platform/company profile.
+    company = None
+    try:
+        from apps.customers.models import School
+
+        company = School.objects.filter(schema_name="public").only("name", "phone", "contact_email", "address").first()
+    except Exception:
+        company = None
+
+    prefill = (request.GET.get("prefill") or "").strip().lower()
+    initial = {}
+    if prefill == "trial_expired":
+        initial["message"] = "My trial has expired, I want to upgrade my plan."
+
     if request.method == "POST":
         form = ContactEnquiryForm(request.POST)
         if form.is_valid():
@@ -207,8 +471,12 @@ def contact(request):
             # Redirect to avoid duplicate submission (PRG pattern)
             return redirect(f"{reverse('core:contact')}?success=1")
     else:
-        form = ContactEnquiryForm()
-    return render(request, "marketing/contact.html", {"form": form, "success": success})
+        form = ContactEnquiryForm(initial=initial)
+    return render(
+        request,
+        "marketing/contact.html",
+        {"form": form, "success": success, "company": company, "prefill": prefill},
+    )
 
 
 # ======================
@@ -645,6 +913,8 @@ def superadmin_enrollment_detail(request, pk: int):
                     if loc:
                         addr_parts.append(loc)
                     meta_bits = []
+                    if getattr(enrollment, "society_name", None) and (enrollment.society_name or "").strip():
+                        meta_bits.append(f"Society: {enrollment.society_name.strip()}")
                     if (enrollment.institution_code or "").strip():
                         meta_bits.append(f"Code: {enrollment.institution_code.strip()}")
                     for label, val in (
@@ -1185,7 +1455,11 @@ def superadmin_financials(request):
 def superadmin_subscription_payments(request):
     """Ledger of SaaS subscription money received from schools (platform operator)."""
     qs = SaaSPlatformPayment.objects.select_related(
-        "school", "recorded_by", "subscription", "subscription__plan"
+        "school",
+        "recorded_by",
+        "subscription",
+        "subscription__plan",
+        "school_generated_invoice",
     ).order_by("-payment_date", "-id")
     paginator = Paginator(qs, 40)
     page = paginator.get_page(request.GET.get("page", 1))
@@ -1919,7 +2193,7 @@ def admin_dashboard(request):
 
     from apps.customers.subscription import PLAN_FEATURES
 
-    sub_plan = school.plan
+    sub_plan = school.billing_plan
     trial_active = (
         school.school_status == School.SchoolStatus.TRIAL
         and sub_plan
@@ -1931,7 +2205,7 @@ def admin_dashboard(request):
     if trial_active and school.trial_end_date:
         trial_days_left = max((school.trial_end_date - today).days, 0)
 
-    saas = school.saas_plan
+    saas = None
     plan_display_name = None
     if trial_active:
         current_plan = sub_plan
@@ -1940,10 +2214,6 @@ def admin_dashboard(request):
         plan_features = list(
             dict.fromkeys(PLAN_FEATURES.get("pro", []) + PLAN_FEATURES.get("basic", []))
         )
-    elif saas:
-        current_plan = saas
-        plan_name = (saas.name or "").lower()
-        plan_features = list(saas.features.values_list("code", flat=True))
     else:
         plan_name = (sub_plan.name if sub_plan else "").lower() or "basic"
         plan_features = PLAN_FEATURES.get(plan_name, [])
@@ -2377,6 +2647,11 @@ def student_dashboard(request):
     )
     current_streak, best_streak = _attendance_streaks(attendance_year_records)
     insight_level, insight_message = _attendance_insight(attendance_pct)
+    achievement_badges = _compute_student_achievement_badges(
+        student=student,
+        attendance_pct=attendance_pct,
+        overall_pct=overall_pct,
+    )
 
     cal_nav = _student_dashboard_calendar_nav(request, today, ay_start, ay_end)
     calendar_cells = _build_calendar_data(
@@ -2459,6 +2734,7 @@ def student_dashboard(request):
         "calendar_showing_today_month": calendar_showing_today_month,
         "current_streak": current_streak,
         "best_streak": best_streak,
+        "achievement_badges": achievement_badges,
         "insight_level": insight_level,
         "insight_message": insight_message,
         "attendance_pct": attendance_pct,
@@ -2488,6 +2764,8 @@ def student_profile(request):
     student = getattr(request.user, "student_profile", None)
     if not student:
         raise PermissionDenied
+
+    extra = student.extra_data or {}
 
     def _calculate_profile_completion(_student):
         """Return completion % based on filled student fields."""
@@ -2522,6 +2800,10 @@ def student_profile(request):
                 name="Consistency King",
                 defaults={"description": "Awarded for 7+ present-day streak.", "icon": "bi bi-fire"},
             )
+            homework_streak, _ = Badge.objects.get_or_create(
+                name="Homework Streak 🔥",
+                defaults={"description": "Awarded for 5+ consecutive homework submission days.", "icon": "bi bi-fire"},
+            )
         except (OperationalError, ProgrammingError):
             # If tables are temporarily out of sync, keep profile usable.
             return []
@@ -2535,6 +2817,19 @@ def student_profile(request):
             to_award.append(top_performer)
         if current_streak >= 7:
             to_award.append(consistency_king)
+        # Homework streak (based on attempt log)
+        try:
+            hw_days = list(
+                HomeworkSubmissionAttempt.objects.filter(student=_student)
+                .exclude(submitted_at__isnull=True)
+                .order_by("-submitted_at")
+                .values_list("submitted_at", flat=True)[:40]
+            )
+            hw_day_dates = [dt.date() for dt in hw_days if dt]
+            if _distinct_day_streak(hw_day_dates) >= 5:
+                to_award.append(homework_streak)
+        except Exception:
+            pass
 
         awarded = []
         for badge in to_award:
@@ -2592,6 +2887,15 @@ def student_profile(request):
         "core/student_dashboard/profile.html",
         {
             "student": student,
+            "extra": extra,
+            "extra_basic": (extra.get("basic", {}) or {}),
+            "extra_academic": (extra.get("academic", {}) or {}),
+            "extra_parents": (extra.get("parents", {}) or {}),
+            "extra_contact": (extra.get("contact", {}) or {}),
+            "extra_medical": (extra.get("medical", {}) or {}),
+            "extra_th": (extra.get("transport_hostel", {}) or {}),
+            "extra_billing": (extra.get("billing", {}) or {}),
+            "extra_status": (extra.get("status", {}) or {}),
             "profile_completion": profile_completion,
             "attendance_percentage": attendance_percentage,
             "total_exams": total_exams,
@@ -2603,35 +2907,241 @@ def student_profile(request):
 
 @student_required
 def edit_profile(request):
+    # Backward-compatible route: redirect to the new full profile settings page.
+    return redirect("core:student_profile_settings")
+
+
+@student_required
+def student_profile_settings(request):
+    """
+    Student self-service profile page.
+    Shows all relevant fields (including extra_data) and allows editing only safe fields.
+    """
     student = getattr(request.user, "student_profile", None)
     if not student:
         raise PermissionDenied
+    if getattr(student, "user_id", None) != getattr(request.user, "id", None):
+        raise PermissionDenied
 
-    if request.method == "POST":
-        phone = (request.POST.get("phone") or "").strip()
-        address = (request.POST.get("address") or "").strip()
-        profile_image = request.FILES.get("profile_image")
+    from .forms import StudentProfileForm
 
-        if phone and len(phone) > 15:
-            messages.error(request, "Phone number must be at most 15 characters.")
-            return redirect("core:edit_profile_web")
+    extra = student.extra_data or {}
+    basic = extra.get("basic", {}) or {}
+    parents = extra.get("parents", {}) or {}
+    contact = extra.get("contact", {}) or {}
+    medical = extra.get("medical", {}) or {}
 
-        if profile_image:
-            content_type = getattr(profile_image, "content_type", "") or ""
-            if not content_type.startswith("image/"):
-                messages.error(request, "Please upload a valid image file for profile picture.")
-                return redirect("core:edit_profile_web")
+    initial = {
+        "_request_user_id": request.user.id,
+        # Locked identifiers (display only)
+        "username": request.user.username or "",
+        "admission_number": student.admission_number or "",
+        "roll_number": student.roll_number or "",
+        "classroom": getattr(student.classroom, "name", "") if student.classroom else "",
+        "section": getattr(student.section, "name", "") if student.section else "",
+        "academic_year": getattr(student.academic_year, "name", "") if student.academic_year else "",
+        # User personal
+        "first_name": request.user.first_name or "",
+        "last_name": request.user.last_name or "",
+        # Student core
+        "date_of_birth": student.date_of_birth,
+        "gender": student.gender or "",
+        "student_mobile": student.phone or "",
+        "address_line1": (student.address or "").split("\n")[0] if student.address else "",
+        "address_line2": (student.address or "").split("\n")[1] if student.address and "\n" in student.address else "",
+        "email": request.user.email or "",
+        # Basic (extra_data)
+        "blood_group": basic.get("blood_group") or "",
+        "id_number": basic.get("id_number") or "",
+        "nationality": basic.get("nationality") or "",
+        "religion": basic.get("religion") or "",
+        "mother_tongue": basic.get("mother_tongue") or "",
+        # Parents (extra_data + a couple top-level convenience fields)
+        "father_name": parents.get("father_name") or "",
+        "father_mobile": parents.get("father_mobile") or "",
+        "father_occupation": parents.get("father_occupation") or "",
+        "mother_name": parents.get("mother_name") or "",
+        "mother_mobile": parents.get("mother_mobile") or "",
+        "mother_occupation": parents.get("mother_occupation") or "",
+        "guardian_name": parents.get("guardian_name") or "",
+        "guardian_relation": parents.get("guardian_relation") or "",
+        "guardian_phone": parents.get("guardian_phone") or "",
+        "parent_name": student.parent_name or "",
+        "parent_phone": student.parent_phone or "",
+        "student_email": parents.get("student_email") or "",
+        # Contact (extra_data)
+        "city": contact.get("city") or "",
+        "district": contact.get("district") or "",
+        "state": contact.get("state") or "",
+        "pincode": contact.get("pincode") or "",
+        "country": contact.get("country") or "",
+        # Medical (extra_data)
+        "emergency_contact_name": medical.get("emergency_contact_name") or "",
+        "emergency_phone": medical.get("emergency_phone") or "",
+        "allergies": medical.get("allergies") or "",
+        "medical_conditions": medical.get("medical_conditions") or "",
+        "doctor_name": medical.get("doctor_name") or "",
+        "hospital": medical.get("hospital") or "",
+        "insurance_details": medical.get("insurance_details") or "",
+    }
 
-        student.phone = phone or None
-        student.address = address or None
-        if profile_image:
-            student.profile_image = profile_image
-        student.save(update_fields=["phone", "address", "profile_image"])
+    form = StudentProfileForm(
+        data=(request.POST or None),
+        files=(request.FILES or None),
+        initial=initial,
+    )
 
+    if request.method == "POST" and form.is_valid():
+        data = form.cleaned_data
+
+        changed = False
+
+        # User account email + name (allowed)
+        user_update_fields = []
+        new_email = (data.get("email") or "").strip()
+        if (request.user.email or "") != new_email:
+            request.user.email = new_email
+            user_update_fields.append("email")
+        new_first = (data.get("first_name") or "").strip()
+        if (request.user.first_name or "") != new_first:
+            request.user.first_name = new_first
+            user_update_fields.append("first_name")
+        new_last = (data.get("last_name") or "").strip()
+        if (request.user.last_name or "") != new_last:
+            request.user.last_name = new_last
+            user_update_fields.append("last_name")
+        if user_update_fields:
+            request.user.save(update_fields=user_update_fields)
+            changed = True
+
+        # Student model: safe updates only
+        new_dob = data.get("date_of_birth")
+        if student.date_of_birth != new_dob:
+            student.date_of_birth = new_dob
+            changed = True
+
+        new_gender = data.get("gender") or ""
+        if (student.gender or "") != new_gender:
+            student.gender = new_gender
+            changed = True
+
+        new_address = (
+            "\n".join([data.get("address_line1") or "", data.get("address_line2") or ""]).strip() or None
+        )
+        if (student.address or None) != new_address:
+            student.address = new_address
+            changed = True
+
+        new_parent_name = (data.get("parent_name") or "").strip()
+        if (student.parent_name or "") != new_parent_name:
+            student.parent_name = new_parent_name
+            changed = True
+
+        new_parent_phone = (data.get("parent_phone") or "").strip()
+        if (student.parent_phone or "") != new_parent_phone:
+            student.parent_phone = new_parent_phone
+            changed = True
+
+        if data.get("profile_image"):
+            student.profile_image = data.get("profile_image")
+            changed = True
+
+        # Student.extra_data: merge into existing keys; do not overwrite academic/system blocks
+        merged = dict(extra or {})
+        merged_basic = dict(basic or {})
+        merged_parents = dict(parents or {})
+        merged_contact = dict(contact or {})
+        merged_medical = dict(medical or {})
+
+        new_basic_payload = {
+            "blood_group": data.get("blood_group") or "",
+            "id_number": data.get("id_number") or "",
+            "nationality": data.get("nationality") or "",
+            "religion": data.get("religion") or "",
+            "mother_tongue": data.get("mother_tongue") or "",
+        }
+        for k, v in new_basic_payload.items():
+            if (merged_basic.get(k) or "") != v:
+                changed = True
+            merged_basic[k] = v
+
+        new_parents_payload = {
+            "father_name": data.get("father_name") or "",
+            "father_mobile": data.get("father_mobile") or "",
+            "father_occupation": data.get("father_occupation") or "",
+            "mother_name": data.get("mother_name") or "",
+            "mother_mobile": data.get("mother_mobile") or "",
+            "mother_occupation": data.get("mother_occupation") or "",
+            "guardian_name": data.get("guardian_name") or "",
+            "guardian_relation": data.get("guardian_relation") or "",
+            "guardian_phone": data.get("guardian_phone") or "",
+            "student_email": (data.get("student_email") or "").strip(),
+        }
+        for k, v in new_parents_payload.items():
+            if (merged_parents.get(k) or "") != v:
+                changed = True
+            merged_parents[k] = v
+
+        new_contact_payload = {
+            "city": data.get("city") or "",
+            "district": data.get("district") or "",
+            "state": data.get("state") or "",
+            "pincode": data.get("pincode") or "",
+            "country": data.get("country") or "",
+        }
+        for k, v in new_contact_payload.items():
+            if (merged_contact.get(k) or "") != v:
+                changed = True
+            merged_contact[k] = v
+
+        new_medical_payload = {
+            "emergency_contact_name": data.get("emergency_contact_name") or "",
+            "emergency_phone": data.get("emergency_phone") or "",
+            "allergies": data.get("allergies") or "",
+            "medical_conditions": data.get("medical_conditions") or "",
+            "doctor_name": data.get("doctor_name") or "",
+            "hospital": data.get("hospital") or "",
+            "insurance_details": data.get("insurance_details") or "",
+        }
+        for k, v in new_medical_payload.items():
+            if (merged_medical.get(k) or "") != v:
+                changed = True
+            merged_medical[k] = v
+
+        merged["basic"] = merged_basic
+        merged["parents"] = merged_parents
+        merged["contact"] = merged_contact
+        merged["medical"] = merged_medical
+        if student.extra_data != merged:
+            student.extra_data = merged
+            changed = True
+
+        if not changed:
+            messages.info(
+                request,
+                "No editable changes to save.",
+            )
+            return redirect("core:student_profile_settings")
+
+        student.save()
         messages.success(request, "Profile updated successfully.")
-        return redirect("core:student_profile")
+        return redirect("core:student_profile_settings")
 
-    return render(request, "core/student_dashboard/edit_profile.html", {"student": student})
+    ctx = {
+        "student": student,
+        "form": form,
+        "readonly": {
+            "username": request.user.username,
+            "email": request.user.email,
+            "admission_number": student.admission_number,
+            "roll_number": student.roll_number,
+            "academic_year": getattr(student.academic_year, "name", "") if student.academic_year else "",
+            "classroom": getattr(student.classroom, "name", "") if student.classroom else "",
+            "section": getattr(student.section, "name", "") if student.section else "",
+        },
+        "extra_data": extra,
+    }
+    return render(request, "core/student_dashboard/profile_settings.html", ctx)
 
 
 def _grade_from_pct(pct):
@@ -3301,6 +3811,20 @@ def student_attendance(request):
     leave_days = qs.filter(status="LEAVE").count()
     percentage = round((present_days / total_days * 100) if total_days > 0 else 0, 2)
 
+    # Trend chart (use full filtered range, not just current page)
+    trend_rows = list(qs.order_by("date").values_list("date", "status"))
+    trend_labels = []
+    trend_pct = []
+    cum_total = 0
+    cum_present = 0
+    for dt, st in trend_rows:
+        cum_total += 1
+        if st == "PRESENT":
+            cum_present += 1
+        pct_val = round((cum_present / cum_total * 100) if cum_total else 0, 2)
+        trend_labels.append(dt.isoformat())
+        trend_pct.append(pct_val)
+
     # Pagination
     limit_raw = (request.GET.get("limit") or "10").strip()
     try:
@@ -3445,6 +3969,8 @@ def student_attendance(request):
         "per_page": per_page,
         "limit_choices": [10, 25, 50],
         "pagination_qs": _build_querystring_without_page(request.GET),
+        "trend_labels": trend_labels,
+        "trend_pct": trend_pct,
     })
 
 
@@ -3868,6 +4394,84 @@ def student_reports(request):
     present_days = att_qs.filter(status=Attendance.Status.PRESENT).count()
     attendance_pct = round((present_days / total_days * 100) if total_days else 0, 1)
 
+    # Attendance trend granularity: daily | weekly | monthly
+    att_granularity = (request.GET.get("att_granularity") or "monthly").strip().lower()
+    if att_granularity not in ("daily", "weekly", "monthly"):
+        att_granularity = "monthly"
+
+    att_labels = []
+    att_values = []
+    try:
+        # Use calendar policy to compute average over WORKING days:
+        # pct = present_working_days / total_working_days * 100
+        from apps.school_data.calendar_policy import resolve_day
+
+        ay_obj = get_active_academic_year_obj()
+        if ay_obj and getattr(ay_obj, "start_date", None) and getattr(ay_obj, "end_date", None):
+            ay_start, ay_end = ay_obj.start_date, ay_obj.end_date
+        else:
+            ay_obj = None
+            ay_start, ay_end = get_current_academic_year_bounds()
+        # Map recorded statuses by date for quick lookup
+        status_by_date = {
+            d: s for (d, s) in att_qs.filter(date__gte=ay_start, date__lte=ay_end).values_list("date", "status")
+        }
+
+        if att_granularity == "daily":
+            cur = ay_start
+            while cur <= ay_end:
+                if resolve_day(cur, "student", ay=ay_obj).is_working_day:
+                    st = status_by_date.get(cur)
+                    att_labels.append(cur.isoformat())
+                    att_values.append(100.0 if st == Attendance.Status.PRESENT else 0.0)
+                cur = date.fromordinal(cur.toordinal() + 1)
+        elif att_granularity == "weekly":
+            weekly = {}
+            cur = ay_start
+            while cur <= ay_end:
+                if resolve_day(cur, "student", ay=ay_obj).is_working_day:
+                    iso_year, iso_week, _ = cur.isocalendar()
+                    key = (iso_year, iso_week)
+                    if key not in weekly:
+                        weekly[key] = {"present": 0, "total": 0}
+                    weekly[key]["total"] += 1
+                    if status_by_date.get(cur) == Attendance.Status.PRESENT:
+                        weekly[key]["present"] += 1
+                cur = date.fromordinal(cur.toordinal() + 1)
+            for (iso_year, iso_week) in sorted(weekly.keys()):
+                data = weekly[(iso_year, iso_week)]
+                pct = round((data["present"] / data["total"] * 100) if data["total"] else 0, 1)
+                att_labels.append(f"W{iso_week} {iso_year}")
+                att_values.append(pct)
+        else:
+            # monthly
+            monthly = {}
+            cur = date(ay_start.year, ay_start.month, 1)
+            end_month = date(ay_end.year, ay_end.month, 1)
+            while cur <= end_month:
+                monthly[(cur.year, cur.month)] = {"present": 0, "total": 0}
+                cur = date(cur.year + 1, 1, 1) if cur.month == 12 else date(cur.year, cur.month + 1, 1)
+            cur = ay_start
+            while cur <= ay_end:
+                if resolve_day(cur, "student", ay=ay_obj).is_working_day:
+                    key = (cur.year, cur.month)
+                    if key not in monthly:
+                        monthly[key] = {"present": 0, "total": 0}
+                    monthly[key]["total"] += 1
+                    if status_by_date.get(cur) == Attendance.Status.PRESENT:
+                        monthly[key]["present"] += 1
+                cur = date.fromordinal(cur.toordinal() + 1)
+            from calendar import month_name
+            for (y, m) in sorted(monthly.keys()):
+                data = monthly[(y, m)]
+                if data["total"] <= 0:
+                    continue
+                att_labels.append(f"{month_name[m]} {y}")
+                att_values.append(round((data["present"] / data["total"] * 100), 1))
+    except Exception:
+        att_labels = []
+        att_values = []
+
     # Performance summary from marks
     marks_qs = Marks.objects.filter(student=student, subject__isnull=False).select_related("subject")
     subject_stats = {}
@@ -3895,25 +4499,68 @@ def student_reports(request):
     # Bar chart data (subject-wise percentage)
     subject_chart_labels = []
     subject_chart_values = []
+    subject_chart_map = {}
     for s in subject_stats.values():
         pct = round((s["obtained"] / s["max"] * 100) if s["max"] else 0, 1)
         subject_chart_labels.append(s["subject"].name)
         subject_chart_values.append(pct)
+        subject_chart_map[s["subject"].name] = pct
 
     overall_pct = round((total_obtained / total_max * 100) if total_max else 0, 1)
 
     # Performance trend based on last two exams
-    trend = "N/A"
-    recent_exams = [e for e in exams if e.get("overall_pct") is not None]
-    if len(recent_exams) >= 2:
-        last = recent_exams[0]["overall_pct"]
-        prev = recent_exams[1]["overall_pct"]
-        if last > prev:
-            trend = "Improving"
-        elif last < prev:
-            trend = "Declining"
+    # Insights (trend + best/weak + suggestion)
+    insights = {
+        "trend_state": "N/A",  # Improving | Declining | Stable | N/A
+        "trend_arrow": "",
+        "trend_delta": None,
+        "trend_note": "",
+        "best_subject": strongest[1].name if strongest else None,
+        "best_subject_pct": round(strongest[0], 1) if strongest else None,
+        "weak_subjects": [],
+        "suggestion": "",
+    }
+
+    # Subject averages
+    subj_items = []
+    for s in subject_stats.values():
+        pct = round((s["obtained"] / s["max"] * 100) if s["max"] else 0, 1)
+        subj_items.append({"name": s["subject"].name, "pct": pct})
+    subj_items.sort(key=lambda x: x["pct"])
+    insights["weak_subjects"] = [x for x in subj_items[:3] if x.get("name")]
+
+    if insights["weak_subjects"]:
+        weakest_name = insights["weak_subjects"][0]["name"]
+        insights["suggestion"] = f"Focus on {weakest_name} to improve your overall score."
+    elif overall_pct and overall_pct < 60:
+        insights["suggestion"] = "Focus on revising fundamentals and solving past papers to improve your overall score."
+    else:
+        insights["suggestion"] = "Keep going—practice consistently to maintain and improve your performance."
+
+    # Trend using last 2–3 published exams by date
+    trend_source = [
+        e
+        for e in exams
+        if e.get("overall_pct") is not None and (e.get("exam_date") is not None or e.get("date_max") is not None)
+    ]
+    trend_source.sort(key=lambda e: (e.get("exam_date") or e.get("date_max") or date.min))
+    last3 = trend_source[-3:]
+    if len(last3) >= 2:
+        last_pct = float(last3[-1].get("overall_pct") or 0)
+        prev_pcts = [float(x.get("overall_pct") or 0) for x in last3[:-1]]
+        prev_avg = sum(prev_pcts) / len(prev_pcts) if prev_pcts else last_pct
+        delta = round(last_pct - prev_avg, 1)
+        insights["trend_delta"] = delta
+        if delta > 0.5:
+            insights["trend_state"] = "Improving"
+            insights["trend_arrow"] = "↑"
+        elif delta < -0.5:
+            insights["trend_state"] = "Declining"
+            insights["trend_arrow"] = "↓"
         else:
-            trend = "Stable"
+            insights["trend_state"] = "Stable"
+            insights["trend_arrow"] = "→"
+        insights["trend_note"] = f"Compared to your previous {len(prev_pcts)} exam(s)."
 
     context = {
         "exams": exams,
@@ -3928,14 +4575,1049 @@ def student_reports(request):
             "weakest_subject": weakest[1].name if weakest else None,
             "weakest_pct": round(weakest[0], 1) if weakest else None,
             "overall_pct": overall_pct,
-            "trend": trend,
+            "trend": insights["trend_state"],
         },
+        "summary": {
+            "overall_pct": overall_pct,
+            "total_exams": len([e for e in exams if e.get("exam_name")]),
+            "best_subject": strongest[1].name if strongest else None,
+            "lowest_subject": weakest[1].name if weakest else None,
+        },
+        "insights": insights,
         "exam_trend_labels": exam_trend_labels,
         "exam_trend_values": exam_trend_values,
         "subject_chart_labels": subject_chart_labels,
         "subject_chart_values": subject_chart_values,
+        "subject_chart_map": subject_chart_map,
+        "attendance_trend_labels": att_labels,
+        "attendance_trend_values": att_values,
+        "att_granularity": att_granularity,
     }
     return render(request, "core/student/reports.html", context)
+
+
+@student_required
+@feature_required("reports")
+def student_calendar(request):
+    """
+    Unified student calendar: Exams + Homework deadlines + Holidays/Events.
+    Monthly grid with color-coded items.
+    """
+    student = getattr(request.user, "student_profile", None)
+    if not student or not student.classroom:
+        raise PermissionDenied
+
+    # Month navigation (default: current month)
+    today = timezone.localdate()
+    try:
+        year = int(request.GET.get("year") or today.year)
+        month = int(request.GET.get("month") or today.month)
+    except Exception:
+        year, month = today.year, today.month
+    if month < 1 or month > 12:
+        month = today.month
+    if year < 2000 or year > 2100:
+        year = today.year
+
+    from calendar import monthrange, month_name
+    from apps.school_data.calendar_policy import academic_year_for_date, get_holiday_calendar_for_year, build_month_cells
+
+    month_start = date(year, month, 1)
+    month_end = date(year, month, monthrange(year, month)[1])
+
+    # Holiday calendar
+    ay = get_active_academic_year_obj() or academic_year_for_date(month_start)
+    cal = get_holiday_calendar_for_year(ay) if ay else None
+    cells = build_month_cells(year, month, cal, audience="student")
+
+    # Events mapping: iso date -> list of {type,label,url}
+    events_by_iso = {}
+
+    def _add(d: date, payload: dict):
+        key = d.isoformat()
+        events_by_iso.setdefault(key, []).append(payload)
+
+    # Homework due dates (visible to student)
+    hw_statuses = [Homework.Status.PUBLISHED, Homework.Status.CLOSED]
+    hw_qs = (
+        Homework.objects.filter(status__in=hw_statuses)
+        .filter(due_date__gte=month_start, due_date__lte=month_end)
+        .defer("attachment")
+        .select_related("subject")
+        .order_by("due_date", "id")
+    )
+    # Scope: new (classes+sections) or legacy (subject mapped to class+section)
+    if student.section_id:
+        hw_qs = hw_qs.filter(
+            Q(classes=student.classroom, sections=student.section)
+            | Q(
+                subject_id__in=ClassSectionSubjectTeacher.objects.filter(
+                    class_obj=student.classroom,
+                    section=student.section,
+                ).values_list("subject_id", flat=True)
+            )
+        ).distinct()
+    else:
+        hw_qs = Homework.objects.none()
+    for hw in hw_qs:
+        _add(
+            hw.due_date,
+            {
+                "kind": "homework",
+                "label": f"HW: {hw.title}",
+                "url": reverse("core:student_homework_detail", args=[hw.id]),
+            },
+        )
+
+    # Exams (papers) for student's class+section, in this month
+    ex_qs = (
+        Exam.objects.filter(date__gte=month_start, date__lte=month_end)
+        .filter(class_name__iexact=(student.classroom.name or ""))
+        .filter(section__iexact=(getattr(student.section, "name", "") or ""))
+        .select_related("subject", "session")
+        .order_by("date", "start_time", "id")
+    )
+    for ex in ex_qs:
+        subj = ex.subject.name if ex.subject else (ex.name or "Exam")
+        if ex.session_id:
+            url = reverse("core:student_exam_session_detail", args=[ex.session_id])
+        else:
+            url = reverse("core:student_exam_detail_by_id", args=[ex.id])
+        _add(
+            ex.date,
+            {
+                "kind": "exam",
+                "label": f"Exam: {subj}",
+                "url": url,
+            },
+        )
+
+    # Holidays/events (published calendar only; policy already handles Sunday label)
+    if cal and getattr(cal, "is_published", False) and ay:
+        evs = (
+            HolidayEvent.objects.filter(calendar=cal)
+            .filter(start_date__gte=month_start, start_date__lte=month_end)
+            .order_by("start_date", "name")
+        )
+        for ev in evs:
+            if ev.applies_to in (HolidayEvent.AppliesTo.BOTH, HolidayEvent.AppliesTo.STUDENTS):
+                _add(
+                    ev.start_date,
+                    {
+                        "kind": "holiday",
+                        "label": ev.name,
+                        "url": "",
+                    },
+                )
+
+    # Prev/next month links
+    prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
+    next_year, next_month = (year + 1, 1) if month == 12 else (year, month + 1)
+
+    # Attach items to cells so templates don't need dict indexing helpers
+    for c in cells:
+        if not c.get("is_blank"):
+            c["items"] = events_by_iso.get(c.get("iso") or "", [])
+
+    return render(
+        request,
+        "core/student/calendar.html",
+        {
+            "student": student,
+            "today": today,
+            "year": year,
+            "month": month,
+            "month_label": f"{month_name[month]} {year}",
+            "prev": {"year": prev_year, "month": prev_month},
+            "next": {"year": next_year, "month": next_month},
+            "cells": cells,
+            "weekdays": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+        },
+    )
+
+
+@student_required
+def student_resources(request):
+    """
+    Student resources hub: notes, PDFs, videos, assignments (file or external URL).
+    """
+    student = getattr(request.user, "student_profile", None)
+    if not student:
+        raise PermissionDenied
+
+    qs = StudentResource.objects.filter(is_active=True).select_related("subject").order_by("-created_at", "-id")
+
+    subject_id = (request.GET.get("subject") or "").strip()
+    rtype = (request.GET.get("type") or "").strip().upper()
+
+    if subject_id.isdigit():
+        qs = qs.filter(subject_id=int(subject_id))
+    type_choices = [c[0] for c in StudentResource.ResourceType.choices]
+    if rtype in type_choices:
+        qs = qs.filter(resource_type=rtype)
+    else:
+        rtype = ""
+
+    subject_choices = list(
+        Subject.objects.filter(id__in=qs.exclude(subject__isnull=True).values_list("subject_id", flat=True).distinct())
+        .order_by("display_order", "name")
+    )
+
+    resources = list(qs[:200])  # keep it fast; add pagination later if needed
+
+    return render(
+        request,
+        "core/student/resources.html",
+        {
+            "resources": resources,
+            "filters": {"subject": subject_id, "type": rtype},
+            "subject_choices": subject_choices,
+            "type_choices": StudentResource.ResourceType.choices,
+        },
+    )
+
+
+@student_required
+@feature_required("reports")
+@require_http_methods(["GET", "POST"])
+def student_messages(request):
+    """
+    Student ↔ Teacher messaging (inbox + thread).
+    """
+    student = getattr(request.user, "student_profile", None)
+    if not student or not student.classroom or not student.section:
+        raise PermissionDenied
+
+    def _allowed_teacher_rows(_student):
+        """
+        Return (teacher_users, teacher_rows, allowed_teacher_ids) for this student using CSST mapping.
+        teacher_rows include subjects_display + unread + active.
+        """
+        from apps.school_data.models import TeacherClassSection
+        from apps.timetable.models import Timetable
+
+        csst = (
+            ClassSectionSubjectTeacher.objects.filter(class_obj=_student.classroom, section=_student.section)
+            .select_related("teacher__user", "subject")
+            .order_by("teacher_id", "subject__display_order", "subject__name")
+        )
+        teacher_subjects = {}
+        teacher_user_map = {}
+        for row in csst:
+            tu = getattr(row.teacher, "user", None)
+            if not tu:
+                continue
+            teacher_user_map[tu.id] = tu
+            if row.subject and row.subject.name:
+                teacher_subjects.setdefault(tu.id, set()).add(row.subject.name)
+
+        # Fallback: if CSST mappings aren't configured, allow teachers assigned to this class+section.
+        if not teacher_user_map:
+            # 0) Timetable-based subject teachers (most real-world setups use timetable first)
+            try:
+                tt = (
+                    Timetable.objects.filter(classroom=_student.classroom, subject__isnull=False)
+                    .select_related("subject")
+                    .prefetch_related("teachers__user")
+                )
+                for entry in tt:
+                    subj_name = getattr(getattr(entry, "subject", None), "name", None)
+                    for t in entry.teachers.all():
+                        tu = getattr(t, "user", None)
+                        if not tu:
+                            continue
+                        teacher_user_map[tu.id] = tu
+                        if subj_name:
+                            teacher_subjects.setdefault(tu.id, set()).add(subj_name)
+            except Exception:
+                pass
+
+            # 1) Section-level assignments (teacher edit page "Assigned sections")
+            tcs = (
+                TeacherClassSection.objects.filter(classroom=_student.classroom, section=_student.section)
+                .select_related("teacher__user")
+                .order_by("teacher_id")
+            )
+            for a in tcs:
+                tu = getattr(getattr(a, "teacher", None), "user", None)
+                if tu:
+                    teacher_user_map[tu.id] = tu
+
+            # 2) Homeroom/class-teacher assignment (class edit "teacher per section")
+            try:
+                hr = ClassSectionTeacher.objects.filter(class_obj=_student.classroom, section=_student.section).select_related(
+                    "teacher__user"
+                ).first()
+                tu = getattr(getattr(hr, "teacher", None), "user", None) if hr else None
+                if tu:
+                    teacher_user_map[tu.id] = tu
+            except Exception:
+                pass
+
+        allowed_teacher_ids = set(teacher_user_map.keys())
+        teacher_users = list(
+            User.objects.filter(id__in=list(allowed_teacher_ids)).order_by("first_name", "username")
+        )
+
+        # Last message preview per teacher (for WhatsApp-style sidebar list).
+        last_map = {}
+        try:
+            if allowed_teacher_ids:
+                msg_qs = (
+                    StudentMessage.objects.filter(student=_student)
+                    .filter(
+                        (Q(sender=request.user) & Q(receiver_id__in=list(allowed_teacher_ids)))
+                        | (Q(receiver=request.user) & Q(sender_id__in=list(allowed_teacher_ids)))
+                    )
+                    .only("id", "created_at", "content", "sender_id", "receiver_id")
+                    .order_by("-created_at", "-id")
+                )
+                for m in msg_qs[:1500]:
+                    other_id = m.receiver_id if m.sender_id == request.user.id else m.sender_id
+                    if other_id in last_map:
+                        continue
+                    prev = (m.content or "").strip().replace("\n", " ")
+                    last_map[other_id] = {
+                        "ts": m.created_at,
+                        "preview": (prev[:180] + "…") if len(prev) > 180 else prev,
+                    }
+        except Exception:
+            last_map = {}
+
+        unread_map = {
+            uid: c
+            for uid, c in StudentMessage.objects.filter(student=_student, receiver=request.user, is_read=False)
+            .values_list("sender_id")
+            .annotate(c=Count("id"))
+        }
+        rows = []
+        for u in teacher_users:
+            subj = sorted(list(teacher_subjects.get(u.id, set())))
+            last = last_map.get(u.id) or {}
+            rows.append(
+                {
+                    "user": u,
+                    "subjects_display": ", ".join(subj) if subj else "",
+                    "unread": int(unread_map.get(u.id) or 0),
+                    "last_ts": last.get("ts"),
+                    "last_preview": last.get("preview", "") or "",
+                    "active": False,
+                }
+            )
+        return teacher_users, rows, allowed_teacher_ids
+
+    teacher_users, teacher_rows, allowed_teacher_ids = _allowed_teacher_rows(student)
+    show_all = (request.GET.get("all") or "").strip() == "1"
+
+    # Mark "sent" -> "delivered" for any messages received by this user (inbox opened).
+    try:
+        now = timezone.now()
+        StudentMessage.objects.filter(student=student, receiver=request.user, status="sent").update(
+            status="delivered",
+            delivered_at=now,
+        )
+    except Exception:
+        pass
+
+    # Default: keep the chat list compact (no scroll) by showing only the latest chats.
+    if not show_all:
+        try:
+            teacher_rows = sorted(
+                teacher_rows,
+                key=lambda r: (
+                    1 if r.get("last_ts") else 0,
+                    r.get("last_ts") or timezone.datetime.min.replace(tzinfo=timezone.get_current_timezone()),
+                    (getattr(getattr(r.get("user"), "get_full_name", None), "__call__", None) and r["user"].get_full_name())
+                    or getattr(r.get("user"), "username", "")
+                    or "",
+                ),
+                reverse=True,
+            )[:6]
+        except Exception:
+            teacher_rows = teacher_rows[:6]
+
+    active_teacher_id = (request.GET.get("teacher") or "").strip()
+    active_teacher = None
+    if active_teacher_id.isdigit() and int(active_teacher_id) in allowed_teacher_ids:
+        active_teacher = next((u for u in teacher_users if u.id == int(active_teacher_id)), None)
+
+    from .forms import StudentTeacherMessageForm
+
+    # If the UI selected a teacher via URL but the form POST didn't include it (header dropdown is outside the form),
+    # fall back to the active teacher from query param so validation succeeds.
+    form_data = request.POST or None
+    if request.method == "POST" and form_data is not None:
+        try:
+            if (form_data.get("teacher") or "").strip() == "" and active_teacher:
+                form_data = form_data.copy()
+                form_data["teacher"] = str(active_teacher.id)
+        except Exception:
+            form_data = request.POST or None
+
+    form = StudentTeacherMessageForm(
+        data=form_data,
+        teacher_qs=User.objects.filter(id__in=list(allowed_teacher_ids)).order_by("first_name", "username"),
+    )
+    if request.method != "POST" and active_teacher:
+        # Preselect current thread teacher in the dropdown.
+        try:
+            form.fields["teacher"].initial = active_teacher.id
+        except Exception:
+            pass
+
+    if request.method == "POST":
+        if not form.is_valid():
+            messages.error(request, "Please select a valid teacher and type a message.")
+            # keep current thread selected if possible
+            if active_teacher:
+                return redirect(reverse("core:student_messages") + f"?teacher={active_teacher.id}")
+            return redirect("core:student_messages")
+        active_teacher = form.cleaned_data["teacher"]
+        content = (form.cleaned_data.get("content") or "").strip()
+
+        StudentMessage.objects.create(
+            sender=request.user,
+            receiver=active_teacher,
+            student=student,
+            subject=None,
+            content=content,
+            status="sent",
+        )
+        return redirect(reverse("core:student_messages") + f"?teacher={active_teacher.id}")
+
+    thread = []
+    if active_teacher:
+        thread = list(
+            StudentMessage.objects.filter(student=student)
+            .filter(
+                Q(sender=request.user, receiver=active_teacher)
+                | Q(sender=active_teacher, receiver=request.user)
+            )
+            .select_related("sender", "receiver")
+            .order_by("created_at", "id")
+        )
+        try:
+            now = timezone.now()
+            StudentMessage.objects.filter(
+                student=student,
+                sender=active_teacher,
+                receiver=request.user,
+                status__in=["sent", "delivered"],
+            ).update(status="seen", seen_at=now, is_read=True)
+            StudentMessage.objects.filter(
+                student=student, sender=active_teacher, receiver=request.user, is_read=False
+            ).update(is_read=True)
+        except Exception:
+            StudentMessage.objects.filter(
+                student=student, sender=active_teacher, receiver=request.user, is_read=False
+            ).update(is_read=True)
+
+    for r in teacher_rows:
+        r["active"] = bool(active_teacher and r["user"].id == active_teacher.id)
+
+    return render(
+        request,
+        "core/student/messages.html",
+        {
+            "student": student,
+            "teachers": teacher_rows,
+            "active_teacher": active_teacher,
+            "thread": thread,
+            "form": form,
+            "show_all": show_all,
+        },
+    )
+
+
+@student_required
+@require_GET
+def student_messages_api_teachers(request):
+    student = getattr(request.user, "student_profile", None)
+    if not student or not student.classroom or not student.section:
+        raise PermissionDenied
+    from apps.school_data.models import TeacherClassSection
+
+    # Build allowed teachers + subjects (CSST logic; with fallback to section assignments)
+    csst = (
+        ClassSectionSubjectTeacher.objects.filter(class_obj=student.classroom, section=student.section)
+        .select_related("teacher__user", "subject")
+        .order_by("teacher_id", "subject__display_order", "subject__name")
+    )
+    m = {}
+    for row in csst:
+        tu = getattr(row.teacher, "user", None)
+        if not tu:
+            continue
+        rec = m.get(tu.id)
+        if not rec:
+            rec = {"id": tu.id, "name": tu.get_full_name() or tu.username, "username": tu.username, "subjects": []}
+            m[tu.id] = rec
+        if row.subject and row.subject.name and row.subject.name not in rec["subjects"]:
+            rec["subjects"].append(row.subject.name)
+
+    if not m:
+        # Fallback: teacher assignments for this class+section (no subject mapping)
+        tcs = (
+            TeacherClassSection.objects.filter(classroom=student.classroom, section=student.section)
+            .select_related("teacher__user")
+            .order_by("teacher_id")
+        )
+        for a in tcs:
+            tu = getattr(getattr(a, "teacher", None), "user", None)
+            if not tu:
+                continue
+            rec = m.get(tu.id)
+            if not rec:
+                rec = {"id": tu.id, "name": tu.get_full_name() or tu.username, "username": tu.username, "subjects": []}
+                m[tu.id] = rec
+        try:
+            hr = ClassSectionTeacher.objects.filter(class_obj=student.classroom, section=student.section).select_related(
+                "teacher__user"
+            ).first()
+            tu = getattr(getattr(hr, "teacher", None), "user", None) if hr else None
+            if tu and tu.id not in m:
+                m[tu.id] = {"id": tu.id, "name": tu.get_full_name() or tu.username, "username": tu.username, "subjects": []}
+        except Exception:
+            pass
+    teachers = list(m.values())
+    teachers.sort(key=lambda x: (x["name"] or "", x["id"]))
+    unread_map = {
+        uid: c
+        for uid, c in StudentMessage.objects.filter(student=student, receiver=request.user, is_read=False)
+        .values_list("sender_id")
+        .annotate(c=Count("id"))
+    }
+    for t in teachers:
+        t["unread"] = int(unread_map.get(t["id"]) or 0)
+        t["subjects_display"] = ", ".join(t["subjects"])
+    return JsonResponse({"teachers": teachers})
+
+
+@student_required
+@require_GET
+def student_messages_api_thread(request):
+    student = getattr(request.user, "student_profile", None)
+    if not student or not student.classroom or not student.section:
+        raise PermissionDenied
+    tid = (request.GET.get("teacher") or "").strip()
+    if not tid.isdigit():
+        return JsonResponse({"messages": []})
+    teacher_user_id = int(tid)
+    allowed = ClassSectionSubjectTeacher.objects.filter(
+        class_obj=student.classroom, section=student.section, teacher__user_id=teacher_user_id
+    ).exists()
+    if not allowed:
+        return JsonResponse({"messages": []}, status=403)
+    teacher_user = User.objects.filter(id=teacher_user_id).first()
+    if not teacher_user:
+        return JsonResponse({"messages": []})
+    qs = (
+        StudentMessage.objects.filter(student=student)
+        .filter(Q(sender=request.user, receiver=teacher_user) | Q(sender=teacher_user, receiver=request.user))
+        .order_by("created_at", "id")
+    )
+    msgs = []
+    for m in qs[:300]:
+        msgs.append(
+            {
+                "id": m.id,
+                "from_me": m.sender_id == request.user.id,
+                "content": m.content,
+                "ts": timezone.localtime(m.created_at).strftime("%b %d, %I:%M %p") if m.created_at else "",
+            }
+        )
+    try:
+        now = timezone.now()
+        StudentMessage.objects.filter(
+            student=student,
+            sender=teacher_user,
+            receiver=request.user,
+            status__in=["sent", "delivered"],
+        ).update(status="seen", seen_at=now, is_read=True)
+        StudentMessage.objects.filter(student=student, sender=teacher_user, receiver=request.user, is_read=False).update(
+            is_read=True
+        )
+    except Exception:
+        StudentMessage.objects.filter(student=student, sender=teacher_user, receiver=request.user, is_read=False).update(
+            is_read=True
+        )
+    return JsonResponse({"messages": msgs})
+
+
+@student_required
+@require_POST
+def student_messages_api_send(request):
+    student = getattr(request.user, "student_profile", None)
+    if not student or not student.classroom or not student.section:
+        raise PermissionDenied
+    tid = (request.POST.get("teacher") or "").strip()
+    content = (request.POST.get("content") or "").strip()
+    if not tid.isdigit() or not content:
+        return JsonResponse({"ok": False, "error": "Invalid request."}, status=400)
+    teacher_user_id = int(tid)
+    allowed = ClassSectionSubjectTeacher.objects.filter(
+        class_obj=student.classroom, section=student.section, teacher__user_id=teacher_user_id
+    ).exists()
+    if not allowed:
+        return JsonResponse({"ok": False, "error": "Teacher not allowed."}, status=403)
+    teacher_user = User.objects.filter(id=teacher_user_id).first()
+    if not teacher_user:
+        return JsonResponse({"ok": False, "error": "Teacher not found."}, status=404)
+    msg = StudentMessage.objects.create(
+        sender=request.user,
+        receiver=teacher_user,
+        student=student,
+        subject=None,
+        content=content,
+        status="sent",
+    )
+    return JsonResponse(
+        {
+            "ok": True,
+            "message": {
+                "id": msg.id,
+                "from_me": True,
+                "content": msg.content,
+                "ts": timezone.localtime(msg.created_at).strftime("%b %d, %I:%M %p") if msg.created_at else "",
+            },
+        }
+    )
+
+
+@teacher_required
+@feature_required("reports")
+@require_http_methods(["GET", "POST"])
+def teacher_messages(request):
+    """Teacher messaging center (students + school admin)."""
+    teacher = getattr(request.user, "teacher_profile", None)
+    if not teacher:
+        raise PermissionDenied
+
+    # Mark "sent" -> "delivered" for any incoming messages (inbox opened).
+    try:
+        now = timezone.now()
+        StudentMessage.objects.filter(receiver=request.user, status="sent").update(status="delivered", delivered_at=now)
+        from apps.notifications.models import Message as InternalMessage
+
+        InternalMessage.objects.filter(receiver=request.user, status="sent").update(status="delivered", delivered_at=now)
+    except Exception:
+        pass
+
+    # Students teacher is allowed to message (used for auth + active chat).
+    allowed_students_qs = (
+        Student.objects.filter(classroom__in=teacher.classrooms.all())
+        .select_related("user", "classroom", "section")
+        .distinct()
+    )
+    allowed_student_ids = set(allowed_students_qs.values_list("id", flat=True))
+
+    # Broadcast targeting data (class -> sections -> counts + small preview list).
+    broadcast_classes = list(teacher.classrooms.all().order_by("grade_order", "name"))
+    broadcast_sections_rows = list(
+        allowed_students_qs.values("classroom_id", "classroom__name", "section_id", "section__name")
+        .annotate(count=Count("id"))
+        .order_by("classroom__grade_order", "classroom__name", "section__name")
+    )
+    # Build JSON-safe payload for the modal (class -> sections -> counts + preview names).
+    _sections_by_class: dict[int, list[dict]] = {}
+    for r in broadcast_sections_rows:
+        cid = r["classroom_id"]
+        sid = r["section_id"]
+        if not cid or not sid:
+            continue
+        # Small preview list: first 12 student names in that class+section.
+        preview_qs = (
+            allowed_students_qs.filter(classroom_id=cid, section_id=sid)
+            .select_related("user")
+            .order_by("user__first_name", "user__last_name", "user__username")[:12]
+        )
+        preview = [s.user.get_full_name() or s.user.username for s in preview_qs if getattr(s, "user", None)]
+        _sections_by_class.setdefault(int(cid), []).append(
+            {
+                "id": int(sid),
+                "name": r["section__name"] or "—",
+                "count": int(r["count"] or 0),
+                "preview": preview,
+            }
+        )
+
+    broadcast_payload = {
+        "classes": [
+            {
+                "id": int(c.id),
+                "name": c.name,
+                "sections": _sections_by_class.get(int(c.id), []),
+            }
+            for c in broadcast_classes
+        ]
+    }
+
+    # Client-side broadcast/search payload (all allowed students, not only "recent").
+    allowed_students_payload = []
+    for s in allowed_students_qs.order_by("user__first_name", "user__last_name", "user__username"):
+        u = getattr(s, "user", None)
+        if not u:
+            continue
+        name = u.get_full_name() or u.username
+        cls = getattr(getattr(s, "classroom", None), "name", "") or ""
+        sec = getattr(getattr(s, "section", None), "name", "") or ""
+        rn = getattr(s, "roll_number", "") or ""
+        allowed_students_payload.append(
+            {
+                "id": int(s.id),
+                "name": name,
+                "classroom": cls,
+                "section": sec,
+                "roll_number": rn,
+                "hay": f"{name} {cls} {sec} {rn} {u.username}".lower(),
+            }
+        )
+
+    # WhatsApp-style sidebar: show *recent conversations* (not all students).
+    last_msg_qs = (
+        StudentMessage.objects.filter(student_id=OuterRef("pk"))
+        .filter(Q(sender=request.user) | Q(receiver=request.user))
+        .order_by("-created_at", "-id")
+    )
+    recent_students_qs = (
+        allowed_students_qs.annotate(
+            last_ts=Subquery(last_msg_qs.values("created_at")[:1]),
+            last_preview=Subquery(last_msg_qs.values("content")[:1]),
+            last_sender_id=Subquery(last_msg_qs.values("sender_id")[:1]),
+        )
+        .filter(last_ts__isnull=False)
+        .order_by("-last_ts")
+    )
+    show_all = (request.GET.get("all") or "").strip() == "1"
+    recent_students = list(recent_students_qs[:60])
+    admin_user = (
+        User.objects.filter(
+            role__in=[User.Roles.ADMIN, User.Roles.SUPERADMIN],
+            school=getattr(request.user, "school", None),
+            is_active=True,
+        )
+        .exclude(id=request.user.id)
+        .order_by("role", "first_name", "username")
+        .first()
+    )
+
+    peer_type = (request.GET.get("peer_type") or "student").strip().lower()
+    peer_id = (request.GET.get("peer_id") or "").strip()
+    active_student = None
+    active_admin = None
+    if peer_type == "admin":
+        if admin_user and (not peer_id or str(admin_user.id) == peer_id):
+            active_admin = admin_user
+            peer_id = str(admin_user.id)
+        else:
+            peer_id = ""
+    else:
+        peer_type = "student"
+        if peer_id.isdigit() and int(peer_id) in allowed_student_ids:
+            # `recent_students` is a subset; fetch from allowed qs if needed.
+            active_student = next((s for s in recent_students if s.id == int(peer_id)), None) or allowed_students_qs.filter(
+                id=int(peer_id)
+            ).first()
+        else:
+            peer_id = ""
+
+    if request.method == "POST":
+        target_type = (request.POST.get("peer_type") or "student").strip().lower()
+        target_id = (request.POST.get("peer_id") or "").strip()
+        content = (request.POST.get("content") or "").strip()
+        if not content:
+            messages.error(request, "Please type a message.")
+            return redirect("core:teacher_messages")
+
+        if target_type == "broadcast":
+            class_id = (request.POST.get("classroom_id") or "").strip()
+            section_ids = request.POST.getlist("section_ids")
+
+            if not class_id.isdigit():
+                messages.error(request, "Please select a class for broadcast.")
+                return redirect("core:teacher_messages")
+            class_id_int = int(class_id)
+            if not any(c.id == class_id_int for c in broadcast_classes):
+                messages.error(request, "You are not allowed to broadcast to this class.")
+                return redirect("core:teacher_messages")
+
+            recipients_qs = allowed_students_qs.filter(classroom_id=class_id_int).select_related("user")
+            section_ids_int = []
+            for s in section_ids:
+                if str(s).isdigit():
+                    section_ids_int.append(int(s))
+            if section_ids_int:
+                recipients_qs = recipients_qs.filter(section_id__in=section_ids_int)
+
+            recipients = list(recipients_qs)
+            if not recipients:
+                messages.warning(request, "No students found for the selected class/sections.")
+                return redirect("core:teacher_messages")
+
+            now = timezone.now()
+            rows = []
+            for s in recipients:
+                if not getattr(s, "user_id", None):
+                    continue
+                rows.append(
+                    StudentMessage(
+                        sender=request.user,
+                        receiver=s.user,
+                        student=s,
+                        subject=None,
+                        content=content,
+                        created_at=now,
+                    )
+                )
+            try:
+                with transaction.atomic():
+                    StudentMessage.objects.bulk_create(rows, batch_size=500)
+            except DatabaseError:
+                messages.error(request, "Broadcast failed due to a database error. Please try again.")
+                return redirect("core:teacher_messages")
+
+            messages.success(request, f"Broadcast sent to {len(rows)} students.")
+            return redirect("core:teacher_messages")
+
+        if target_type == "broadcast_ids":
+            # Teacher -> selected students (ids must be subset of allowed_student_ids).
+            student_ids_raw = request.POST.getlist("student_ids")
+            ids = []
+            for v in student_ids_raw:
+                if str(v).isdigit():
+                    ids.append(int(v))
+            ids = list({i for i in ids if i in allowed_student_ids})
+            if not ids:
+                messages.error(request, "No valid students selected for broadcast.")
+                return JsonResponse({"ok": False, "error": "No valid students selected."}, status=400)
+
+            recipients = list(allowed_students_qs.filter(id__in=ids).select_related("user"))
+            now = timezone.now()
+            rows = []
+            for s in recipients:
+                if not getattr(s, "user_id", None):
+                    continue
+                rows.append(
+                    StudentMessage(
+                        sender=request.user,
+                        receiver=s.user,
+                        student=s,
+                        subject=None,
+                        content=content,
+                        created_at=now,
+                    )
+                )
+            try:
+                with transaction.atomic():
+                    StudentMessage.objects.bulk_create(rows, batch_size=500)
+            except DatabaseError:
+                return JsonResponse({"ok": False, "error": "Database error."}, status=500)
+
+            return JsonResponse({"ok": True, "sent": len(rows)})
+
+        if target_type == "admin":
+            if not admin_user or not target_id.isdigit() or int(target_id) != admin_user.id:
+                messages.error(request, "School admin is not available.")
+                return redirect("core:teacher_messages")
+            try:
+                # Use a savepoint: if the admin-chat schema is missing/broken,
+                # don't poison the whole request transaction.
+                with transaction.atomic():
+                    InternalMessage.objects.create(
+                        school=request.user.school,
+                        sender=request.user,
+                        receiver=admin_user,
+                        content=content,
+                    )
+            except (ProgrammingError, OperationalError, DatabaseError):
+                messages.error(
+                    request,
+                    "Admin messaging table is not ready yet. Please run notifications migrations.",
+                )
+                return redirect("core:teacher_messages")
+            return redirect(reverse("core:teacher_messages") + f"?peer_type=admin&peer_id={admin_user.id}")
+
+        if not target_id.isdigit() or int(target_id) not in allowed_student_ids:
+            messages.error(request, "Please select a valid student.")
+            return redirect("core:teacher_messages")
+        target_student = allowed_students_qs.filter(id=int(target_id)).first()
+        if not target_student:
+            messages.error(request, "Selected student not found.")
+            return redirect("core:teacher_messages")
+        StudentMessage.objects.create(
+            sender=request.user,
+            receiver=target_student.user,
+            student=target_student,
+            subject=None,
+            content=content,
+        )
+        return redirect(reverse("core:teacher_messages") + f"?peer_type=student&peer_id={target_student.id}")
+
+    thread = []
+    if active_admin:
+        try:
+            # Guard each admin-chat DB operation with a savepoint. Without this,
+            # a single admin-chat schema/query error can abort the whole request
+            # transaction in PostgreSQL.
+            with transaction.atomic():
+                thread = list(
+                    InternalMessage.objects.filter(
+                        Q(sender=request.user, receiver=active_admin) | Q(sender=active_admin, receiver=request.user)
+                    )
+                    .select_related("sender", "receiver")
+                    .order_by("timestamp", "id")
+                )
+            with transaction.atomic():
+                InternalMessage.objects.filter(sender=active_admin, receiver=request.user, is_read=False).update(
+                    is_read=True
+                )
+        except (ProgrammingError, OperationalError, DatabaseError):
+            thread = []
+            messages.warning(
+                request,
+                "Admin chat table is not available yet. Run notifications migrations to enable it.",
+            )
+    elif active_student:
+        thread = list(
+            StudentMessage.objects.filter(student=active_student)
+            .filter(
+                Q(sender=request.user, receiver=active_student.user)
+                | Q(sender=active_student.user, receiver=request.user)
+            )
+            .select_related("sender", "receiver")
+            .order_by("created_at", "id")
+        )
+        StudentMessage.objects.filter(
+            student=active_student, sender=active_student.user, receiver=request.user, is_read=False
+        ).update(is_read=True)
+
+    unread_student_map = {
+        sid: c
+        for sid, c in StudentMessage.objects.filter(receiver=request.user, is_read=False)
+        .values_list("student_id")
+        .annotate(c=Count("id"))
+    }
+    unread_admin_count = 0
+    if admin_user:
+        try:
+            with transaction.atomic():
+                unread_admin_count = (
+                    InternalMessage.objects.filter(sender=admin_user, receiver=request.user, is_read=False).count()
+                )
+        except (ProgrammingError, OperationalError, DatabaseError):
+            unread_admin_count = 0
+
+    # If teacher opened a student chat that isn't "recent" yet, still show it in the sidebar.
+    if active_student and all(s.id != active_student.id for s in recent_students):
+        recent_students.insert(0, active_student)
+
+    if not show_all:
+        recent_students = recent_students[:6]
+
+    student_rows = []
+    for s in recent_students:
+        student_rows.append(
+            {
+                "obj": s,
+                "unread": int(unread_student_map.get(s.id, 0)),
+                "last_ts": getattr(s, "last_ts", None),
+                "last_preview": getattr(s, "last_preview", "") or "",
+                "last_sender_id": getattr(s, "last_sender_id", None),
+            }
+        )
+
+    return render(
+        request,
+        "core/teacher/messages.html",
+        {
+            "teacher": teacher,
+            "student_rows": student_rows,
+            "admin_user": admin_user,
+            "active_student": active_student,
+            "active_admin": active_admin,
+            "active_peer_type": "admin" if active_admin else "student",
+            "thread": thread,
+            "unread_student_map": unread_student_map,
+            "unread_admin_count": unread_admin_count,
+            "broadcast_classes": broadcast_classes,
+            "broadcast_payload": broadcast_payload,
+            "allowed_students_payload": allowed_students_payload,
+            "show_all": show_all,
+        },
+    )
+
+
+@teacher_required
+@feature_required("reports")
+@require_GET
+def teacher_students_search_api(request):
+    """
+    API: search students a teacher is allowed to message (not only recent chats).
+    Used by teacher messages sidebar search to start a new conversation.
+    """
+    teacher = getattr(request.user, "teacher_profile", None)
+    if not teacher:
+        raise PermissionDenied
+
+    q = (request.GET.get("q") or "").strip()
+    if not q:
+        return JsonResponse({"ok": True, "results": []})
+
+    allowed_qs = (
+        Student.objects.filter(classroom__in=teacher.classrooms.all())
+        .select_related("user", "classroom", "section")
+        .distinct()
+    )
+
+    # Tokenize for more forgiving partial matches.
+    tokens = [t for t in q.split() if t][:5]
+    cond = Q(user__first_name__icontains=q) | Q(user__last_name__icontains=q) | Q(user__username__icontains=q)
+    cond |= Q(roll_number__icontains=q) | Q(classroom__name__icontains=q) | Q(section__name__icontains=q)
+    for t in tokens:
+        cond |= Q(user__first_name__icontains=t) | Q(user__last_name__icontains=t) | Q(user__username__icontains=t)
+        cond |= Q(roll_number__icontains=t) | Q(classroom__name__icontains=t) | Q(section__name__icontains=t)
+
+    qs = allowed_qs.filter(cond).order_by("user__first_name", "user__last_name", "user__username")[:25]
+    out = []
+    for s in qs:
+        u = getattr(s, "user", None)
+        if not u:
+            continue
+        out.append(
+            {
+                "id": int(s.id),
+                "name": u.get_full_name() or u.username,
+                "classroom": getattr(getattr(s, "classroom", None), "name", "") or "",
+                "section": getattr(getattr(s, "section", None), "name", "") or "",
+                "roll_number": getattr(s, "roll_number", "") or "",
+            }
+        )
+
+    return JsonResponse({"ok": True, "results": out})
+
+
+@student_required
+def student_announcements(request):
+    """
+    Student announcements / notices (simple list).
+    """
+    if not has_feature_access(getattr(request.user, "school", None), "reports", user=request.user):
+        # Keep it accessible even if reports feature toggled; announcements are lightweight.
+        pass
+    student = getattr(request.user, "student_profile", None)
+    if not student:
+        raise PermissionDenied
+
+    qs = StudentAnnouncement.objects.filter(is_active=True).order_by("-publish_at", "-created_at", "-id")
+    rows = list(qs[:60])
+    return render(
+        request,
+        "core/student/announcements.html",
+        {
+            "student": student,
+            "announcements": rows,
+        },
+    )
 
 
 def _teacher_display_name(teacher):
@@ -4456,6 +6138,130 @@ def school_students_list(request):
     if not school:
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:admin_dashboard")
+
+    # Ensure we are bound to the correct tenant schema before any ORM runs.
+    # Without this, some requests can hit the public schema (or an unbound connection)
+    # and then fail later during template rendering with "relation does not exist".
+    ensure_tenant_for_request(request)
+    try:
+        from apps.core.tenant_schema_repair import recover_db_connection_for_request
+
+        recover_db_connection_for_request(request, close_connection=False)
+    except Exception:
+        pass
+
+    # Hard guard: if core tenant tables are missing, do not pass lazy querysets to templates.
+    # Use information_schema (not search_path dependent) to detect missing tables safely.
+    try:
+        from apps.core.db_schema_utils import missing_tables
+
+        schema = getattr(connection, "schema_name", None) or getattr(school, "schema_name", "") or ""
+        miss = missing_tables(
+            schema,
+            (
+                "school_data_classroom",
+                "school_data_section",
+                "school_data_student",
+                "school_data_academicyear",
+            ),
+        ) if schema else []
+    except Exception:
+        miss = []
+    if miss:
+        hint = tenant_migrate_cli_hint(school)
+        err_msg = (
+            "Required tables are missing in this school's database schema. "
+            "That usually means tenant migrations were not applied for this school. "
+            f"Run the following on the server, then reload this page:\n\n{hint}"
+        )
+        empty_filters = {
+            "q": "",
+            "admission": "",
+            "roll": "",
+            "classroom_id": "",
+            "section_id": "",
+            "year": "",
+            "gender": "",
+            "status": "",
+            "branch": "",
+            "per_page": "20",
+        }
+        empty_stats = {
+            "total": 0,
+            "active": 0,
+            "present_today": 0,
+            "absent_today": 0,
+            "new_admissions_month": 0,
+            "withdrawn": 0,
+            "boys": 0,
+            "girls": 0,
+            "other_gender": 0,
+        }
+        return render(
+            request,
+            "core/school/students_list.html",
+            {
+                "tenant_schema_error": err_msg,
+                "students": Paginator([], 20).get_page(1),
+                "classrooms": [],
+                "sections": [],
+                "years": [],
+                "stats": empty_stats,
+                "school": school,
+                "filters_active": False,
+                "filters": empty_filters,
+            },
+        )
+
+    try:
+        ClassRoom.objects.exists()
+    except ProgrammingError:
+        hint = tenant_migrate_cli_hint(school)
+        tbl = ClassRoom._meta.db_table
+        err_msg = (
+            f"Required table “{tbl}” is missing in this school's database schema. "
+            "That usually means tenant migrations were not applied for this school. "
+            f"Run the following on the server, then reload this page:\n\n{hint}"
+        )
+        empty_filters = {
+            "q": "",
+            "admission": "",
+            "roll": "",
+            "classroom_id": "",
+            "section_id": "",
+            "year": "",
+            "gender": "",
+            "status": "",
+            "branch": "",
+            "per_page": "20",
+        }
+        empty_stats = {
+            "total": 0,
+            "active": 0,
+            "present_today": 0,
+            "absent_today": 0,
+            "new_admissions_month": 0,
+            "withdrawn": 0,
+            "boys": 0,
+            "girls": 0,
+            "other_gender": 0,
+        }
+        return render(
+            request,
+            "core/school/students_list.html",
+            {
+                "tenant_schema_error": err_msg,
+                "students": Paginator([], 20).get_page(1),
+                "classrooms": [],
+                "sections": [],
+                "years": [],
+                "stats": empty_stats,
+                "school": school,
+                "filters_active": False,
+                "filters": empty_filters,
+            },
+        )
+
     from django.core.paginator import Paginator
     from django.db.models import Count
     from django.http import HttpResponse
@@ -4637,9 +6443,43 @@ def school_students_list(request):
             or (s.user.date_joined.date().isoformat() if getattr(s.user, "date_joined", None) else "")
         )
 
-    classrooms = ClassRoom.objects.select_related("academic_year").order_by(*ORDER_AY_START_GRADE_NAME)
-    sections = Section.objects.all().order_by("name")
-    years = AcademicYear.objects.order_by("-start_date")
+    try:
+        classrooms = list(ClassRoom.objects.select_related("academic_year").order_by(*ORDER_AY_START_GRADE_NAME))
+        sections = list(Section.objects.all().order_by("name"))
+        years = list(AcademicYear.objects.order_by("-start_date"))
+    except ProgrammingError:
+        hint = tenant_migrate_cli_hint(school)
+        err_msg = (
+            "Required tables are missing in this school's database schema. "
+            "That usually means tenant migrations were not applied for this school. "
+            f"Run the following on the server, then reload this page:\n\n{hint}"
+        )
+        return render(
+            request,
+            "core/school/students_list.html",
+            {
+                "tenant_schema_error": err_msg,
+                "students": students,
+                "classrooms": [],
+                "sections": [],
+                "years": [],
+                "stats": stats,
+                "school": school,
+                "filters_active": False,
+                "filters": {
+                    "q": q,
+                    "admission": admission,
+                    "roll": roll,
+                    "classroom_id": classroom_id,
+                    "section_id": section_id,
+                    "year": academic_year_id,
+                    "gender": gender,
+                    "status": status,
+                    "branch": branch,
+                    "per_page": str(per_page),
+                },
+            },
+        )
 
     filters_active = any(
         [
@@ -4678,6 +6518,7 @@ def school_students_list(request):
     })
 
 
+@transaction.non_atomic_requests
 @admin_required
 def school_student_add(request):
     """Add new student. Username = Admission Number (auto-generated if empty)."""
@@ -4685,194 +6526,225 @@ def school_student_add(request):
     if not school:
         add_warning_once(request, "invalid_setup_shown", "Invalid setup.")
         return redirect("core:admin_dashboard")
-    from .forms import StudentAddForm
-    from apps.school_data.models import StudentDocument
+    ensure_tenant_for_request(request)
+    from apps.core.tenant_schema_repair import (
+        recover_db_connection_for_request,
+        run_migrate_schemas_for_tenant_school,
+        tenant_schema_repair_should_retry,
+    )
 
-    def _generate_admission_number() -> str:
-        """
-        Generate a tenant-unique admission number like ADM2026-0001.
-        Keeps it predictable and sortable; avoids schema-level sequences.
-        """
-        year = timezone.localdate().year
-        prefix = f"ADM{year}-"
-        # Find max existing for this prefix and increment.
-        last = (
-            Student.objects.filter(admission_number__startswith=prefix)
-            .order_by("-admission_number")
-            .values_list("admission_number", flat=True)
-            .first()
-        )
-        next_n = 1
-        if last and isinstance(last, str) and last.startswith(prefix):
-            try:
-                next_n = int(last.replace(prefix, "").strip() or "0") + 1
-            except Exception:
-                next_n = 1
-        return f"{prefix}{next_n:04d}"
+    def build_response():
+        from .forms import StudentAddForm
+        from apps.school_data.models import StudentDocument
 
-    # IMPORTANT: for forms.Form, pass files via `files=` kwarg.
-    form = StudentAddForm(school, data=(request.POST or None), files=(request.FILES or None))
-    if request.method == "POST" and form.is_valid():
-        data = form.cleaned_data
-        first_name = data["first_name"]
-        middle_name = (data.get("middle_name") or "").strip()
-        last_name = (data.get("last_name") or "").strip()
-        roll_number = data["roll_number"]
-        admission_number = (data.get("admission_number") or "").strip().upper() or _generate_admission_number()
-        password = data.get("password") or f"{first_name.capitalize()}@123"
-        record_status = (data.get("record_status") or "ACTIVE").strip().upper()
-        is_active = record_status == "ACTIVE"
+        ensure_tenant_for_request(request)
+        try:
+            if getattr(connection, "needs_rollback", False):
+                connection.rollback()
+        except Exception:
+            pass
+        # Re-bind tenant after rollback / connection churn so form and template ORM hit the school schema.
+        connection.set_tenant(school)
 
-        with transaction.atomic():
-            user = User.objects.create_user(
-                username=admission_number,
-                password=password,
-                first_name=first_name,
-                last_name=(" ".join([middle_name, last_name]).strip()),
-                email=(data.get("email") or "").strip(),
-                role=User.Roles.STUDENT,
-                school=school,
-                is_first_login=True,
-                is_active=is_active,
+        def _generate_admission_number() -> str:
+            """
+            Generate a tenant-unique admission number like ADM2026-0001.
+            Keeps it predictable and sortable; avoids schema-level sequences.
+            """
+            year = timezone.localdate().year
+            prefix = f"ADM{year}-"
+            # Find max existing for this prefix and increment.
+            last = (
+                Student.objects.filter(admission_number__startswith=prefix)
+                .order_by("-admission_number")
+                .values_list("admission_number", flat=True)
+                .first()
             )
-            student = Student(
-                user=user,
-                classroom=data.get("classroom"),
-                section=data.get("section"),
-                roll_number=roll_number,
-                admission_number=admission_number,
-                date_of_birth=data.get("date_of_birth"),
-                gender=data.get("gender") or "",
-                parent_name=data.get("parent_name") or "",
-                parent_phone=data.get("parent_phone") or "",
-                academic_year=data.get("academic_year"),
-                phone=(data.get("student_mobile") or "").strip() or None,
-                address=("\n".join([data.get("address_line1") or "", data.get("address_line2") or ""]).strip() or None),
-                profile_image=data.get("profile_image"),
-            )
-            # Store extended admission details in flexible JSON.
-            student.extra_data = {
-                "basic": {
-                    "middle_name": middle_name,
-                    "blood_group": data.get("blood_group") or "",
-                    "id_number": data.get("id_number") or "",
-                    "nationality": data.get("nationality") or "",
-                    "religion": data.get("religion") or "",
-                    "mother_tongue": data.get("mother_tongue") or "",
-                },
-                "academic": {
-                    "admission_date": str(data.get("admission_date") or ""),
-                    "registration_number": data.get("registration_number") or "",
-                    "course_branch": data.get("course_branch") or "",
-                    "semester_year": data.get("semester_year") or "",
-                    "stream": data.get("stream") or "",
-                    "student_type": data.get("student_type") or "",
-                    "previous_institution": data.get("previous_institution") or "",
-                    "previous_school_academic_year": data.get("previous_school_academic_year") or "",
-                    "previous_grade_completed": data.get("previous_grade_completed") or "",
-                    "previous_board": data.get("previous_board") or "",
-                    "previous_marks": data.get("previous_marks") or "",
-                    "previous_marks_breakdown": data.get("previous_marks_breakdown") or "",
-                },
-                "parents": {
-                    "father_name": data.get("father_name") or "",
-                    "father_mobile": data.get("father_mobile") or "",
-                    "father_occupation": data.get("father_occupation") or "",
-                    "mother_name": data.get("mother_name") or "",
-                    "mother_mobile": data.get("mother_mobile") or "",
-                    "mother_occupation": data.get("mother_occupation") or "",
-                    "guardian_name": data.get("guardian_name") or "",
-                    "guardian_relation": data.get("guardian_relation") or "",
-                    "guardian_phone": data.get("guardian_phone") or "",
-                    "student_email": (data.get("student_email") or "").strip(),
-                },
-                "contact": {
-                    "city": data.get("city") or "",
-                    "district": data.get("district") or "",
-                    "state": data.get("state") or "",
-                    "pincode": data.get("pincode") or "",
-                    "country": data.get("country") or "",
-                },
-                "medical": {
-                    "emergency_contact_name": data.get("emergency_contact_name") or "",
-                    "emergency_phone": data.get("emergency_phone") or "",
-                    "allergies": data.get("allergies") or "",
-                    "medical_conditions": data.get("medical_conditions") or "",
-                    "doctor_name": data.get("doctor_name") or "",
-                    "hospital": data.get("hospital") or "",
-                    "insurance_details": data.get("insurance_details") or "",
-                },
-                "transport_hostel": {
-                    "transport_required": data.get("transport_required") or "NO",
-                    "route_id": (data.get("route").id if data.get("route") else None),
-                    "pickup_point": data.get("pickup_point") or "",
-                    "hostel_required": data.get("hostel_required") or "NO",
-                    "hostel_room_id": (data.get("hostel_room").id if data.get("hostel_room") else None),
-                },
-                "billing": {
-                    "scholarship": data.get("scholarship") or "",
-                    "discount_percent": str(data.get("discount_percent") or ""),
-                    "installment_type": data.get("installment_type") or "",
-                    "first_payment_amount": str(data.get("first_payment_amount") or ""),
-                    "payment_due_date": str(data.get("payment_due_date") or ""),
-                },
-                "status": {
-                    "record_status": record_status,
-                },
-            }
-            student.save_with_audit(request.user)
+            next_n = 1
+            if last and isinstance(last, str) and last.startswith(prefix):
+                try:
+                    next_n = int(last.replace(prefix, "").strip() or "0") + 1
+                except Exception:
+                    next_n = 1
+            return f"{prefix}{next_n:04d}"
 
-            # Store uploaded documents (optional).
-            doc_map = [
-                ("doc_birth_certificate", StudentDocument.DocType.BIRTH_CERT, "Birth Certificate"),
-                ("doc_transfer_certificate", StudentDocument.DocType.TRANSFER_CERT, "Transfer Certificate"),
-                ("doc_id_proof", StudentDocument.DocType.OTHER, "Aadhar / ID Proof"),
-                ("doc_previous_marks", StudentDocument.DocType.OTHER, "Previous Marks Memo"),
-                ("doc_passport_photo", StudentDocument.DocType.PHOTO, "Passport Photo"),
-                ("doc_parent_id", StudentDocument.DocType.OTHER, "Parent ID"),
-            ]
-            for field_name, doc_type, title in doc_map:
-                f = request.FILES.get(field_name)
-                if not f:
-                    continue
-                StudentDocument.objects.create(
-                    student=student,
-                    doc_type=doc_type,
-                    title=title,
-                    file=f,
-                    uploaded_by=request.user,
+        # IMPORTANT: for forms.Form, pass files via `files=` kwarg.
+        form = StudentAddForm(school, data=(request.POST or None), files=(request.FILES or None))
+        if request.method == "POST" and form.is_valid():
+            data = form.cleaned_data
+            first_name = data["first_name"]
+            middle_name = (data.get("middle_name") or "").strip()
+            last_name = (data.get("last_name") or "").strip()
+            roll_number = data["roll_number"]
+            admission_number = (data.get("admission_number") or "").strip().upper() or _generate_admission_number()
+            password = data.get("password") or f"{first_name.capitalize()}@123"
+            record_status = (data.get("record_status") or "ACTIVE").strip().upper()
+            is_active = record_status == "ACTIVE"
+
+            with transaction.atomic():
+                user = User.objects.create_user(
+                    username=admission_number,
+                    password=password,
+                    first_name=first_name,
+                    last_name=(" ".join([middle_name, last_name]).strip()),
+                    email=(data.get("email") or "").strip(),
+                    role=User.Roles.STUDENT,
+                    school=school,
+                    is_first_login=True,
+                    is_active=is_active,
                 )
-
-        # Send credentials email (best-effort)
-        email_sent = False
-        if data.get("email"):
-            try:
-                from django.core.mail import send_mail
-                from django.conf import settings
-
-                from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@schoolerp.local")
-                subject = "Your Campus ERP Login Credentials"
-                body = (
-                    f"Hello {first_name},\n\n"
-                    f"Your student account has been created.\n\n"
-                    f"Username: Your Admission Number ({admission_number})\n"
-                    f"Password: {password}\n\n"
-                    "Please change your password after first login.\n\n"
-                    "— Campus Admin"
+                student = Student(
+                    user=user,
+                    classroom=data.get("classroom"),
+                    section=data.get("section"),
+                    roll_number=roll_number,
+                    admission_number=admission_number,
+                    date_of_birth=data.get("date_of_birth"),
+                    gender=data.get("gender") or "",
+                    parent_name=data.get("parent_name") or "",
+                    parent_phone=data.get("parent_phone") or "",
+                    academic_year=data.get("academic_year"),
+                    phone=(data.get("student_mobile") or "").strip() or None,
+                    address=(
+                        "\n".join([data.get("address_line1") or "", data.get("address_line2") or ""]).strip() or None
+                    ),
+                    profile_image=data.get("profile_image"),
                 )
-                send_mail(subject, body, from_email, [data["email"]], fail_silently=True)
-                email_sent = True
-            except Exception:
-                pass
+                # Store extended admission details in flexible JSON.
+                student.extra_data = {
+                    "basic": {
+                        "middle_name": middle_name,
+                        "blood_group": data.get("blood_group") or "",
+                        "id_number": data.get("id_number") or "",
+                        "nationality": data.get("nationality") or "",
+                        "religion": data.get("religion") or "",
+                        "mother_tongue": data.get("mother_tongue") or "",
+                    },
+                    "academic": {
+                        "admission_date": str(data.get("admission_date") or ""),
+                        "registration_number": data.get("registration_number") or "",
+                        "course_branch": data.get("course_branch") or "",
+                        "semester_year": data.get("semester_year") or "",
+                        "stream": data.get("stream") or "",
+                        "student_type": data.get("student_type") or "",
+                        "previous_institution": data.get("previous_institution") or "",
+                        "previous_school_academic_year": data.get("previous_school_academic_year") or "",
+                        "previous_grade_completed": data.get("previous_grade_completed") or "",
+                        "previous_board": data.get("previous_board") or "",
+                        "previous_marks": data.get("previous_marks") or "",
+                        "previous_marks_breakdown": data.get("previous_marks_breakdown") or "",
+                    },
+                    "parents": {
+                        "father_name": data.get("father_name") or "",
+                        "father_mobile": data.get("father_mobile") or "",
+                        "father_occupation": data.get("father_occupation") or "",
+                        "mother_name": data.get("mother_name") or "",
+                        "mother_mobile": data.get("mother_mobile") or "",
+                        "mother_occupation": data.get("mother_occupation") or "",
+                        "guardian_name": data.get("guardian_name") or "",
+                        "guardian_relation": data.get("guardian_relation") or "",
+                        "guardian_phone": data.get("guardian_phone") or "",
+                        "student_email": (data.get("student_email") or "").strip(),
+                    },
+                    "contact": {
+                        "city": data.get("city") or "",
+                        "district": data.get("district") or "",
+                        "state": data.get("state") or "",
+                        "pincode": data.get("pincode") or "",
+                        "country": data.get("country") or "",
+                    },
+                    "medical": {
+                        "emergency_contact_name": data.get("emergency_contact_name") or "",
+                        "emergency_phone": data.get("emergency_phone") or "",
+                        "allergies": data.get("allergies") or "",
+                        "medical_conditions": data.get("medical_conditions") or "",
+                        "doctor_name": data.get("doctor_name") or "",
+                        "hospital": data.get("hospital") or "",
+                        "insurance_details": data.get("insurance_details") or "",
+                    },
+                    "transport_hostel": {
+                        "transport_required": data.get("transport_required") or "NO",
+                        "route_id": (data.get("route").id if data.get("route") else None),
+                        "pickup_point": data.get("pickup_point") or "",
+                        "hostel_required": data.get("hostel_required") or "NO",
+                        "hostel_room_id": (data.get("hostel_room").id if data.get("hostel_room") else None),
+                    },
+                    "billing": {
+                        "scholarship": data.get("scholarship") or "",
+                        "discount_percent": str(data.get("discount_percent") or ""),
+                        "installment_type": data.get("installment_type") or "",
+                        "first_payment_amount": str(data.get("first_payment_amount") or ""),
+                        "payment_due_date": str(data.get("payment_due_date") or ""),
+                    },
+                    "status": {
+                        "record_status": record_status,
+                    },
+                }
+                student.save_with_audit(request.user)
 
-        msg = "Student created successfully."
-        if email_sent:
-            msg += " Login credentials sent to email."
-        else:
-            msg += f" Username (Admission Number): {admission_number} | Password: {password}"
-        messages.success(request, msg)
-        return redirect("core:school_students_list")
-    return render(request, "core/school/student_add.html", {"form": form})
+                # Store uploaded documents (optional).
+                doc_map = [
+                    ("doc_birth_certificate", StudentDocument.DocType.BIRTH_CERT, "Birth Certificate"),
+                    ("doc_transfer_certificate", StudentDocument.DocType.TRANSFER_CERT, "Transfer Certificate"),
+                    ("doc_id_proof", StudentDocument.DocType.OTHER, "Aadhar / ID Proof"),
+                    ("doc_previous_marks", StudentDocument.DocType.OTHER, "Previous Marks Memo"),
+                    ("doc_passport_photo", StudentDocument.DocType.PHOTO, "Passport Photo"),
+                    ("doc_parent_id", StudentDocument.DocType.OTHER, "Parent ID"),
+                ]
+                for field_name, doc_type, title in doc_map:
+                    f = request.FILES.get(field_name)
+                    if not f:
+                        continue
+                    StudentDocument.objects.create(
+                        student=student,
+                        doc_type=doc_type,
+                        title=title,
+                        file=f,
+                        uploaded_by=request.user,
+                    )
+
+            # Send credentials email (best-effort)
+            email_sent = False
+            if data.get("email"):
+                try:
+                    from django.core.mail import send_mail
+                    from django.conf import settings
+
+                    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@schoolerp.local")
+                    from apps.core.branding import get_platform_product_name
+
+                    _brand = get_platform_product_name()
+                    subject = f"Your {_brand} Login Credentials"
+                    body = (
+                        f"Hello {first_name},\n\n"
+                        f"Your student account has been created.\n\n"
+                        f"Username: Your Admission Number ({admission_number})\n"
+                        f"Password: {password}\n\n"
+                        "Please change your password after first login.\n\n"
+                        f"— {_brand}"
+                    )
+                    send_mail(subject, body, from_email, [data["email"]], fail_silently=True)
+                    email_sent = True
+                except Exception:
+                    pass
+
+            msg = "Student created successfully."
+            if email_sent:
+                msg += " Login credentials sent to email."
+            else:
+                msg += f" Username (Admission Number): {admission_number} | Password: {password}"
+            messages.success(request, msg)
+            return redirect("core:school_students_list")
+        return render(request, "core/school/student_add.html", {"form": form})
+
+    for attempt in (1, 2, 3):
+        try:
+            return build_response()
+        except Exception as e:
+            if attempt == 3 or not tenant_schema_repair_should_retry(e):
+                raise
+            run_migrate_schemas_for_tenant_school(school)
+            recover_db_connection_for_request(request)
 
 
 def _student_record_letterhead_context(request, school, student):
@@ -5364,6 +7236,7 @@ def school_students_import(request):
 # School Admin: Teacher Management
 # ======================
 
+@transaction.non_atomic_requests
 @admin_required
 @feature_required("teachers")
 def school_teachers_list(request):
@@ -5371,147 +7244,251 @@ def school_teachers_list(request):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
-    from django.utils import timezone
-    from django.db.models import Q
-    from apps.school_data.models import Subject, ClassRoom
-
-    base_qs = (
-        Teacher.objects.all()
-        .select_related("user", "user__school")
-        .prefetch_related("subjects", "classrooms")
+    ensure_tenant_for_request(request)
+    from apps.core.tenant_schema_repair import (
+        recover_db_connection_for_request,
+        run_migrate_schemas_for_tenant_school,
+        tenant_schema_repair_should_retry,
     )
 
-    # -------- Filters (GET) --------
-    q = (request.GET.get("q") or "").strip()
-    employee_id = (request.GET.get("employee_id") or "").strip()
-    subject_id = (request.GET.get("subject") or "").strip()
-    class_id = (request.GET.get("classroom") or "").strip()
-    status = (request.GET.get("status") or "").strip().lower()  # active/inactive
+    def build_response():
+        from django.utils import timezone
+        from django.db.models import Q
+        from apps.school_data.models import Subject, ClassRoom
 
-    qs = base_qs
-    if q:
-        qs = qs.filter(
-            Q(user__first_name__icontains=q)
-            | Q(user__last_name__icontains=q)
-            | Q(user__username__icontains=q)
+        ensure_tenant_for_request(request)
+        try:
+            if getattr(connection, "needs_rollback", False):
+                connection.rollback()
+        except Exception:
+            pass
+
+        base_qs = (
+            Teacher.objects.all()
+            .select_related("user", "user__school")
+            .prefetch_related("subjects", "classrooms")
         )
-    if employee_id:
-        qs = qs.filter(employee_id__icontains=employee_id)
-    if subject_id.isdigit():
-        qs = qs.filter(subjects__id=int(subject_id))
-    if class_id.isdigit():
-        qs = qs.filter(classrooms__id=int(class_id))
-    if status == "active":
-        qs = qs.filter(user__is_active=True)
-    elif status == "inactive":
-        qs = qs.filter(user__is_active=False)
 
-    teachers = qs.distinct()
+        # -------- Filters (GET) --------
+        q = (request.GET.get("q") or "").strip()
+        employee_id = (request.GET.get("employee_id") or "").strip()
+        subject_id = (request.GET.get("subject") or "").strip()
+        class_id = (request.GET.get("classroom") or "").strip()
+        status = (request.GET.get("status") or "").strip().lower()  # active/inactive
 
-    # -------- Top Summary Stats (School-wide, not filtered) --------
-    now = timezone.now()
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    stats = {
-        "total": base_qs.count(),
-        "active": base_qs.filter(user__is_active=True).count(),
-        "inactive": base_qs.filter(user__is_active=False).count(),
-        "class_teachers": base_qs.filter(classrooms__isnull=False).distinct().count(),
-        "subject_teachers": base_qs.filter(subjects__isnull=False).distinct().count(),
-        "new_joiners_month": base_qs.filter(user__date_joined__gte=month_start).count(),
-        # "on_leave_today": None  # Only add when leave/attendance model is wired.
-    }
+        qs = base_qs
+        if q:
+            qs = qs.filter(
+                Q(user__first_name__icontains=q)
+                | Q(user__last_name__icontains=q)
+                | Q(user__username__icontains=q)
+            )
+        if employee_id:
+            qs = qs.filter(employee_id__icontains=employee_id)
+        if subject_id.isdigit():
+            qs = qs.filter(subjects__id=int(subject_id))
+        if class_id.isdigit():
+            qs = qs.filter(classrooms__id=int(class_id))
+        if status == "active":
+            qs = qs.filter(user__is_active=True)
+        elif status == "inactive":
+            qs = qs.filter(user__is_active=False)
 
-    filter_options = {
-        "subjects": Subject.objects.order_by("display_order", "name"),
-        "classrooms": ClassRoom.objects.select_related("academic_year").order_by(*ORDER_AY_START_GRADE_NAME),
-    }
+        teachers = qs.distinct()
 
-    filters = {
-        "q": q,
-        "employee_id": employee_id,
-        "subject": subject_id,
-        "classroom": class_id,
-        "status": status,
-    }
-    has_active_filters = bool(
-        q or employee_id or subject_id or class_id or status
-    )
+        # -------- Top Summary Stats (School-wide, not filtered) --------
+        now = timezone.now()
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        stats = {
+            "total": base_qs.count(),
+            "active": base_qs.filter(user__is_active=True).count(),
+            "inactive": base_qs.filter(user__is_active=False).count(),
+            "class_teachers": base_qs.filter(classrooms__isnull=False).distinct().count(),
+            "subject_teachers": base_qs.filter(subjects__isnull=False).distinct().count(),
+            "new_joiners_month": base_qs.filter(user__date_joined__gte=month_start).count(),
+            # "on_leave_today": None  # Only add when leave/attendance model is wired.
+        }
 
-    view_mode = (request.GET.get("view") or "list").strip().lower()
-    if view_mode not in ("list", "card"):
-        view_mode = "list"
-    params = request.GET.copy()
-    params["view"] = "list"
-    teachers_view_list_url = f"{request.path}?{params.urlencode()}"
-    params["view"] = "card"
-    teachers_view_card_url = f"{request.path}?{params.urlencode()}"
+        filter_options = {
+            "subjects": list(Subject.objects.order_by("display_order", "name")),
+            "classrooms": list(
+                ClassRoom.objects.select_related("academic_year").order_by(*ORDER_AY_START_GRADE_NAME)
+            ),
+        }
 
-    return render(
-        request,
-        "core/school/teachers_list.html",
-        {
-            "teachers": teachers,
-            "stats": stats,
-            "filters": filters,
-            "filter_options": filter_options,
-            "has_active_filters": has_active_filters,
-            "view_mode": view_mode,
-            "teachers_view_list_url": teachers_view_list_url,
-            "teachers_view_card_url": teachers_view_card_url,
-        },
-    )
+        filters = {
+            "q": q,
+            "employee_id": employee_id,
+            "subject": subject_id,
+            "classroom": class_id,
+            "status": status,
+        }
+        has_active_filters = bool(
+            q or employee_id or subject_id or class_id or status
+        )
+
+        view_mode = (request.GET.get("view") or "list").strip().lower()
+        if view_mode not in ("list", "card"):
+            view_mode = "list"
+        params = request.GET.copy()
+        params["view"] = "list"
+        teachers_view_list_url = f"{request.path}?{params.urlencode()}"
+        params["view"] = "card"
+        teachers_view_card_url = f"{request.path}?{params.urlencode()}"
+
+        # Force ORM evaluation before render so missing tenant tables hit migrate+retry here.
+        teachers_evaluated = list(teachers)
+
+        return render(
+            request,
+            "core/school/teachers_list.html",
+            {
+                "teachers": teachers_evaluated,
+                "stats": stats,
+                "filters": filters,
+                "filter_options": filter_options,
+                "has_active_filters": has_active_filters,
+                "view_mode": view_mode,
+                "teachers_view_list_url": teachers_view_list_url,
+                "teachers_view_card_url": teachers_view_card_url,
+            },
+        )
+
+    for attempt in (1, 2):
+        try:
+            return build_response()
+        except Exception as e:
+            if attempt == 2 or not tenant_schema_repair_should_retry(e):
+                raise
+            # If the first query failed, the connection may be in an aborted transaction
+            # state. Recover first so migration commands don't run on a broken session.
+            # Don't close the connection while Django is still unwinding the original
+            # DB exception; that can produce a secondary "connection already closed".
+            recover_db_connection_for_request(request, close_connection=False)
+            run_migrate_schemas_for_tenant_school(school)
+            recover_db_connection_for_request(request)
 
 
+@transaction.non_atomic_requests
 @admin_required
 def school_teacher_add(request):
     """Add new teacher (extended profile, same structure as student master)."""
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
-    from .teacher_forms import TeacherMasterForm
-
-    form = TeacherMasterForm(
-        school,
-        teacher=None,
-        data=request.POST or None,
-        files=request.FILES or None,
+    ensure_tenant_for_request(request)
+    from apps.core.tenant_schema_repair import (
+        recover_db_connection_for_request,
+        run_migrate_schemas_for_tenant_school,
+        tenant_schema_repair_should_retry,
     )
-    if request.method == "POST" and form.is_valid():
-        data = form.cleaned_data
-        record_status = (data.get("record_status") or "ACTIVE").strip().upper()
-        is_active = record_status == "ACTIVE"
-        with transaction.atomic():
-            user = User.objects.create_user(
-                username=data["username"],
-                password=data["password"],
-                first_name=data.get("first_name") or "",
-                last_name=data.get("last_name") or "",
-                role=User.Roles.TEACHER,
-                school=school,
-            )
-            user.email = (data.get("email") or "").strip()
-            user.is_active = is_active
-            user.save()
-            addr = "\n".join([data.get("address_line1") or "", data.get("address_line2") or ""]).strip() or None
-            teacher = Teacher(
-                user=user,
-                employee_id=data.get("employee_id") or "",
-                phone_number=data.get("phone_number") or "",
-                qualification=data.get("qualification") or "",
-                experience=data.get("experience") or "",
-                date_of_birth=data.get("date_of_birth"),
-                gender=data.get("gender") or "",
-                address=addr,
-                extra_data=TeacherMasterForm.build_extra_data(data),
-            )
-            if data.get("profile_image"):
-                teacher.profile_image = data["profile_image"]
-            teacher.save_with_audit(request.user)
-            teacher.subjects.set(data.get("subjects") or [])
-            teacher.classrooms.set(data.get("classrooms") or [])
-        messages.success(request, "Teacher created.")
-        return redirect("core:school_teacher_view", teacher_id=teacher.id)
-    return render(request, "core/school/teacher_master_form.html", {"form": form, "teacher": None})
+
+    def build_response():
+        from .teacher_forms import TeacherMasterForm
+        from apps.school_data.models import TeacherClassSection
+
+        ensure_tenant_for_request(request)
+        try:
+            if getattr(connection, "needs_rollback", False):
+                connection.rollback()
+        except Exception:
+            pass
+
+        form = TeacherMasterForm(
+            school,
+            teacher=None,
+            data=request.POST or None,
+            files=request.FILES or None,
+        )
+        if request.method == "POST" and form.is_valid():
+            data = form.cleaned_data
+            record_status = (data.get("record_status") or "ACTIVE").strip().upper()
+            is_active = record_status == "ACTIVE"
+            with transaction.atomic():
+                user = User.objects.create_user(
+                    username=data["username"],
+                    password=data["password"],
+                    first_name=data.get("first_name") or "",
+                    last_name=data.get("last_name") or "",
+                    role=User.Roles.TEACHER,
+                    school=school,
+                )
+                user.email = (data.get("email") or "").strip()
+                user.is_active = is_active
+                user.save()
+                addr = "\n".join([data.get("address_line1") or "", data.get("address_line2") or ""]).strip() or None
+                teacher = Teacher(
+                    user=user,
+                    employee_id=data.get("employee_id") or "",
+                    phone_number=data.get("phone_number") or "",
+                    qualification=data.get("qualification") or "",
+                    experience=data.get("experience") or "",
+                    date_of_birth=data.get("date_of_birth"),
+                    gender=data.get("gender") or "",
+                    address=addr,
+                    extra_data=TeacherMasterForm.build_extra_data(data),
+                )
+                if data.get("profile_image"):
+                    teacher.profile_image = data["profile_image"]
+                teacher.save_with_audit(request.user)
+                teacher.subjects.set(data.get("subjects") or [])
+                teacher.classrooms.set(data.get("classrooms") or [])
+
+                # Optional: assign teacher to particular sections within selected classes.
+                raw_pairs = request.POST.getlist("class_sections") or []
+                valid_pairs = set()
+                class_ids = set(teacher.classrooms.values_list("id", flat=True))
+                if raw_pairs and class_ids:
+                    # Preload sections per classroom to validate fast.
+                    classroom_section_map = {
+                        c.id: set(c.sections.values_list("id", flat=True))
+                        for c in ClassRoom.objects.filter(id__in=class_ids).prefetch_related("sections")
+                    }
+                    for p in raw_pairs:
+                        try:
+                            cls_id_str, sec_id_str = (p or "").split(":", 1)
+                            cls_id = int(cls_id_str)
+                            sec_id = int(sec_id_str)
+                        except Exception:
+                            continue
+                        if cls_id in class_ids and sec_id in classroom_section_map.get(cls_id, set()):
+                            valid_pairs.add((cls_id, sec_id))
+
+                if valid_pairs:
+                    TeacherClassSection.objects.bulk_create(
+                        [
+                            TeacherClassSection(teacher=teacher, classroom_id=cls_id, section_id=sec_id)
+                            for (cls_id, sec_id) in sorted(valid_pairs)
+                        ],
+                        ignore_conflicts=True,
+                    )
+            messages.success(request, "Teacher created.")
+            return redirect("core:school_teacher_view", teacher_id=teacher.id)
+        classrooms_with_sections = list(
+            ClassRoom.objects.select_related("academic_year")
+            .prefetch_related("sections")
+            .order_by(*ORDER_AY_START_GRADE_NAME)
+        )
+        return render(
+            request,
+            "core/school/teacher_master_form.html",
+            {
+                "form": form,
+                "teacher": None,
+                "classrooms_with_sections": classrooms_with_sections,
+                "assigned_class_section_pairs": set(),
+            },
+        )
+
+    for attempt in (1, 2):
+        try:
+            return build_response()
+        except Exception as e:
+            if attempt == 2 or not tenant_schema_repair_should_retry(e):
+                raise
+            recover_db_connection_for_request(request, close_connection=False)
+            run_migrate_schemas_for_tenant_school(school)
+            recover_db_connection_for_request(request)
 
 
 @admin_required
@@ -5553,56 +7530,132 @@ def school_teacher_view(request, teacher_id):
     )
 
 
+@transaction.non_atomic_requests
 @admin_required
 def school_teacher_edit(request, teacher_id):
     """Edit teacher extended profile."""
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
-    teacher = get_object_or_404(Teacher, id=teacher_id)
-    from .teacher_forms import TeacherMasterForm
-
-    form = TeacherMasterForm(
-        school,
-        teacher=teacher,
-        data=request.POST or None,
-        files=request.FILES or None,
+    ensure_tenant_for_request(request)
+    from apps.core.tenant_schema_repair import (
+        recover_db_connection_for_request,
+        run_migrate_schemas_for_tenant_school,
+        tenant_schema_repair_should_retry,
     )
-    if request.method == "POST" and form.is_valid():
-        data = form.cleaned_data
-        record_status = (data.get("record_status") or "ACTIVE").strip().upper()
-        is_active = record_status == "ACTIVE"
-        with transaction.atomic():
-            teacher.user.first_name = data.get("first_name") or ""
-            teacher.user.last_name = data.get("last_name") or ""
-            teacher.user.email = (data.get("email") or "").strip()
-            teacher.user.username = (data.get("username") or "").strip()
-            # Security: teachers must never be able to become other portal roles from this screen.
-            teacher.user.role = User.Roles.TEACHER
-            teacher.user.is_active = is_active
-            pwd = (data.get("password") or "").strip()
-            if pwd:
-                teacher.user.set_password(pwd)
-            teacher.user.save()
 
-            teacher.employee_id = data.get("employee_id") or ""
-            teacher.phone_number = data.get("phone_number") or ""
-            teacher.qualification = data.get("qualification") or ""
-            teacher.experience = data.get("experience") or ""
-            teacher.date_of_birth = data.get("date_of_birth")
-            teacher.gender = data.get("gender") or ""
-            teacher.address = (
-                "\n".join([data.get("address_line1") or "", data.get("address_line2") or ""]).strip() or None
-            )
-            teacher.extra_data = TeacherMasterForm.build_extra_data(data)
-            if data.get("profile_image"):
-                teacher.profile_image = data["profile_image"]
-            teacher.save_with_audit(request.user)
-            teacher.subjects.set(data.get("subjects") or [])
-            teacher.classrooms.set(data.get("classrooms") or [])
-        messages.success(request, "Teacher updated.")
-        return redirect("core:school_teacher_view", teacher_id=teacher.id)
-    return render(request, "core/school/teacher_master_form.html", {"form": form, "teacher": teacher})
+    def build_response():
+        from .teacher_forms import TeacherMasterForm
+        from apps.school_data.models import TeacherClassSection
+
+        ensure_tenant_for_request(request)
+        try:
+            if getattr(connection, "needs_rollback", False):
+                connection.rollback()
+        except Exception:
+            pass
+        teacher = get_object_or_404(Teacher, id=teacher_id)
+        form = TeacherMasterForm(
+            school,
+            teacher=teacher,
+            data=request.POST or None,
+            files=request.FILES or None,
+        )
+        if request.method == "POST" and form.is_valid():
+            data = form.cleaned_data
+            record_status = (data.get("record_status") or "ACTIVE").strip().upper()
+            is_active = record_status == "ACTIVE"
+            with transaction.atomic():
+                teacher.user.first_name = data.get("first_name") or ""
+                teacher.user.last_name = data.get("last_name") or ""
+                teacher.user.email = (data.get("email") or "").strip()
+                teacher.user.username = (data.get("username") or "").strip()
+                # Security: teachers must never be able to become other portal roles from this screen.
+                teacher.user.role = User.Roles.TEACHER
+                teacher.user.is_active = is_active
+                pwd = (data.get("password") or "").strip()
+                if pwd:
+                    teacher.user.set_password(pwd)
+                teacher.user.save()
+
+                teacher.employee_id = data.get("employee_id") or ""
+                teacher.phone_number = data.get("phone_number") or ""
+                teacher.qualification = data.get("qualification") or ""
+                teacher.experience = data.get("experience") or ""
+                teacher.date_of_birth = data.get("date_of_birth")
+                teacher.gender = data.get("gender") or ""
+                teacher.address = (
+                    "\n".join([data.get("address_line1") or "", data.get("address_line2") or ""]).strip() or None
+                )
+                teacher.extra_data = TeacherMasterForm.build_extra_data(data)
+                if data.get("profile_image"):
+                    teacher.profile_image = data["profile_image"]
+                teacher.save_with_audit(request.user)
+                teacher.subjects.set(data.get("subjects") or [])
+                teacher.classrooms.set(data.get("classrooms") or [])
+
+                # Assign teacher to particular sections within selected classes.
+                raw_pairs = request.POST.getlist("class_sections") or []
+                requested_pairs = set()
+                class_ids = set(teacher.classrooms.values_list("id", flat=True))
+                if raw_pairs and class_ids:
+                    classroom_section_map = {
+                        c.id: set(c.sections.values_list("id", flat=True))
+                        for c in ClassRoom.objects.filter(id__in=class_ids).prefetch_related("sections")
+                    }
+                    for p in raw_pairs:
+                        try:
+                            cls_id_str, sec_id_str = (p or "").split(":", 1)
+                            cls_id = int(cls_id_str)
+                            sec_id = int(sec_id_str)
+                        except Exception:
+                            continue
+                        if cls_id in class_ids and sec_id in classroom_section_map.get(cls_id, set()):
+                            requested_pairs.add((cls_id, sec_id))
+
+                # Replace assignments for currently selected classrooms (and remove any stale ones).
+                TeacherClassSection.objects.filter(teacher=teacher).exclude(classroom_id__in=class_ids).delete()
+                TeacherClassSection.objects.filter(teacher=teacher, classroom_id__in=class_ids).delete()
+                if requested_pairs:
+                    TeacherClassSection.objects.bulk_create(
+                        [
+                            TeacherClassSection(teacher=teacher, classroom_id=cls_id, section_id=sec_id)
+                            for (cls_id, sec_id) in sorted(requested_pairs)
+                        ],
+                        ignore_conflicts=True,
+                    )
+            messages.success(request, "Teacher updated.")
+            return redirect("core:school_teacher_view", teacher_id=teacher.id)
+
+        classrooms_with_sections = list(
+            ClassRoom.objects.select_related("academic_year")
+            .prefetch_related("sections")
+            .order_by(*ORDER_AY_START_GRADE_NAME)
+        )
+        assigned_pairs = set(
+            TeacherClassSection.objects.filter(teacher=teacher).values_list("classroom_id", "section_id")
+        )
+        assigned_class_section_pairs = {f"{c}:{s}" for (c, s) in assigned_pairs}
+        return render(
+            request,
+            "core/school/teacher_master_form.html",
+            {
+                "form": form,
+                "teacher": teacher,
+                "classrooms_with_sections": classrooms_with_sections,
+                "assigned_class_section_pairs": assigned_class_section_pairs,
+            },
+        )
+
+    for attempt in (1, 2):
+        try:
+            return build_response()
+        except Exception as e:
+            if attempt == 2 or not tenant_schema_repair_should_retry(e):
+                raise
+            recover_db_connection_for_request(request, close_connection=False)
+            run_migrate_schemas_for_tenant_school(school)
+            recover_db_connection_for_request(request)
 
 
 @admin_required
@@ -5672,49 +7725,121 @@ def school_teacher_delete(request, teacher_id):
 @feature_required("students")
 def school_sections(request):
     """List Sections with pagination, search, filter."""
+    import logging
+
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
     ensure_tenant_for_request(request)
+    from django.db import ProgrammingError, InterfaceError, InternalError
+    from django.db import transaction
     from django.core.paginator import Paginator
+    from apps.core.db_schema_utils import missing_tables
+    from apps.core.tenant_schema_repair import recover_db_connection_for_request
 
-    qs = Section.objects.prefetch_related("classrooms").annotate(student_count=Count("students")).order_by("name")
-    total_sections = Section.objects.count()
-    search = request.GET.get("q", "").strip()
-    if search:
-        qs = qs.filter(Q(name__icontains=search) | Q(description__icontains=search))
+    logger = logging.getLogger(__name__)
 
-    if request.GET.get("export") == "csv":
-        resp = HttpResponse(content_type="text/csv")
-        resp["Content-Disposition"] = 'attachment; filename="sections.csv"'
-        w = csv.writer(resp)
-        w.writerow(["Section Name", "Description", "Classes", "Total Students"])
-        for sec in qs:
-            classes = ", ".join(sec.classrooms.all().values_list("name", flat=True))
-            w.writerow([
-                sec.name,
-                (sec.description or "").replace("\n", " ").strip(),
-                classes,
-                sec.student_count,
-            ])
-        return resp
+    def safe_fallback(search: str):
+        paginator = Paginator([], 15)
+        sections = paginator.get_page(1)
+        return render(request, "core/school/sections.html", {
+            "sections": sections,
+            "total_sections": 0,
+            "filters": {"q": search},
+            "stats": None,
+        })
 
-    paginator = Paginator(qs, 15)
-    page = request.GET.get("page", 1)
-    sections = paginator.get_page(page)
-    stats = None
-    if total_sections > 0:
-        stats = {
+    def build_response():
+        ensure_tenant_for_request(request)
+        # Ensure we start clean; rollback must run on the tenant DB alias connection.
+        recover_db_connection_for_request(request, close_connection=False)
+        # Make sure the DB connection is open before we do any ORM work.
+        from django.db import connection as default_connection
+        try:
+            default_connection.ensure_connection()
+        except Exception:
+            # If we can't connect, return a safe empty page instead of crashing.
+            return safe_fallback(request.GET.get("q", "").strip())
+
+        schema = getattr(school, "schema_name", "") or ""
+        miss = missing_tables(
+            schema,
+            (
+                "school_data_section",
+                "school_data_student",
+                "school_data_classroom",
+            ),
+        )
+        if miss:
+            logger.error(
+                "Tenant schema missing required tables; returning empty sections list. schema=%s missing=%s path=%s",
+                schema,
+                ",".join(miss),
+                request.path,
+            )
+            return safe_fallback(request.GET.get("q", "").strip())
+
+        qs = Section.objects.prefetch_related("classrooms").annotate(student_count=Count("students")).order_by("name")
+        total_sections = Section.objects.count()
+        search = request.GET.get("q", "").strip()
+        if search:
+            qs = qs.filter(Q(name__icontains=search) | Q(description__icontains=search))
+
+        if request.GET.get("export") == "csv":
+            resp = HttpResponse(content_type="text/csv")
+            resp["Content-Disposition"] = 'attachment; filename="sections.csv"'
+            w = csv.writer(resp)
+            w.writerow(["Section Name", "Description", "Classes", "Total Students"])
+            for sec in qs:
+                classes = ", ".join(sec.classrooms.all().values_list("name", flat=True))
+                w.writerow([
+                    sec.name,
+                    (sec.description or "").replace("\n", " ").strip(),
+                    classes,
+                    sec.student_count,
+                ])
+            return resp
+
+        paginator = Paginator(qs, 15)
+        page = request.GET.get("page", 1)
+        sections = paginator.get_page(page)
+        # Force evaluation inside the try/except so template rendering won't trigger
+        # additional DB work after a connection reset/close.
+        try:
+            sections.object_list = list(sections.object_list)
+        except Exception:
+            # If the DB fails here, fall back to an empty list.
+            sections.object_list = []
+        stats = None
+        if total_sections > 0:
+            stats = {
+                "total_sections": total_sections,
+                "total_students": Student.objects.count(),
+                "linked_classes": ClassRoom.objects.annotate(n=Count("sections")).filter(n__gt=0).count(),
+            }
+        return render(request, "core/school/sections.html", {
+            "sections": sections,
             "total_sections": total_sections,
-            "total_students": Student.objects.count(),
-            "linked_classes": ClassRoom.objects.annotate(n=Count("sections")).filter(n__gt=0).count(),
-        }
-    return render(request, "core/school/sections.html", {
-        "sections": sections,
-        "total_sections": total_sections,
-        "filters": {"q": search},
-        "stats": stats,
-    })
+            "filters": {"q": search},
+            "stats": stats,
+        })
+
+    # Safe query handling: if ORM evaluation still fails (race, drift), rollback and return fallback.
+    try:
+        return build_response()
+    except (ProgrammingError, InterfaceError, InternalError) as e:
+        schema = getattr(school, "schema_name", "") or ""
+        logger.exception("DB error in school_sections; returning fallback. schema=%s path=%s", schema, request.path)
+        try:
+            if transaction.get_connection().in_atomic_block:
+                transaction.set_rollback(True)
+        except Exception:
+            pass
+        try:
+            recover_db_connection_for_request(request)
+        except Exception:
+            pass
+        return safe_fallback(request.GET.get("q", "").strip())
 
 
 @admin_required
@@ -5725,13 +7850,30 @@ def school_section_add(request):
         return redirect("core:admin_dashboard")
     ensure_tenant_for_request(request)
     from .forms import SectionForm
+    from apps.core.tenant_schema_repair import (
+        recover_db_connection_for_request,
+        run_migrate_schemas_for_tenant_school,
+        tenant_schema_repair_should_retry,
+    )
 
-    form = SectionForm(school, request.POST or None)
-    if request.method == "POST" and form.is_valid():
-        section = form.save(commit=False)
-        section.save_with_audit(request.user)
-        return redirect("core:school_sections")
-    return render(request, "core/school/section_add.html", {"form": form, "title": "Add Section"})
+    def build_response():
+        ensure_tenant_for_request(request)
+        recover_db_connection_for_request(request, close_connection=False)
+        form = SectionForm(school, request.POST or None)
+        if request.method == "POST" and form.is_valid():
+            section = form.save(commit=False)
+            section.save_with_audit(request.user)
+            return redirect("core:school_sections")
+        return render(request, "core/school/section_add.html", {"form": form, "title": "Add Section"})
+
+    for attempt in (1, 2):
+        try:
+            return build_response()
+        except Exception as e:
+            if attempt == 2 or not tenant_schema_repair_should_retry(e):
+                raise
+            run_migrate_schemas_for_tenant_school(school)
+            recover_db_connection_for_request(request)
 
 
 @admin_required
@@ -5740,15 +7882,33 @@ def school_section_edit(request, section_id):
     if not school:
         return redirect("core:admin_dashboard")
     ensure_tenant_for_request(request)
-    section = get_object_or_404(Section, id=section_id)
-    from .forms import SectionForm
-    form = SectionForm(school, request.POST or None, instance=section)
-    if request.method == "POST" and form.is_valid():
-        obj = form.save(commit=False)
-        obj.modified_by = request.user
-        obj.save()
-        return redirect("core:school_sections")
-    return render(request, "core/school/section_edit.html", {"form": form, "section": section})
+    from apps.core.tenant_schema_repair import (
+        recover_db_connection_for_request,
+        run_migrate_schemas_for_tenant_school,
+        tenant_schema_repair_should_retry,
+    )
+
+    def build_response():
+        ensure_tenant_for_request(request)
+        recover_db_connection_for_request(request, close_connection=False)
+        section = get_object_or_404(Section, id=section_id)
+        from .forms import SectionForm
+        form = SectionForm(school, request.POST or None, instance=section)
+        if request.method == "POST" and form.is_valid():
+            obj = form.save(commit=False)
+            obj.modified_by = request.user
+            obj.save()
+            return redirect("core:school_sections")
+        return render(request, "core/school/section_edit.html", {"form": form, "section": section})
+
+    for attempt in (1, 2):
+        try:
+            return build_response()
+        except Exception as e:
+            if attempt == 2 or not tenant_schema_repair_should_retry(e):
+                raise
+            run_migrate_schemas_for_tenant_school(school)
+            recover_db_connection_for_request(request)
 
 
 @admin_required
@@ -5757,70 +7917,111 @@ def school_section_delete(request, section_id):
     if not school:
         return redirect("core:admin_dashboard")
     ensure_tenant_for_request(request)
-    section = get_object_or_404(Section, id=section_id)
-    if request.method != "POST":
+    from apps.core.tenant_schema_repair import (
+        recover_db_connection_for_request,
+        run_migrate_schemas_for_tenant_school,
+        tenant_schema_repair_should_retry,
+    )
+
+    def build_response():
+        ensure_tenant_for_request(request)
+        recover_db_connection_for_request(request, close_connection=False)
+        section = get_object_or_404(Section, id=section_id)
+        if request.method != "POST":
+            return redirect("core:school_sections")
+        if section.students.exists():
+            return redirect("core:school_sections")
+        section.delete()
         return redirect("core:school_sections")
-    if section.students.exists():
-        return redirect("core:school_sections")
-    section.delete()
-    return redirect("core:school_sections")
+
+    for attempt in (1, 2):
+        try:
+            return build_response()
+        except Exception as e:
+            if attempt == 2 or not tenant_schema_repair_should_retry(e):
+                raise
+            run_migrate_schemas_for_tenant_school(school)
+            recover_db_connection_for_request(request)
 
 
 # ======================
 # School Admin: Academic Years
 # ======================
 
+@transaction.non_atomic_requests
 @admin_required
 def school_academic_years(request):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
     ensure_tenant_for_request(request)
-    from django.core.paginator import Paginator
-
-    # PostgreSQL: clear aborted transaction state before running list queries.
-    try:
-        if getattr(connection, "needs_rollback", False):
-            connection.rollback()
-    except Exception:
-        pass
-
-    # Resolve active year + optional promotion stats first; rollback if promotion
-    # schema is missing so paginator/template queries are not run in a bad txn.
-    active_year = AcademicYear.objects.filter(is_active=True).order_by("-start_date").first()
-    promo_counts = {}
-    if active_year:
-        try:
-            for action, _label in StudentPromotion.Action.choices:
-                promo_counts[action] = StudentPromotion.objects.filter(
-                    from_year=active_year, action=action
-                ).count()
-        except (ProgrammingError, InternalError, OperationalError, DatabaseError):
-            promo_counts = {}
-            try:
-                connection.rollback()
-            except Exception:
-                pass
-
-    qs = AcademicYear.objects.all().order_by("-start_date")
-    search = request.GET.get("q", "").strip()
-    if search:
-        qs = qs.filter(name__icontains=search)
-    paginator = Paginator(qs, 15)
-    page = request.GET.get("page", 1)
-    academic_years = paginator.get_page(page)
-    next_year_candidates = (
-        AcademicYear.objects.exclude(id=active_year.id).order_by("start_date")
-        if active_year
-        else AcademicYear.objects.order_by("start_date")
+    from apps.core.tenant_schema_repair import (
+        recover_db_connection_for_request,
+        run_migrate_schemas_for_tenant_school,
+        tenant_schema_repair_should_retry,
     )
-    return render(request, "core/school/academic_year/list.html", {
-        "academic_years": academic_years,
-        "filters": {"q": search},
-        "active_year": active_year,
-        "next_year_candidates": next_year_candidates,
-        "promo_counts": promo_counts,
-    })
+
+    def build_response():
+        from django.core.paginator import Paginator
+
+        ensure_tenant_for_request(request)
+        # PostgreSQL: clear aborted transaction state before running list queries.
+        try:
+            if getattr(connection, "needs_rollback", False):
+                connection.rollback()
+        except Exception:
+            pass
+
+        # Resolve active year + optional promotion stats first; rollback if promotion
+        # schema is missing so paginator/template queries are not run in a bad txn.
+        active_year = AcademicYear.objects.filter(is_active=True).order_by("-start_date").first()
+        promo_counts = {}
+        if active_year:
+            try:
+                for action, _label in StudentPromotion.Action.choices:
+                    promo_counts[action] = StudentPromotion.objects.filter(
+                        from_year=active_year, action=action
+                    ).count()
+            except (ProgrammingError, InternalError, OperationalError, DatabaseError):
+                promo_counts = {}
+                try:
+                    connection.rollback()
+                except Exception:
+                    pass
+
+        qs = AcademicYear.objects.all().order_by("-start_date")
+        search = request.GET.get("q", "").strip()
+        if search:
+            qs = qs.filter(name__icontains=search)
+        paginator = Paginator(qs, 15)
+        page = request.GET.get("page", 1)
+        academic_years = paginator.get_page(page)
+        # Page keeps a sliced QuerySet until iteration; evaluate here so missing-table
+        # errors surface inside the migrate+retry loop instead of during template render.
+        _ol = academic_years.object_list
+        if hasattr(_ol, "model"):
+            academic_years.object_list = list(_ol)
+        next_year_candidates = (
+            AcademicYear.objects.exclude(id=active_year.id).order_by("start_date")
+            if active_year
+            else AcademicYear.objects.order_by("start_date")
+        )
+        return render(request, "core/school/academic_year/list.html", {
+            "academic_years": academic_years,
+            "filters": {"q": search},
+            "active_year": active_year,
+            "next_year_candidates": next_year_candidates,
+            "promo_counts": promo_counts,
+        })
+
+    for attempt in (1, 2):
+        try:
+            return build_response()
+        except Exception as e:
+            if attempt == 2 or not tenant_schema_repair_should_retry(e):
+                raise
+            run_migrate_schemas_for_tenant_school(school)
+            recover_db_connection_for_request(request)
 
 
 @admin_required
@@ -6268,6 +8469,7 @@ def school_year_end_promote(request):
 # School Admin: Classes (Grade levels)
 # ======================
 
+@transaction.non_atomic_requests
 @admin_required
 @feature_required("students")
 def school_classes(request):
@@ -6275,69 +8477,533 @@ def school_classes(request):
     if not school:
         return redirect("core:admin_dashboard")
     ensure_tenant_for_request(request)
-    from django.core.paginator import Paginator
+    import logging
+    from django.db import ProgrammingError, InterfaceError, InternalError
+    from django.db import transaction
+    from apps.core.db_schema_utils import missing_tables
+    from apps.core.tenant_schema_repair import recover_db_connection_for_request
 
-    qs = ClassRoom.objects.all().select_related("academic_year").annotate(
-        section_count=Count("sections", distinct=True),
-        student_count=Count("students", distinct=True),
-    )
-    # Newest academic year first; within a year, ascending grade (Grade 1 … Grade 12) via grade_order.
-    qs = qs.order_by(
-        F("academic_year__start_date").desc(nulls_last=True),
-        "grade_order",
-        "name",
-    )
-    academic_year_id = request.GET.get("academic_year")
-    if academic_year_id:
-        qs = qs.filter(academic_year_id=academic_year_id)
-    search = request.GET.get("q", "").strip()
-    if search:
-        qs = qs.filter(name__icontains=search)
-    paginator = Paginator(qs, 15)
-    page = request.GET.get("page", 1)
-    classes = paginator.get_page(page)
-    academic_years = AcademicYear.objects.all().order_by("-start_date")
-    total_classes = ClassRoom.objects.count()
-    return render(request, "core/school/classes/list.html", {
-        "classes": classes,
-        "total_classes": total_classes,
-        "academic_years": academic_years,
-        "filters": {"academic_year": academic_year_id, "q": search},
-    })
+    logger = logging.getLogger(__name__)
+
+    def build_response():
+        from django.core.paginator import Paginator
+        from django_tenants.utils import get_tenant_database_alias
+        from django.db.models import Count, Q
+
+        ensure_tenant_for_request(request)
+        recover_db_connection_for_request(request, close_connection=False)
+        alias = get_tenant_database_alias()
+        try:
+            # Ensure the tenant DB alias connection is open; queries below must run
+            # on the tenant-bound connection (schema-per-tenant search_path).
+            from django.db import connections
+
+            connections[alias].ensure_connection()
+        except Exception:
+            pass
+
+        # Prefer the schema bound on the active tenant connection (more reliable than School.schema_name
+        # if user-school binding is partial or the object was loaded from public schema).
+        try:
+            from django.db import connections
+
+            schema = getattr(connections[alias], "schema_name", None) or getattr(school, "schema_name", "") or ""
+        except Exception:
+            schema = getattr(school, "schema_name", "") or ""
+
+        miss = missing_tables(schema, ("school_data_classroom",)) if schema else []
+        if schema and miss:
+            logger.error(
+                "Missing classroom table; returning empty classes list. schema=%s path=%s",
+                schema,
+                request.path,
+            )
+            paginator = Paginator([], 15)
+            classes = paginator.get_page(1)
+            return render(request, "core/school/classes/list.html", {
+                "classes": classes,
+                "total_classes": 0,
+                "academic_years": [],
+                "filters": {"academic_year": request.GET.get("academic_year"), "q": request.GET.get("q", "").strip()},
+            })
+        if not schema:
+            logger.warning(
+                "school_classes called without schema_name; attempting query anyway. user_id=%s path=%s",
+                getattr(request.user, "id", None),
+                request.path,
+            )
+
+        qs = (
+            ClassRoom.objects.all()
+            .annotate(
+                section_count=Count("sections", distinct=True),
+                student_count=Count("enrollments", filter=Q(enrollments__is_current=True), distinct=True),
+            )
+            .order_by("grade_order", "name")
+        )
+        academic_year_id = request.GET.get("academic_year")
+        if academic_year_id:
+            qs = qs.filter(academic_year_id=academic_year_id)
+        search = request.GET.get("q", "").strip()
+        if search:
+            qs = qs.filter(name__icontains=search)
+        logger.info(
+            "school_classes list user_id=%s schema=%s filters(academic_year=%s q=%s)",
+            getattr(request.user, "id", None),
+            schema,
+            academic_year_id,
+            search,
+        )
+        paginator = Paginator(qs, 15)
+        page = request.GET.get("page", 1)
+        classes = paginator.get_page(page)
+        try:
+            classes.object_list = list(classes.object_list)
+        except Exception:
+            classes.object_list = []
+
+        # Academic year dropdown is optional; tolerate missing table by returning empty list.
+        try:
+            schema = getattr(school, "schema_name", "") or ""
+            if missing_tables(schema, ("school_data_academicyear",)):
+                academic_years = []
+            else:
+                academic_years = list(AcademicYear.objects.only("pk", "name", "start_date", "end_date", "is_active").order_by("-start_date"))
+        except Exception:
+            academic_years = []
+        try:
+            total_classes = ClassRoom.objects.count()
+        except Exception:
+            logger.exception(
+                "school_classes count failed; using page length fallback. user_id=%s schema=%s path=%s",
+                getattr(request.user, "id", None),
+                schema,
+                request.path,
+            )
+            total_classes = 0
+        return render(request, "core/school/classes/list.html", {
+            "classes": classes,
+            "total_classes": total_classes or len(getattr(classes, "object_list", []) or []),
+            "academic_years": academic_years,
+            "filters": {"academic_year": academic_year_id, "q": search},
+        })
+
+    try:
+        return build_response()
+    except (ProgrammingError, InterfaceError, InternalError):
+        schema = getattr(school, "schema_name", "") or ""
+        logger.exception("DB error in school_classes; returning safe fallback. schema=%s path=%s", schema, request.path)
+        try:
+            if transaction.get_connection().in_atomic_block:
+                transaction.set_rollback(True)
+        except Exception:
+            pass
+        try:
+            recover_db_connection_for_request(request)
+        except Exception:
+            pass
+        from django.core.paginator import Paginator
+        paginator = Paginator([], 15)
+        classes = paginator.get_page(1)
+        return render(request, "core/school/classes/list.html", {
+            "classes": classes,
+            "total_classes": 0,
+            "academic_years": [],
+            "filters": {"academic_year": request.GET.get("academic_year"), "q": request.GET.get("q", "").strip()},
+        })
 
 
+@transaction.non_atomic_requests
 @admin_required
 def school_class_add(request):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
     ensure_tenant_for_request(request)
-    from .forms import ClassRoomForm
-    form = ClassRoomForm(school, request.POST or None)
-    if request.method == "POST" and form.is_valid():
-        obj = form.save(commit=False)
-        obj.save_with_audit(request.user)
-        form.save_m2m()
-        return redirect("core:school_classes")
-    return render(request, "core/school/classes/form.html", {"form": form, "title": "Add Class"})
+    import logging
+    from django.contrib import messages
+    from django.db import ProgrammingError, InterfaceError, InternalError, IntegrityError
+    from apps.core.tenant_schema_repair import (
+        recover_db_connection_for_request,
+        run_migrate_schemas_for_tenant_school,
+        tenant_schema_repair_should_retry,
+    )
+    logger = logging.getLogger(__name__)
+
+    def build_response():
+        from .forms import ClassRoomForm
+        from apps.core.db_schema_utils import missing_tables
+        # region agent log
+        import json as _json
+        import time as _time
+        def _dbg(hypothesisId: str, message: str, data: dict):
+            try:
+                with open("debug-b9d4c6.log", "a", encoding="utf-8") as f:
+                    f.write(_json.dumps({
+                        "sessionId": "b9d4c6",
+                        "runId": "classes_add_pre",
+                        "hypothesisId": hypothesisId,
+                        "location": "apps/core/views.py:school_class_add",
+                        "message": message,
+                        "data": data,
+                        "timestamp": int(_time.time() * 1000),
+                    }) + "\n")
+            except Exception:
+                pass
+        # endregion agent log
+
+        ensure_tenant_for_request(request)
+        # Ensure clean tenant connection (rollback on correct alias).
+        recover_db_connection_for_request(request, close_connection=False)
+        try:
+            # Ensure tenant alias connection is open and bound.
+            from django.db import connections
+            from django_tenants.utils import get_tenant_database_alias
+
+            alias = get_tenant_database_alias()
+            connections[alias].ensure_connection()
+            try:
+                connections[alias].set_tenant(school)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        # region agent log
+        try:
+            from django.db import connection as _c
+            from django_tenants.utils import get_tenant_database_alias as _g
+            _alias = _g()
+            _dbg("H1", "after_bind", {
+                "path": request.path,
+                "method": request.method,
+                "user_id": getattr(request.user, "id", None),
+                "school_id": getattr(school, "id", None),
+                "school_schema": getattr(school, "schema_name", None),
+                "conn_schema": getattr(_c, "schema_name", None),
+                "tenant_alias": _alias,
+            })
+        except Exception:
+            pass
+        # endregion agent log
+
+        # If tenant tables are genuinely missing for this school schema, show a clear message
+        # and render safely (no template-time DB queries). This probe uses information_schema
+        # so it is correct even if search_path/tenant binding is wrong.
+        schema = getattr(school, "schema_name", "") or ""
+        try:
+            miss = (
+                missing_tables(
+                    schema,
+                    ("school_data_academicyear", "school_data_section", "school_data_classroom"),
+                )
+                if schema
+                else []
+            )
+        except Exception as probe_exc:
+            miss = ["__probe_error__"]
+            _dbg("H3", "missing_tables_exception", {"schema": schema, "err": str(probe_exc)[:200]})
+
+        _dbg("H3", "missing_tables_result", {"schema": schema, "miss": miss})
+        if miss:
+            # missing_tables() uses information_schema, but it returns False on probe errors too.
+            # Confirm with a real ORM probe before telling the user to run migrations.
+            try:
+                from django_tenants.utils import get_tenant_database_alias
+                from apps.school_data.models import AcademicYear
+
+                alias = get_tenant_database_alias()
+                list(AcademicYear.objects.using(alias).only("pk")[:1])
+                miss = []
+                _dbg("H3", "orm_probe_ok", {"alias": alias, "schema": schema})
+            except Exception:
+                # If even the ORM probe fails, treat as genuinely not ready / not bound.
+                _dbg("H3", "orm_probe_failed", {"schema": schema})
+                pass
+
+        if miss:
+            hint = tenant_migrate_cli_hint(school)
+            messages.error(
+                request,
+                "Database tables for this school are not ready yet. "
+                f"Run tenant migrations and reload this page:\n\n{hint}",
+            )
+            form = ClassRoomForm(school, request.POST or None)
+            try:
+                from apps.school_data.models import AcademicYear, Section
+
+                form.fields["academic_year"].queryset = AcademicYear.objects.none()
+                form.fields["sections"].queryset = Section.objects.none()
+            except Exception:
+                pass
+            _dbg("H1", "rendering_with_empty_pickes_due_to_miss", {"schema": schema, "miss": miss})
+            return render(request, "core/school/classes/form.html", {"form": form, "title": "Add Class"})
+
+        # Tables exist: proceed normally. If we still hit a ProgrammingError, it's almost
+        # always a tenant binding/search_path issue, not a migration issue.
+        form = ClassRoomForm(school, request.POST or None)
+        # region agent log
+        try:
+            ay_qs = getattr(form.fields.get("academic_year"), "queryset", None)
+            sec_qs = getattr(form.fields.get("sections"), "queryset", None)
+            _dbg("H4", "form_querysets", {
+                "ay_db": getattr(ay_qs, "db", None),
+                "ay_count": ay_qs.count() if ay_qs is not None else None,
+                "sec_db": getattr(sec_qs, "db", None),
+                "sec_count": sec_qs.count() if sec_qs is not None else None,
+            })
+        except Exception:
+            pass
+        # endregion agent log
+
+        # Evaluate DB-backed field querysets here so tenant/schema issues are handled
+        # inside the view (retry loop) instead of crashing during template rendering.
+        try:
+            ay_qs = getattr(form.fields.get("academic_year"), "queryset", None)
+            if ay_qs is not None:
+                list(ay_qs.only("pk")[:1])
+            sec_qs = getattr(form.fields.get("sections"), "queryset", None)
+            if sec_qs is not None:
+                list(sec_qs.only("pk")[:1])
+        except (ProgrammingError, InterfaceError, InternalError):
+            schema = getattr(school, "schema_name", "") or ""
+            logger.exception(
+                "DB error building ClassRoomForm pickers. schema=%s path=%s",
+                schema,
+                request.path,
+            )
+            try:
+                messages.error(request, "Database connection was reset for this school. Please reload the page and try again.")
+            except Exception:
+                pass
+            # Rebind tenant and let the outer retry loop handle it.
+            raise
+        if request.method == "POST":
+            schema = getattr(school, "schema_name", "") or ""
+            try:
+                payload = request.POST.dict()
+                payload.pop("csrfmiddlewaretoken", None)
+            except Exception:
+                payload = {}
+            logger.info(
+                "school_class_add POST user_id=%s username=%s schema=%s path=%s payload_keys=%s",
+                getattr(request.user, "id", None),
+                getattr(request.user, "username", ""),
+                schema,
+                request.path,
+                sorted(list(payload.keys())) if isinstance(payload, dict) else [],
+            )
+
+            if form.is_valid():
+                try:
+                    obj = form.save(commit=False)
+                    obj.save_with_audit(request.user)
+                    form.save_m2m()
+                except IntegrityError:
+                    logger.exception(
+                        "IntegrityError creating ClassRoom. user_id=%s schema=%s path=%s",
+                        getattr(request.user, "id", None),
+                        schema,
+                        request.path,
+                    )
+                    messages.error(
+                        request,
+                        "Could not create class due to a database constraint (it may already exist). Please review the fields and try again.",
+                    )
+                except Exception:
+                    logger.exception(
+                        "Unexpected error creating ClassRoom. user_id=%s schema=%s path=%s",
+                        getattr(request.user, "id", None),
+                        schema,
+                        request.path,
+                    )
+                    messages.error(request, "Something went wrong while creating the class. Please try again.")
+                else:
+                    messages.success(request, f"Class created: {obj.name}")
+                    return redirect("core:school_classes")
+            else:
+                logger.warning(
+                    "school_class_add invalid form user_id=%s schema=%s path=%s errors=%s ay_choices=%s section_choices=%s",
+                    getattr(request.user, "id", None),
+                    schema,
+                    request.path,
+                    form.errors.as_json() if hasattr(form, "errors") else "",
+                    len(getattr(form.fields.get("academic_year"), "choices", []) or []),
+                    len(getattr(form.fields.get("sections"), "choices", []) or []),
+                )
+                messages.error(request, "Please fix the highlighted fields and try again.")
+        # region agent log
+        try:
+            # Do NOT consume messages here (iterating messages.get_messages() would clear them).
+            _msgs = []
+            try:
+                storage = getattr(request, "_messages", None)
+                queued = list(getattr(storage, "_queued_messages", []) or []) if storage is not None else []
+                _msgs = [{"level": getattr(m, "level", None), "tags": getattr(m, "tags", ""), "msg": str(m)[:200]} for m in queued]
+            except Exception:
+                _msgs = ["<unavailable>"]
+            ay_qs = getattr(form.fields.get("academic_year"), "queryset", None)
+            sec_qs = getattr(form.fields.get("sections"), "queryset", None)
+            ay_html = str(form["academic_year"]) if "academic_year" in form.fields else ""
+            opt_count = ay_html.count("<option")
+            _dbg("H2", "before_render", {
+                "method": request.method,
+                "conn_schema": getattr(connection, "schema_name", None),
+                "school_schema": getattr(school, "schema_name", None),
+                "ay_count": ay_qs.count() if ay_qs is not None else None,
+                "sec_count": sec_qs.count() if sec_qs is not None else None,
+                "ay_option_tags": opt_count,
+                "queued_messages": _msgs,
+            })
+        except Exception:
+            pass
+        # endregion agent log
+        return render(
+            request,
+            "core/school/classes/form.html",
+            {
+                "form": form,
+                "title": "Add Class",
+                "dbg": (request.GET.get("dbg") == "1"),
+                "dbg_ay_count": getattr(getattr(form.fields.get("academic_year"), "queryset", None), "count", lambda: None)(),
+                "dbg_sec_count": getattr(getattr(form.fields.get("sections"), "queryset", None), "count", lambda: None)(),
+                "dbg_ay_option_tags": (str(form["academic_year"]).count("<option") if "academic_year" in form.fields else None),
+            },
+        )
+
+    for attempt in (1, 2):
+        try:
+            return build_response()
+        except Exception as e:
+            if isinstance(e, (ProgrammingError, InterfaceError, InternalError)):
+                schema = getattr(school, "schema_name", "") or ""
+                logger.exception("DB error in school_class_add; showing form fallback. schema=%s path=%s", schema, request.path)
+                try:
+                    from .utils import tenant_migrate_cli_hint
+
+                    hint = tenant_migrate_cli_hint(school)
+                    messages.error(
+                        request,
+                        "Database tables for this school are not ready yet. "
+                        f"Run tenant migrations and reload this page:\n\n{hint}",
+                    )
+                except Exception:
+                    pass
+                try:
+                    recover_db_connection_for_request(request)
+                except Exception:
+                    pass
+                # Do not instantiate ClassRoomForm here: it may query tenant tables (AcademicYear/Section)
+                # and crash again if migrations haven't been applied. Render a safe form with empty pickers.
+                try:
+                    from apps.school_data.models import AcademicYear, Section
+                    from .forms import ClassRoomForm
+
+                    form = ClassRoomForm(school, request.POST or None)
+                    try:
+                        form.fields["academic_year"].queryset = AcademicYear.objects.none()
+                    except Exception:
+                        pass
+                    try:
+                        form.fields["sections"].queryset = Section.objects.none()
+                    except Exception:
+                        pass
+                except Exception:
+                    # Last-resort: render without a form instance.
+                    form = None
+                return render(request, "core/school/classes/form.html", {"form": form, "title": "Add Class"})
+            if attempt == 2 or not tenant_schema_repair_should_retry(e):
+                raise
+            run_migrate_schemas_for_tenant_school(school)
+            recover_db_connection_for_request(request)
 
 
+@transaction.non_atomic_requests
 @admin_required
 def school_class_edit(request, class_id):
     school = request.user.school
     if not school:
         return redirect("core:admin_dashboard")
     ensure_tenant_for_request(request)
-    classroom = get_object_or_404(ClassRoom, id=class_id)
-    from .forms import ClassRoomForm
-    form = ClassRoomForm(school, request.POST or None, instance=classroom)
-    if request.method == "POST" and form.is_valid():
-        obj = form.save(commit=False)
-        obj.modified_by = request.user
-        obj.save()
-        form.save_m2m()
-        return redirect("core:school_classes")
-    return render(request, "core/school/classes/form.html", {"form": form, "classroom": classroom, "title": "Edit Class"})
+    from apps.core.tenant_schema_repair import (
+        recover_db_connection_for_request,
+        run_migrate_schemas_for_tenant_school,
+        tenant_schema_repair_should_retry,
+    )
+
+    def build_response():
+        from .forms import ClassRoomForm
+        from apps.school_data.models import TeacherClassSection
+
+        ensure_tenant_for_request(request)
+        try:
+            if getattr(connection, "needs_rollback", False):
+                connection.rollback()
+        except Exception:
+            pass
+        classroom = get_object_or_404(ClassRoom, id=class_id)
+        form = ClassRoomForm(school, request.POST or None, instance=classroom)
+        if request.method == "POST" and form.is_valid():
+            with transaction.atomic():
+                obj = form.save(commit=False)
+                obj.modified_by = request.user
+                obj.save()
+                form.save_m2m()
+
+                selected_sections = list(obj.sections.all())
+                teachers = {t.id: t for t in Teacher.objects.select_related("user").all()}
+                for sec in selected_sections:
+                    key = f"homeroom_teacher_{sec.id}"
+                    raw = (request.POST.get(key) or "").strip()
+                    teacher = teachers.get(int(raw)) if raw.isdigit() else None
+                    ClassSectionTeacher.objects.update_or_create(
+                        class_obj=obj,
+                        section=sec,
+                        defaults={"teacher": teacher},
+                    )
+
+                    TeacherClassSection.objects.filter(classroom=obj, section=sec).exclude(teacher=teacher).delete()
+                    if teacher:
+                        TeacherClassSection.objects.update_or_create(
+                            teacher=teacher,
+                            classroom=obj,
+                            section=sec,
+                            defaults={},
+                        )
+            return redirect("core:school_classes")
+        existing_map = {
+            a.section_id: a.teacher_id
+            for a in ClassSectionTeacher.objects.filter(class_obj=classroom).only("section_id", "teacher_id")
+        }
+        teacher_choices = list(Teacher.objects.select_related("user").order_by("user__first_name", "user__username"))
+        section_teacher_rows = []
+        for sec in classroom.sections.all().order_by("name"):
+            section_teacher_rows.append(
+                {
+                    "section": sec,
+                    "teacher_id": existing_map.get(sec.id),
+                }
+            )
+        return render(
+            request,
+            "core/school/classes/form.html",
+            {
+                "form": form,
+                "classroom": classroom,
+                "title": "Edit Class",
+                "homeroom_teacher_choices": teacher_choices,
+                "section_teacher_rows": section_teacher_rows,
+            },
+        )
+
+    for attempt in (1, 2):
+        try:
+            return build_response()
+        except Exception as e:
+            if attempt == 2 or not tenant_schema_repair_should_retry(e):
+                raise
+            run_migrate_schemas_for_tenant_school(school)
+            recover_db_connection_for_request(request)
 
 
 @admin_required
@@ -6361,6 +9027,7 @@ def school_class_delete(request, class_id):
 # School Admin: Subjects
 # ======================
 
+@transaction.non_atomic_requests
 @admin_required
 @feature_required("students")
 def school_subjects(request):
@@ -6368,29 +9035,57 @@ def school_subjects(request):
     if not school:
         return redirect("core:admin_dashboard")
     ensure_tenant_for_request(request)
-    from django.core.paginator import Paginator
+    from apps.core.tenant_schema_repair import (
+        recover_db_connection_for_request,
+        run_migrate_schemas_for_tenant_school,
+        tenant_schema_repair_should_retry,
+    )
 
-    qs = Subject.objects.all().order_by("display_order", "name")
-    total_subjects = Subject.objects.count()
-    search = request.GET.get("q", "").strip()
-    if search:
-        qs = qs.filter(Q(name__icontains=search) | Q(code__icontains=search))
-        filtered_count = qs.count()
-        paginator = Paginator(qs, 15)
-        page = request.GET.get("page", 1)
-        subjects = paginator.get_page(page)
-        can_reorder = False
-    else:
-        filtered_count = total_subjects
-        subjects = qs
-        can_reorder = total_subjects > 0
-    return render(request, "core/school/subjects/list.html", {
-        "subjects": subjects,
-        "total_subjects": total_subjects,
-        "filtered_count": filtered_count,
-        "filters": {"q": search},
-        "can_reorder": can_reorder,
-    })
+    def build_response():
+        from django.core.paginator import Paginator
+
+        ensure_tenant_for_request(request)
+        try:
+            if getattr(connection, "needs_rollback", False):
+                connection.rollback()
+        except Exception:
+            pass
+
+        qs = Subject.objects.all().order_by("display_order", "name")
+        total_subjects = Subject.objects.count()
+        search = request.GET.get("q", "").strip()
+        if search:
+            qs = qs.filter(Q(name__icontains=search) | Q(code__icontains=search))
+            filtered_count = qs.count()
+            paginator = Paginator(qs, 15)
+            page = request.GET.get("page", 1)
+            subjects = paginator.get_page(page)
+            _ol = subjects.object_list
+            if hasattr(_ol, "model"):
+                subjects.object_list = list(_ol)
+            can_reorder = False
+        else:
+            filtered_count = total_subjects
+            subjects = list(qs)
+            can_reorder = total_subjects > 0
+        subject_create_success = request.session.pop("subject_create_success", None)
+        return render(request, "core/school/subjects/list.html", {
+            "subjects": subjects,
+            "total_subjects": total_subjects,
+            "filtered_count": filtered_count,
+            "filters": {"q": search},
+            "can_reorder": can_reorder,
+            "subject_create_success": subject_create_success,
+        })
+
+    for attempt in (1, 2):
+        try:
+            return build_response()
+        except Exception as e:
+            if attempt == 2 or not tenant_schema_repair_should_retry(e):
+                raise
+            run_migrate_schemas_for_tenant_school(school)
+            recover_db_connection_for_request(request)
 
 
 @admin_required
@@ -6404,6 +9099,10 @@ def school_subject_add(request):
     if request.method == "POST" and form.is_valid():
         obj = form.save(commit=False)
         obj.save_with_audit(request.user)
+        request.session["subject_create_success"] = {
+            "name": obj.name,
+            "code": (obj.code or "").strip(),
+        }
         return redirect("core:school_subjects")
     return render(request, "core/school/subjects/form.html", {"form": form, "title": "Add Subject"})
 
@@ -7176,7 +9875,12 @@ def student_fees(request):
         return render(
             request,
             "core/student/fees.html",
-            {"fee_rows": [], "summary": {"total": 0, "paid": 0, "pending": 0}},
+            {
+                "fee_rows": [],
+                "summary": {"gross": 0, "concession": 0, "paid": 0, "balance": 0},
+                "filters": {"status": "", "fee_type": ""},
+                "fee_type_choices": [],
+            },
         )
 
     fee_qs = (
@@ -7186,33 +9890,77 @@ def student_fees(request):
         .order_by("-due_date")
     )
 
+    # Optional filters
+    status_filter = (request.GET.get("status") or "").strip().upper()
+    fee_type_filter = (request.GET.get("fee_type") or "").strip()
+
     rows = []
-    total_amount = Decimal("0")
+    total_gross = Decimal("0")
+    total_concession = Decimal("0")
     total_paid = Decimal("0")
+    total_balance = Decimal("0")
     today = date.today()
+
+    # Build fee type choices from all fees (before filters)
+    fee_type_choices = []
+    try:
+        fee_type_choices = sorted(
+            {((f.fee_structure.fee_type.name if f.fee_structure_id and f.fee_structure.fee_type_id else "") or "").strip() for f in fee_qs}
+            - {""}
+        )
+    except Exception:
+        fee_type_choices = []
+
     for fee in fee_qs:
+        fee_type_name = (
+            (fee.fee_structure.fee_type.name if fee.fee_structure_id and fee.fee_structure.fee_type_id else "")
+            or ""
+        ).strip()
+        if status_filter in ("PENDING", "PARTIAL", "PAID") and fee.status != status_filter:
+            continue
+        if fee_type_filter and fee_type_name != fee_type_filter:
+            continue
+
         paid_amount = sum(p.amount for p in fee.payments.all())
-        eff = fee.effective_due_amount
-        pending_amount = max(eff - paid_amount, 0)
-        total_amount += eff
+        gross_amount = fee.amount or Decimal("0")
+        concession_amount = fee.total_concession_amount
+        net_amount = fee.effective_due_amount
+        balance_amount = max(net_amount - paid_amount, Decimal("0"))
+
+        total_gross += gross_amount
+        total_concession += concession_amount
         total_paid += paid_amount
+        total_balance += balance_amount
         rows.append(
             {
                 "fee": fee,
+                "fee_type": fee_type_name or (getattr(fee.fee_structure, "line_name", "") or "").strip() or "Fee",
+                "gross_amount": gross_amount,
+                "concession_amount": concession_amount,
+                "net_amount": net_amount,
                 "paid_amount": paid_amount,
-                "pending_amount": pending_amount,
+                "balance_amount": balance_amount,
                 "is_unpaid": fee.status in ("PENDING", "PARTIAL"),
                 "is_overdue": fee.due_date < today and fee.status in ("PENDING", "PARTIAL"),
             }
         )
 
-    pending_total = sum((r["pending_amount"] for r in rows), Decimal("0"))
     summary = {
-        "total": total_amount,
+        "gross": total_gross,
+        "concession": total_concession,
         "paid": total_paid,
-        "pending": pending_total,
+        "balance": total_balance,
     }
-    return render(request, "core/student/fees.html", {"fee_rows": rows, "summary": summary})
+    return render(
+        request,
+        "core/student/fees.html",
+        {
+            "fee_rows": rows,
+            "summary": summary,
+            "filters": {"status": status_filter, "fee_type": fee_type_filter},
+            "fee_type_choices": fee_type_choices,
+        },
+    )
 
 
 @login_required
@@ -7286,6 +10034,15 @@ def homework_list(request):
                 homework_id__in=[h.id for h in assignments_raw],
             )
         }
+        attempt_count_map = {
+            hid: c
+            for hid, c in HomeworkSubmissionAttempt.objects.filter(
+                student=student,
+                homework_id__in=[h.id for h in assignments_raw],
+            )
+            .values_list("homework_id")
+            .annotate(c=Count("id"))
+        }
 
         today = date.today()
         rows = []
@@ -7293,6 +10050,25 @@ def homework_list(request):
         for hw in assignments_raw:
             sub = submission_map.get(hw.id)
             status = sub.status if sub else HomeworkSubmission.Status.PENDING
+            is_missing = (status != HomeworkSubmission.Status.COMPLETED) and (hw.due_date < today)
+            is_late = False
+            if status == HomeworkSubmission.Status.COMPLETED and sub and sub.submitted_at:
+                try:
+                    is_late = sub.submitted_at.date() > hw.due_date
+                except Exception:
+                    is_late = False
+
+            if status == HomeworkSubmission.Status.COMPLETED:
+                if is_late:
+                    badge = {"text": "Late", "cls": "bg-warning text-dark", "icon": "bi bi-exclamation-triangle"}
+                else:
+                    badge = {"text": "Submitted", "cls": "bg-success", "icon": "bi bi-check2-circle"}
+            else:
+                if is_missing:
+                    badge = {"text": "Missing", "cls": "bg-danger", "icon": "bi bi-x-circle"}
+                else:
+                    badge = {"text": "Pending", "cls": "bg-secondary", "icon": "bi bi-clock"}
+
             if status == HomeworkSubmission.Status.COMPLETED:
                 completed += 1
             else:
@@ -7302,6 +10078,10 @@ def homework_list(request):
                     "homework": hw,
                     "status": status,
                     "submission": sub,
+                    "badge": badge,
+                    "is_late": is_late,
+                    "is_missing": is_missing,
+                    "attempt_count": int(attempt_count_map.get(hw.id) or 0),
                     "is_overdue": hw.is_past_submission_deadline()
                     and status != HomeworkSubmission.Status.COMPLETED,
                     "section_name": student.section.name if student.section else "N/A",
@@ -7423,10 +10203,25 @@ def student_homework_submit(request, homework_id):
         student=student,
         defaults={"status": HomeworkSubmission.Status.PENDING},
     )
+
+    # Always keep a history row for audit + "submission history" UI.
+    # (Do not rely only on HomeworkSubmission which is unique per student+homework and can be overwritten.)
+    HomeworkSubmissionAttempt.objects.create(
+        homework=homework,
+        student=student,
+        submission_file=upload if upload else None,
+        remarks=(request.POST.get("remarks") or "").strip(),
+    )
+
     update_fields = ["status", "submitted_at"]
     if upload:
         submission.submission_file = upload
         update_fields.insert(0, "submission_file")
+    # Keep remarks on the current submission too (optional, shown to student)
+    if "remarks" in request.POST:
+        submission.remarks = (request.POST.get("remarks") or "").strip()
+        if "remarks" not in update_fields:
+            update_fields.append("remarks")
     submission.status = HomeworkSubmission.Status.COMPLETED
     submission.submitted_at = timezone.now()
     submission.save(update_fields=update_fields)
@@ -7474,6 +10269,23 @@ def student_homework_detail(request, homework_id: int):
         raise PermissionDenied
     submission = HomeworkSubmission.objects.filter(homework_id=hw.id, student=student).first()
     status = submission.status if submission else HomeworkSubmission.Status.PENDING
+    attempts_qs = HomeworkSubmissionAttempt.objects.filter(homework_id=hw.id, student=student).order_by("-submitted_at")[:10]
+    attempts = []
+    for a in attempts_qs:
+        is_late = False
+        if a.submitted_at and hw.due_date:
+            try:
+                is_late = a.submitted_at.date() > hw.due_date
+            except Exception:
+                is_late = False
+        attempts.append(
+            {
+                "submitted_at": a.submitted_at,
+                "submission_file": a.submission_file,
+                "remarks": a.remarks,
+                "is_late": is_late,
+            }
+        )
     return render(
         request,
         "core/student/homework_detail.html",
@@ -7481,6 +10293,7 @@ def student_homework_detail(request, homework_id: int):
             "homework": hw,
             "student": student,
             "submission": submission,
+            "submission_attempts": attempts,
             "status": status,
             "today": timezone.localdate(),
             "is_overdue": hw.is_past_submission_deadline() and status != HomeworkSubmission.Status.COMPLETED,

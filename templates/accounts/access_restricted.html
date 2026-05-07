@@ -1,7 +1,7 @@
 {% extends "accounts/base_saas_auth.html" %}
 {% load static %}
 
-{% block title %}Access Restricted | Campus ERP{% endblock %}
+{% block title %}Access Restricted | {{ app_product_name }}{% endblock %}
 
 {% block body %}
 <div class="min-h-screen w-full bg-slate-950">
@@ -21,10 +21,26 @@
           <div class="flex-1">
             <h1 class="text-2xl font-bold tracking-tight text-white sm:text-3xl">Account Access Restricted</h1>
             <p class="mt-2 text-sm leading-relaxed text-white/80">
-              This account has been marked as inactive by your school administrator.
+              {% if blocked_type == "trial_expired" %}
+                Your account is temporarily paused.
+              {% elif blocked_type == "school_suspended" %}
+                Your school account has been suspended. Please contact support.
+              {% elif blocked_type == "school_archived" %}
+                This school has been archived on the platform. Sign-in is not available.
+              {% elif blocked_type == "school_inactive_status" %}
+                This school is marked inactive on the platform. Sign-in is not available.
+              {% else %}
+                This account has been marked as inactive by your school administrator.
+              {% endif %}
             </p>
             <p class="mt-3 text-sm text-white/65">
-              Please contact your school administration for assistance and account reactivation.
+              {% if blocked_type == "trial_expired" %}
+                Please contact your School Admin for assistance.
+              {% elif blocked_type == "school_suspended" or blocked_type == "school_archived" or blocked_type == "school_inactive_status" %}
+                Please contact your school administration or platform support if you need access restored.
+              {% else %}
+                Please contact your school administration for assistance and account reactivation.
+              {% endif %}
             </p>
           </div>
         </div>
@@ -75,11 +91,17 @@
         </div>
 
         <div class="mt-6 text-xs text-white/55">
-          If you believe this is an error, ask the School Admin to set your account status back to <span class="font-semibold text-white/70">Active</span>.
+          {% if blocked_type == "trial_expired" %}
+            Once the plan is renewed, you’ll be able to sign in normally.
+          {% elif blocked_type == "school_suspended" or blocked_type == "school_archived" or blocked_type == "school_inactive_status" %}
+            When the school is reactivated on the platform, you can sign in again with your usual credentials.
+          {% else %}
+            If you believe this is an error, ask the School Admin to set your account status back to <span class="font-semibold text-white/70">Active</span>.
+          {% endif %}
         </div>
       </div>
 
-      <div class="mt-6 text-center text-xs text-white/45">© {% now "Y" %} Campus ERP · Secure access</div>
+      <div class="mt-6 text-center text-xs text-white/45">© {% now "Y" %} {{ app_product_name }} · Secure access</div>
     </div>
   </div>
 </div>

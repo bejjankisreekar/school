@@ -50,19 +50,32 @@ def _get_school_features(request):
     school = getattr(getattr(request, "user", None), "school", None)
     if not school:
         return frozenset()
-    # Strict SaaS-only access: rely on DB-driven feature codes.
-    return frozenset(school.get_enabled_feature_codes())
+    from apps.core.subscription_access import get_cached_enabled_feature_codes, normalize_feature_key
+
+    return frozenset(
+        normalize_feature_key(str(c)) for c in get_cached_enabled_feature_codes(school)
+    )
 
 
 def _superadmin_feature_union() -> frozenset:
     """All known feature codes from DB plus static list (for new codes before cache)."""
+    from apps.core.plan_features import PREMIUM_FEATURES, materialize_feature_set
+    from apps.core.subscription_access import normalize_feature_key
+
     try:
         from apps.customers.models import Feature
 
-        db_codes = set(Feature.objects.values_list("code", flat=True))
+        db_codes = {normalize_feature_key(str(c)) for c in Feature.objects.values_list("code", flat=True)}
     except Exception:
         db_codes = set()
-    return frozenset(_SUPERADMIN_ALL_FEATURES | db_codes)
+    try:
+        from apps.super_admin.models import Feature as SaFeature
+
+        sa_codes = {normalize_feature_key(str(c)) for c in SaFeature.objects.values_list("code", flat=True)}
+    except Exception:
+        sa_codes = set()
+    merged = set(_SUPERADMIN_ALL_FEATURES) | set(PREMIUM_FEATURES) | set(db_codes) | set(sa_codes)
+    return materialize_feature_set(merged)
 
 
 class SchoolFeaturesMiddleware(MiddlewareMixin):
@@ -77,6 +90,31 @@ class SchoolFeaturesMiddleware(MiddlewareMixin):
             request.school_features = _superadmin_feature_union()
         else:
             request.school_features = _get_school_features(request)
+
+
+class PlanRouteGateMiddleware(MiddlewareMixin):
+    """
+    Enforce SaaS plan features for school admin, teacher, student, and parent routes.
+
+    Uses ``SidebarMenuItem`` route_name → feature_code (public schema) plus path-prefix
+    fallbacks for detail URLs. Super Admin and unauthenticated requests are not gated here.
+    """
+
+    def process_view(self, request, view_func, view_args, view_kwargs):
+        from apps.core.plan_route_gate import plan_feature_denied_response, required_feature_for_request
+
+        rm = getattr(request, "resolver_match", None)
+        if not rm:
+            return None
+        req_feature = required_feature_for_request(request, rm)
+        if not req_feature:
+            return None
+        from apps.core.plan_features import feature_granted
+
+        features = getattr(request, "school_features", frozenset())
+        if feature_granted(features, req_feature):
+            return None
+        return plan_feature_denied_response(request, req_feature)
 
 
 class TenantSchemaFromUserMiddleware(MiddlewareMixin):
@@ -151,6 +189,70 @@ class PlatformLoginLockMiddleware(MiddlewareMixin):
         return redirect(reverse("accounts:login"))
 
 
+class SuspendedSchoolMiddleware(MiddlewareMixin):
+    """
+    Block tenant users when the school is archived, suspended, or fully inactive (status enum).
+    Soft inactivate (is_active False while trial/active) still allows the session; see
+    SchoolSoftInactiveNoticeMiddleware for the in-app notice.
+    Superadmin is exempt.
+    """
+
+    def process_request(self, request):
+        if not hasattr(request, "user") or not request.user.is_authenticated:
+            return
+        if getattr(request.user, "role", None) == User.Roles.SUPERADMIN:
+            return
+        school = getattr(request.user, "school", None)
+        if not school:
+            return
+        path = request.path or ""
+        if path.startswith("/accounts/"):
+            return
+        if path.startswith("/static/") or path.startswith("/media/"):
+            return
+        if school.allows_tenant_user_login():
+            return
+        from django.contrib.auth import logout
+
+        logout(request)
+        messages.error(
+            request,
+            "This school account is archived, suspended, or inactive on the platform. Contact support if you need access restored.",
+        )
+        return redirect(reverse("accounts:login"))
+
+
+class SchoolSoftInactiveNoticeMiddleware(MiddlewareMixin):
+    """
+    Once per session, show a warning when the school is soft-inactivated (is_active False)
+    but login is still allowed (trial/active status, not suspended/archived).
+    """
+
+    _SESSION_FLAG = "school_soft_inactive_notice_shown"
+
+    def process_request(self, request):
+        if not hasattr(request, "user") or not request.user.is_authenticated:
+            return
+        if getattr(request.user, "role", None) == User.Roles.SUPERADMIN:
+            return
+        school = getattr(request.user, "school", None)
+        if not school or school.is_active:
+            return
+        if not school.allows_tenant_user_login():
+            return
+        if request.session.get(self._SESSION_FLAG):
+            return
+        path = request.path or ""
+        if path.startswith("/accounts/") or path.startswith("/static/") or path.startswith("/media/"):
+            return
+        messages.warning(
+            request,
+            "Your school account is marked inactive on the platform. Some actions may be limited until the School Admin or platform support reactivates it.",
+        )
+        request.session[self._SESSION_FLAG] = True
+        return None
+
+
 class TrialExpiryMiddleware(MiddlewareMixin):
     """
     When a school user's trial has expired, redirect to admin dashboard.
@@ -165,6 +267,38 @@ class TrialExpiryMiddleware(MiddlewareMixin):
         school = getattr(request.user, "school", None)
         if not school or not school.is_trial_expired():
             return
+        # Always allow auth/account endpoints so users can logout or switch accounts.
+        path = request.path or ""
+        if path.startswith("/accounts/"):
+            return
+        # Allow company contact page even during expiry (so "Contact Admin" works).
+        if path.startswith("/contact/"):
+            return
+        if path.startswith("/static/") or path.startswith("/media/"):
+            return
+
+        role = getattr(request.user, "role", None)
+        # For portal users (student/teacher/parent), do not show pricing page.
+        # Instead, block access and ask them to contact school admin.
+        if role in (User.Roles.STUDENT, User.Roles.TEACHER, User.Roles.PARENT):
+            from django.contrib.auth import logout
+
+            try:
+                logout(request)
+            except Exception:
+                pass
+            try:
+                messages.error(request, "School plan has expired. Please contact the School Admin.")
+            except Exception:
+                pass
+            try:
+                return redirect(
+                    f"{reverse('accounts:access_restricted')}?type=trial_expired&role={role}&login_type=portal"
+                )
+            except Exception:
+                return redirect("accounts:portal_login")
+
+        # Only school admin should see the trial-expired plans screen.
         # Allow access to admin dashboard (it will render trial_expired)
         try:
             dashboard_url = reverse("core:admin_dashboard")
@@ -173,3 +307,30 @@ class TrialExpiryMiddleware(MiddlewareMixin):
         except Exception:
             pass
         return redirect("core:admin_dashboard")
+
+
+class DbConnectionSanitizeMiddleware(MiddlewareMixin):
+    """
+    After each response, drop idle or broken PostgreSQL connections safely.
+
+    Runs after the request transaction (ATOMIC_REQUESTS) has finished so we do not
+    invalidate in-flight named cursors mid-view. Helps avoid stale handles when
+    CONN_MAX_AGE keeps connections open across tenant/schema changes.
+    """
+
+    def process_response(self, request, response):
+        try:
+            from django.db import connections
+
+            try:
+                from django_tenants.utils import get_tenant_database_alias
+
+                alias = get_tenant_database_alias()
+            except Exception:
+                alias = "default"
+            conn = connections[alias]
+            if conn.connection is not None:
+                conn.close_if_unusable_or_obsolete()
+        except Exception:
+            pass
+        return response

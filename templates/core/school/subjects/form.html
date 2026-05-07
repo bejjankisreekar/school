@@ -1,38 +1,329 @@
 {% extends "base.html" %}
 {% block title %}{{ title }} | School ERP{% endblock %}
+
+{% block extra_head %}
+<style>
+  .subj-page {
+    max-width: 56rem;
+  }
+  .subj-hero {
+    background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 42%, #ecfdf5 100%);
+    border: 1px solid rgba(15, 23, 42, 0.07);
+    border-radius: 20px;
+    padding: 1.5rem 1.4rem;
+    margin-bottom: 1rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .subj-hero::after {
+    content: "";
+    position: absolute;
+    top: -40%;
+    right: -15%;
+    width: 12rem;
+    height: 12rem;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  html.dark .subj-hero {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(49, 46, 129, 0.22) 55%, rgba(15, 118, 110, 0.12) 100%);
+    border-color: rgba(148, 163, 184, 0.14);
+  }
+  .subj-hero-icon {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+    background: linear-gradient(145deg, #6366f1, #4f46e5);
+    color: #fff;
+    box-shadow: 0 8px 24px rgba(79, 70, 229, 0.35);
+    margin-bottom: 1rem;
+  }
+  html.dark .subj-hero-icon {
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  }
+  .subj-hero-title {
+    font-size: 1.55rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: #0f172a;
+    margin-bottom: 0.4rem;
+    line-height: 1.2;
+  }
+  html.dark .subj-hero-title { color: #f8fafc; }
+  .subj-hero-lead {
+    font-size: 0.92rem;
+    color: #64748b;
+    margin: 0;
+    max-width: 28rem;
+    line-height: 1.55;
+  }
+  html.dark .subj-hero-lead { color: #94a3b8; }
+  .subj-aside {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 16px;
+    padding: 1rem 1.15rem;
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(8px);
+  }
+  html.dark .subj-aside {
+    background: rgba(30, 41, 59, 0.65);
+    border-color: rgba(148, 163, 184, 0.14);
+  }
+  .subj-aside-title {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #64748b;
+    margin-bottom: 0.75rem;
+  }
+  html.dark .subj-aside-title { color: #94a3b8; }
+  .subj-tip {
+    display: flex;
+    gap: 0.65rem;
+    align-items: flex-start;
+    font-size: 0.8125rem;
+    color: #475569;
+    margin-bottom: 0.65rem;
+    line-height: 1.45;
+  }
+  .subj-tip:last-child { margin-bottom: 0; }
+  html.dark .subj-tip { color: #cbd5e1; }
+  .subj-tip i {
+    color: #6366f1;
+    font-size: 1rem;
+    margin-top: 0.1rem;
+    flex-shrink: 0;
+  }
+  html.dark .subj-tip i { color: #a5b4fc; }
+  .subj-form-card {
+    background: #fff;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 20px;
+    box-shadow: 0 4px 28px rgba(15, 23, 42, 0.07);
+    padding: 1.5rem 1.4rem 1.35rem;
+  }
+  html.dark .subj-form-card {
+    background: rgba(30, 41, 59, 0.92);
+    border-color: rgba(148, 163, 184, 0.15);
+    box-shadow: 0 4px 32px rgba(0, 0, 0, 0.25);
+  }
+  .subj-form-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.35rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.07);
+  }
+  html.dark .subj-form-card-head {
+    border-bottom-color: rgba(148, 163, 184, 0.12);
+  }
+  .subj-form-card-kicker {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #6366f1;
+    margin-bottom: 0.25rem;
+  }
+  html.dark .subj-form-card-kicker { color: #a5b4fc; }
+  .subj-form-card-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #0f172a;
+    margin: 0;
+  }
+  html.dark .subj-form-card-title { color: #f8fafc; }
+  .subj-form-card-meta {
+    font-size: 0.75rem;
+    color: #64748b;
+    text-align: right;
+    max-width: 11rem;
+    line-height: 1.35;
+  }
+  html.dark .subj-form-card-meta { color: #94a3b8; }
+  .subj-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 0.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  html.dark .subj-label { color: #e2e8f0; }
+  .subj-label .text-danger { font-weight: 700; }
+  .subj-input-group .input-group-text {
+    background: rgba(248, 250, 252, 0.95);
+    border-color: rgba(15, 23, 42, 0.1);
+    color: #64748b;
+    border-radius: 12px 0 0 12px;
+  }
+  html.dark .subj-input-group .input-group-text {
+    background: rgba(15, 23, 42, 0.75);
+    border-color: rgba(148, 163, 184, 0.2);
+    color: #94a3b8;
+  }
+  .subj-input-group .form-control {
+    border-radius: 0 12px 12px 0;
+    min-height: 2.65rem;
+    border-color: rgba(15, 23, 42, 0.12);
+  }
+  html.dark .subj-input-group .form-control {
+    background: rgba(15, 23, 42, 0.55);
+    border-color: rgba(148, 163, 184, 0.22);
+    color: #f1f5f9;
+  }
+  .subj-input-group .form-control:focus {
+    border-color: rgba(99, 102, 241, 0.55);
+    box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.18);
+  }
+  .subj-input-group .form-control.is-invalid {
+    border-color: #dc3545;
+  }
+  .subj-hint {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-top: 0.4rem;
+    line-height: 1.45;
+  }
+  html.dark .subj-hint { color: #94a3b8; }
+  .subj-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.65rem;
+    margin-top: 1.75rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid rgba(15, 23, 42, 0.07);
+  }
+  html.dark .subj-actions {
+    border-top-color: rgba(148, 163, 184, 0.12);
+  }
+  .subj-actions .btn-primary {
+    padding-left: 1.35rem;
+    padding-right: 1.35rem;
+    font-weight: 600;
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.28);
+  }
+  .subj-actions .btn-outline-secondary {
+    border-radius: 12px;
+    font-weight: 500;
+  }
+  @media (max-width: 991.98px) {
+    .subj-form-card-meta { text-align: left; max-width: none; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container-fluid px-0">
+<div class="container-fluid px-0 subj-page">
   <nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb">
+    <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url 'core:admin_dashboard' %}">Dashboard</a></li>
       <li class="breadcrumb-item"><a href="{% url 'core:school_subjects' %}">Subjects</a></li>
-      <li class="breadcrumb-item active">{{ title }}</li>
+      <li class="breadcrumb-item active" aria-current="page">{{ title }}</li>
     </ol>
   </nav>
 
-  <div class="card border-0 shadow-sm rounded-3" style="max-width: 32rem;">
-    <div class="card-body">
-      <h2 class="h5 fw-bold mb-2">{{ title }}</h2>
-      <p class="text-muted small mb-4">Subjects are school-wide master records (name and code only).</p>
-      {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
-      <form method="post">
-        {% csrf_token %}
-        <div class="mb-3">
-          <label class="form-label">Subject name <span class="text-danger">*</span></label>
-          {{ form.name }}
-          {% if form.name.errors %}<div class="text-danger small">{{ form.name.errors.0 }}</div>{% endif %}
+  <div class="row g-4 g-lg-5 align-items-start">
+    <div class="col-lg-5">
+      <div class="subj-hero">
+        <div class="subj-hero-icon" aria-hidden="true">
+          <i class="bi bi-journal-bookmark-fill"></i>
         </div>
-        <div class="mb-3">
-          <label class="form-label">Subject code <span class="text-danger">*</span></label>
-          {{ form.code }}
-          {% if form.code.errors %}<div class="text-danger small">{{ form.code.errors.0 }}</div>{% endif %}
-          <div class="form-text">Unique in your school (e.g. MATH01).</div>
+        <h1 class="subj-hero-title">{{ title }}</h1>
+        {% if subject %}
+          <p class="subj-hero-lead">Update how this subject appears across your school. Changes apply wherever this subject is selected—classes, exams, marks, and assignments.</p>
+        {% else %}
+          <p class="subj-hero-lead">Create a clear, reusable subject for your school. Each record is tenant-isolated and powers pickers, timetables, assessments, and reports.</p>
+        {% endif %}
+      </div>
+      <div class="subj-aside">
+        <div class="subj-aside-title">Why this matters</div>
+        <div class="subj-tip">
+          <i class="bi bi-diagram-3" aria-hidden="true"></i>
+          <span><strong>One master list</strong> — define each subject once; staff assign it to classes and sections as needed.</span>
         </div>
-        <div class="d-flex gap-2">
-          <button type="submit" class="btn btn-primary">Save</button>
-          <a href="{% url 'core:school_subjects' %}" class="btn btn-outline-secondary">Cancel</a>
+        <div class="subj-tip">
+          <i class="bi bi-hash" aria-hidden="true"></i>
+          <span><strong>Stable codes</strong> — short unique codes help imports, exports, and integrations stay consistent.</span>
         </div>
-      </form>
+        <div class="subj-tip">
+          <i class="bi bi-shield-lock" aria-hidden="true"></i>
+          <span><strong>Your data only</strong> — subjects exist only inside your school workspace; nothing is shared with other institutions.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-7">
+      <div class="subj-form-card">
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger border-0 rounded-3 shadow-sm mb-4" role="alert">
+            <div class="d-flex gap-2 align-items-start">
+              <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1" aria-hidden="true"></i>
+              <div>{{ form.non_field_errors }}</div>
+            </div>
+          </div>
+        {% endif %}
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          <div class="subj-form-card-head">
+            <div>
+              <div class="subj-form-card-kicker">{% if subject %}Update{% else %}New entry{% endif %}</div>
+              <h2 class="subj-form-card-title">Subject details</h2>
+            </div>
+            <p class="subj-form-card-meta mb-0">All fields marked <span class="text-danger">*</span> are required before you can save.</p>
+          </div>
+
+          <div class="mb-4">
+            <label class="subj-label" for="{{ form.name.id_for_label }}">
+              Subject name <span class="text-danger" aria-hidden="true">*</span>
+            </label>
+            <div class="input-group subj-input-group">
+              <span class="input-group-text" id="subj-name-addon"><i class="bi bi-book" aria-hidden="true"></i></span>
+              {{ form.name }}
+            </div>
+            {% if form.name.errors %}
+              <div class="invalid-feedback d-block small mt-1">{{ form.name.errors.0 }}</div>
+            {% endif %}
+            <p class="subj-hint mb-0">Use the full title staff and parents expect to see (for example <em>Mathematics</em> or <em>Environmental Science</em>).</p>
+          </div>
+
+          <div class="mb-0">
+            <label class="subj-label" for="{{ form.code.id_for_label }}">
+              Subject code <span class="text-danger" aria-hidden="true">*</span>
+            </label>
+            <div class="input-group subj-input-group">
+              <span class="input-group-text" id="subj-code-addon"><i class="bi bi-upc-scan" aria-hidden="true"></i></span>
+              {{ form.code }}
+            </div>
+            {% if form.code.errors %}
+              <div class="invalid-feedback d-block small mt-1">{{ form.code.errors.0 }}</div>
+            {% endif %}
+            <p class="subj-hint mb-0">Must be unique within your school. Letters and digits only in practice (e.g. <code class="px-1 rounded small bg-body-tertiary text-body">MATH01</code>).</p>
+          </div>
+
+          <div class="subj-actions">
+            <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2">
+              <i class="bi bi-check2-circle" aria-hidden="true"></i>
+              {% if subject %}Save changes{% else %}Create subject{% endif %}
+            </button>
+            <a href="{% url 'core:school_subjects' %}" class="btn btn-outline-secondary">Back to list</a>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 </div>

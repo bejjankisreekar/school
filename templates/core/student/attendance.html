@@ -3,16 +3,67 @@
 
 {% block content %}
 <div class="container-fluid px-0">
-  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-    <h1 class="h4 fw-bold mb-0">My Attendance</h1>
-    <div class="d-flex align-items-center gap-2">
-      <span class="text-muted small mb-0">Insights 📊</span>
-      <span class="badge bg-{{ insight_level }} px-3 py-2 text-wrap">{{ insight_message }}</span>
+  <style>
+    .att-page { max-width: 1200px; margin: 0 auto; }
+    .att-hero {
+      border-radius: 1.25rem;
+      padding: 1.25rem 1.25rem;
+      color: #fff;
+      background:
+        radial-gradient(900px circle at 10% 20%, rgba(59, 130, 246, 0.45) 0%, rgba(59, 130, 246, 0.0) 55%),
+        radial-gradient(700px circle at 90% 10%, rgba(168, 85, 247, 0.45) 0%, rgba(168, 85, 247, 0.0) 55%),
+        linear-gradient(135deg, #2563eb 0%, #7c3aed 55%, #4338ca 100%);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 14px 40px rgba(15, 23, 42, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      overflow: hidden;
+      position: relative;
+    }
+    .att-hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.0) 45%);
+      pointer-events: none;
+    }
+    .att-hero .subtitle { color: rgba(255,255,255,0.86); }
+    .att-card {
+      border-radius: 1.15rem;
+      border: 1px solid var(--bs-border-color-translucent);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 12px 34px rgba(15, 23, 42, 0.08);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .att-card:hover { transform: translateY(-1px); box-shadow: 0 12px 40px rgba(15, 23, 42, 0.12); }
+    .metric { font-size: 1.65rem; font-weight: 900; letter-spacing: -0.02em; }
+    .metric-sub { font-size: 0.85rem; color: var(--bs-secondary-color); }
+    .metric-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.18);
+      color: #4f46e5;
+    }
+    html.dark .metric-icon { background: rgba(129, 140, 248, 0.18); color: #c7d2fe; border-color: rgba(129, 140, 248, 0.25); }
+    .table thead th { white-space: nowrap; }
+    .table-striped>tbody>tr:nth-of-type(odd)>* { --bs-table-accent-bg: rgba(148, 163, 184, 0.08); }
+  </style>
+
+  <div class="att-page">
+    <div class="att-hero mb-4">
+      <div class="position-relative d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+          <h1 class="h4 fw-bold mb-1">Attendance Overview</h1>
+          <div class="subtitle small">Track your attendance performance</div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <span class="badge bg-light text-dark border px-3 py-2 text-wrap">
+            <i class="bi bi-graph-up me-1"></i>{{ insight_message }}
+          </span>
+        </div>
+      </div>
     </div>
-  </div>
 
   <!-- View + Filter -->
-  <div class="card border-0 shadow-sm rounded-4 mb-3">
+  <div class="card border-0 att-card mb-3">
     <div class="card-body py-2">
     <form method="get" action="{% url 'core:student_attendance' %}" class="d-flex flex-wrap align-items-end gap-3">
     <div>
@@ -55,49 +106,90 @@
     </div>
   </div>
 
-  <div class="card border-0 rounded-4 mb-4 summary-card">
-    <div class="card-body py-3 px-3 px-md-4">
-      <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
-        <div style="flex: 1; min-width: 230px;">
-          <p class="text-muted small text-uppercase mb-1">Attendance</p>
-          <h3 class="h4 fw-bold mb-1 {% if percentage > 75 %}text-success{% elif percentage >= 50 %}text-warning{% else %}text-danger{% endif %}">{{ percentage }}%</h3>
-          <p class="text-muted small mb-0">Present: {{ present_days }} / {{ total_days }} days</p>
-        </div>
-        <div class="vr d-none d-lg-block"></div>
-        <div style="flex: 1; min-width: 230px;" class="text-md-end">
-          <p class="text-muted small text-uppercase mb-1">Selected Month</p>
-          <h6 class="fw-semibold mb-1">{{ calendar_month_label }}</h6>
-          <div class="d-flex flex-row align-items-md-end gap-2 flex-wrap justify-content-md-end">
-            <div class="streak-pill">
-              <span class="text-muted small d-block">Current Streak</span>
-              <span class="fw-bold text-success">{{ current_streak }} 🔥</span>
+    <div class="row g-3 mb-4">
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card border-0 att-card h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="text-muted small text-uppercase fw-semibold" style="letter-spacing:0.06em;">Overall</div>
+                <div class="metric {% if percentage > 75 %}text-success{% elif percentage >= 50 %}text-warning{% else %}text-danger{% endif %}">{{ percentage }}%</div>
+                <div class="metric-sub">Attendance percentage</div>
+              </div>
+              <div class="metric-icon"><i class="bi bi-percent"></i></div>
             </div>
-            <div class="streak-pill">
-              <span class="text-muted small d-block">Best Streak</span>
-              <span class="fw-bold text-primary">{{ best_streak }}</span>
+            <div class="progress mt-3" style="height: 8px;">
+              <div class="progress-bar {% if percentage > 75 %}bg-success{% elif percentage >= 50 %}bg-warning{% else %}bg-danger{% endif %}" style="width: {{ percentage }}%"></div>
             </div>
           </div>
         </div>
       </div>
-      <div class="progress mt-2 mb-2" style="height: 7px;">
-        <div class="progress-bar {% if percentage > 75 %}bg-success{% elif percentage >= 50 %}bg-warning{% else %}bg-danger{% endif %}" style="width: {{ percentage }}%"></div>
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card border-0 att-card h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="text-muted small text-uppercase fw-semibold" style="letter-spacing:0.06em;">Total Days</div>
+                <div class="metric">{{ total_days }}</div>
+                <div class="metric-sub">In selected range</div>
+              </div>
+              <div class="metric-icon"><i class="bi bi-calendar3"></i></div>
+            </div>
+          </div>
+        </div>
       </div>
-      {% if view_type == "monthly" %}
-      <div id="monthlyAttendanceDots" class="attendance-grid mb-2"></div>
-      <div class="d-flex flex-wrap gap-3 small text-muted">
-        <div class="d-flex align-items-center gap-2"><span class="attendance-day present"></span> Present</div>
-        <div class="d-flex align-items-center gap-2"><span class="attendance-day absent"></span> Absent</div>
-        <div class="d-flex align-items-center gap-2"><span class="attendance-day leave"></span> Leave</div>
-        <div class="d-flex align-items-center gap-2"><span class="attendance-day holiday"></span> No Data</div>
-        <div class="d-flex align-items-center gap-2"><span class="attendance-day future"></span> Future</div>
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card border-0 att-card h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="text-muted small text-uppercase fw-semibold" style="letter-spacing:0.06em;">Present</div>
+                <div class="metric text-success">{{ present_days }}</div>
+                <div class="metric-sub">Days attended</div>
+              </div>
+              <div class="metric-icon"><i class="bi bi-check2-circle"></i></div>
+            </div>
+          </div>
+        </div>
       </div>
-      {% endif %}
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card border-0 att-card h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="text-muted small text-uppercase fw-semibold" style="letter-spacing:0.06em;">Absent</div>
+                <div class="metric text-danger">{{ absent_days }}</div>
+                <div class="metric-sub">Missed days</div>
+              </div>
+              <div class="metric-icon"><i class="bi bi-x-circle"></i></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-  </div>
+
+    <div class="card border-0 att-card mb-4">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+          <div>
+            <h6 class="fw-bold mb-0"><i class="bi bi-activity me-2"></i>Attendance trend</h6>
+            <div class="text-muted small">Cumulative attendance percentage across the selected range.</div>
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            <span class="badge bg-light text-dark border">Current streak: {{ current_streak }}</span>
+            <span class="badge bg-light text-dark border">Best streak: {{ best_streak }}</span>
+            {% if leave_days %}<span class="badge bg-warning text-dark">Leave: {{ leave_days }}</span>{% endif %}
+          </div>
+        </div>
+        <div style="height: 260px;">
+          <canvas id="attendanceTrendChart" height="260"></canvas>
+        </div>
+      </div>
+    </div>
 
   <!-- Calendar View (Monthly) -->
   {% if view_type == "monthly" %}
-  <div class="card border-0 shadow-sm rounded-4 mb-4">
+  <div class="card border-0 att-card mb-4">
     <div class="card-body">
       <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <h6 class="fw-semibold mb-0">Attendance Calendar</h6>
@@ -129,7 +221,7 @@
   {% endif %}
 
   {% if view_type == "academic" %}
-  <div class="card border-0 shadow-sm rounded-4 mb-4">
+  <div class="card border-0 att-card mb-4">
     <div class="card-body">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h6 class="mb-0">Academic Year Heatmap</h6>
@@ -164,7 +256,13 @@
   {% endif %}
 
     <!-- Attendance Table -->
-    <form method="get" class="row g-2 mb-3">
+    <div class="card border-0 att-card mb-3">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+          <h6 class="fw-bold mb-0"><i class="bi bi-funnel me-2"></i>Filters</h6>
+          <span class="text-muted small">Narrow down records by date or status.</span>
+        </div>
+        <form method="get" class="row g-2">
     <input type="hidden" name="view_type" value="{{ view_type }}">
     <input type="hidden" name="month" value="{{ selected_month }}">
     <input type="hidden" name="year" value="{{ selected_year }}">
@@ -198,10 +296,14 @@
     <div class="col-6 col-md-2">
       <button class="btn btn-primary btn-sm w-100">Apply</button>
     </div>
-  </form>
+        </form>
+      </div>
+    </div>
 
+      <div class="card border-0 att-card">
+        <div class="card-body p-0">
       <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+        <table class="table table-hover table-striped align-middle mb-0">
           <thead class="table-light">
             <tr>
               <th>Date</th>
@@ -230,7 +332,7 @@
       </div>
 
       {% if attendance_page %}
-      <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+      <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2 px-3 pb-3">
         <small class="text-muted">
           {% if attendance_page.paginator.count %}
             Showing {{ attendance_page.start_index }} - {{ attendance_page.end_index }} of {{ attendance_page.paginator.count }}
@@ -246,12 +348,66 @@
         </div>
       </div>
       {% endif %}
-    </div>
+        </div>
+      </div>
+  </div>
   </div>
 </div>
 {% if view_type == "monthly" %}
 {{ monthly_attendance_data|json_script:"attendance-dot-data" }}
 {% endif %}
+{{ trend_labels|json_script:"attendance-trend-labels" }}
+{{ trend_pct|json_script:"attendance-trend-pct" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function () {
+    const el = document.getElementById("attendanceTrendChart");
+    if (!el) return;
+    const labels = JSON.parse(document.getElementById("attendance-trend-labels").textContent || "[]");
+    const data = JSON.parse(document.getElementById("attendance-trend-pct").textContent || "[]");
+    const ctx = el.getContext("2d");
+    const gradient = ctx.createLinearGradient(0, 0, 0, 260);
+    gradient.addColorStop(0, "rgba(79, 70, 229, 0.35)");
+    gradient.addColorStop(1, "rgba(79, 70, 229, 0.02)");
+
+    new Chart(ctx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label: "Attendance %",
+          data,
+          borderColor: "rgba(79, 70, 229, 1)",
+          backgroundColor: gradient,
+          fill: true,
+          tension: 0.35,
+          pointRadius: 0,
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { mode: "index", intersect: false }
+        },
+        scales: {
+          y: {
+            min: 0,
+            max: 100,
+            ticks: { callback: (v) => v + "%" },
+            grid: { color: "rgba(148, 163, 184, 0.25)" }
+          },
+          x: {
+            grid: { display: false },
+            ticks: { maxTicksLimit: 10 }
+          }
+        }
+      }
+    });
+  })();
+</script>
 <style>
   .attendance-grid {
     display: grid;

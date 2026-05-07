@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Resources | School ERP{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <style>
+    .res-page { max-width: 1200px; margin: 0 auto; }
+    .res-hero {
+      border-radius: 1.25rem;
+      padding: 1.25rem 1.25rem;
+      color: #fff;
+      background:
+        radial-gradient(900px circle at 10% 20%, rgba(59, 130, 246, 0.45) 0%, rgba(59, 130, 246, 0.0) 55%),
+        radial-gradient(700px circle at 90% 10%, rgba(168, 85, 247, 0.45) 0%, rgba(168, 85, 247, 0.0) 55%),
+        linear-gradient(135deg, #2563eb 0%, #7c3aed 55%, #4338ca 100%);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 14px 40px rgba(15, 23, 42, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      overflow: hidden;
+      position: relative;
+    }
+    .res-hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.0) 45%);
+      pointer-events: none;
+    }
+    .res-card {
+      border-radius: 1.15rem;
+      border: 1px solid var(--bs-border-color-translucent);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 12px 34px rgba(15, 23, 42, 0.08);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+      overflow: hidden;
+      height: 100%;
+    }
+    .res-card:hover { transform: translateY(-2px); border-color: rgba(59,130,246,0.28); box-shadow: 0 18px 44px rgba(15, 23, 42, 0.12); }
+    .res-title { font-weight: 900; letter-spacing: -0.01em; line-height: 1.25; margin: 0; }
+    .res-meta { font-size: 0.85rem; color: var(--bs-secondary-color); }
+    .res-chip { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+    .res-chip--pdf { background: rgba(239,68,68,0.10); border: 1px solid rgba(239,68,68,0.18); color: #b91c1c; }
+    .res-chip--video { background: rgba(37,99,235,0.10); border: 1px solid rgba(37,99,235,0.18); color: #1d4ed8; }
+    .res-chip--note { background: rgba(99,102,241,0.10); border: 1px solid rgba(99,102,241,0.18); color: #4338ca; }
+    .res-chip--assignment { background: rgba(22,163,74,0.10); border: 1px solid rgba(22,163,74,0.18); color: #166534; }
+    .res-chip--other { background: rgba(148,163,184,0.12); border: 1px solid rgba(148,163,184,0.20); color: #475569; }
+    html.dark .res-chip--pdf, body.dark-mode .res-chip--pdf { color: #fecaca; }
+    html.dark .res-chip--video, body.dark-mode .res-chip--video { color: #bfdbfe; }
+    html.dark .res-chip--note, body.dark-mode .res-chip--note { color: #c7d2fe; }
+    html.dark .res-chip--assignment, body.dark-mode .res-chip--assignment { color: #bbf7d0; }
+  </style>
+
+  <div class="res-page">
+    <div class="res-hero mb-4">
+      <div class="position-relative d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+          <h1 class="h4 fw-bold mb-1">Resources</h1>
+          <div class="small" style="color: rgba(255,255,255,0.86);">Notes, PDFs, videos and assignments — all in one place</div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+          <span class="badge bg-light text-dark border px-3 py-2">{{ resources|length }} item{{ resources|length|pluralize }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card border-0 res-card mb-3">
+      <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+          <div class="col-12 col-md-5">
+            <label class="form-label small text-muted mb-1">Subject</label>
+            <select name="subject" class="form-select form-select-sm">
+              <option value="" {% if not filters.subject %}selected{% endif %}>All subjects</option>
+              {% for s in subject_choices %}
+                <option value="{{ s.id }}" {% if filters.subject == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-md-5">
+            <label class="form-label small text-muted mb-1">Type</label>
+            <select name="type" class="form-select form-select-sm">
+              <option value="" {% if not filters.type %}selected{% endif %}>All types</option>
+              {% for val,label in type_choices %}
+                <option value="{{ val }}" {% if filters.type == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-md-2">
+            <button class="btn btn-primary btn-sm w-100"><i class="bi bi-funnel me-1"></i>Apply</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {% if resources %}
+      <div class="row g-3">
+        {% for r in resources %}
+          <div class="col-12 col-md-6 col-xl-4">
+            <div class="card border-0 res-card">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                  <h2 class="h6 res-title">{{ r.title }}</h2>
+                  {% with t=r.resource_type %}
+                    <span class="badge rounded-pill res-chip
+                      {% if t == 'PDF' %}res-chip--pdf
+                      {% elif t == 'VIDEO' %}res-chip--video
+                      {% elif t == 'NOTE' %}res-chip--note
+                      {% elif t == 'ASSIGNMENT' %}res-chip--assignment
+                      {% else %}res-chip--other{% endif %}">
+                      {{ r.get_resource_type_display }}
+                    </span>
+                  {% endwith %}
+                </div>
+                <div class="res-meta mb-3">
+                  <div><i class="bi bi-book me-1"></i>{{ r.subject.name|default:"No subject" }}</div>
+                  {% if r.description %}<div class="mt-1">{{ r.description|truncatechars:120 }}</div>{% endif %}
+                </div>
+                <div class="d-flex gap-2 flex-wrap justify-content-end">
+                  {% if r.file %}
+                    <a class="btn btn-outline-primary btn-sm rounded-pill px-3" href="{{ r.file.url }}" target="_blank" rel="noopener">
+                      <i class="bi bi-download me-1"></i>Download
+                    </a>
+                  {% endif %}
+                  {% if r.url %}
+                    <a class="btn btn-primary btn-sm rounded-pill px-3" href="{{ r.url }}" target="_blank" rel="noopener">
+                      <i class="bi bi-box-arrow-up-right me-1"></i>View
+                    </a>
+                  {% endif %}
+                  {% if not r.file and not r.url %}
+                    <span class="text-muted small">No file/link</span>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body text-center py-5 text-muted">
+          <i class="bi bi-folder2-open display-6"></i>
+          <div class="mt-2 fw-semibold">No resources found</div>
+          <div class="small">Ask your teachers to upload notes and materials.</div>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+

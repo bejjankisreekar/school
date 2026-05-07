@@ -1,0 +1,110 @@
+  <style>
+    #chat-float-btn {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background-color: var(--bs-primary, #2563eb);
+      color: #fff;
+      font-size: 24px;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.22);
+      z-index: 9999;
+      transition: transform 0.18s ease, filter 0.18s ease, box-shadow 0.18s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #chat-float-btn:hover {
+      transform: scale(1.08);
+      filter: brightness(0.95);
+      box-shadow: 0 16px 36px rgba(15, 23, 42, 0.28);
+    }
+
+    #chat-float-btn:active {
+      transform: scale(1.02);
+    }
+
+    #chat-float-btn:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.25), 0 12px 28px rgba(15, 23, 42, 0.22);
+    }
+
+    #chat-float-btn .chat-float-tooltip {
+      position: absolute;
+      right: 70px;
+      bottom: 50%;
+      transform: translateY(50%);
+      background: rgba(15, 23, 42, 0.92);
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s ease;
+    }
+
+    #chat-float-btn:hover .chat-float-tooltip {
+      opacity: 1;
+    }
+
+    #chat-float-btn .chat-float-badge {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 4px;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 18px;
+      border-radius: 999px;
+      background: #dc2626;
+      color: #fff;
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95);
+    }
+  </style>
+
+  <button id="chat-float-btn" type="button" aria-label="Open messages" title="Messages">
+    <span class="chat-float-tooltip" id="chat-float-tooltip">Chat / Messages</span>
+    <i class="bi bi-chat-dots" id="chat-float-icon"></i>
+    {% if request.user.role == "SUPERADMIN" or request.user.role == "ADMIN" %}
+      {% if platform_messaging_unread %}
+        <span class="chat-float-badge" aria-label="{{ platform_messaging_unread }} unread">{{ platform_messaging_unread }}</span>
+      {% endif %}
+    {% endif %}
+  </button>
+
+  <script>
+    (function () {
+      var btn = document.getElementById("chat-float-btn");
+      if (!btn) return;
+
+      var role = "{{ request.user.role|default:''|escapejs }}";
+      var href = "/student/messages/";
+      var tip = document.getElementById("chat-float-tooltip");
+      if (role === "TEACHER") {
+        href = "/teacher/messages/";
+        if (tip) tip.textContent = "Teacher messages";
+      } else if (role === "SUPERADMIN") {
+        href = "{% url 'core:super_admin:platform_messages' %}";
+        if (tip) tip.textContent = "Messages (schools)";
+      } else if (role === "ADMIN") {
+        href = "{% url 'core:school_admin_platform_messages' %}";
+        if (tip) tip.textContent = "Messages to platform";
+      } else {
+        if (tip) tip.textContent = "Chat / Messages";
+      }
+
+      btn.addEventListener("click", function () {
+        window.location.href = href;
+      });
+    })();
+  </script>

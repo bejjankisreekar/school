@@ -1,7 +1,8 @@
 {% extends "accounts/base_saas_auth.html" %}
 {% load static %}
+{% load nav_tags %}
 
-{% block title %}Login | Campus ERP{% endblock %}
+{% block title %}Login | {{ app_product_name }}{% endblock %}
 
 {% block body %}
 <!--
@@ -13,9 +14,9 @@
   <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
     <a href="{% url 'core:home' %}" class="inline-flex items-center gap-3">
       <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white ring-1 ring-white/20">
-        <span class="font-bold tracking-tight">CE</span>
+        <span class="font-bold tracking-tight">{{ app_product_name|branding_initials }}</span>
       </span>
-      <span class="text-sm font-semibold tracking-tight text-white">Campus ERP</span>
+      <span class="text-sm font-semibold tracking-tight text-white">{{ app_product_name }}</span>
     </a>
 
     <nav class="hidden items-center gap-6 text-sm font-medium text-white/85 sm:flex">
@@ -72,8 +73,8 @@
     <div class="relative z-10 mx-auto w-full max-w-md animate-fade-in">
       <!-- Logo -->
       <a href="{% url 'core:home' %}" class="mb-8 inline-flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-2.5 ring-1 ring-white/25 backdrop-blur-sm transition duration-300 hover:bg-white/20">
-        <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-lg font-bold text-indigo-600 shadow-lg">SE</span>
-        <span class="text-lg font-semibold tracking-tight">Campus ERP</span>
+        <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-lg font-bold text-indigo-600 shadow-lg">{{ app_product_name|branding_initials }}</span>
+        <span class="text-lg font-semibold tracking-tight">{{ app_product_name }}</span>
       </a>
       <h1 class="text-3xl font-bold leading-tight tracking-tight sm:text-4xl">Your campus, connected.</h1>
       <p class="mt-4 max-w-sm text-sm leading-relaxed text-indigo-100/95 sm:text-base">
@@ -137,7 +138,7 @@
         <!-- Client-side validation messages -->
         <div id="login-client-errors" class="mb-4 hidden rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status" aria-live="polite"></div>
 
-        <form id="login-form" method="post" class="space-y-5" novalidate>
+        <form id="login-form" method="post" action="{{ login_form_action }}" class="space-y-5" novalidate>
           {% csrf_token %}
           {% if next %}
           <input type="hidden" name="next" value="{{ next }}" />
@@ -245,7 +246,39 @@
         </div>
       </div>
 
-      <p class="mt-8 text-center text-xs text-white/70">© {% now "Y" %} Campus ERP · Secure access</p>
+      <p class="mt-8 text-center text-xs text-white/70">© {% now "Y" %} {{ app_product_name }} · Secure access</p>
+    </div>
+  </div>
+</div>
+
+<!-- Full-screen loader overlay (shown on submit) -->
+<div
+  id="login-loader"
+  class="hidden fixed inset-0 z-[9999] items-center justify-center bg-white/80 backdrop-blur-sm"
+  role="status"
+  aria-live="polite"
+  aria-hidden="true"
+>
+  <div class="mx-4 w-full max-w-sm rounded-3xl border border-slate-200 bg-white/80 p-7 shadow-2xl shadow-slate-900/10 backdrop-blur-md">
+    <div class="flex items-center gap-3">
+      <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-600/25">
+        <span class="text-sm font-extrabold tracking-tight">{{ app_product_name|branding_initials }}</span>
+      </div>
+      <div class="min-w-0">
+        <div class="text-base font-semibold text-slate-900">Signing you in…</div>
+        <div class="text-sm text-slate-500">Please wait a moment</div>
+      </div>
+    </div>
+    <div class="mt-6 flex items-center justify-center">
+      <div class="relative h-14 w-14">
+        <div class="absolute inset-0 rounded-full border-[5px] border-slate-200"></div>
+        <div class="absolute inset-0 animate-spin rounded-full border-[5px] border-slate-200 border-t-indigo-600"></div>
+      </div>
+    </div>
+    <div class="mt-5 flex items-center justify-center gap-2" aria-hidden="true">
+      <span class="h-2 w-2 animate-bounce rounded-full bg-indigo-600 [animation-delay:-0.2s]"></span>
+      <span class="h-2 w-2 animate-bounce rounded-full bg-violet-600 [animation-delay:-0.1s]"></span>
+      <span class="h-2 w-2 animate-bounce rounded-full bg-pink-600"></span>
     </div>
   </div>
 </div>
@@ -275,6 +308,7 @@
     var btn = document.getElementById("login-submit-btn");
     var label = document.getElementById("login-submit-label");
     var loading = document.getElementById("login-submit-loading");
+    var overlay = document.getElementById("login-loader");
 
     var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -325,6 +359,11 @@
         if (loading) {
           loading.classList.remove("hidden");
           loading.classList.add("inline-flex");
+        }
+        if (overlay) {
+          overlay.classList.remove("hidden");
+          overlay.classList.add("flex");
+          overlay.setAttribute("aria-hidden", "false");
         }
       });
     }

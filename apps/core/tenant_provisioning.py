@@ -2,14 +2,17 @@
 Create School tenants (PostgreSQL schema + django-tenants migrations) from public schema.
 Used by super-admin UI after a public enrollment signup.
 
-School code format: exactly 6 characters — 3 letters + 3 digits (e.g. NHS123); input may be lowercase and is normalized to uppercase.
-Schema name = lowercase code (e.g. nhs123). Academic tables exist only in tenant schemas.
+School code formats:
+- Legacy / manual: exactly 6 characters — 3 letters + 3 digits (e.g. NHS123); schema = code.lower().
+- Self-service enroll: 6-character Base36 (0-9, A-Z), uppercase, unique; schema = code.lower(), or
+  ``s`` + code.lower() when the code starts with a digit (valid PostgreSQL identifier).
 """
 from __future__ import annotations
 
 import logging
 import random
 import re
+import string
 from datetime import date, timedelta
 
 logger = logging.getLogger(__name__)
@@ -22,6 +25,9 @@ from apps.customers.models import Domain, Plan as CustomerPlan, School, Subscrip
 
 # Mandatory: 3 uppercase letters + 3 digits (e.g. NHS123, DPS456)
 SCHOOL_CODE_PATTERN = re.compile(r"^[A-Z]{3}[0-9]{3}$")
+# Self-service enrollment: 6-char Base36 (uppercase alnum)
+BASE36_ALPHABET = string.digits + string.ascii_uppercase
+SCHOOL_CODE_BASE36_PATTERN = re.compile(r"^[0-9A-Z]{6}$")
 
 
 def validate_school_code_format(code: str) -> str:
@@ -55,7 +61,21 @@ def generate_unique_school_code_from_name(name: str) -> str:
 
 
 def schema_name_for_school_code(code: str) -> str:
-    """PostgreSQL schema name: validated school code lowercased (e.g. NHS123 -> nhs123)."""
+    """
+    PostgreSQL schema name for a school ``code``.
+
+    - ABC123 -> ``nhs123`` (lowercase legacy format).
+    - Base36 6-char (e.g. K9X2A7) -> lowercase; if it starts with a digit, prefix ``s`` so the
+      identifier is valid for PostgreSQL (identifiers must not start with a digit).
+    """
+    c = (code or "").strip().upper()
+    if SCHOOL_CODE_PATTERN.fullmatch(c):
+        return c.lower()
+    if SCHOOL_CODE_BASE36_PATTERN.fullmatch(c):
+        lo = c.lower()
+        if lo[0].isdigit():
+            return f"s{lo}"
+        return lo
     validated = validate_school_code_format(code)
     return validated.lower()
 
@@ -86,6 +106,32 @@ def allocate_unique_schema_name(seed: str) -> str:
 def generate_school_code_from_name(name: str) -> str:
     """Deprecated name: use generate_unique_school_code_from_name."""
     return generate_unique_school_code_from_name(name)
+
+
+def generate_base36_school_code(length: int = 6) -> str:
+    """Random Base36 uppercase string (digits + A-Z), fixed length."""
+    return "".join(random.choices(BASE36_ALPHABET, k=length))
+
+
+def generate_unique_base36_school_code(length: int = 6) -> str:
+    """
+    Unique 6-character Base36 school code + resolvable unique schema_name.
+    Retries on collision (exist check); caller may still wrap ``School.save()`` in IntegrityError retries.
+    """
+    for _ in range(256):
+        candidate = generate_base36_school_code(length)
+        try:
+            schema = schema_name_for_school_code(candidate)
+        except ValidationError:
+            continue
+        if School.objects.filter(code=candidate).exists():
+            continue
+        if School.objects.filter(schema_name=schema).exists():
+            continue
+        return candidate
+    raise ValidationError(
+        "Could not allocate a unique school code. Please try again in a moment."
+    )
 
 
 def provision_school_from_enrollment(
@@ -128,18 +174,16 @@ def provision_school_from_enrollment(
         phone=phone.strip()[:20],
         address=address_notes.strip(),
     )
-    if saas_plan:
-        school.saas_plan = saas_plan
-    elif subscription_plan:
-        nm = (subscription_plan.name or "").lower()
-        if nm == "pro":
-            school.saas_plan = CustomerPlan.objects.filter(name="Enterprise").first()
-        else:
-            school.saas_plan = CustomerPlan.objects.filter(name="Starter").first()
-    if not school.saas_plan_id:
-        school.saas_plan = CustomerPlan.objects.filter(name="Starter").first()
+    # Super Admin SaaS Plan (v2)
+    try:
+        from apps.super_admin.models import Plan as SaaSPlan, PlanName
+
+        school.plan = SaaSPlan.objects.filter(name=PlanName.BASIC, is_active=True).first()
+    except Exception:
+        school.plan = None
+
     if subscription_plan:
-        school.plan = subscription_plan
+        school.billing_plan = subscription_plan
         if (subscription_plan.name or "").lower() == "trial":
             school.trial_end_date = date.today() + timedelta(days=subscription_plan.duration_days)
 

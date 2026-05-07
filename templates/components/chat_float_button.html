@@ -1,0 +1,10 @@
+{% load nav_tags %}
+{% if request.user.is_authenticated %}
+  {% if request.user.role == 'TEACHER' or request.user.role == 'STUDENT' %}
+    {% include "components/chat_float_button_core.html" %}
+  {% elif request.user.role == 'SUPERADMIN' and request.resolver_match and request.resolver_match.url_name == 'platform_messages' %}
+    {% include "components/chat_float_button_core.html" %}
+  {% elif request.user.role == 'ADMIN' and request|feature_access:'platform_messaging' and request.resolver_match and request.resolver_match.url_name == 'school_admin_platform_messages' %}
+    {% include "components/chat_float_button_core.html" %}
+  {% endif %}
+{% endif %}

@@ -349,6 +349,74 @@ class ClassSectionSubjectTeacher(BaseModel):
         return f"{self.class_obj.name}-{self.section.name} | {self.subject.name} -> {teacher_name}"
 
 
+class ClassSectionTeacher(models.Model):
+    """
+    Homeroom / class teacher assignment per (class, section).
+    One teacher per section within a class.
+    """
+
+    class_obj = models.ForeignKey(
+        ClassRoom,
+        on_delete=models.CASCADE,
+        related_name="class_section_teachers",
+    )
+    section = models.ForeignKey(
+        Section,
+        on_delete=models.CASCADE,
+        related_name="class_section_teachers",
+    )
+    teacher = models.ForeignKey(
+        Teacher,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="homeroom_assignments",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["class_obj", "section"], name="uniq_class_section_homeroom_teacher"),
+        ]
+        ordering = ["class_obj_id", "section_id"]
+
+    def __str__(self) -> str:
+        t = self.teacher.user.get_full_name() if self.teacher and getattr(self.teacher, "user", None) else "—"
+        return f"{self.class_obj.name}-{self.section.name} -> {t}"
+
+
+class TeacherClassSection(models.Model):
+    """
+    Assign teacher to specific sections within specific classes.
+    Used for teacher responsibility/permissions and filtering student-facing interactions.
+    """
+
+    teacher = models.ForeignKey(
+        Teacher,
+        on_delete=models.CASCADE,
+        related_name="class_section_assignments",
+    )
+    classroom = models.ForeignKey(
+        ClassRoom,
+        on_delete=models.CASCADE,
+        related_name="teacher_section_assignments",
+    )
+    section = models.ForeignKey(
+        Section,
+        on_delete=models.CASCADE,
+        related_name="teacher_section_assignments",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["teacher", "classroom", "section"], name="uniq_teacher_class_section"),
+        ]
+        ordering = ["teacher_id", "classroom_id", "section_id"]
+
+    def __str__(self) -> str:
+        tn = self.teacher.user.get_full_name() if getattr(self.teacher, "user", None) else str(self.teacher_id)
+        return f"{tn}: {self.classroom.name}-{self.section.name}"
+
+
 class Student(BaseModel):
     """Student profile linked to User."""
 
@@ -1148,6 +1216,114 @@ class HomeworkSubmission(models.Model):
 
     def __str__(self) -> str:
         return f"{self.student} - {self.homework} - {self.status}"
+
+
+class HomeworkSubmissionAttempt(models.Model):
+    """
+    Immutable submission attempt log for student homework (supports submission history).
+    """
+
+    homework = models.ForeignKey(
+        Homework,
+        on_delete=models.CASCADE,
+        related_name="submission_attempts",
+    )
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name="homework_submission_attempts",
+    )
+    submitted_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    submission_file = models.FileField(upload_to="homework_submissions/%Y/%m/", null=True, blank=True)
+    remarks = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["-submitted_at"]
+        indexes = [
+            models.Index(fields=["homework", "student", "-submitted_at"], name="hw_attempt_hw_stu_dt"),
+        ]
+
+    def __str__(self) -> str:
+        return f"Attempt: hw={self.homework_id} stu={self.student_id} at={self.submitted_at}"
+
+
+class StudentAnnouncement(models.Model):
+    class Audience(models.TextChoices):
+        STUDENTS = "STUDENTS", "Students"
+        ALL = "ALL", "All"
+
+    title = models.CharField(max_length=200)
+    content = models.TextField(blank=True, default="")
+    audience = models.CharField(max_length=20, choices=Audience.choices, default=Audience.STUDENTS, db_index=True)
+    publish_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-publish_at", "-created_at"]
+
+    def __str__(self) -> str:
+        return self.title
+
+
+class StudentResource(models.Model):
+    class ResourceType(models.TextChoices):
+        PDF = "PDF", "PDF"
+        NOTE = "NOTE", "Note"
+        VIDEO = "VIDEO", "Video"
+        ASSIGNMENT = "ASSIGNMENT", "Assignment"
+        OTHER = "OTHER", "Other"
+
+    title = models.CharField(max_length=200)
+    subject = models.ForeignKey(Subject, on_delete=models.SET_NULL, null=True, blank=True, related_name="resources")
+    resource_type = models.CharField(max_length=20, choices=ResourceType.choices, default=ResourceType.OTHER, db_index=True)
+    file = models.FileField(upload_to="student_resources/%Y/%m/", null=True, blank=True)
+    url = models.URLField(blank=True, default="")
+    description = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return self.title
+
+
+class StudentMessage(models.Model):
+    """
+    Simple student ↔ teacher messaging (per-tenant). Sender/receiver are accounts.User (public schema).
+    """
+
+    sender = models.ForeignKey("accounts.User", on_delete=models.CASCADE, related_name="sent_student_messages")
+    receiver = models.ForeignKey("accounts.User", on_delete=models.CASCADE, related_name="received_student_messages")
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="messages")
+    subject = models.ForeignKey(Subject, on_delete=models.SET_NULL, null=True, blank=True, related_name="messages")
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    is_read = models.BooleanField(default=False, db_index=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ("sent", "Sent"),
+            ("delivered", "Delivered"),
+            ("seen", "Seen"),
+            ("failed", "Failed"),
+        ],
+        default="sent",
+        db_index=True,
+    )
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    seen_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["student", "-created_at"], name="msg_student_dt"),
+        ]
+
+    def __str__(self) -> str:
+        return f"Msg {self.sender_id}->{self.receiver_id} ({self.created_at})"
 
 
 class FeeType(BaseModel):

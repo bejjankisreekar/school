@@ -140,9 +140,19 @@ class Command(BaseCommand):
         from apps.accounts.models import User, UserProfile
 
         created = 0
-        for user in User.objects.iterator():
-            _, was_created = UserProfile.objects.get_or_create(user=user)
-            if was_created:
-                created += 1
+        batch_size = 500
+        last_pk = None
+        while True:
+            q = User.objects.order_by("pk")
+            if last_pk is not None:
+                q = q.filter(pk__gt=last_pk)
+            batch = list(q[:batch_size])
+            if not batch:
+                break
+            for user in batch:
+                _, was_created = UserProfile.objects.get_or_create(user=user)
+                if was_created:
+                    created += 1
+            last_pk = batch[-1].pk
         if created:
             self.stdout.write(self.style.NOTICE(f"Created {created} user profile row(s)."))

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load static humanize %}
-{% block title %}My profile | Campus ERP{% endblock %}
+{% block title %}My profile | {{ app_product_name }}{% endblock %}
 {% block content %}
 <div class="container-fluid px-0 erp-module account-profile-page" id="accountProfilePage"
      data-profile-start-edit="{% if profile_save_failed %}1{% else %}0{% endif %}"

@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+
+{% block title %}Record payment · {{ invoice.invoice_number }} | {{ school.name }}{% endblock %}
+
+{% block content %}
+<style>
+  .recv-page { --recv-accent: #0d6efd; --recv-muted: #64748b; --recv-border: rgba(15, 23, 42, 0.08); }
+  .recv-hero {
+    background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 55%, #f0fdf4 100%);
+    border: 1px solid var(--recv-border);
+    border-radius: 1rem;
+  }
+  .recv-card {
+    border: 1px solid var(--recv-border);
+    border-radius: 1rem;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+  .recv-section-title {
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--recv-muted);
+  }
+  .recv-amt { font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+  .recv-preview {
+    background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+    color: #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 1rem 1.25rem;
+  }
+  .recv-preview .recv-amt { color: #fff; font-size: 1.35rem; font-weight: 700; }
+  .recv-muted-line { color: #94a3b8; font-size: 0.8rem; }
+</style>
+
+<div class="container py-4 recv-page" style="max-width: 960px;">
+  <nav class="mb-3">
+    <a href="{{ billing_detail_url }}" class="text-decoration-none small fw-semibold text-secondary">&larr; Back to billing</a>
+  </nav>
+
+  <div class="recv-hero p-4 p-md-4 mb-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between gap-3 align-items-start">
+      <div>
+        <h1 class="h4 fw-bold mb-1 text-dark">Record payment</h1>
+        <p class="text-secondary small mb-0">{{ school.name }}</p>
+        <p class="small mb-0 mt-1">
+          <span class="badge text-bg-light border fw-semibold">{{ invoice.invoice_number }}</span>
+          {% if invoice.invoice_month_key %}
+            <span class="text-muted ms-1">· Period {{ invoice.invoice_month_key }}</span>
+          {% endif %}
+        </p>
+      </div>
+      <div class="text-md-end recv-amt">
+        <div class="recv-section-title mb-1">Current invoice total</div>
+        <div class="h3 fw-bold text-dark mb-0">₹{{ invoice.grand_total }}</div>
+        {% if invoice.due_date %}
+          <div class="small text-muted">Due {{ invoice.due_date }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'debug' %}secondary{% else %}{{ message.tags|default:'info' }}{% endif %} small py-2 rounded-3 border-0 shadow-sm">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <form method="post" action="" id="recv-form" class="needs-validation" novalidate>
+    {% csrf_token %}
+
+    <div class="row g-4">
+      <div class="col-lg-7">
+        <div class="recv-card p-4 mb-4">
+          <div class="recv-section-title mb-3">Invoice lines &amp; adjustments</div>
+          <p class="small text-muted mb-4">
+            Update base, extra, or concession before payment. Add a one-time settlement discount, round the total, or set the final grand total directly.
+          </p>
+
+          <div class="form-check form-switch mb-4 p-3 rounded-3 bg-light border">
+            <input class="form-check-input" type="checkbox" name="use_grand_override" value="1" id="id_use_grand_override" />
+            <label class="form-check-label fw-semibold" for="id_use_grand_override">Set final grand total manually</label>
+            <div class="form-text small mb-0">Skips line math — use for a fixed settlement amount (includes GST).</div>
+          </div>
+
+          <fieldset id="recv-lines-fieldset" class="border-0 m-0 p-0">
+            <div class="row g-3 mb-3">
+              <div class="col-sm-4">
+                <label class="form-label small fw-semibold" for="id_invoice_line_base">Base (₹)</label>
+                <input type="text" inputmode="decimal" name="invoice_line_base" id="id_invoice_line_base" class="form-control recv-amt" value="{{ invoice.base_amount }}" autocomplete="off" />
+              </div>
+              <div class="col-sm-4">
+                <label class="form-label small fw-semibold" for="id_invoice_line_extra">Extra (₹)</label>
+                <input type="text" inputmode="decimal" name="invoice_line_extra" id="id_invoice_line_extra" class="form-control recv-amt" value="{{ invoice.extra_amount }}" autocomplete="off" />
+              </div>
+              <div class="col-sm-4">
+                <label class="form-label small fw-semibold" for="id_invoice_line_concession">Concession (₹)</label>
+                <input type="text" inputmode="decimal" name="invoice_line_concession" id="id_invoice_line_concession" class="form-control recv-amt" value="{{ invoice.concession_amount }}" autocomplete="off" />
+              </div>
+            </div>
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold" for="id_settlement_discount">Settlement discount (₹)</label>
+                <input type="text" inputmode="decimal" name="settlement_discount" id="id_settlement_discount" class="form-control recv-amt" value="0" placeholder="0" autocomplete="off" />
+                <div class="form-text">Extra discount on this month’s bill (before GST).</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold" for="id_round_nearest">Round grand total</label>
+                <select name="round_nearest" id="id_round_nearest" class="form-select">
+                  <option value="" selected>No rounding (paise)</option>
+                  <option value="1">Nearest rupee (₹1)</option>
+                  <option value="10">Nearest ten rupees (₹10)</option>
+                </select>
+              </div>
+            </div>
+          </fieldset>
+
+          <div id="recv-override-wrap" class="mb-0 d-none">
+            <label class="form-label small fw-semibold" for="id_grand_override">Final grand total (₹)</label>
+            <input type="text" inputmode="decimal" name="grand_override" id="id_grand_override" class="form-control recv-amt" value="{{ invoice.grand_total }}" autocomplete="off" />
+          </div>
+        </div>
+
+        <div class="recv-card p-4">
+          <div class="recv-section-title mb-3">Payment details</div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold" for="id_paid_at">Received on</label>
+              <input type="date" name="paid_at" id="id_paid_at" class="form-control" value="{{ today_iso }}" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold" for="id_payment_method">Receive mode</label>
+              <select name="payment_method" id="id_payment_method" class="form-select" required>
+                {% for val, label in payment_method_choices %}
+                  <option value="{{ val }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold" for="id_reference">Bank / gateway reference</label>
+              <input type="text" name="reference" id="id_reference" class="form-control" maxlength="200" placeholder="UTR, txn id, cheque no." autocomplete="off" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold" for="id_internal_receipt_no">Internal receipt no.</label>
+              <input type="text" name="internal_receipt_no" id="id_internal_receipt_no" class="form-control" maxlength="64" placeholder="Optional" autocomplete="off" />
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-semibold" for="id_notes">Notes</label>
+              <textarea name="notes" id="id_notes" class="form-control" rows="2" placeholder="Remarks for audit trail"></textarea>
+            </div>
+          </div>
+          <div class="d-flex gap-2 flex-wrap mt-4 pt-2 border-top">
+            <button type="submit" class="btn btn-success rounded-pill px-4 fw-semibold">Confirm payment received</button>
+            <a href="{{ billing_detail_url }}" class="btn btn-outline-secondary rounded-pill">Cancel</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-5">
+        <div class="recv-preview mb-3 sticky-lg-top" style="top: 1rem;">
+          <div class="recv-section-title text-white-50 mb-2">Amount to record</div>
+          <div class="recv-amt" id="recv-preview-grand">₹{{ invoice.grand_total }}</div>
+          <div class="recv-muted-line mt-2" id="recv-preview-sub"></div>
+          <div class="recv-muted-line" id="recv-preview-gst"></div>
+          <div class="recv-muted-line mt-2 small" id="recv-preview-hint">Matches server calculation when you submit.</div>
+        </div>
+
+        <div class="recv-card p-3">
+          <div class="recv-section-title mb-2">Current breakdown</div>
+          <table class="table table-sm mb-0 recv-amt small">
+            <tbody class="align-middle">
+              <tr><td class="text-muted py-2">Plan</td><td class="text-end py-2">{{ invoice.plan_label|default:"—" }}</td></tr>
+              <tr><td class="text-muted py-2">Students</td><td class="text-end py-2">{{ invoice.student_count }}</td></tr>
+              <tr><td class="text-muted py-2">Base</td><td class="text-end py-2">₹{{ invoice.base_amount }}</td></tr>
+              <tr><td class="text-muted py-2">Extra</td><td class="text-end py-2">₹{{ invoice.extra_amount }}</td></tr>
+              <tr><td class="text-muted py-2">Concession</td><td class="text-end py-2">₹{{ invoice.concession_amount }}</td></tr>
+              <tr><td class="text-muted py-2">Pre-GST</td><td class="text-end py-2">₹{{ invoice.subtotal_before_gst }}</td></tr>
+              {% if invoice.include_gst %}
+                <tr><td class="text-muted py-2">GST ({{ invoice.gst_rate_percent }}%)</td><td class="text-end py-2">₹{{ invoice.gst_amount }}</td></tr>
+              {% endif %}
+              <tr class="fw-bold border-top"><td class="py-2">Grand</td><td class="text-end py-2">₹{{ invoice.grand_total }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block after_bootstrap %}
+<script>
+(function () {
+  var form = document.getElementById("recv-form");
+  if (!form) return;
+
+  var includeGst = {{ invoice.include_gst|yesno:"true,false" }};
+  var gstRate = parseFloat("{{ invoice.gst_rate_percent|default:0 }}") || 0;
+
+  var elBase = document.getElementById("id_invoice_line_base");
+  var elExtra = document.getElementById("id_invoice_line_extra");
+  var elConc = document.getElementById("id_invoice_line_concession");
+  var elDisc = document.getElementById("id_settlement_discount");
+  var elRound = document.getElementById("id_round_nearest");
+  var elOverride = document.getElementById("id_use_grand_override");
+  var elGrandOv = document.getElementById("id_grand_override");
+  var fieldsetLines = document.getElementById("recv-lines-fieldset");
+  var wrapOverride = document.getElementById("recv-override-wrap");
+  var outGrand = document.getElementById("recv-preview-grand");
+  var outSub = document.getElementById("recv-preview-sub");
+  var outGst = document.getElementById("recv-preview-gst");
+  var outHint = document.getElementById("recv-preview-hint");
+
+  function parseMoney(s) {
+    if (s == null) return NaN;
+    s = String(s).trim().replace(/,/g, "");
+    if (s === "") return NaN;
+    var n = parseFloat(s);
+    return isFinite(n) ? n : NaN;
+  }
+
+  function round2(x) {
+    return Math.round(x * 100) / 100;
+  }
+
+  function roundGrand(grandPre, nearest) {
+    var g = round2(grandPre);
+    if (nearest === 10) return Math.round(g / 10) * 10;
+    if (nearest === 1) return Math.round(g);
+    return g;
+  }
+
+  function fmt(n) {
+    if (!isFinite(n)) return "—";
+    return "₹" + n.toFixed(2);
+  }
+
+  function syncOverrideUI() {
+    var on = elOverride && elOverride.checked;
+    if (wrapOverride) wrapOverride.classList.toggle("d-none", !on);
+    if (fieldsetLines) {
+      fieldsetLines.disabled = !!on;
+      fieldsetLines.style.opacity = on ? "0.45" : "1";
+      fieldsetLines.style.pointerEvents = on ? "none" : "";
+    }
+  }
+
+  function refresh() {
+    syncOverrideUI();
+    if (elOverride && elOverride.checked) {
+      var g = parseMoney(elGrandOv && elGrandOv.value);
+      if (!isFinite(g) || g < 0) {
+        outGrand.textContent = "—";
+        outSub.textContent = "";
+        outGst.textContent = "";
+        outHint.textContent = "Enter a valid final grand total.";
+        return;
+      }
+      outGrand.textContent = fmt(g);
+      outSub.textContent = "Manual grand total (GST split applied on save).";
+      outGst.textContent = "";
+      outHint.textContent = "";
+      return;
+    }
+
+    var b = parseMoney(elBase.value);
+    var e = parseMoney(elExtra.value);
+    var c = parseMoney(elConc.value);
+    var disc = parseMoney(elDisc.value);
+    if (!isFinite(disc) || disc < 0) disc = 0;
+    else disc = round2(disc);
+
+    if (!isFinite(b) || !isFinite(e) || !isFinite(c) || b < 0 || e < 0 || c < 0) {
+      outGrand.textContent = "—";
+      outSub.textContent = "";
+      outGst.textContent = "";
+      outHint.textContent = "Enter valid amounts.";
+      return;
+    }
+    if (c > round2(b + e)) {
+      outGrand.textContent = "—";
+      outSub.textContent = "";
+      outGst.textContent = "";
+      outHint.textContent = "Concession cannot exceed base + extra.";
+      return;
+    }
+
+    var subNet = round2(b + e - c - disc);
+    if (subNet < 0) {
+      outGrand.textContent = "—";
+      outSub.textContent = "";
+      outGst.textContent = "";
+      outHint.textContent = "Discount exceeds net before tax.";
+      return;
+    }
+
+    var gst = 0;
+    var subPre = subNet;
+    if (includeGst && gstRate > 0) {
+      gst = round2(subNet * (gstRate / 100));
+      subPre = subNet;
+    }
+    var grandPre = includeGst && gstRate > 0 ? round2(subNet + gst) : subNet;
+
+    var rn = elRound ? parseInt(elRound.value, 10) : 0;
+    if (rn !== 1 && rn !== 10) rn = 0;
+    var grand = roundGrand(grandPre, rn);
+
+    outGrand.textContent = fmt(grand);
+    outSub.textContent = "Taxable / pre-GST base (after lines & discount): " + fmt(subNet);
+    if (includeGst && gstRate > 0) {
+      var gstShow = round2(grand - round2(grand / (1 + gstRate / 100)));
+      var subShow = round2(grand - gstShow);
+      outGst.textContent = "GST included: " + fmt(gstShow) + " · Net of GST: " + fmt(subShow);
+    } else {
+      outGst.textContent = "No GST on this invoice.";
+    }
+    outHint.textContent = rn ? ("Rounded to nearest ₹" + rn + " after tax.") : "";
+  }
+
+  ["input", "change"].forEach(function (ev) {
+    [elBase, elExtra, elConc, elDisc, elRound, elGrandOv, elOverride].forEach(function (el) {
+      if (el) el.addEventListener(ev, refresh);
+    });
+  });
+  refresh();
+})();
+</script>
+{% endblock %}

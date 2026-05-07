@@ -1,5 +1,5 @@
 {% extends "marketing/base.html" %}
-{% block title %}Contact Us | School ERP{% endblock %}
+{% block title %}Contact Us | {{ app_product_name }}{% endblock %}
 {% block content %}
 <section class="py-5 py-lg-6">
   <div class="container">
@@ -7,18 +7,59 @@
     <div class="row g-5">
       <div class="col-lg-5">
         <div class="mb-4">
+          {% if company %}
+          <div class="mb-3">
+            <div class="small text-uppercase fw-semibold text-secondary">Company</div>
+            <div class="fw-semibold">{{ company.name }}</div>
+          </div>
+          {% endif %}
           <div class="d-flex align-items-center gap-3 mb-3">
             <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-2"><i class="bi bi-envelope fs-5"></i></div>
-            <div><strong>Email</strong><p class="text-secondary small mb-0">sreekarbejjanki@gmail.com</p></div>
+            <div>
+              <strong>Email</strong>
+              <p class="text-secondary small mb-0">
+                {% if company and company.contact_email %}
+                  <a class="text-decoration-none" href="mailto:{{ company.contact_email }}">{{ company.contact_email }}</a>
+                {% else %}
+                  <span>—</span>
+                {% endif %}
+              </p>
+            </div>
           </div>
           <div class="d-flex align-items-center gap-3 mb-3">
             <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-2"><i class="bi bi-telephone fs-5"></i></div>
-            <div><strong>Phone</strong><p class="text-secondary small mb-0">+91 97 00 36 48 00</p></div>
+            <div>
+              <strong>Phone</strong>
+              <p class="text-secondary small mb-0">
+                {% if company and company.phone %}
+                  <a class="text-decoration-none" href="tel:{{ company.phone }}">{{ company.phone }}</a>
+                {% else %}
+                  <span>—</span>
+                {% endif %}
+              </p>
+            </div>
           </div>
           <div class="d-flex align-items-center gap-3">
             <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-2"><i class="bi bi-geo-alt fs-5"></i></div>
-            <div><strong>Office Address</strong><p class="text-secondary small mb-0">Nizamabad, Telangana 503001</p></div>
+            <div>
+              <strong>Office Address</strong>
+              <p class="text-secondary small mb-0">
+                {% if company and company.address %}
+                  {{ company.address }}
+                {% else %}
+                  <span>—</span>
+                {% endif %}
+              </p>
+            </div>
           </div>
+        </div>
+        <div class="d-flex flex-wrap gap-2 mb-4">
+          {% if company and company.phone %}
+            <a class="btn btn-outline-primary" href="tel:{{ company.phone }}"><i class="bi bi-telephone me-1"></i>Call now</a>
+          {% endif %}
+          {% if company and company.contact_email %}
+            <a class="btn btn-primary" href="mailto:{{ company.contact_email }}"><i class="bi bi-envelope me-1"></i>Send email</a>
+          {% endif %}
         </div>
         <div class="ratio ratio-16x9 rounded-3 overflow-hidden border">
           <iframe 

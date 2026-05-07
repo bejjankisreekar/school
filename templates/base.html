@@ -5,7 +5,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{% block title %}Campus ERP{% endblock %}</title>
+    <title>{% block title %}{{ app_product_name }}{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
@@ -16,6 +16,7 @@
     <link href="{% static 'css/erp-design-system.css' %}" rel="stylesheet">
     <link href="{% static 'css/sidebar.css' %}" rel="stylesheet">
     <link href="{% static 'css/app-theme-global.css' %}" rel="stylesheet">
+    <link href="{% static 'css/responsive.css' %}" rel="stylesheet">
     <link href="{% static 'css/erp-loading-overlay.css' %}" rel="stylesheet">
     {% block extra_head %}{% endblock %}
     <script>
@@ -116,9 +117,9 @@
         <header class="app-marketing-header">
           <div class="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
             <div class="flex items-center gap-3">
-              <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 text-white font-semibold shadow-sm">SE</span>
+              <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 text-white font-semibold shadow-sm">{{ app_product_name|branding_initials }}</span>
               <div>
-                <div class="text-sm font-semibold tracking-tight">Campus ERP</div>
+                <div class="text-sm font-semibold tracking-tight">{{ app_product_name }}</div>
                 <div class="text-xs text-slate-500 dark:text-slate-400">Modern campus management platform</div>
               </div>
             </div>
@@ -143,13 +144,14 @@
 
       <footer class="app-site-footer flex-shrink-0 {% if request.user.is_authenticated %}sidebar-footer-page{% endif %}">
         <div class="{% if request.user.is_authenticated %}app-content-shell{% else %}mx-auto max-w-6xl px-4{% endif %} py-3 text-xs flex justify-between gap-3">
-          <span>© {% now "Y" %} Campus ERP</span>
-          <span class="hidden sm:inline">Campus ERP · Smart Campus Management</span>
+          <span>© {% now "Y" %} {{ app_product_name }}</span>
+          <span class="hidden sm:inline">{{ app_product_name }} · Smart Campus Management</span>
         </div>
       </footer>
     </div>
     {# Modals after layout wrapper — avoids backdrop covering content while dialog sits under blur/scroll stacking #}
     {% block modals %}{% endblock %}
+    {% include "components/chat_float_button.html" %}
     {% include "components/erp_loading_shell.html" %}
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     {% block after_bootstrap %}{% endblock %}

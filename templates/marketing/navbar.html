@@ -1,10 +1,11 @@
+{% load nav_tags %}
 {% if request.resolver_match %}
 {% with ns=request.resolver_match.namespace un=request.resolver_match.url_name %}
 <nav class="navbar navbar-expand-lg navbar-dark landing-marketing-nav landing-nav-gradient sticky-top" aria-label="Main">
   <div class="container">
     <a class="navbar-brand landing-nav-brand d-flex align-items-center gap-2 {% if ns == 'core' and un == 'home' %}active{% endif %}" href="{% url 'core:home' %}">
-      <span class="landing-logo-badge">SE</span>
-      <span>Campus ERP</span>
+      <span class="landing-logo-badge">{{ app_product_name|branding_initials }}</span>
+      <span>{{ app_product_name }}</span>
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
@@ -41,8 +42,8 @@
 <nav class="navbar navbar-expand-lg navbar-dark landing-marketing-nav landing-nav-gradient sticky-top" aria-label="Main">
   <div class="container">
     <a class="navbar-brand landing-nav-brand d-flex align-items-center gap-2" href="{% url 'core:home' %}">
-      <span class="landing-logo-badge">SE</span>
-      <span>Campus ERP</span>
+      <span class="landing-logo-badge">{{ app_product_name|branding_initials }}</span>
+      <span>{{ app_product_name }}</span>
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>

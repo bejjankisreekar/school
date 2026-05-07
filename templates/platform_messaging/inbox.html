@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }} | {{ app_product_name }}{% endblock %}
+
+{% block content %}
+{% include "platform_messaging/inbox_panel.html" %}
+{% endblock %}

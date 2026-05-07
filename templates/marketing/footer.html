@@ -1,10 +1,11 @@
+{% load nav_tags %}
 <footer class="landing-footer mt-auto py-5">
   <div class="container">
     <div class="row g-4">
       <div class="col-lg-4">
         <div class="d-flex align-items-center gap-2 mb-3">
-          <span class="landing-footer-brand-badge">SE</span>
-          <span class="fw-bold text-white">Campus ERP</span>
+          <span class="landing-footer-brand-badge">{{ app_product_name|branding_initials }}</span>
+          <span class="fw-bold text-white">{{ app_product_name }}</span>
         </div>
         <p class="small mb-3" style="color: rgba(255,255,255,0.65);">Multi-tenant SaaS for institutions—attendance, academics, billing, and more in one vibrant platform.</p>
         <a href="{% url 'core:home' %}#trial" class="btn btn-landing-primary btn-sm">Get Started</a>
@@ -29,8 +30,8 @@
     </div>
     <hr class="my-4 border-secondary border-opacity-25">
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-2 small" style="color: rgba(255,255,255,0.5);">
-      <span>&copy; {% now "Y" %} Campus ERP. All rights reserved.</span>
-      <span>Campus ERP · Smart Campus Management</span>
+      <span>&copy; {% now "Y" %} {{ app_product_name }}. All rights reserved.</span>
+      <span>{{ app_product_name }} · Smart Campus Management</span>
     </div>
   </div>
 </footer>

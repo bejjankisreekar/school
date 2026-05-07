@@ -42,7 +42,6 @@ urlpatterns = [
     path("", include(("apps.timetable.urls", "timetable"), namespace="timetable")),
     path("", include(("apps.notifications.urls", "notifications"), namespace="notifications")),
     path("accounts/", include(("apps.accounts.urls", "accounts"), namespace="accounts")),
-    path("admin/", include(("apps.core.admin_urls", "admin_manage"))),
     path("django-admin/", admin.site.urls),
     # Friendly 404 for any unmatched route (also in DEBUG=True).
     re_path(r"^.*$", error_views.page_not_found),

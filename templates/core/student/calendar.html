@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}Calendar | School ERP{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <style>
+    .sc-page { max-width: 1200px; margin: 0 auto; }
+    .sc-hero {
+      border-radius: 1.25rem;
+      padding: 1.1rem 1.25rem;
+      color: #fff;
+      background:
+        radial-gradient(900px circle at 10% 20%, rgba(59, 130, 246, 0.45) 0%, rgba(59, 130, 246, 0.0) 55%),
+        radial-gradient(700px circle at 90% 10%, rgba(168, 85, 247, 0.45) 0%, rgba(168, 85, 247, 0.0) 55%),
+        linear-gradient(135deg, #2563eb 0%, #7c3aed 55%, #4338ca 100%);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 14px 40px rgba(15, 23, 42, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      overflow: hidden;
+      position: relative;
+    }
+    .sc-hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.0) 45%);
+      pointer-events: none;
+    }
+    .sc-card {
+      border-radius: 1.15rem;
+      border: 1px solid var(--bs-border-color-translucent);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 12px 34px rgba(15, 23, 42, 0.08);
+    }
+    .sc-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 0.65rem;
+    }
+    .sc-dow {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 800;
+      color: var(--bs-secondary-color);
+      text-align: center;
+      padding: 0.35rem 0;
+    }
+    .sc-day {
+      border-radius: 1rem;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      background: var(--bs-body-bg);
+      min-height: 116px;
+      padding: 0.55rem 0.6rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+    }
+    .sc-day:hover { transform: translateY(-1px); border-color: rgba(59,130,246,0.35); box-shadow: 0 14px 28px rgba(15, 23, 42, 0.10); }
+    .sc-day.is-blank { border: 1px dashed rgba(148, 163, 184, 0.35); background: transparent; box-shadow: none; }
+    .sc-top { display: flex; align-items: center; justify-content: space-between; }
+    .sc-dom { font-weight: 900; letter-spacing: -0.02em; }
+    .sc-pill {
+      font-size: 0.7rem;
+      border-radius: 999px;
+      padding: 0.1rem 0.5rem;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      color: var(--bs-secondary-color);
+      background: rgba(148, 163, 184, 0.08);
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .sc-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.78rem;
+      border-radius: 999px;
+      padding: 0.15rem 0.55rem;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      text-decoration: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+    .sc-item--exam { background: rgba(239, 68, 68, 0.10); border-color: rgba(239, 68, 68, 0.25); color: #b91c1c; }
+    .sc-item--hw { background: rgba(37, 99, 235, 0.10); border-color: rgba(37, 99, 235, 0.25); color: #1d4ed8; }
+    .sc-item--hol { background: rgba(22, 163, 74, 0.10); border-color: rgba(22, 163, 74, 0.25); color: #166534; }
+    html.dark .sc-item--exam, body.dark-mode .sc-item--exam { color: #fecaca; }
+    html.dark .sc-item--hw, body.dark-mode .sc-item--hw { color: #bfdbfe; }
+    html.dark .sc-item--hol, body.dark-mode .sc-item--hol { color: #bbf7d0; }
+    .sc-legend span { font-weight: 800; }
+  </style>
+
+  <div class="sc-page">
+    <div class="sc-hero mb-4">
+      <div class="position-relative d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+          <h1 class="h4 fw-bold mb-1">Academic Calendar</h1>
+          <div class="small" style="color: rgba(255,255,255,0.86);">All activities in one place: exams, homework, holidays</div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+          <a class="btn btn-light btn-sm rounded-pill px-3" href="?year={{ prev.year }}&month={{ prev.month }}">
+            <i class="bi bi-chevron-left me-1"></i>Prev
+          </a>
+          <span class="badge bg-light text-dark border px-3 py-2">{{ month_label }}</span>
+          <a class="btn btn-light btn-sm rounded-pill px-3" href="?year={{ next.year }}&month={{ next.month }}">
+            Next<i class="bi bi-chevron-right ms-1"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div class="card border-0 sc-card mb-3">
+      <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div class="sc-legend d-flex flex-wrap gap-2 align-items-center">
+          <span class="text-muted small me-2">Legend</span>
+          <span class="badge rounded-pill bg-danger-subtle text-danger border px-3 py-2"><i class="bi bi-dot me-1"></i>Exams</span>
+          <span class="badge rounded-pill bg-primary-subtle text-primary border px-3 py-2"><i class="bi bi-dot me-1"></i>Homework</span>
+          <span class="badge rounded-pill bg-success-subtle text-success border px-3 py-2"><i class="bi bi-dot me-1"></i>Holidays</span>
+        </div>
+        <div class="text-muted small">
+          <i class="bi bi-calendar3 me-1"></i>Today: {{ today|date:"M j, Y" }}
+        </div>
+      </div>
+    </div>
+
+    <div class="card border-0 sc-card">
+      <div class="card-body">
+        <div class="sc-grid mb-2">
+          {% for w in weekdays %}
+            <div class="sc-dow">{{ w }}</div>
+          {% endfor %}
+        </div>
+
+        <div class="sc-grid">
+          {% for c in cells %}
+            {% if c.is_blank %}
+              <div class="sc-day is-blank"></div>
+            {% else %}
+              <div class="sc-day">
+                <div class="sc-top">
+                  <div class="sc-dom {% if c.date == today %}text-primary{% endif %}">{{ c.dom }}</div>
+                  {% if c.resolution and not c.resolution.is_working_day %}
+                    <div class="sc-pill" title="{{ c.resolution.detail|default:c.resolution.label }}">{{ c.resolution.label }}</div>
+                  {% endif %}
+                </div>
+
+                {% if c.items %}
+                  <div class="d-flex flex-column gap-1">
+                    {% for it in c.items %}
+                      {% if it.kind == "exam" %}
+                        <a class="sc-item sc-item--exam" href="{{ it.url }}"><i class="bi bi-pencil-square"></i>{{ it.label }}</a>
+                      {% elif it.kind == "homework" %}
+                        <a class="sc-item sc-item--hw" href="{{ it.url }}"><i class="bi bi-journal-text"></i>{{ it.label }}</a>
+                      {% else %}
+                        <span class="sc-item sc-item--hol"><i class="bi bi-tree"></i>{{ it.label }}</span>
+                      {% endif %}
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

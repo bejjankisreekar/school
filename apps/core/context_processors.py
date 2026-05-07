@@ -1,19 +1,94 @@
 """Template context processors."""
 
-from django.conf import settings
+from django.db import connection
+from django.db.utils import OperationalError, ProgrammingError
 from django.urls import NoReverseMatch, reverse
+
+from apps.core.branding import get_platform_product_name
 
 
 def app_branding(request):
     """
-    Product / company name for global chrome (navbar center, left title when no school).
+    Product / company name for global chrome (sidebar, marketing, login, page titles).
 
-    Uses ``settings.APP_PRODUCT_NAME`` only (env ``APP_PRODUCT_NAME``, default "Campus ERP").
-    School ``header_text`` is not shown in the top bar — it is for branding forms / profile
-    and other surfaces, not the main nav product line.
+    Resolved via ``get_platform_product_name()`` (Control Center platform name or env default).
     """
-    name = getattr(settings, "APP_PRODUCT_NAME", None) or "Campus ERP"
-    return {"app_product_name": name}
+    data = {"app_product_name": get_platform_product_name(), "inbox_unread_count": 0, "inbox_url": ""}
+    try:
+        user = getattr(request, "user", None)
+        if not user or not getattr(user, "is_authenticated", False):
+            return data
+
+        role = getattr(user, "role", "")
+        if role == "TEACHER":
+            from apps.school_data.models import StudentMessage
+            from apps.notifications.models import Message as InternalMessage
+
+            student_unread = StudentMessage.objects.filter(receiver=user, is_read=False).count()
+            try:
+                admin_unread = InternalMessage.objects.filter(receiver=user, is_read=False).count()
+            except (ProgrammingError, OperationalError):
+                admin_unread = 0
+            data["inbox_unread_count"] = int(student_unread) + int(admin_unread)
+            data["inbox_url"] = reverse("core:teacher_messages")
+        elif role == "STUDENT":
+            from apps.school_data.models import StudentMessage
+
+            data["inbox_unread_count"] = StudentMessage.objects.filter(receiver=user, is_read=False).count()
+            data["inbox_url"] = reverse("core:student_messages")
+        elif role == "SUPERADMIN":
+            # Top-bar “Messages” opens platform inbox (school admins), not internal admin_messages.
+            try:
+                connection.set_schema_to_public()
+                from apps.platform_messaging import services as _platform_msg
+
+                data["inbox_unread_count"] = int(_platform_msg.unread_count_for_superadmin())
+            except Exception:
+                data["inbox_unread_count"] = 0
+            try:
+                data["inbox_url"] = reverse("core:super_admin:platform_messages")
+            except NoReverseMatch:
+                data["inbox_url"] = ""
+        elif role == "ADMIN":
+            from apps.notifications.models import Message as InternalMessage
+            from apps.platform_messaging.access import school_admin_can_use_platform_messaging
+
+            internal_unread = 0
+            try:
+                internal_unread = int(
+                    InternalMessage.objects.filter(receiver=user, is_read=False).count()
+                )
+            except (ProgrammingError, OperationalError):
+                internal_unread = 0
+
+            platform_unread = 0
+            if school_admin_can_use_platform_messaging(user):
+                try:
+                    connection.set_schema_to_public()
+                    from apps.platform_messaging import services as _platform_msg
+
+                    _pk = _platform_msg.resolve_school_pk_for_user(user)
+                    if _pk is not None:
+                        platform_unread = int(_platform_msg.unread_count_for_school_admin(_pk))
+                except Exception:
+                    platform_unread = 0
+
+            if school_admin_can_use_platform_messaging(user):
+                data["inbox_unread_count"] = internal_unread + platform_unread
+            else:
+                data["inbox_unread_count"] = 0
+
+            if school_admin_can_use_platform_messaging(user):
+                try:
+                    data["inbox_url"] = reverse("core:school_admin_platform_messages")
+                except NoReverseMatch:
+                    data["inbox_url"] = reverse("notifications:admin_messages")
+            else:
+                # Internal `/school/messages/` uses the same plan feature as platform messaging.
+                data["inbox_url"] = ""
+    except Exception:
+        return data
+    return data
 
 
 def sidebar_menu(request):
@@ -28,9 +103,45 @@ def sidebar_menu(request):
             return {}
 
         from apps.core.models import SidebarMenuItem
+        from apps.core.plan_features import feature_granted
         from apps.core.utils import has_feature_access
 
         role = (getattr(user, "role", "") or "").strip() or "STUDENT"
+
+        # Ensure Teacher messages entry exists for older seeded sidebars.
+        if role == "TEACHER":
+            try:
+                from apps.core.models import SidebarMenuItem
+
+                item, _ = SidebarMenuItem.objects.get_or_create(
+                    role="TEACHER",
+                    route_name="core:teacher_messages",
+                    defaults={
+                        "label": "Messages",
+                        "icon": "bi bi-chat-dots",
+                        "display_order": 8,
+                        "feature_code": "",
+                        "href": "",
+                        "parent": None,
+                        "is_visible": True,
+                        "is_active": True,
+                    },
+                )
+                changed = False
+                if item.is_visible is False:
+                    item.is_visible = True
+                    changed = True
+                if item.is_active is False:
+                    item.is_active = True
+                    changed = True
+                if (item.feature_code or "").strip():
+                    item.feature_code = ""
+                    changed = True
+                if changed:
+                    item.save(update_fields=["is_visible", "is_active", "feature_code"])
+            except Exception:
+                pass
+
         qs = (
             SidebarMenuItem.objects.filter(role=role, is_active=True, is_visible=True)
             .select_related("parent")
@@ -49,11 +160,28 @@ def sidebar_menu(request):
             view_name = None
         req_path = (getattr(request, "path", "") or "").rstrip("/") or "/"
 
-        def allowed(it: SidebarMenuItem) -> bool:
-            fc = (it.feature_code or "").strip()
-            if not fc:
+        def student_sidebar_excluded(it: SidebarMenuItem) -> bool:
+            # Student UX: Profile + Notifications are available in the top bar,
+            # so hide them from the left sidebar to avoid duplication.
+            if role != "STUDENT":
+                return False
+            rn = (it.route_name or "").strip()
+            href = (it.href or "").strip()
+            label = (it.label or "").strip().lower()
+            if rn in {
+                "notifications:student_notifications",
+                "core:student_profile",
+                "core:student_profile_settings",
+                "core:edit_profile",
+                "core:edit_profile_web",
+                "accounts:account_profile",
+            }:
                 return True
-            return bool(has_feature_access(school, fc, user=user))
+            if label in {"profile", "my profile", "notifications"}:
+                return True
+            if href.startswith("/student/profile") or href.startswith("/student-dashboard/profile") or href.startswith("/notifications/student"):
+                return True
+            return False
 
         def resolve_href(it: SidebarMenuItem) -> str:
             rn = (it.route_name or "").strip()
@@ -89,10 +217,22 @@ def sidebar_menu(request):
                 return True
             return False
 
-        # Build nodes for allowed items only (and drop broken routes).
+        feats = getattr(request, "school_features", None)
+
+        def item_allowed(it: SidebarMenuItem) -> bool:
+            fc = (it.feature_code or "").strip()
+            if not fc:
+                return True
+            if feats is not None:
+                return feature_granted(feats, fc)
+            return bool(has_feature_access(school, fc, user=user))
+
+        # Build nodes: hide anything not on the school's plan (no disabled rows in nav).
         nodes: dict[int, dict] = {}
         for it in items:
-            if not allowed(it):
+            if student_sidebar_excluded(it):
+                continue
+            if not item_allowed(it):
                 continue
             href = resolve_href(it)
             if not href:
@@ -115,6 +255,20 @@ def sidebar_menu(request):
                 nodes[pid]["children"].append(node)
             else:
                 tree.append(node)
+
+        def prune_empty_groups(items_list: list[dict]) -> list[dict]:
+            out = []
+            for n in items_list:
+                raw_ch = n.get("children") or []
+                pruned_ch = prune_empty_groups(raw_ch) if raw_ch else []
+                n = {**n, "children": pruned_ch}
+                if pruned_ch:
+                    out.append(n)
+                elif (n.get("href") or "").strip():
+                    out.append(n)
+            return out
+
+        tree = prune_empty_groups(tree)
 
         # Mark parent active if any descendant active.
         def bubble_active(n: dict) -> bool:

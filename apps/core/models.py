@@ -262,6 +262,12 @@ class SchoolEnrollmentRequest(models.Model):
         DECLINED = "DECLINED", "Declined"
 
     institution_name = models.CharField(max_length=255)
+    society_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Housing society, trust, or registered name (as on society / RWA records).",
+    )
     institution_code = models.CharField(
         max_length=100,
         blank=True,
@@ -285,6 +291,53 @@ class SchoolEnrollmentRequest(models.Model):
         help_text="trial, basic, standard, enterprise, yearly — post-trial billing preference (audit).",
     )
     notes = models.TextField(blank=True)
+    website = models.CharField(max_length=500, blank=True, default="")
+    affiliation_board = models.CharField(max_length=120, blank=True, default="")
+    # --- Optional extended profile (public /enroll/ — all nullable / blank) ---
+    school_type = models.CharField(max_length=32, blank=True, default="")
+    established_year = models.PositiveSmallIntegerField(null=True, blank=True)
+    school_motto = models.CharField(max_length=300, blank=True, default="")
+    affiliation_number = models.CharField(max_length=120, blank=True, default="")
+    landmark = models.CharField(max_length=255, blank=True, default="")
+    district = models.CharField(max_length=120, blank=True, default="")
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    maps_url = models.CharField(max_length=500, blank=True, default="")
+    alternate_contact_name = models.CharField(max_length=255, blank=True, default="")
+    alternate_contact_phone = models.CharField(max_length=40, blank=True, default="")
+    admin_designation = models.CharField(max_length=64, blank=True, default="")
+    admin_profile_photo = models.ImageField(
+        upload_to="enrollment/admin_photos/%Y/%m/",
+        blank=True,
+        null=True,
+    )
+    instruction_medium = models.CharField(max_length=32, blank=True, default="")
+    classes_offered = models.CharField(max_length=500, blank=True, default="")
+    streams_offered = models.CharField(max_length=200, blank=True, default="")
+    sections_per_class_notes = models.CharField(max_length=200, blank=True, default="")
+    curriculum_type = models.CharField(max_length=32, blank=True, default="")
+    total_classrooms = models.PositiveIntegerField(null=True, blank=True)
+    lab_physics = models.BooleanField(null=True, blank=True)
+    lab_chemistry = models.BooleanField(null=True, blank=True)
+    lab_computer = models.BooleanField(null=True, blank=True)
+    has_library = models.BooleanField(null=True, blank=True)
+    has_playground = models.BooleanField(null=True, blank=True)
+    has_transport = models.BooleanField(null=True, blank=True)
+    total_student_capacity = models.PositiveIntegerField(null=True, blank=True)
+    current_student_strength = models.PositiveIntegerField(null=True, blank=True)
+    non_teaching_staff_count = models.PositiveIntegerField(null=True, blank=True)
+    uses_erp = models.BooleanField(null=True, blank=True)
+    current_erp_name = models.CharField(max_length=120, blank=True, default="")
+    require_data_migration = models.BooleanField(null=True, blank=True)
+    preferred_ui_language = models.CharField(max_length=32, blank=True, default="")
+    expected_start_date = models.DateField(null=True, blank=True)
+    detailed_requirements = models.TextField(blank=True, default="")
+    school_logo = models.ImageField(upload_to="enrollment/logos/%Y/%m/", blank=True, null=True)
+    registration_certificate = models.FileField(
+        upload_to="enrollment/certificates/%Y/%m/", blank=True, null=True
+    )
+    address_proof = models.FileField(upload_to="enrollment/address_proof/%Y/%m/", blank=True, null=True)
+    other_documents = models.FileField(upload_to="enrollment/other/%Y/%m/", blank=True, null=True)
 
     status = models.CharField(
         max_length=20,

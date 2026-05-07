@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Students | Campus ERP{% endblock %}
+{% block title %}Students | {{ app_product_name }}{% endblock %}
 {% block content %}
 <div class="container-fluid px-0 erp-module students-module">
   <style>
@@ -67,7 +67,12 @@
     </ol>
   </nav>
 
-  {% if not filters_active and stats.total == 0 %}
+  {% if tenant_schema_error %}
+    <div class="alert alert-danger border-0 shadow-sm rounded-4 mb-0" role="alert">
+      <div class="fw-semibold mb-2">School database is not ready</div>
+      <div class="small mb-0 font-monospace text-break">{{ tenant_schema_error|linebreaksbr }}</div>
+    </div>
+  {% elif not filters_active and stats.total == 0 %}
     {% url 'core:school_student_add' as student_add_url %}
     {% include "core/school/includes/empty_module_state.html" with em_title="No students enrolled yet" em_body="Enroll students to manage attendance, fees, and academics. Each school has its own database schema — student records are never visible to other schools." em_icon="bi-people" em_cta_label="Enroll first student" em_url=student_add_url %}
   {% else %}

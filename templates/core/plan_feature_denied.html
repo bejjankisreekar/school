@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Not available | School ERP{% endblock %}
+{% block content %}
+<div class="container py-5" style="max-width: 560px;">
+  <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+    <div class="card-body p-4 p-md-5 text-center">
+      <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+           style="width: 4rem; height: 4rem; background: rgba(99, 102, 241, 0.12);">
+        <i class="bi bi-slash-circle text-primary" style="font-size: 1.75rem;" aria-hidden="true"></i>
+      </div>
+      <h1 class="h5 fw-bold mb-3">Not available</h1>
+      <p class="text-muted mb-0">
+        🚫 This feature is not available in your current plan. Please contact your school administrator.
+      </p>
+      <div class="d-flex flex-wrap gap-2 justify-content-center mt-4">
+        <a href="{{ dashboard_url }}" class="btn btn-primary rounded-pill px-4">Go to dashboard</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

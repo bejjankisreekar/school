@@ -69,11 +69,13 @@ def nav_active(request, *path_prefixes):
 @register.filter
 def school_has_feature(request, feature):
     """Return True if user's school has the given plan feature. Use: request|school_has_feature:'fees'"""
+    from apps.core.plan_features import feature_granted
+
     if not request or not getattr(request, "user", None) or not request.user.is_authenticated:
         return False
     features = getattr(request, "school_features", None)
     if features is not None:
-        return feature in features
+        return feature_granted(features, feature)
     school = getattr(request.user, "school", None)
     if not school:
         return False
@@ -83,10 +85,18 @@ def school_has_feature(request, feature):
 @register.filter
 def feature_access(request, feature_code: str):
     """Superadmin: all modules. Others: school plan. Use: request|feature_access:'attendance'"""
-    from apps.core.utils import has_feature_access as _has_feature_access
+    from apps.accounts.models import User
+    from apps.core.plan_features import feature_granted
 
     if not request or not getattr(request, "user", None) or not request.user.is_authenticated:
         return False
+    if getattr(request.user, "role", None) == User.Roles.SUPERADMIN:
+        return True
+    feats = getattr(request, "school_features", None)
+    if feats is not None:
+        return feature_granted(feats, feature_code)
+    from apps.core.utils import has_feature_access as _has_feature_access
+
     school = getattr(request.user, "school", None)
     return _has_feature_access(school, feature_code, user=request.user)
 

@@ -1,0 +1,138 @@
+/**
+ * Campus ERP — responsive safety net
+ * Applies globally across all templates (mobile/tablet/desktop).
+ */
+
+/* Prevent accidental horizontal scrolling from wide tables/inputs */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+img, svg, video, canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Long strings (IDs/emails/URLs) should not blow out cards */
+.text-truncate,
+.text-break,
+code,
+pre,
+.table,
+.card,
+.btn,
+.form-control,
+.form-select {
+  max-width: 100%;
+}
+
+/* Tables: safe horizontal scroll when needed */
+.table-responsive,
+.erp-table-scroll,
+.table-responsive-xl,
+.table-responsive-lg,
+.table-responsive-md,
+.table-responsive-sm {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Utility wrapper for templates that can't be edited quickly */
+.erp-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
+/* Reduce heavy paddings on small screens */
+@media (max-width: 991.98px) {
+  .app-content-shell {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+@media (max-width: 575.98px) {
+  /* Sidebar drawer: ensure product brand is visible below top controls */
+  .sidebar.sidebar-open .sidebar-product-brand {
+    margin-top: 4.25rem !important;
+  }
+
+  .sidebar.sidebar-open {
+    padding-top: 0.25rem;
+  }
+
+  /* Topbar layout: give school name real space */
+  .topbar-row {
+    gap: 0.5rem;
+  }
+
+  .topbar-left {
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 0.5rem;
+  }
+
+  .topbar-logo {
+    width: 34px !important;
+    height: 34px !important;
+    flex: 0 0 auto;
+  }
+
+  .school-info.app-header-brand-text {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  /* Topbar: show more of long school names on phones */
+  .topbar-school-title.app-header-school-name {
+    font-size: 0.95rem;
+    line-height: 1.15;
+    white-space: normal !important;
+    overflow: hidden !important;
+    text-overflow: clip !important;
+    display: -webkit-box !important;
+    -webkit-box-orient: vertical !important;
+    -webkit-line-clamp: 2;
+  }
+
+  .topbar-school-title.app-header-school-name.text-truncate {
+    white-space: normal !important;
+  }
+
+  .topbar-school-sub {
+    font-size: 0.72rem;
+  }
+
+  /* Right-side icons: compact so title gets space */
+  .topbar-right {
+    flex: 0 0 auto;
+    gap: 0.25rem;
+  }
+  .app-header-icon-btn {
+    padding-left: 0.35rem !important;
+    padding-right: 0.35rem !important;
+  }
+  .app-header-toolbar-icon {
+    font-size: 18px !important;
+  }
+  .profile-first-name {
+    display: none !important;
+  }
+
+  /* Make main panel padding tighter for phones */
+  .erp-dashboard-panel {
+    padding: 1rem !important;
+  }
+
+  /* Stack button groups/forms better on tiny widths */
+  .btn-group,
+  .input-group {
+    flex-wrap: wrap;
+  }
+  .btn,
+  .form-control,
+  .form-select {
+    font-size: 0.95rem;
+  }
+}
+

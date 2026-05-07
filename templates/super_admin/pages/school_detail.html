@@ -1,0 +1,1065 @@
+{% extends "base.html" %}
+
+{% block title %}{{ school.name }} | Schools{% endblock %}
+
+{% block content %}
+<style>
+  /* —— Page canvas —— */
+  .sd-page{
+    min-height: 100%;
+    background:
+      radial-gradient(1200px 480px at 12% -8%, rgba(99, 102, 241, 0.09), transparent 55%),
+      radial-gradient(900px 400px at 88% 0%, rgba(14, 165, 233, 0.07), transparent 50%),
+      linear-gradient(180deg, #f8fafc 0%, #f1f5f9 45%, #eef2f7 100%);
+    padding-bottom: 3rem;
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sd-page{
+    background:
+      radial-gradient(1000px 400px at 15% -5%, rgba(99, 102, 241, 0.12), transparent 50%),
+      radial-gradient(800px 360px at 90% 5%, rgba(14, 165, 233, 0.08), transparent 45%),
+      linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+  }
+
+  .sd-shell{ max-width: 1040px; margin: 0 auto; }
+  .sd-main{ animation: sdIn 0.45s cubic-bezier(0.22, 1, 0.36, 1); }
+  @keyframes sdIn{
+    from{ opacity: 0; transform: translateY(12px); }
+    to{ opacity: 1; transform: none; }
+  }
+  @media (prefers-reduced-motion: reduce){ .sd-main{ animation: none; } }
+
+  /* —— Back —— */
+  .sd-back{
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.45rem 0.95rem 0.45rem 0.65rem;
+    font-size: 0.8125rem; font-weight: 700;
+    color: #475569; text-decoration: none; border-radius: 999px;
+    background: rgba(255,255,255,0.75); border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.06);
+    margin-bottom: 1.25rem; transition: color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  }
+  .sd-back:hover{ color: #4f46e5; border-color: rgba(99, 102, 241, 0.35); box-shadow: 0 6px 20px -8px rgba(99, 102, 241, 0.25); transform: translateX(-2px); }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sd-back{
+    background: rgba(30, 41, 59, 0.85); border-color: rgba(148, 163, 184, 0.15); color: #cbd5e1;
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sd-back:hover{ color: #a5b4fc; border-color: rgba(129, 140, 248, 0.4); }
+
+  /* —— Hero —— */
+  .sd-hero{
+    position: relative; overflow: hidden;
+    border-radius: 1.5rem; padding: 1.75rem 1.85rem 1.65rem;
+    margin-bottom: 1.35rem;
+    background: linear-gradient(128deg, #0c1222 0%, #1e1b4b 38%, #312e81 72%, #4338ca 100%);
+    color: #fff; border: 1px solid rgba(255,255,255,0.1);
+    box-shadow:
+      0 4px 6px -1px rgba(0,0,0,0.15),
+      0 24px 48px -12px rgba(49, 46, 129, 0.55),
+      inset 0 1px 0 rgba(255,255,255,0.08);
+  }
+  .sd-hero::before{
+    content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+    background:
+      radial-gradient(400px 200px at 100% 0%, rgba(255,255,255,0.12), transparent 60%),
+      url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    opacity: 1;
+  }
+  .sd-hero-inner{ position: relative; z-index: 1; }
+  .sd-hero-top{ display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 0.85rem; }
+  .sd-hero h1{
+    font-size: clamp(1.35rem, 3.5vw, 1.85rem); font-weight: 800; letter-spacing: -0.035em;
+    margin: 0; line-height: 1.2; text-shadow: 0 2px 24px rgba(0,0,0,0.2);
+    color: #ffffff !important;
+  }
+  .sd-hero-meta{
+    display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
+    font-size: 0.8125rem; font-weight: 600; color: rgba(255,255,255,0.72);
+    font-variant-numeric: tabular-nums;
+  }
+  .sd-hero-meta code{
+    font-size: 0.78rem; padding: 0.2rem 0.5rem; border-radius: 8px;
+    background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.12); color: #e2e8f0;
+  }
+  .sd-hero-meta-sep{
+    color: rgba(255,255,255,0.38);
+    font-weight: 500;
+    user-select: none;
+    padding: 0 0.2rem;
+  }
+  .sd-hero-meta .bi-person-badge{ opacity: 0.85; margin-right: 0.15rem; }
+  .sd-badge-hero{
+    font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
+    padding: 0.35rem 0.65rem; border-radius: 999px; border: 1px solid rgba(255,255,255,0.22);
+    backdrop-filter: blur(8px);
+  }
+  .sd-badge-hero--active{ background: rgba(34, 197, 94, 0.25); color: #bbf7d0; }
+  .sd-badge-hero--trial{ background: rgba(234, 179, 8, 0.22); color: #fef08a; }
+  .sd-badge-hero--suspended{ background: rgba(248, 113, 113, 0.22); color: #fecaca; }
+  .sd-badge-hero--inactive{ background: rgba(148, 163, 184, 0.2); color: #e2e8f0; }
+  .sd-hero-plan{
+    display: inline-flex; align-items: center; gap: 0.4rem; margin-top: 1rem;
+    font-size: 0.8125rem; font-weight: 700; color: rgba(255,255,255,0.92);
+    padding: 0.5rem 0.85rem; border-radius: 12px;
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15);
+  }
+  .sd-hero-plan i{ opacity: 0.85; }
+
+  /* —— Section cards —— */
+  .sd-section{
+    position: relative;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(15, 23, 42, 0.07);
+    border-radius: 1.25rem;
+    padding: 0;
+    margin-bottom: 1.1rem;
+    box-shadow:
+      0 1px 2px rgba(15, 23, 42, 0.04),
+      0 12px 40px -16px rgba(15, 23, 42, 0.12);
+    overflow: hidden;
+    transition: box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+  .sd-section:hover{
+    box-shadow:
+      0 1px 2px rgba(15, 23, 42, 0.04),
+      0 20px 50px -18px rgba(99, 102, 241, 0.12);
+    border-color: rgba(99, 102, 241, 0.14);
+  }
+  .sd-section::before{
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 4px 0 0 4px;
+    background: linear-gradient(180deg, #6366f1, #8b5cf6);
+  }
+  .sd-section--stats::before{ background: linear-gradient(180deg, #0ea5e9, #6366f1); }
+  .sd-section--plan::before{ background: linear-gradient(180deg, #8b5cf6, #a855f7); }
+  .sd-section--billing::before{ background: linear-gradient(180deg, #f59e0b, #ea580c); }
+  .sd-section--preview::before{ background: linear-gradient(180deg, #22c55e, #16a34a); }
+  .sd-section--invoice::before{ background: linear-gradient(180deg, #64748b, #475569); }
+  .sd-section--actions::before{ background: linear-gradient(180deg, #334155, #0f172a); }
+  .sd-section--snapshot::before{ background: linear-gradient(180deg, #64748b, #94a3b8); }
+  .sd-section--branding::before{ background: linear-gradient(180deg, #ec4899, #db2777); }
+  .sd-section--technical::before{ background: linear-gradient(180deg, #0ea5e9, #0369a1); }
+  .sd-section--saas::before{ background: linear-gradient(180deg, #f97316, #ea580c); }
+  .sd-section--charges::before{ background: linear-gradient(180deg, #14b8a6, #0d9488); }
+  .sd-section--meta::before{ background: linear-gradient(180deg, #475569, #334155); }
+  .sd-snap-table{ font-size: 0.8125rem; width: 100%; }
+  .sd-snap-table th{ font-weight: 700; color: rgba(15,23,42,.45); text-align: left; padding: 0.45rem 0.75rem 0.45rem 0; width: 38%; vertical-align: top; }
+  .sd-snap-table td{ padding: 0.45rem 0; color: #1e293b; word-break: break-word; }
+  .sd-snap-table tr:nth-child(even) td, .sd-snap-table tr:nth-child(even) th{ background: rgba(248,250,252,.6); }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sd-snap-table th{ color: rgba(226,232,240,.5); }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sd-snap-table td{ color: #e2e8f0; }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sd-snap-table tr:nth-child(even) td,
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sd-snap-table tr:nth-child(even) th{ background: rgba(15,23,42,.35); }
+
+  .sd-sec-body{ padding: 1.35rem 1.5rem 1.45rem 1.65rem; }
+  .sd-sec-head{
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 1rem 1.5rem 0.85rem 1.65rem;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+    background: linear-gradient(180deg, rgba(248, 250, 252, 0.9) 0%, rgba(255,255,255,0) 100%);
+  }
+  .sd-sec-icon{
+    width: 2.5rem; height: 2.5rem; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; color: #4f46e5;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.1));
+    border: 1px solid rgba(99, 102, 241, 0.2);
+  }
+  .sd-section--stats .sd-sec-icon{ color: #0284c7; background: linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(99, 102, 241, 0.08)); border-color: rgba(14, 165, 233, 0.25); }
+  .sd-section--plan .sd-sec-icon{ color: #7c3aed; }
+  .sd-section--billing .sd-sec-icon{ color: #ea580c; background: linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(234, 88, 12, 0.08)); border-color: rgba(245, 158, 11, 0.3); }
+  .sd-section--preview .sd-sec-icon{ color: #16a34a; background: linear-gradient(135deg, rgba(34, 197, 94, 0.18), rgba(22, 163, 74, 0.08)); border-color: rgba(34, 197, 94, 0.28); }
+  .sd-section--invoice .sd-sec-icon{ color: #475569; }
+  .sd-section--actions .sd-sec-icon{ color: #0f172a; background: linear-gradient(135deg, rgba(15, 23, 42, 0.08), rgba(51, 65, 85, 0.06)); }
+
+  .sd-sec-title-wrap{ flex: 1; min-width: 0; }
+  .sd-sec-title{
+    font-size: 0.9375rem; font-weight: 800; letter-spacing: -0.02em; color: #0f172a; margin: 0;
+  }
+  .sd-sec-sub{
+    font-size: 0.75rem; color: rgba(15, 23, 42, 0.48); margin: 0.2rem 0 0; font-weight: 500;
+  }
+
+  /* —— Forms —— */
+  .sd-section .form-label{ font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: rgba(15, 23, 42, 0.5); margin-bottom: 0.35rem; }
+  .sd-section .form-control,
+  .sd-section .form-select{
+    border-radius: 12px; border: 1px solid rgba(15, 23, 42, 0.1);
+    padding: 0.55rem 0.85rem; font-size: 0.9rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .sd-section .form-control:focus,
+  .sd-section .form-select:focus{
+    border-color: rgba(99, 102, 241, 0.45);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+  }
+
+  .sd-kv{ display: grid; grid-template-columns: 1fr; gap: 0.75rem 1.25rem; }
+  @media (min-width: 640px){ .sd-kv{ grid-template-columns: 150px 1fr; } }
+  .sd-kv dt{ font-size: 0.75rem; font-weight: 700; color: rgba(15, 23, 42, 0.42); margin: 0; }
+  .sd-kv dd{ margin: 0; font-size: 0.9rem; font-weight: 600; color: #1e293b; }
+  .sd-kv code{ font-size: 0.8rem; padding: 0.15rem 0.45rem; border-radius: 6px; background: #f1f5f9; }
+
+  .sd-btn-primary{
+    font-weight: 700; border-radius: 999px; padding: 0.55rem 1.35rem;
+    background: linear-gradient(135deg, #4f46e5, #6366f1); border: none;
+    box-shadow: 0 4px 14px -3px rgba(79, 70, 229, 0.55);
+  }
+  .sd-btn-primary:hover{ background: linear-gradient(135deg, #4338ca, #4f46e5); box-shadow: 0 6px 20px -4px rgba(79, 70, 229, 0.6); }
+
+  /* —— Stats —— */
+  .sd-stat-row{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  @media (max-width: 640px){ .sd-stat-row{ grid-template-columns: 1fr; } }
+  .sd-stat{
+    position: relative; text-align: left; padding: 1.15rem 1.1rem;
+    border-radius: 1rem;
+    background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid rgba(15, 23, 42, 0.07);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .sd-stat:hover{ transform: translateY(-2px); box-shadow: 0 12px 28px -12px rgba(15, 23, 42, 0.12); }
+  .sd-stat-ico{
+    width: 2.35rem; height: 2.35rem; border-radius: 10px; margin-bottom: 0.65rem;
+    display: flex; align-items: center; justify-content: center; font-size: 1rem;
+  }
+  .sd-stat:nth-child(1) .sd-stat-ico{ background: rgba(14, 165, 233, 0.12); color: #0284c7; }
+  .sd-stat:nth-child(2) .sd-stat-ico{ background: rgba(99, 102, 241, 0.12); color: #4f46e5; }
+  .sd-stat:nth-child(3) .sd-stat-ico{ background: rgba(168, 85, 247, 0.12); color: #9333ea; }
+  .sd-stat .n{ font-size: 1.85rem; font-weight: 800; letter-spacing: -0.03em; color: #0f172a; line-height: 1.1; }
+  .sd-stat .l{ font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: rgba(15, 23, 42, 0.42); margin-top: 0.35rem; }
+
+  /* —— Pills —— */
+  .sd-pill{
+    display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.65rem; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.06em; padding: 0.32rem 0.65rem; border-radius: 999px;
+    border: 1px solid transparent;
+  }
+  .sd-pill--plan{ background: linear-gradient(135deg, rgba(99, 102, 241, 0.14), rgba(139, 92, 246, 0.1)); color: #5b21b6; border-color: rgba(99, 102, 241, 0.28); }
+  .sd-pill--free{ background: linear-gradient(135deg, rgba(59, 130, 246, 0.14), rgba(37, 99, 235, 0.08)); color: #1d4ed8; border-color: rgba(59, 130, 246, 0.35); }
+  .sd-pill--bill{ background: linear-gradient(135deg, rgba(34, 197, 94, 0.16), rgba(22, 163, 74, 0.1)); color: #15803d; border-color: rgba(34, 197, 94, 0.35); }
+  .sd-pill--sus{ background: rgba(244, 63, 94, 0.12); color: #be123c; border-color: rgba(244, 63, 94, 0.35); }
+
+  /* —— Timeline —— */
+  .sd-track{
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.35rem 0.25rem;
+    margin: 1rem 0 1.25rem; padding: 1.15rem 1rem; border-radius: 14px;
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+  }
+  .sd-track-step{
+    flex: 1 1 88px; min-width: 72px; max-width: 140px; text-align: center; padding: 0.25rem;
+  }
+  .sd-track-dot{
+    width: 34px; height: 34px; margin: 0 auto 0.5rem;
+    border-radius: 50%; background: linear-gradient(135deg, #fff, #f1f5f9);
+    border: 2px solid #c7d2fe; box-shadow: 0 2px 10px rgba(99, 102, 241, 0.12);
+    display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 800; color: #4f46e5;
+  }
+  .sd-track-label{ font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(15, 23, 42, 0.38); }
+  .sd-track-val{ font-size: 0.78rem; font-weight: 700; color: #334155; margin-top: 0.2rem; line-height: 1.3; }
+  .sd-track-arrow{ color: rgba(99, 102, 241, 0.45); font-size: 1.1rem; padding: 0 0.15rem; flex-shrink: 0; }
+
+  /* —— Preview —— */
+  .sd-preview{
+    border-radius: 1rem; padding: 1.35rem 1.4rem;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: linear-gradient(135deg, rgba(248, 250, 252, 0.95) 0%, rgba(241, 245, 249, 0.9) 100%);
+  }
+  .sd-preview--free{
+    border-color: rgba(59, 130, 246, 0.25);
+    background: linear-gradient(135deg, rgba(239, 246, 255, 0.95), rgba(219, 234, 254, 0.5));
+  }
+  .sd-preview--paid{
+    border-color: rgba(34, 197, 94, 0.28);
+    background: linear-gradient(135deg, rgba(240, 253, 244, 0.95), rgba(220, 252, 231, 0.45));
+  }
+  .sd-preview-amount{ font-size: clamp(1.5rem, 4vw, 2rem); font-weight: 800; letter-spacing: -0.03em; color: #0f172a; margin: 0.35rem 0 0; }
+  .sd-preview--free .sd-preview-amount{ color: #1e40af; }
+  .sd-preview--paid .sd-preview-amount{ color: #166534; }
+
+  /* —— Table —— */
+  .sd-table-wrap{
+    border-radius: 14px; overflow: hidden; border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+  }
+  .sd-table{ margin: 0; font-size: 0.875rem; }
+  .sd-table thead th{
+    font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+    color: rgba(15, 23, 42, 0.45); background: linear-gradient(180deg, #f8fafc, #f1f5f9) !important;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08); padding: 0.75rem 1rem;
+  }
+  .sd-table tbody td{ padding: 0.8rem 1rem; vertical-align: middle; border-color: rgba(15, 23, 42, 0.05); }
+  .sd-table tbody tr{ transition: background 0.15s; }
+  .sd-table tbody tr:hover{ background: rgba(99, 102, 241, 0.04); }
+  .sd-inv-num{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8125rem; font-weight: 600; color: #334155; }
+
+  .sd-empty{
+    text-align: center; padding: 2rem 1.5rem; border-radius: 14px; border: 1px dashed rgba(15, 23, 42, 0.12);
+    background: rgba(248, 250, 252, 0.6);
+  }
+  .sd-empty i{ font-size: 2rem; opacity: 0.35; display: block; margin-bottom: 0.5rem; }
+
+  /* —— Actions —— */
+  .sd-action-grid{ display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.65rem; margin-bottom: 1.25rem; }
+  .sd-action{
+    display: flex; align-items: center; gap: 0.65rem; padding: 0.85rem 1rem;
+    border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 0.8125rem;
+    color: #334155; border: 1px solid rgba(15, 23, 42, 0.1);
+    background: #fff; transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s, color 0.2s;
+  }
+  .sd-action:hover{ color: #4f46e5; border-color: rgba(99, 102, 241, 0.35); box-shadow: 0 8px 24px -12px rgba(99, 102, 241, 0.25); transform: translateY(-2px); }
+  .sd-action i{ font-size: 1.15rem; opacity: 0.85; }
+  .sd-action--accent{ background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.06)); border-color: rgba(99, 102, 241, 0.2); color: #4338ca; }
+
+  .sd-form-row-actions .btn{ font-weight: 700; border-radius: 999px; }
+
+  /* —— Dark —— */
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sd-section{
+    background: rgba(30, 41, 59, 0.72); border-color: rgba(148, 163, 184, 0.12);
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sd-sec-head{
+    border-color: rgba(148, 163, 184, 0.1);
+    background: linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, transparent 100%);
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sd-sec-title{ color: #f8fafc; }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sd-sec-sub{ color: rgba(226, 232, 240, 0.5); }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sd-kv dd,
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sd-stat .n,
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sd-preview-amount{ color: var(--text-primary, #f8fafc); }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sd-stat{
+    background: linear-gradient(145deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.5) 100%);
+    border-color: rgba(148, 163, 184, 0.12);
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sd-track{
+    background: rgba(15, 23, 42, 0.5); border-color: rgba(148, 163, 184, 0.1);
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sd-track-val{ color: #e2e8f0; }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sd-action{
+    background: rgba(30, 41, 59, 0.6); border-color: rgba(148, 163, 184, 0.15); color: #e2e8f0;
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sd-section .form-control,
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .sd-section .form-select{
+    background: rgba(15, 23, 42, 0.5); border-color: rgba(148, 163, 184, 0.2); color: #f8fafc;
+  }
+</style>
+
+<div class="sd-page">
+<div class="container-fluid px-0 px-lg-3 pb-5">
+  <div class="sd-shell sd-main py-3 py-lg-4">
+    <a class="sd-back" href="{{ schools_list_url }}"><i class="bi bi-arrow-left-short fs-5"></i> All schools</a>
+
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% else %}info{% endif %} rounded-3 py-2 small mb-3 border-0 shadow-sm" role="alert">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+
+    <header class="sd-hero">
+      <div class="sd-hero-inner">
+        <div class="sd-hero-top">
+          <h1>{{ school.name }}</h1>
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            {% if school.school_status == "active" %}
+              <span class="sd-badge-hero sd-badge-hero--active">Active</span>
+            {% elif school.school_status == "trial" %}
+              <span class="sd-badge-hero sd-badge-hero--trial">Trial</span>
+            {% elif school.school_status == "suspended" %}
+              <span class="sd-badge-hero sd-badge-hero--suspended">Suspended</span>
+            {% else %}
+              <span class="sd-badge-hero sd-badge-hero--inactive">{{ school.get_school_status_display }}</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="sd-hero-meta">
+          <span>Code: <code>{{ school.code }}</code></span>
+          <span class="sd-hero-meta-sep" aria-hidden="true">|</span>
+          <span>ID: <code>{{ school.pk }}</code></span>
+          <span class="sd-hero-meta-sep" aria-hidden="true">|</span>
+          <span><i class="bi bi-person-badge" aria-hidden="true"></i> Username: <code>{{ admin_username }}</code></span>
+        </div>
+        <div class="sd-hero-plan">
+          <i class="bi bi-layers"></i>
+          <span>{{ plan_label }}</span>
+        </div>
+      </div>
+    </header>
+
+    <section class="sd-section sd-section--snapshot mb-2">
+      <div class="sd-sec-head">
+        <div class="sd-sec-icon"><i class="bi bi-list-columns-reverse"></i></div>
+        <div class="sd-sec-title-wrap">
+          <h2 class="sd-sec-title">Complete school record</h2>
+          <p class="sd-sec-sub">Every field stored on this tenant (empty values show as —). Use the forms below to edit in groups.</p>
+        </div>
+      </div>
+      <div class="sd-sec-body pt-2">
+        <details class="border rounded-3 px-3 py-2 bg-light bg-opacity-50">
+          <summary class="fw-bold small cursor-pointer user-select-none py-1">Show / hide all columns</summary>
+          <div class="table-responsive mt-3 mb-1">
+            <table class="sd-snap-table">
+              <tbody>
+                <tr><th scope="row">Database ID</th><td><code>{{ school.pk }}</code></td></tr>
+                <tr><th scope="row">Tenant code</th><td><code>{{ school.code }}</code> <span class="text-muted small">(read-only — tied to schema)</span></td></tr>
+                <tr><th scope="row">Schema name</th><td><code>{{ school.schema_name }}</code></td></tr>
+                <tr><th scope="row">School name</th><td>{{ school.name|default:"—" }}</td></tr>
+                <tr><th scope="row">Institution type</th><td>{{ school.get_institution_type_display }}</td></tr>
+                <tr><th scope="row">Lifecycle status</th><td>{{ school.get_school_status_display }} · <span class="text-muted">is_active={{ school.is_active|yesno:"true,false" }}</span></td></tr>
+                <tr><th scope="row">SaaS plan (Control Center)</th><td>{{ plan_label }}</td></tr>
+                <tr><th scope="row">Billing plan (legacy)</th><td>{{ billing_plan_label }}</td></tr>
+                <tr><th scope="row">Subscription plan (deprecated core)</th><td>{{ subscription_plan_label }}</td></tr>
+                <tr><th scope="row">Trial end date</th><td>{% if school.trial_end_date %}{{ school.trial_end_date|date:"F j, Y" }}{% else %}—{% endif %}</td></tr>
+                <tr><th scope="row">Created on</th><td>{{ school.created_on|date:"F j, Y, P" }}</td></tr>
+                <tr><th scope="row">Address</th><td>{% if school.address %}{{ school.address|linebreaksbr }}{% else %}—{% endif %}</td></tr>
+                <tr><th scope="row">Contact email</th><td>{{ school.contact_email|default:"—" }}</td></tr>
+                <tr><th scope="row">Phone</th><td>{{ school.phone|default:"—" }}</td></tr>
+                <tr><th scope="row">Contact person</th><td>{{ school.contact_person|default:"—" }}</td></tr>
+                <tr><th scope="row">School admin username</th><td>{% if admin_username != '-' %}<code>{{ admin_username }}</code>{% else %}—{% endif %} <span class="text-muted small">(first active school ADMIN, else first by id)</span></td></tr>
+                <tr><th scope="row">Website</th><td>{% if school.website %}<a href="{{ school.website }}" target="_blank" rel="noopener">{{ school.website }}</a>{% else %}—{% endif %}</td></tr>
+                <tr><th scope="row">Date of establishment</th><td>{% if school.date_of_establishment %}{{ school.date_of_establishment|date:"F j, Y" }}{% else %}—{% endif %}</td></tr>
+                <tr><th scope="row">Registration number</th><td>{{ school.registration_number|default:"—" }}</td></tr>
+                <tr><th scope="row">Board affiliation</th><td>{{ school.board_affiliation|default:"—" }}</td></tr>
+                <tr><th scope="row">Header text</th><td>{{ school.header_text|default:"—" }}</td></tr>
+                <tr><th scope="row">Theme color</th><td>{% if school.theme_color %}<span class="d-inline-flex align-items-center gap-2"><span class="rounded border" style="width:1.25rem;height:1.25rem;background:{{ school.theme_color }}"></span>{{ school.theme_color }}</span>{% else %}—{% endif %}</td></tr>
+                <tr><th scope="row">Payslip format</th><td>{{ school.get_payslip_format_display }}</td></tr>
+                <tr><th scope="row">Logo</th><td>{% if school.logo %}<a href="{{ school.logo.url }}" target="_blank" rel="noopener">View file</a>{% else %}—{% endif %}</td></tr>
+                <tr><th scope="row">Custom domain</th><td>{{ school.custom_domain|default:"—" }}</td></tr>
+                <tr><th scope="row">Dedicated (single-tenant)</th><td>{{ school.is_single_tenant|yesno:"Yes,No" }}</td></tr>
+                <tr><th scope="row">Timetable published profile id</th><td>{% if school.timetable_current_profile_id %}{{ school.timetable_current_profile_id }}{% else %}—{% endif %}</td></tr>
+                <tr><th scope="row">Primary domain</th><td>{% if primary_domain %}<code>{{ primary_domain }}</code>{% else %}—{% endif %}</td></tr>
+                <tr><th scope="row">All domains</th><td>
+                  {% if domain_rows %}
+                    <ul class="mb-0 ps-3">{% for d in domain_rows %}<li><code>{{ d.domain }}</code>{% if d.is_primary %} <span class="badge text-bg-primary rounded-pill" style="font-size:.6rem;">primary</span>{% endif %}</li>{% endfor %}</ul>
+                  {% else %}—{% endif %}
+                </td></tr>
+                <tr><th scope="row">SaaS billing cycle</th><td>{{ school.get_saas_billing_cycle_display }}</td></tr>
+                <tr><th scope="row">SaaS auto-renew</th><td>{{ school.saas_billing_auto_renew|yesno:"Yes,No" }}</td></tr>
+                <tr><th scope="row">Extra / student / month</th><td>₹{{ school.billing_extra_per_student_month }}</td></tr>
+                <tr><th scope="row">Concession / student / month</th><td>₹{{ school.billing_concession_per_student_month }}</td></tr>
+                <tr><th scope="row">Student count override</th><td>{% if school.billing_student_count_override is not None %}{{ school.billing_student_count_override }}{% else %}—{% endif %}</td></tr>
+                <tr><th scope="row">Registration date (billing)</th><td>{% if school.registration_date %}{{ school.registration_date|date:"F j, Y" }}{% else %}—{% endif %}</td></tr>
+                <tr><th scope="row">Free until (SaaS)</th><td>{% if school.saas_free_until_date %}{{ school.saas_free_until_date|date:"F j, Y" }}{% else %}—{% endif %}</td></tr>
+                <tr><th scope="row">Billing start date</th><td>{% if school.billing_start_date %}{{ school.billing_start_date|date:"F j, Y" }}{% else %}—{% endif %}</td></tr>
+                <tr><th scope="row">SaaS service start</th><td>{% if school.saas_service_start_date %}{{ school.saas_service_start_date|date:"F j, Y" }}{% else %}—{% endif %}</td></tr>
+                <tr><th scope="row">Complimentary until (legacy)</th><td>{% if school.saas_billing_complimentary_until %}{{ school.saas_billing_complimentary_until|date:"F j, Y" }}{% else %}—{% endif %}</td></tr>
+                <tr><th scope="row">Platform control meta (JSON)</th><td><pre class="small mb-0 p-2 rounded bg-body-secondary overflow-auto" style="max-height:12rem;">{{ platform_control_meta_json }}</pre></td></tr>
+                <tr><th scope="row">Feature add-ons</th><td>
+                  {% if feature_addon_rows %}
+                    <ul class="mb-0 ps-3 small">
+                      {% for a in feature_addon_rows %}
+                        <li>
+                          <strong>{{ a.feature__name }}</strong> <code class="small">{{ a.feature__code }}</code>
+                          · ₹{{ a.extra_monthly_charge }}/mo
+                          {% if not a.is_enabled %}<span class="text-muted">(off)</span>{% endif %}
+                          {% if a.notes %}<div class="text-muted">{{ a.notes|truncatechars:120 }}</div>{% endif %}
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  {% else %}—{% endif %}
+                </td></tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section class="sd-section" id="sd-profile">
+      <div class="sd-sec-head">
+        <div class="sd-sec-icon"><i class="bi bi-building"></i></div>
+        <div class="sd-sec-title-wrap">
+          <h2 class="sd-sec-title">Organization &amp; contacts</h2>
+          <p class="sd-sec-sub">Name, institution type, address, contacts, website, and registration details.</p>
+        </div>
+      </div>
+      <div class="sd-sec-body">
+      <form method="post" class="mb-0">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="update_school_profile" />
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label" for="sd_name">School name</label>
+            <input class="form-control" id="sd_name" name="name" value="{{ school.name }}" maxlength="255" required />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="sd_inst">Institution type</label>
+            <select class="form-select" id="sd_inst" name="institution_type">
+              {% for k, v in school.InstitutionType.choices %}
+                <option value="{{ k }}" {% if school.institution_type == k %}selected{% endif %}>{{ v }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="sd_addr">Address</label>
+            <textarea class="form-control" id="sd_addr" name="address" rows="2">{{ school.address }}</textarea>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="sd_email">Contact email</label>
+            <input class="form-control" id="sd_email" type="email" name="contact_email" value="{{ school.contact_email }}" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="sd_phone">Phone</label>
+            <input class="form-control" id="sd_phone" name="phone" value="{{ school.phone }}" maxlength="20" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="sd_cp">Contact person</label>
+            <input class="form-control" id="sd_cp" name="contact_person" value="{{ school.contact_person }}" maxlength="200" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="sd_web">Website</label>
+            <input class="form-control" id="sd_web" name="website" type="text" placeholder="https://… or domain only" value="{{ school.website }}" maxlength="500" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="sd_doe">Date of establishment</label>
+            <input class="form-control" id="sd_doe" name="date_of_establishment" type="date" value="{{ school.date_of_establishment|date:'Y-m-d' }}" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="sd_regno">Registration / UDISE no.</label>
+            <input class="form-control" id="sd_regno" name="registration_number" value="{{ school.registration_number }}" maxlength="120" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="sd_board">Board affiliation</label>
+            <input class="form-control" id="sd_board" name="board_affiliation" value="{{ school.board_affiliation }}" maxlength="120" placeholder="CBSE, State, etc." />
+          </div>
+          <div class="col-12 pt-1 d-flex flex-wrap gap-2 align-items-center">
+            <button type="submit" class="btn sd-btn-primary text-white border-0 px-4">Save organization &amp; contacts</button>
+            <span class="small text-muted">Code <code>{{ school.code }}</code> cannot be changed here.</span>
+          </div>
+        </div>
+      </form>
+      </div>
+    </section>
+
+    <section class="sd-section sd-section--branding" id="sd-branding">
+      <div class="sd-sec-head">
+        <div class="sd-sec-icon"><i class="bi bi-palette"></i></div>
+        <div class="sd-sec-title-wrap">
+          <h2 class="sd-sec-title">Branding &amp; payslips</h2>
+          <p class="sd-sec-sub">Header line, theme color, payslip layout, and optional logo.</p>
+        </div>
+      </div>
+      <div class="sd-sec-body">
+        <form method="post" enctype="multipart/form-data" class="mb-0">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="update_school_branding" />
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label" for="sd_header">Header text</label>
+              <input class="form-control" id="sd_header" name="header_text" value="{{ school.header_text }}" maxlength="200" placeholder="Shown in reports / header" />
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="sd_theme">Theme color</label>
+              <input class="form-control" id="sd_theme" name="theme_color" type="text" value="{{ school.theme_color }}" maxlength="20" placeholder="#4F46E5" />
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="sd_payslip">Payslip format</label>
+              <select class="form-select" id="sd_payslip" name="payslip_format">
+                {% for k, v in school.PayslipFormat.choices %}
+                  <option value="{{ k }}" {% if school.payslip_format == k %}selected{% endif %}>{{ v }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-8">
+              <label class="form-label" for="sd_logo">Logo file</label>
+              <input class="form-control" id="sd_logo" name="logo" type="file" accept="image/*" />
+              <div class="form-text">Upload replaces the current logo. Tick below to remove without uploading.</div>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="clear_logo" value="1" id="sd_clear_logo" />
+                <label class="form-check-label small" for="sd_clear_logo">Remove logo</label>
+              </div>
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-dark rounded-pill px-4">Save branding</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="sd-section sd-section--technical" id="sd-technical">
+      <div class="sd-sec-head">
+        <div class="sd-sec-icon"><i class="bi bi-hdd-network"></i></div>
+        <div class="sd-sec-title-wrap">
+          <h2 class="sd-sec-title">Technical &amp; hosting</h2>
+          <p class="sd-sec-sub">Custom hostname hint, dedicated flag, and published timetable profile id.</p>
+        </div>
+      </div>
+      <div class="sd-sec-body">
+        <form method="post" class="mb-0">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="update_school_technical" />
+          <input type="hidden" name="is_single_tenant" value="0" />
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label" for="sd_cdom">Custom domain</label>
+              <input class="form-control" id="sd_cdom" name="custom_domain" value="{{ school.custom_domain }}" maxlength="255" placeholder="school.example.com" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="sd_ttid">Timetable profile id</label>
+              <input class="form-control" id="sd_ttid" name="timetable_current_profile_id" inputmode="numeric" value="{% if school.timetable_current_profile_id %}{{ school.timetable_current_profile_id }}{% endif %}" placeholder="Blank = none" />
+            </div>
+            <div class="col-12">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="is_single_tenant" value="1" id="sd_single" {% if school.is_single_tenant %}checked{% endif %} />
+                <label class="form-check-label" for="sd_single">Dedicated single-tenant hosting</label>
+              </div>
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-dark rounded-pill px-4">Save technical</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="sd-section sd-section--saas" id="sd-saas-terms">
+      <div class="sd-sec-head">
+        <div class="sd-sec-icon"><i class="bi bi-calendar2-week"></i></div>
+        <div class="sd-sec-title-wrap">
+          <h2 class="sd-sec-title">SaaS billing terms</h2>
+          <p class="sd-sec-sub">Cycle, auto-renew, trial end, service anchor, and legacy complimentary date. Registration / free-until / billing-start stay in the timeline below (API).</p>
+        </div>
+      </div>
+      <div class="sd-sec-body">
+        <form method="post" class="mb-0">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="update_school_saas_terms" />
+          <input type="hidden" name="saas_billing_auto_renew" value="0" />
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label" for="sd_cycle">SaaS billing cycle</label>
+              <select class="form-select" id="sd_cycle" name="saas_billing_cycle">
+                {% for k, v in school.SaaSBillingCycle.choices %}
+                  <option value="{{ k }}" {% if school.saas_billing_cycle == k %}selected{% endif %}>{{ v }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="sd_trial_end">Trial end date</label>
+              <input class="form-control" id="sd_trial_end" name="trial_end_date" type="date" value="{{ school.trial_end_date|date:'Y-m-d' }}" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="sd_svc_start">SaaS service start</label>
+              <input class="form-control" id="sd_svc_start" name="saas_service_start_date" type="date" value="{{ school.saas_service_start_date|date:'Y-m-d' }}" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="sd_compl">Complimentary until (legacy)</label>
+              <input class="form-control" id="sd_compl" name="saas_billing_complimentary_until" type="date" value="{{ school.saas_billing_complimentary_until|date:'Y-m-d' }}" />
+            </div>
+            <div class="col-md-6 d-flex align-items-end">
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="saas_billing_auto_renew" value="1" id="sd_autorenew" {% if school.saas_billing_auto_renew %}checked{% endif %} />
+                <label class="form-check-label" for="sd_autorenew">SaaS auto-renew</label>
+              </div>
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-dark rounded-pill px-4">Save SaaS terms</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="sd-section sd-section--charges" id="sd-saas-charges">
+      <div class="sd-sec-head">
+        <div class="sd-sec-icon"><i class="bi bi-currency-rupee"></i></div>
+        <div class="sd-sec-title-wrap">
+          <h2 class="sd-sec-title">Per-student platform charges</h2>
+          <p class="sd-sec-sub">Extra and concession per student per month, plus optional billed headcount override.</p>
+        </div>
+      </div>
+      <div class="sd-sec-body">
+        <form method="post" class="mb-0">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="update_school_saas_charges" />
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label" for="sd_extra">Extra / student / month (₹)</label>
+              <input class="form-control" id="sd_extra" name="billing_extra_per_student_month" value="{{ school.billing_extra_per_student_month }}" inputmode="decimal" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="sd_conc">Concession / student / month (₹)</label>
+              <input class="form-control" id="sd_conc" name="billing_concession_per_student_month" value="{{ school.billing_concession_per_student_month }}" inputmode="decimal" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="sd_stuov">Student count override</label>
+              <input class="form-control" id="sd_stuov" name="billing_student_count_override" inputmode="numeric" value="{% if school.billing_student_count_override is not None %}{{ school.billing_student_count_override }}{% endif %}" placeholder="Blank = live tenant count" />
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-dark rounded-pill px-4">Save charges</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="sd-section sd-section--meta" id="sd-platform-meta">
+      <div class="sd-sec-head">
+        <div class="sd-sec-icon"><i class="bi bi-braces"></i></div>
+        <div class="sd-sec-title-wrap">
+          <h2 class="sd-sec-title">Platform control meta</h2>
+          <p class="sd-sec-sub">JSON object for super-admin limits and flags. Invalid JSON is rejected.</p>
+        </div>
+      </div>
+      <div class="sd-sec-body">
+        <form method="post" class="mb-0">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="update_platform_control_meta" />
+          <label class="form-label" for="sd_meta_json">JSON</label>
+          <textarea class="form-control font-monospace small" id="sd_meta_json" name="platform_control_meta" rows="10" spellcheck="false">{{ platform_control_meta_json }}</textarea>
+          <div class="mt-3">
+            <button type="submit" class="btn btn-dark rounded-pill px-4">Save control meta</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="sd-section sd-section--stats">
+      <div class="sd-sec-head">
+        <div class="sd-sec-icon"><i class="bi bi-graph-up-arrow"></i></div>
+        <div class="sd-sec-title-wrap">
+          <h2 class="sd-sec-title">School stats</h2>
+          <p class="sd-sec-sub">Live counts from the school tenant schema.</p>
+        </div>
+      </div>
+      <div class="sd-sec-body">
+      <div class="sd-stat-row">
+        <div class="sd-stat">
+          <div class="sd-stat-ico"><i class="bi bi-people"></i></div>
+          <div class="n">{{ students_ct }}</div>
+          <div class="l">Students</div>
+        </div>
+        <div class="sd-stat">
+          <div class="sd-stat-ico"><i class="bi bi-person-video3"></i></div>
+          <div class="n">{{ teachers_ct }}</div>
+          <div class="l">Teachers</div>
+        </div>
+        <div class="sd-stat">
+          <div class="sd-stat-ico"><i class="bi bi-grid-3x3-gap"></i></div>
+          <div class="n">{{ classes_ct }}</div>
+          <div class="l">Classes</div>
+        </div>
+      </div>
+      </div>
+    </section>
+
+    <section class="sd-section sd-section--plan">
+      <div class="sd-sec-head">
+        <div class="sd-sec-icon"><i class="bi bi-credit-card-2-front"></i></div>
+        <div class="sd-sec-title-wrap">
+          <h2 class="sd-sec-title">Plan &amp; billing info</h2>
+          <p class="sd-sec-sub">SaaS tier and per-student platform pricing.</p>
+        </div>
+      </div>
+      <div class="sd-sec-body">
+      <dl class="sd-kv mb-0">
+        <dt>Current plan (Control Center)</dt>
+        <dd><span class="sd-pill sd-pill--plan">{{ plan_label }}</span></dd>
+        <dt>Legacy billing plan</dt>
+        <dd>{{ billing_plan_label }}</dd>
+        <dt>Deprecated core plan</dt>
+        <dd>{{ subscription_plan_label }}</dd>
+        <dt>Price / student / mo</dt>
+        <dd class="fs-5 fw-bold text-body">₹{{ breakdown.plan_price_per_student }}</dd>
+        <dt>Billing cycle</dt>
+        <dd>{{ school.get_saas_billing_cycle_display }}</dd>
+        <dt>Trial end</dt>
+        <dd>{% if school.trial_end_date %}{{ school.trial_end_date|date:"M j, Y" }}{% else %}—{% endif %}</dd>
+      </dl>
+      </div>
+    </section>
+
+    <section class="sd-section sd-section--billing">
+      <div class="sd-sec-head">
+        <div class="sd-sec-icon"><i class="bi bi-calendar-range"></i></div>
+        <div class="sd-sec-title-wrap">
+          <h2 class="sd-sec-title">Billing configuration</h2>
+          <p class="sd-sec-sub">Free until is inclusive; billing start is the first paid day (defaults to the day after free until).</p>
+        </div>
+      </div>
+      <div class="sd-sec-body">
+      <div class="sd-track" aria-hidden="true">
+        <div class="sd-track-step">
+          <div class="sd-track-dot">1</div>
+          <div class="sd-track-label">Registration</div>
+          <div class="sd-track-val">{% if school.registration_date %}{{ school.registration_date|date:"M j, Y" }}{% else %}—{% endif %}</div>
+        </div>
+        <span class="sd-track-arrow d-none d-sm-flex align-items-center" aria-hidden="true"><i class="bi bi-chevron-right"></i></span>
+        <div class="sd-track-step">
+          <div class="sd-track-dot">2</div>
+          <div class="sd-track-label">Free until</div>
+          <div class="sd-track-val">{% if school.saas_free_until_date %}{{ school.saas_free_until_date|date:"M j, Y" }}{% else %}—{% endif %}</div>
+        </div>
+        <span class="sd-track-arrow d-none d-sm-flex align-items-center" aria-hidden="true"><i class="bi bi-chevron-right"></i></span>
+        <div class="sd-track-step">
+          <div class="sd-track-dot">3</div>
+          <div class="sd-track-label">Billing start</div>
+          <div class="sd-track-val">{% if effective_billing_start %}{{ effective_billing_start|date:"M j, Y" }}{% elif school.saas_free_until_date %}Auto{% else %}Now{% endif %}</div>
+        </div>
+      </div>
+      <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label" for="sd_bill_reg" data-bs-toggle="tooltip" title="Contract or onboarding anchor; billing start cannot be before this date.">Registration</label>
+          <input type="date" class="form-control" id="sd_bill_reg" value="{{ school.registration_date|date:'Y-m-d' }}" />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="sd_bill_free" data-bs-toggle="tooltip" title="Last day of free service (inclusive).">Free until</label>
+          <input type="date" class="form-control" id="sd_bill_free" value="{{ school.saas_free_until_date|date:'Y-m-d' }}" />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="sd_bill_start" data-bs-toggle="tooltip" title="Override allowed; leave synced with free until + 1 unless you need an exception.">Billing start</label>
+          <input type="date" class="form-control" id="sd_bill_start" value="{{ school.billing_start_date|date:'Y-m-d' }}" />
+        </div>
+        <div class="col-12 d-flex flex-wrap align-items-center gap-2 pt-1">
+          <button type="button" class="btn btn-primary sd-btn-primary border-0 px-4" id="sd_bill_save">Save billing dates</button>
+          <span class="small fw-semibold" id="sd_bill_msg"></span>
+        </div>
+      </div>
+      </div>
+    </section>
+
+    <section class="sd-section sd-section--preview">
+      <div class="sd-sec-head">
+        <div class="sd-sec-icon"><i class="bi bi-receipt"></i></div>
+        <div class="sd-sec-title-wrap">
+          <h2 class="sd-sec-title">Billing preview</h2>
+          <p class="sd-sec-sub">Estimated platform charges for the current configuration.</p>
+        </div>
+      </div>
+      <div class="sd-sec-body">
+      {% if in_free_period %}
+        <div class="sd-preview sd-preview--free">
+          <span class="sd-pill sd-pill--free"><i class="bi bi-gift"></i> Free period</span>
+          <p class="fw-bold mt-3 mb-1" style="font-size:1.05rem;">Currently in free period</p>
+          <p class="small text-muted mb-3">Billing starts on <strong>{{ effective_billing_start|date:"F j, Y" }}</strong>. After that, estimated monthly charges:</p>
+          <p class="sd-preview-amount mb-0">₹{{ breakdown.final_monthly }}<span class="fs-6 fw-semibold opacity-75">/mo</span></p>
+          <p class="small text-muted mt-2 mb-0">{{ breakdown.student_count }} students (billed headcount)</p>
+        </div>
+      {% else %}
+        <div class="sd-preview sd-preview--paid">
+          <span class="sd-pill sd-pill--bill"><i class="bi bi-check2-circle"></i> Active billing</span>
+          <p class="fw-bold mt-3 mb-1" style="font-size:1.05rem;">Estimated monthly bill</p>
+          <p class="sd-preview-amount mb-0">₹{{ breakdown.final_monthly }}<span class="fs-6 fw-semibold opacity-75">/mo</span></p>
+          <p class="small text-muted mt-2 mb-0">{% if breakdown.uses_student_override %}Override{% else %}Live{% endif %} headcount: <strong>{{ breakdown.student_count }}</strong> students · plan, extras, and concessions applied.</p>
+        </div>
+      {% endif %}
+      </div>
+    </section>
+
+    <section class="sd-section sd-section--invoice">
+      <div class="sd-sec-head">
+        <div class="sd-sec-icon"><i class="bi bi-file-earmark-text"></i></div>
+        <div class="sd-sec-title-wrap">
+          <h2 class="sd-sec-title">Recent invoices</h2>
+          <p class="sd-sec-sub">Latest generated SaaS invoices for this school.</p>
+        </div>
+      </div>
+      <div class="sd-sec-body">
+      {% if recent_invoices %}
+        <div class="sd-table-wrap">
+          <table class="table sd-table mb-0">
+            <thead><tr><th>Invoice</th><th>Period</th><th class="text-end">Amount</th><th>Status</th></tr></thead>
+            <tbody>
+              {% for inv in recent_invoices %}
+                <tr>
+                  <td class="sd-inv-num">{{ inv.invoice_number }}</td>
+                  <td class="text-secondary small">{{ inv.invoice_month_key }}</td>
+                  <td class="text-end fw-bold">₹{{ inv.grand_total }}</td>
+                  <td>
+                    {% if inv.status == "paid" %}
+                      <span class="badge rounded-pill" style="background:linear-gradient(135deg,#22c55e,#16a34a);font-weight:700;">Paid</span>
+                    {% elif inv.status == "issued" %}
+                      <span class="badge rounded-pill text-bg-warning text-dark" style="font-weight:700;">Issued</span>
+                    {% elif inv.status == "void" %}
+                      <span class="badge rounded-pill text-bg-secondary" style="font-weight:700;">Void</span>
+                    {% else %}
+                      <span class="badge rounded-pill text-bg-secondary text-uppercase" style="font-weight:700;">{{ inv.status }}</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="sd-empty text-muted">
+          <i class="bi bi-inbox"></i>
+          <div class="fw-semibold text-body">No invoices yet</div>
+          <div class="small">Generated invoices will appear here once billing runs for this school.</div>
+        </div>
+      {% endif %}
+      </div>
+    </section>
+
+    <section class="sd-section sd-section--actions">
+      <div class="sd-sec-head">
+        <div class="sd-sec-icon"><i class="bi bi-lightning-charge"></i></div>
+        <div class="sd-sec-title-wrap">
+          <h2 class="sd-sec-title">Actions</h2>
+          <p class="sd-sec-sub">Shortcuts and administrative controls.</p>
+        </div>
+      </div>
+      <div class="sd-sec-body">
+      <div class="sd-action-grid">
+        <a class="sd-action" href="#sd-profile"><i class="bi bi-pencil-square text-primary"></i> Organization</a>
+        <a class="sd-action" href="#sd-branding"><i class="bi bi-palette text-primary"></i> Branding</a>
+        <a class="sd-action" href="#sd-technical"><i class="bi bi-hdd-network text-primary"></i> Technical</a>
+        <a class="sd-action" href="#sd-saas-terms"><i class="bi bi-calendar2-week text-primary"></i> SaaS terms</a>
+        <a class="sd-action" href="#sd-saas-charges"><i class="bi bi-currency-rupee text-primary"></i> Charges</a>
+        <a class="sd-action" href="#sd-platform-meta"><i class="bi bi-braces text-primary"></i> Control meta</a>
+        <a class="sd-action sd-action--accent" href="{{ billing_timeline_url }}"><i class="bi bi-calendar3"></i> Billing timeline</a>
+        <a class="sd-action sd-action--accent" href="{{ billing_url }}"><i class="bi bi-currency-rupee"></i> Billing center</a>
+        <a class="sd-action" href="{% url 'core:super_admin:control_center_section' 'plans' %}?addon_school={{ school.pk }}"><i class="bi bi-puzzle"></i> Plans &amp; add-ons</a>
+        {% if primary_domain %}
+          <a class="sd-action" href="//{{ primary_domain }}/school/students/" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Tenant · Students</a>
+        {% endif %}
+      </div>
+      <div class="row g-3 align-items-end sd-form-row-actions">
+        <div class="col-md-6">
+          <form method="post" class="d-flex flex-wrap gap-2 align-items-end">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="set_school_plan" />
+            <div class="flex-grow-1">
+              <label class="form-label mb-1" for="sd_plan">Change plan</label>
+              <select class="form-select" id="sd_plan" name="plan_id">
+                <option value="">No plan</option>
+                {% for p in plans %}
+                  <option value="{{ p.id }}" {% if school.plan_id == p.id %}selected{% endif %}>{{ p.get_name_display }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <button type="submit" class="btn btn-dark px-4">Apply</button>
+          </form>
+        </div>
+        <div class="col-md-6">
+          <form method="post" class="d-flex flex-wrap gap-2 align-items-end">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="set_school_status" />
+            <div class="flex-grow-1">
+              <label class="form-label mb-1" for="sd_status">Lifecycle status</label>
+              <select class="form-select" id="sd_status" name="status">
+                {% for k, v in school.SchoolStatus.choices %}
+                  <option value="{{ k }}" {% if school.school_status == k %}selected{% endif %}>{{ v }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <button type="submit" class="btn btn-dark px-4">Update</button>
+          </form>
+        </div>
+      </div>
+      {% if school.school_status == "suspended" %}
+        <div class="alert alert-danger border-0 rounded-3 mt-3 mb-0 py-2 small shadow-sm">
+          <span class="sd-pill sd-pill--sus me-2">Suspended</span>
+          Tenant login is disabled until status is set back to Active or Trial.
+        </div>
+      {% endif %}
+      </div>
+    </section>
+  </div>
+</div>
+</div>
+{% endblock %}
+
+{% block after_bootstrap %}
+<script>
+(function () {
+  var postUrl = "{{ billing_config_post_url|escapejs }}";
+  var schoolId = {{ school.pk }};
+  var reg = document.getElementById("sd_bill_reg");
+  var free = document.getElementById("sd_bill_free");
+  var bs = document.getElementById("sd_bill_start");
+  var btn = document.getElementById("sd_bill_save");
+  var msg = document.getElementById("sd_bill_msg");
+  var manual = false;
+
+  function getCookie(name) {
+    var v = null;
+    if (document.cookie && document.cookie !== "") {
+      document.cookie.split(";").forEach(function (c) {
+        var p = c.trim().split("=");
+        if (p[0] === name) v = decodeURIComponent(p.slice(1).join("="));
+      });
+    }
+    return v;
+  }
+  function csrf() {
+    var m = document.querySelector("[name=csrfmiddlewaretoken]");
+    return (m && m.value) || getCookie("csrftoken") || "";
+  }
+  function nextDay(iso) {
+    if (!iso) return "";
+    var d = new Date(iso + "T12:00:00");
+    if (isNaN(d.getTime())) return "";
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().slice(0, 10);
+  }
+  if (free) {
+    free.addEventListener("change", function () {
+      var nx = nextDay(free.value);
+      if (nx) bs.value = nx;
+      else if (bs) bs.value = "";
+      manual = false;
+    });
+  }
+  if (bs) {
+    bs.addEventListener("input", function () {
+      manual = true;
+    });
+  }
+  if (btn && postUrl) {
+    btn.addEventListener("click", function () {
+      if (msg) {
+        msg.textContent = "Saving…";
+        msg.className = "small fw-semibold text-muted";
+      }
+      var payload = { school_id: schoolId };
+      if (reg && reg.value) payload.registration_date = reg.value;
+      else if (reg) payload.registration_date = null;
+      if (free && free.value) payload.free_until_date = free.value;
+      else if (free) payload.free_until_date = null;
+      if (manual && bs) {
+        if (bs.value) payload.billing_start_date = bs.value;
+        else payload.billing_start_date = null;
+      }
+      fetch(postUrl, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": csrf() },
+        body: JSON.stringify(payload)
+      })
+        .then(function (r) {
+          return r.json().then(function (j) {
+            return { ok: r.ok, body: j };
+          });
+        })
+        .then(function (res) {
+          if (res.body && res.body.ok) {
+            if (msg) {
+              msg.textContent = "Saved.";
+              msg.className = "small fw-semibold text-success";
+            }
+            if (bs && res.body.billing_start_date) bs.value = String(res.body.billing_start_date).slice(0, 10);
+            else if (bs && res.body.effective_billing_start_date)
+              bs.value = String(res.body.effective_billing_start_date).slice(0, 10);
+            manual = false;
+          } else if (msg) {
+            msg.textContent = (res.body && res.body.error) || "Failed";
+            msg.className = "small fw-semibold text-danger";
+          }
+        })
+        .catch(function () {
+          if (msg) {
+            msg.textContent = "Network error";
+            msg.className = "small fw-semibold text-danger";
+          }
+        });
+    });
+  }
+  if (typeof bootstrap !== "undefined" && bootstrap.Tooltip) {
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+      new bootstrap.Tooltip(el);
+    });
+  }
+})();
+</script>
+{% endblock %}

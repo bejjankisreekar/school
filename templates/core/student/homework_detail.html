@@ -146,6 +146,81 @@
               </dd>
             </dl>
 
+            <div class="mt-3 pt-3 border-top">
+              <div class="shd-label mb-2">Submission details</div>
+              {% if submission and status == 'COMPLETED' %}
+                <div class="small text-muted mb-1">Submitted on</div>
+                <div class="fw-semibold mb-2">
+                  <i class="bi bi-check-circle-fill text-success me-1"></i>
+                  {{ submission.submitted_at|date:"M j, Y, g:i A"|default:"—" }}
+                </div>
+
+                <div class="small text-muted mb-1">File</div>
+                <div class="mb-2">
+                  {% if submission.submission_file %}
+                    <a class="btn btn-outline-primary btn-sm rounded-pill px-3" href="{{ submission.submission_file.url }}" target="_blank" rel="noopener">
+                      <i class="bi bi-paperclip me-1"></i>Open uploaded file
+                    </a>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </div>
+
+                <div class="small text-muted mb-1">Remarks</div>
+                <div class="small shd-body border rounded-3 p-2 bg-body-tertiary bg-opacity-25">
+                  {{ submission.remarks|default:"—" }}
+                </div>
+              {% else %}
+                <div class="small text-muted">
+                  <i class="bi bi-info-circle me-1"></i>No submission recorded yet.
+                </div>
+              {% endif %}
+            </div>
+
+            <div class="mt-3 pt-3 border-top">
+              <div class="shd-label mb-2">Submission history</div>
+              {% if submission_attempts %}
+                <div class="table-responsive">
+                  <table class="table table-sm align-middle mb-0">
+                    <thead>
+                      <tr class="text-muted small">
+                        <th>Submitted at</th>
+                        <th>Late</th>
+                        <th>File</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for a in submission_attempts %}
+                        <tr>
+                          <td class="small">{{ a.submitted_at|date:"M j, Y, g:i A" }}</td>
+                          <td>
+                            {% if a.is_late %}
+                              <span class="badge rounded-pill bg-warning text-dark">Late</span>
+                            {% else %}
+                              <span class="badge rounded-pill bg-success">On time</span>
+                            {% endif %}
+                          </td>
+                          <td>
+                            {% if a.submission_file %}
+                              <a class="btn btn-outline-secondary btn-sm rounded-pill px-3" href="{{ a.submission_file.url }}" target="_blank" rel="noopener">
+                                <i class="bi bi-paperclip me-1"></i>Open
+                              </a>
+                            {% else %}
+                              <span class="text-muted small">—</span>
+                            {% endif %}
+                          </td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% else %}
+                <div class="small text-muted">
+                  No attempts yet.
+                </div>
+              {% endif %}
+            </div>
+
             <div class="mt-3">
               {% if homework.status == 'CLOSED' %}
                 <div class="alert alert-secondary small mb-0"><i class="bi bi-lock me-1"></i>Submissions are closed for this assignment.</div>

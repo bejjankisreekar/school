@@ -23,6 +23,9 @@
                 <a href="{{ child.href }}" class="sidebar-nav-item sidebar-nav-subitem {% if child.active %}sidebar-nav-active{% endif %}">
                   <span class="sidebar-nav-icon"><i class="{% if child.icon %}{{ child.icon }}{% else %}bi bi-dot{% endif %}"></i></span>
                   <span class="sidebar-nav-text">{{ child.label }}</span>
+                  {% if inbox_unread_count > 0 and inbox_url and child.href == inbox_url %}
+                    <span class="badge bg-danger rounded-pill ms-auto" style="min-width:18px;height:18px;padding:0;font-size:11px;display:inline-flex;align-items:center;justify-content:center;">{{ inbox_unread_count }}</span>
+                  {% endif %}
                   <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
                 </a>
               {% endfor %}
@@ -32,45 +35,29 @@
           <a href="{{ item.href }}" class="sidebar-nav-item {% if item.active %}sidebar-nav-active{% endif %}">
             <span class="sidebar-nav-icon"><i class="{% if item.icon %}{{ item.icon }}{% else %}bi bi-dot{% endif %}"></i></span>
             <span class="sidebar-nav-text">{{ item.label }}</span>
+            {% if inbox_unread_count > 0 and inbox_url and item.href == inbox_url %}
+              <span class="badge bg-danger rounded-pill ms-auto" style="min-width:18px;height:18px;padding:0;font-size:11px;display:inline-flex;align-items:center;justify-content:center;">{{ inbox_unread_count }}</span>
+            {% endif %}
             <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
           </a>
         {% endif %}
       {% endfor %}
     {% else %}
-    <a href="{% if request.user.role == 'SUPERADMIN' %}{% url 'core:super_admin_dashboard' %}{% elif request.user.role == 'ADMIN' %}{% url 'core:admin_dashboard' %}{% elif request.user.role == 'TEACHER' %}{% url 'core:teacher_dashboard' %}{% elif request.user.role == 'PARENT' %}{% url 'core:parent_dashboard' %}{% else %}{% url 'core:student_dashboard' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'super_admin_dashboard' 'admin_dashboard' 'teacher_dashboard' 'student_dashboard' 'parent_dashboard' %}">
+    <a href="{% if request.user.role == 'SUPERADMIN' %}{% url 'core:super_admin:control_center' %}{% elif request.user.role == 'ADMIN' %}{% url 'core:admin_dashboard' %}{% elif request.user.role == 'TEACHER' %}{% url 'core:teacher_dashboard' %}{% elif request.user.role == 'PARENT' %}{% url 'core:parent_dashboard' %}{% else %}{% url 'core:student_dashboard' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'control_center' 'admin_dashboard' 'teacher_dashboard' 'student_dashboard' 'parent_dashboard' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-grid-1x2"></i></span>
       <span class="sidebar-nav-text">Dashboard</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
     {% if request.user.role == 'SUPERADMIN' %}
-    <a href="{% url 'core:superadmin_control_center' %}" class="sidebar-nav-item {% nav_active_names request 'superadmin_control_center' %}">
+    <a href="{% url 'core:super_admin:control_center' %}" class="sidebar-nav-item {% nav_active_names request 'control_center' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-sliders2"></i></span>
       <span class="sidebar-nav-text">Control Center</span>
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
-    <a href="{% url 'admin_manage:schools_list' %}" class="sidebar-nav-item {% nav_active_names request 'schools_list' 'school_create' 'school_edit' 'school_view' %}">
-      <span class="sidebar-nav-icon"><i class="bi bi-building"></i></span>
-      <span class="sidebar-nav-text">Schools</span>
-      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-    </a>
-    <a href="{% url 'admin_manage:school_plans_list' %}" class="sidebar-nav-item {% nav_active_names request 'school_plans_list' 'school_change_plan' 'school_manage_features' %}">
-      <span class="sidebar-nav-icon"><i class="bi bi-diagram-3"></i></span>
-      <span class="sidebar-nav-text">School Plans</span>
-      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-    </a>
-    <a href="{% url 'core:superadmin_financials' %}" class="sidebar-nav-item {% nav_active_names request 'superadmin_financials' %}">
-      <span class="sidebar-nav-icon"><i class="bi bi-currency-exchange"></i></span>
-      <span class="sidebar-nav-text">Financials</span>
-      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-    </a>
-    <a href="{% url 'admin_manage:teachers_list' %}" class="sidebar-nav-item {% nav_active_names request 'teachers_list' 'teacher_create' 'teacher_edit' 'teacher_view' %}">
-      <span class="sidebar-nav-icon"><i class="bi bi-person-badge"></i></span>
-      <span class="sidebar-nav-text">Teachers</span>
-      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-    </a>
-    <a href="{% url 'admin_manage:students_list' %}" class="sidebar-nav-item {% nav_active_names request 'students_list' 'student_create' 'student_edit' 'student_view' %}">
-      <span class="sidebar-nav-icon"><i class="bi bi-people"></i></span>
-      <span class="sidebar-nav-text">Students</span>
+    <a href="{% url 'core:super_admin:platform_messages' %}" class="sidebar-nav-item {% nav_active_names request 'platform_messages' %}">
+      <span class="sidebar-nav-icon"><i class="bi bi-chat-dots"></i></span>
+      <span class="sidebar-nav-text">Messages</span>
+      {% if platform_messaging_unread %}<span class="badge bg-danger rounded-pill ms-auto" style="min-width:18px;height:18px;padding:0;font-size:11px;display:inline-flex;align-items:center;justify-content:center;">{{ platform_messaging_unread }}</span>{% endif %}
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
     {% elif request.user.role == 'PARENT' %}
@@ -80,6 +67,14 @@
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
     {% else %}
+    {% if request.user.role == 'ADMIN' and request|feature_access:'platform_messaging' %}
+    <a href="{% url 'core:school_admin_platform_messages' %}" class="sidebar-nav-item {% nav_active_names request 'school_admin_platform_messages' %}">
+      <span class="sidebar-nav-icon"><i class="bi bi-building-check"></i></span>
+      <span class="sidebar-nav-text">Messages</span>
+      {% if platform_messaging_unread %}<span class="badge bg-danger rounded-pill ms-auto" style="min-width:18px;height:18px;padding:0;font-size:11px;display:inline-flex;align-items:center;justify-content:center;">{{ platform_messaging_unread }}</span>{% endif %}
+      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
+    </a>
+    {% endif %}
     {% if request.user.role != 'STUDENT' %}
     <a href="{% if request.user.role == 'ADMIN' %}{% url 'core:school_students_list' %}{% elif request.user.role == 'TEACHER' %}{% url 'core:teacher_students_list' %}{% else %}{% url 'core:students_list' %}{% endif %}" class="sidebar-nav-item {% nav_active_names request 'school_students_list' 'students_list' 'school_student_add' 'school_student_edit' 'school_student_view' 'school_students_import' 'teacher_students_list' %}">
       <span class="sidebar-nav-icon"><i class="bi bi-people"></i></span>
@@ -177,13 +172,7 @@
       <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
     </a>
     {% endif %}
-    {% if request.user.role == 'STUDENT' %}
-    <a href="{% url 'notifications:student_notifications' %}" class="sidebar-nav-item {% nav_active_names request 'student_notifications' %}">
-      <span class="sidebar-nav-icon"><i class="bi bi-bell"></i></span>
-      <span class="sidebar-nav-text">Notifications</span>
-      <span class="sidebar-nav-arrow"><i class="bi bi-chevron-right"></i></span>
-    </a>
-    {% endif %}
+    {# Student notifications are available in the top bar; hide from sidebar #}
     {% if request.user.role == 'ADMIN' %}
     {% if request|feature_access:"sms" %}
     <a href="{% url 'notifications:school_notifications' %}" class="sidebar-nav-item {% nav_active_names request 'school_notifications' %}">

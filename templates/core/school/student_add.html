@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Student Admission | Campus ERP{% endblock %}
+{% block title %}Student Admission | {{ app_product_name }}{% endblock %}
 {% block extra_head %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
 {% endblock %}
@@ -209,12 +209,7 @@
                 </div>
                 <div class="col-md-4">
                   <label class="form-label fw-semibold">Section <span class="text-danger">*</span></label>
-                  <select name="section" id="id_section" class="form-select" required>
-                    <option value="">— Select section —</option>
-                    {% for s in form.fields.section.queryset %}
-                      <option value="{{ s.id }}" data-classrooms="{% for c in s.classrooms.all %}{{ c.id }}{% if not forloop.last %},{% endif %}{% endfor %}" {% if form.section.value|stringformat:"s" == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
-                    {% endfor %}
-                  </select>
+                  {{ form.section }}
                   {% if form.section.errors %}<div class="text-danger small mt-1">{{ form.section.errors.0 }}</div>{% endif %}
                 </div>
                 <div class="col-md-4">

@@ -14,22 +14,17 @@ def add_warning_once(request, session_key: str, message: str):
 
 def has_feature_access(school, feature_code: str, *, user=None) -> bool:
     """
-    DB-driven feature check for templates and views.
-
-    - Platform superadmin always has access (owner / operations).
-    - Otherwise uses `school.get_enabled_feature_codes()` (plan + per-school override).
+    Unified feature check for templates and views (plan + subscription from DB).
     """
-    if not feature_code:
-        return False
-    if user is not None and getattr(user, "role", None) == "SUPERADMIN":
+    from apps.accounts.models import User
+    from apps.core.subscription_access import has_feature_access as school_has_plan_feature
+    from apps.super_admin.utils import has_feature
+
+    if user is not None and getattr(user, "role", None) == User.Roles.SUPERADMIN:
         return True
-    if not school:
-        return False
-    try:
-        codes = school.get_enabled_feature_codes()
-    except Exception:
-        return False
-    return feature_code in (codes or set())
+    if school is not None and getattr(school, "pk", None):
+        return school_has_plan_feature(int(school.pk), feature_code)
+    return has_feature(user, feature_code)
 
 
 def get_current_academic_year() -> str:

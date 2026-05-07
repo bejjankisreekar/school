@@ -138,6 +138,23 @@ body {
   color: white;
 }
 
+.sidebar-nav-item.sidebar-nav-locked:not(.sidebar-nav-active),
+.sidebar-nav-subitem.sidebar-nav-locked:not(.sidebar-nav-active) {
+  opacity: 0.72;
+  filter: grayscale(0.22);
+}
+
+.sidebar-nav-lock {
+  flex-shrink: 0;
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--sidebar-text-muted);
+}
+
+.sidebar-nav-item.sidebar-nav-active .sidebar-nav-lock {
+  color: rgba(255, 255, 255, 0.88);
+}
+
 .sidebar-nav-icon {
   flex-shrink: 0;
   width: 20px;
@@ -338,6 +355,11 @@ body.dark-mode .sidebar-product-name {
 
   .sidebar-toggle {
     display: flex;
+  }
+
+  /* Mobile: push the brand strip a bit down so it's not hidden behind the hamburger / top chrome */
+  .sidebar-product-brand {
+    margin-top: 3.25rem;
   }
 }
 

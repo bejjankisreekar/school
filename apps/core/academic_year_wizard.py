@@ -53,12 +53,9 @@ def validate_wizard_payload(
     oq = AcademicYear.objects.all()
     if exclude_year_id:
         oq = oq.exclude(pk=exclude_year_id)
-    for other in oq.only("id", "name", "start_date", "end_date"):
-        if ranges_overlap(start_date, end_date, other.start_date, other.end_date):
-            return (
-                f"This date range overlaps with “{other.name}” "
-                f"({other.start_date} – {other.end_date}). Adjust dates or edit the other year."
-            )
+    # Overlapping academic years are allowed in some schools (e.g. phased transitions).
+    # We intentionally do not block overlaps here; downstream filters should rely on the
+    # currently active year, not on non-overlap assumptions.
 
     terms = wizard.get("terms") if isinstance(wizard.get("terms"), list) else []
     for i, t in enumerate(terms):

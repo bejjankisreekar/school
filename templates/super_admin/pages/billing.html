@@ -1,0 +1,2852 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Billing | Control Center{% endblock %}
+
+{% block content %}
+<style>
+  .bm-wrap{ max-width: 1240px; margin: 0 auto; }
+  .bm-dash{
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: .85rem;
+    margin-bottom: 1rem;
+  }
+  @media (min-width: 640px){
+    .bm-dash{ grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (min-width: 1024px){
+    .bm-dash{ grid-template-columns: repeat(4, 1fr); }
+  }
+  .bm-dash-card{
+    position: relative;
+    border-radius: 1.25rem;
+    background: #fff;
+    border: 1px solid rgba(15,23,42,.08);
+    box-shadow: 0 4px 18px -6px rgba(15, 23, 42, 0.12);
+    padding: .9rem 1rem;
+    transition: transform .22s cubic-bezier(0.32, 0.72, 0, 1), box-shadow .22s ease, border-color .22s ease;
+    overflow: hidden;
+  }
+  .bm-dash-card::before{
+    content: "";
+    position: absolute;
+    left: 0;
+    top: .65rem;
+    bottom: .65rem;
+    width: 3px;
+    border-radius: 0 4px 4px 0;
+    opacity: .9;
+  }
+  .bm-dash-card--rev::before{ background: linear-gradient(180deg, #4f46e5, #6366f1); }
+  .bm-dash-card--act::before{ background: linear-gradient(180deg, #059669, #10b981); }
+  .bm-dash-card--pend::before{ background: linear-gradient(180deg, #d97706, #f59e0b); }
+  .bm-dash-card--stu::before{ background: linear-gradient(180deg, #0ea5e9, #38bdf8); }
+  .bm-dash-card:hover{
+    transform: translateY(-3px);
+    box-shadow: 0 14px 32px -10px rgba(15, 23, 42, 0.18);
+    border-color: rgba(99,102,241,.2);
+  }
+  .bm-dash-card .lbl{ font-size: .65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: rgba(15,23,42,.48); padding-left: .15rem; }
+  .bm-dash-card .val{ font-size: 1.35rem; font-weight: 900; letter-spacing: -0.03em; color: #0f172a; margin-top: .25rem; line-height: 1.15; padding-left: .15rem; }
+  .bm-dash-card .sub{ font-size: .7rem; color: rgba(15,23,42,.46); margin-top: .3rem; line-height: 1.35; padding-left: .15rem; }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bm-dash-card{
+    background: rgba(30, 41, 59, 0.55);
+    border-color: rgba(148, 163, 184, 0.18);
+    box-shadow: 0 4px 24px -8px rgba(0, 0, 0, 0.35);
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bm-dash-card .lbl{ color: rgba(226, 232, 240, 0.55); }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bm-dash-card .val{ color: #f8fafc; }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bm-dash-card .sub{ color: rgba(203, 213, 225, 0.65); }
+
+  @keyframes bm-shimmer{
+    0%{ background-position: 120% 0; }
+    100%{ background-position: -120% 0; }
+  }
+  .billing-grid-shell--loading{
+    position: relative;
+    min-height: 200px;
+  }
+  .billing-grid-shell--loading #billingGridSkeleton{
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .billing-grid-shell--loading #billingGrid{
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .billing-grid-shell--ready #billingGridSkeleton{
+    display: none;
+  }
+  .billing-grid-shell--ready #billingGrid{
+    visibility: visible;
+    pointer-events: auto;
+  }
+  .bm-skel-card{
+    border-radius: 1.25rem;
+    border: 1px solid rgba(15,23,42,.06);
+    background: #fff;
+    padding: .85rem 1rem;
+    min-height: 9.25rem;
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bm-skel-card{
+    background: rgba(30, 41, 59, 0.45);
+    border-color: rgba(148, 163, 184, 0.12);
+  }
+  .bm-skel-line{
+    display: block;
+    height: .62rem;
+    border-radius: 6px;
+    margin-bottom: .55rem;
+    background: linear-gradient(110deg, #eef2f7 0%, #f8fafc 35%, #e8edf4 55%, #f8fafc 70%, #eef2f7 100%);
+    background-size: 220% 100%;
+    animation: bm-shimmer 1.15s ease-in-out infinite;
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bm-skel-line{
+    background: linear-gradient(110deg, rgba(51,65,85,.5) 0%, rgba(71,85,105,.65) 45%, rgba(51,65,85,.5) 100%);
+    background-size: 220% 100%;
+  }
+  .bm-skel-line--sm{ width: 42%; }
+  .bm-skel-line--md{ width: 68%; }
+  .bm-skel-line--lg{ width: 88%; }
+  .bm-skel-line--short{ width: 36%; margin-top: 1rem; }
+  @media (prefers-reduced-motion: reduce){
+    .bm-skel-line{ animation: none; background: #eef2f7; }
+    :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bm-skel-line{ background: rgba(51,65,85,.45); }
+    .billing-grid-shell--loading #billingGridSkeleton{ display: none; }
+    .billing-grid-shell--loading #billingGrid{ visibility: visible !important; pointer-events: auto !important; }
+    .billing-grid-shell--loading{ min-height: 0; }
+    .bm-card.bm-compact,
+    .bm-dash-card{ transition: none; }
+    .bm-card.bm-compact:hover{ transform: none; }
+  }
+
+  .bm-toolbar{
+    display: flex;
+    flex-wrap: wrap;
+    gap: .65rem;
+    align-items: flex-end;
+    margin-bottom: 1rem;
+    padding: 1rem 1.1rem;
+    border-radius: 1.25rem;
+    background: #fff;
+    border: 1px solid rgba(15,23,42,.08);
+    box-shadow: 0 4px 18px -8px rgba(15, 23, 42, 0.1);
+    transition: box-shadow .2s ease, border-color .2s ease;
+  }
+  .bm-toolbar:hover{
+    box-shadow: 0 10px 28px -12px rgba(15, 23, 42, 0.14);
+    border-color: rgba(99,102,241,.12);
+  }
+  .bm-toolbar .bm-fld{ display: flex; flex-direction: column; gap: .25rem; min-width: 140px; flex: 1 1 140px; }
+  .bm-toolbar .bm-fld-grow{ flex: 2 1 220px; }
+  .bm-toolbar label{ font-size: .65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: rgba(15,23,42,.45); margin: 0; }
+  .bm-toolbar input, .bm-toolbar select{
+    border-radius: 12px;
+    border: 1px solid rgba(15,23,42,.12);
+    padding: .45rem .6rem;
+    font-size: .875rem;
+    background: #fafafa;
+  }
+  .bm-toolbar .bm-count{ font-size: .75rem; color: rgba(15,23,42,.5); font-weight: 600; margin-left: auto; align-self: center; }
+
+  .bm-hero{
+    border-radius: 1.25rem;
+    padding: 1.15rem 1.25rem;
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 45%, #312e81 100%);
+    color: #fff;
+    box-shadow: 0 20px 50px -12px rgba(15, 23, 42, 0.45);
+    border: 1px solid rgba(255,255,255,.08);
+  }
+  .bm-hero h1{ font-size: 1.35rem; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 .35rem; }
+  .bm-hero p{ margin: 0; opacity: .82; font-size: .9rem; max-width: 52ch; }
+  .bm-stat{
+    border-radius: 14px;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.12);
+    padding: .85rem 1rem;
+    min-width: 140px;
+  }
+  .bm-stat .lbl{ font-size: .68rem; text-transform: uppercase; letter-spacing: .1em; opacity: .75; font-weight: 700; }
+  .bm-stat .val{ font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; margin-top: .15rem; }
+
+  .bm-grid{
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: .85rem;
+    margin-top: 0;
+  }
+  @media (min-width: 640px){
+    .bm-grid{ grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (min-width: 1024px){
+    .bm-grid{ grid-template-columns: repeat(4, 1fr); }
+  }
+
+  /* Compact school billing cards — details + actions live in drawer */
+  .bm-card.bm-compact{
+    position: relative;
+    border-radius: 1.25rem;
+    border: 1px solid rgba(15,23,42,.08);
+    background: #fff;
+    box-shadow: 0 4px 18px -6px rgba(15, 23, 42, 0.12);
+    padding: .85rem 1rem;
+    min-height: 0;
+    cursor: pointer;
+    transition: transform .22s cubic-bezier(0.32, 0.72, 0, 1), box-shadow .22s ease, border-color .22s ease;
+    outline: none;
+  }
+  .bm-card.bm-compact:hover{
+    transform: translateY(-4px);
+    box-shadow: 0 16px 36px -12px rgba(15, 23, 42, 0.16);
+    border-color: rgba(99,102,241,.24);
+  }
+  .bm-card.bm-compact:focus-visible{
+    box-shadow: 0 0 0 3px rgba(99,102,241,.35), 0 8px 24px -8px rgba(15, 23, 42, 0.15);
+  }
+  .bm-compact-hot{
+    border-left: 3px solid rgba(234,179,8,.9);
+    box-shadow: inset 0 0 0 1px rgba(234,179,8,.12), 0 4px 18px -6px rgba(15, 23, 42, 0.12);
+  }
+  .bm-compact-hot:hover{
+    box-shadow: inset 0 0 0 1px rgba(234,179,8,.2), 0 16px 36px -12px rgba(234, 179, 8, 0.12);
+  }
+  .bm-compact-pending{
+    border-top: 2px solid rgba(234, 88, 12, 0.55);
+  }
+  .bm-pill-pending{
+    font-size: .6rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    padding: .2rem .4rem;
+    border-radius: 999px;
+    background: rgba(249, 115, 22, 0.12);
+    color: #c2410c;
+    border: 1px solid rgba(249, 115, 22, 0.35);
+    white-space: nowrap;
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bm-card.bm-compact{
+    background: rgba(30, 41, 59, 0.55);
+    border-color: rgba(148, 163, 184, 0.16);
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bm-comp-title{ color: #f8fafc; }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bm-comp-amt{ color: #f8fafc; }
+  .bm-compact-inner{ pointer-events: none; }
+  .bm-compact-period-bar{
+    pointer-events: auto;
+    margin-top: .5rem;
+    padding-top: .55rem;
+    border-top: 1px solid rgba(15,23,42,.07);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .35rem .5rem;
+  }
+  .bm-compact-period-lbl{
+    font-size: .58rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: rgba(15,23,42,.42);
+    width: 100%;
+  }
+  .bm-compact-period-bar .form-select{ max-width: 5.5rem; font-size: .75rem; padding: .2rem .35rem; border-radius: 10px; }
+  .bm-compact-period-bar .bm-card-inv-period{ max-width: 11rem; }
+  .bm-bill-status{
+    font-size: .58rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    padding: .2rem .45rem;
+    border-radius: 999px;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+  .bm-bill-status--free_period{ background: rgba(59,130,246,.14); color: #1d4ed8; border: 1px solid rgba(59,130,246,.42); }
+  .bm-bill-status--pending{ background: rgba(250,204,21,.22); color: #a16207; border: 1px solid rgba(245,158,11,.5); }
+  .bm-bill-status--paid_up{ background: rgba(34,197,94,.16); color: #15803d; border: 1px solid rgba(34,197,94,.42); }
+  .bm-inv-badge{
+    font-size: .72rem;
+    font-weight: 800;
+    padding: .14rem .5rem;
+    border-radius: 999px;
+    display: inline-block;
+    letter-spacing: .02em;
+  }
+  .bm-inv-badge--free{ background: rgba(59,130,246,.16); color: #1d4ed8; border: 1px solid rgba(59,130,246,.38); }
+  .bm-inv-badge--paid{ background: rgba(34,197,94,.18); color: #15803d; border: 1px solid rgba(34,197,94,.4); }
+  .bm-inv-badge--pending{ background: rgba(250,204,21,.28); color: #92400e; border: 1px solid rgba(245,158,11,.45); }
+  .bm-inv-badge--overdue{ background: rgba(248,113,113,.22); color: #b91c1c; border: 1px solid rgba(239,68,68,.45); }
+  .bm-inv-badge--void{ background: rgba(148,163,184,.22); color: #475569; border: 1px solid rgba(100,116,139,.35); }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bm-compact-period-bar{ border-top-color: rgba(148,163,184,.12); }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bm-compact-period-lbl{ color: rgba(226,232,240,.45); }
+  .bm-inv-table{ font-size: .8rem; }
+  .bm-inv-table th{ font-size: .62rem; text-transform: uppercase; letter-spacing: .06em; color: rgba(15,23,42,.45); }
+  .bd-inv-controls .form-select{ max-width: 12rem; }
+  .bm-compact-hint{
+    font-size: .65rem;
+    color: rgba(15,23,42,.42);
+    margin-top: .5rem;
+    letter-spacing: .02em;
+  }
+  .bm-comp-title{
+    font-weight: 800;
+    font-size: .95rem;
+    letter-spacing: -0.02em;
+    color: #0f172a;
+    margin: 0 0 .35rem;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .bm-comp-meta{ display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem; margin-bottom: .5rem; }
+  .bm-comp-plan{
+    font-size: .65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    padding: .2rem .45rem;
+    border-radius: 999px;
+    background: rgba(79,70,229,.08);
+    color: #4338ca;
+    border: 1px solid rgba(79,70,229,.15);
+  }
+  .bm-comp-stu{ font-size: .78rem; color: rgba(15,23,42,.5); font-weight: 600; }
+  .bm-comp-amt{
+    font-size: 1.35rem;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    color: #0f172a;
+    line-height: 1.1;
+  }
+  .bm-comp-yearly{ font-size: .7rem; color: rgba(15,23,42,.48); font-weight: 600; margin-top: .15rem; }
+  .bm-comp-xtra{ font-size: .7rem; color: rgba(15,23,42,.5); margin-top: .35rem; cursor: help; }
+  .bm-comp-conc{ font-size: .7rem; color: #dc2626; font-weight: 700; margin-top: .1rem; cursor: help; }
+
+  .bd-manage{
+    border-radius: 1rem;
+    border: 1px solid rgba(15,23,42,.1);
+    background: rgba(248,250,252,.95);
+    padding: 1rem;
+    margin-bottom: 1.25rem;
+  }
+  .bd-manage .bm-inline-row{
+    margin-bottom: .75rem;
+    align-items: flex-start;
+  }
+  .bd-manage .bm-field-autorenew{ padding-top: 0; }
+  /* Auto-renew: compact pill row + iOS-style switch */
+  .bd-autorenew-row{
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    padding: .55rem .75rem;
+    border-radius: 14px;
+    background: #fff;
+    border: 1px solid rgba(15, 23, 42, 0.09);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+  .bd-toggle-label{
+    display: inline-flex;
+    align-items: center;
+    gap: .75rem;
+    cursor: pointer;
+    user-select: none;
+    margin: 0;
+    font-weight: 600;
+    font-size: .875rem;
+    letter-spacing: -0.015em;
+    color: #1e293b;
+  }
+  .bd-toggle-caption{
+    line-height: 1.2;
+  }
+  .bd-toggle-caption small{
+    display: block;
+    font-size: .68rem;
+    font-weight: 600;
+    color: rgba(15, 23, 42, 0.45);
+    margin-top: .15rem;
+    letter-spacing: 0;
+  }
+  .bd-toggle-ui{
+    position: relative;
+    width: 3.125rem;
+    height: 1.75rem;
+    flex-shrink: 0;
+  }
+  .bd-toggle-input{
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    z-index: 2;
+  }
+  .bd-toggle-track{
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #eef2f6 0%, #e2e8f0 100%);
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.07);
+    transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    pointer-events: none;
+  }
+  .bd-toggle-label:focus-within .bd-toggle-track{
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.07), 0 0 0 3px rgba(99, 102, 241, 0.28);
+  }
+  .bd-toggle-knob{
+    position: absolute;
+    top: 50%;
+    left: 3px;
+    width: 1.25rem;
+    height: 1.25rem;
+    margin-top: -0.625rem;
+    border-radius: 50%;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12), 0 1px 1px rgba(255, 255, 255, 0.9) inset;
+    transition: left 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+    pointer-events: none;
+  }
+  .bd-toggle-input:checked + .bd-toggle-track{
+    background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%);
+    border-color: rgba(67, 56, 202, 0.85);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12);
+  }
+  .bd-toggle-input:checked + .bd-toggle-track .bd-toggle-knob{
+    left: calc(100% - 3px - 1.25rem);
+    border-color: rgba(255, 255, 255, 0.35);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18), 0 1px 0 rgba(255, 255, 255, 0.35) inset;
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bd-autorenew-row{
+    background: rgba(30, 41, 59, 0.65);
+    border-color: rgba(148, 163, 184, 0.18);
+    box-shadow: none;
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bd-manage .bd-toggle-label{
+    color: var(--text-primary, #f8fafc);
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bd-toggle-caption small{
+    color: rgba(226, 232, 240, 0.55);
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bd-manage .bd-toggle-track{
+    background: linear-gradient(180deg, rgba(51, 65, 85, 0.55) 0%, rgba(30, 41, 59, 0.75) 100%);
+    border-color: rgba(148, 163, 184, 0.25);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25);
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bd-toggle-input:checked + .bd-toggle-track{
+    background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%);
+    border-color: rgba(129, 140, 248, 0.5);
+  }
+  @media (prefers-reduced-motion: reduce){
+    .bd-toggle-track,
+    .bd-toggle-knob{ transition: none !important; }
+  }
+  .bd-manage .bm-fields{ margin-bottom: .75rem; }
+  .bd-manage .bm-break{ margin-bottom: .5rem; }
+  .bd-manage .bm-final{ margin-bottom: .5rem; }
+  .bd-manage .bm-foot{ margin-bottom: .75rem; }
+  .bd-manage a.bm-qbtn{ color: inherit; text-decoration: none; }
+  .bd-panel{ margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(15,23,42,.08); }
+  .bd-panel:last-of-type{ border-bottom: 0; padding-bottom: 0; margin-bottom: 0; }
+  .bd-panel.bd-panel-save{ border-bottom: 0; padding-bottom: 0; margin-top: .5rem; }
+  .bd-panel-title{ font-size: .72rem; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; color: rgba(15,23,42,.45); margin: 0 0 .55rem; }
+  .bd-school-name{ font-size: 1.1rem; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; margin: 0 0 .65rem; line-height: 1.25; }
+  .bd-school-grid{ display: grid; gap: .4rem; font-size: .8125rem; }
+  .bd-school-row{
+    display: flex; justify-content: space-between; align-items: baseline; gap: .75rem;
+    padding: .45rem .6rem; border-radius: 10px; background: rgba(255,255,255,.72);
+    border: 1px solid rgba(15,23,42,.07);
+  }
+  .bd-school-row span:first-child{ color: rgba(15,23,42,.48); font-weight: 700; font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; }
+  .bd-school-row strong{ font-weight: 800; color: #0f172a; text-align: right; }
+  .bd-ag{ margin-bottom: .7rem; }
+  .bd-ag:last-child{ margin-bottom: 0; }
+  .bd-ag-label{
+    display: block; font-size: .62rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
+    color: rgba(15,23,42,.4); margin-bottom: .35rem;
+  }
+  .bd-ag-btns{ display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
+  .bd-kv-plain .bd-srow{
+    display: flex; justify-content: space-between; padding: .28rem 0; font-size: .8125rem;
+    border-bottom: 1px solid rgba(15,23,42,.06);
+  }
+  .bd-kv-plain .bd-srow:last-of-type{ border-bottom: 0; }
+  .bd-kv-plain .bd-srow span:first-child{ color: rgba(15,23,42,.52); font-weight: 600; }
+  .bd-kv-plain .bd-srow strong{ font-weight: 800; color: #0f172a; }
+  .bd-kv-plain .bd-srow strong.bd-amt-lg{ font-size: 1.2rem; letter-spacing: -0.02em; color: #4338ca; }
+  .bd-panel-breakdown .bm-v-final-period.bd-amt-lg{ font-size: 1.35rem; color: #4338ca; }
+
+  .bm-pill{
+    font-size: .68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    padding: .35rem .55rem;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .bm-pill-active{ background: rgba(34,197,94,.15); color: #15803d; border: 1px solid rgba(34,197,94,.35); }
+  .bm-pill-trial{ background: rgba(234,179,8,.16); color: #a16207; border: 1px solid rgba(234,179,8,.42); }
+  .bm-pill-suspended{ background: rgba(244,63,94,.12); color: #be123c; border: 1px solid rgba(244,63,94,.28); }
+  .bm-pill-inactive, .bm-pill-expired{ background: rgba(220,38,38,.1); color: #b91c1c; border: 1px solid rgba(248,113,113,.4); }
+  .bm-pill-paidup{ background: rgba(59,130,246,.12); color: #1d4ed8; border: 1px solid rgba(59,130,246,.32); }
+  .bm-pill-due{ background: rgba(234,88,12,.12); color: #c2410c; border: 1px solid rgba(249,115,22,.35); }
+  .bm-pill-overdue{ background: rgba(220,38,38,.14); color: #991b1b; border: 1px solid rgba(248,113,113,.5); font-weight: 900; }
+  .bm-pill-row{ display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
+  .bm-inline-row{
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    align-items: flex-end;
+    padding: .5rem .65rem;
+    border-radius: 12px;
+    background: rgba(79,70,229,.04);
+    border: 1px solid rgba(79,70,229,.12);
+  }
+  .bm-inline-row .bm-field{ flex: 1 1 140px; margin: 0; }
+  .bm-inline-row .bm-field label{ font-size: .62rem; }
+  .bm-inline-row input.form-control-sm, .bm-inline-row .form-check{ font-size: .8125rem; }
+  .bm-inline-hint{ font-size: .68rem; color: rgba(15,23,42,.45); margin-top: .15rem; }
+  .bm-toolbar-actions{ display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+  .bm-toolbar-actions .btn{ border-radius: 999px; font-size: .78rem; font-weight: 700; padding: .4rem .9rem; }
+
+  .bm-kv{
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: .75rem;
+    font-size: .875rem;
+  }
+  .bm-kv span:first-child{ color: rgba(15,23,42,.55); font-weight: 600; }
+  .bm-kv span:last-child{ font-weight: 700; color: #0f172a; text-align: right; }
+
+  .bm-chip-row{ display: flex; flex-wrap: wrap; gap: .4rem; }
+  .bm-chip{
+    font-size: .72rem;
+    font-weight: 700;
+    padding: .28rem .55rem;
+    border-radius: 8px;
+    background: rgba(79,70,229,.08);
+    color: #4338ca;
+    border: 1px solid rgba(79,70,229,.18);
+  }
+
+  .bm-quick{
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+  }
+  .bm-qbtn{
+    border: 1px solid rgba(15,23,42,.12);
+    background: #fff;
+    border-radius: 10px;
+    padding: .32rem .55rem;
+    font-size: .68rem;
+    font-weight: 700;
+    color: #334155;
+    cursor: pointer;
+    line-height: 1.2;
+    transition: background .12s ease, border-color .12s ease;
+  }
+  .bm-qbtn:hover{ background: rgba(79,70,229,.06); border-color: rgba(79,70,229,.25); color: #1e1b4b; }
+  .bm-qbtn-danger{ border-color: rgba(220,38,38,.25); color: #b91c1c; }
+  .bm-qbtn-danger:hover{ background: rgba(254,226,226,.5); }
+
+  .bm-fields{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .65rem;
+  }
+  @media (max-width: 400px){ .bm-fields{ grid-template-columns: 1fr; } }
+  .bm-field label{
+    display: block;
+    font-size: .65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: rgba(15,23,42,.48);
+    margin-bottom: .25rem;
+  }
+  .bm-field input, .bm-field select{
+    width: 100%;
+    border-radius: 10px;
+    border: 1px solid rgba(15,23,42,.12);
+    padding: .45rem .55rem;
+    font-size: .875rem;
+    background: #fff;
+  }
+  .bm-field-full{ grid-column: 1 / -1; }
+
+  .bm-break{
+    border-radius: 14px;
+    background: rgba(15,23,42,.03);
+    border: 1px solid rgba(15,23,42,.06);
+    padding: .75rem .85rem;
+  }
+  .bm-break .bm-kv{ font-size: .8125rem; padding: .2rem 0; }
+  .bm-break .bm-kv.neg span:last-child{ color: #dc2626; font-weight: 800; }
+  .bm-final{
+    margin-top: .15rem;
+    padding: .75rem .85rem;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(79,70,229,.10), rgba(16,185,129,.08));
+    border: 1px solid rgba(79,70,229,.22);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: .75rem;
+  }
+  .bm-final .lbl{ font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: rgba(15,23,42,.55); }
+  .bm-final .amt{ font-size: 1.45rem; font-weight: 900; letter-spacing: -0.03em; color: #0f172a; text-shadow: 0 1px 0 rgba(255,255,255,.8); }
+  .bm-foot{
+    font-size: .72rem;
+    color: rgba(15,23,42,.45);
+    line-height: 1.35;
+  }
+
+  .bm-actions{ display: flex; justify-content: space-between; align-items: center; gap: .5rem; flex-wrap: wrap; margin-top: auto; }
+  .bm-btn{
+    border: 0;
+    border-radius: 999px;
+    padding: .55rem 1.1rem;
+    font-size: .8rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .bm-btn:active{ transform: scale(.98); }
+  .bm-btn-primary{
+    background: linear-gradient(135deg, #4f46e5, #6366f1);
+    color: #fff;
+    box-shadow: 0 8px 20px -6px rgba(79,70,229,.55);
+  }
+  .bm-btn-ghost{
+    background: transparent;
+    color: #4f46e5;
+    border: 1px solid rgba(79,70,229,.35);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    border-radius: 999px;
+    padding: .45rem .85rem;
+    font-size: .75rem;
+    font-weight: 700;
+  }
+  .bm-msg{ font-size: .75rem; font-weight: 700; min-height: 1.1rem; }
+  .bm-msg.ok{ color: #15803d; }
+  .bm-msg.err{ color: #b91c1c; }
+
+  /* Drawer sections — card stacks, no tables */
+  .bd-manage + .bd-sec{ margin-top: 1.25rem; }
+  .bd-sec{ margin-bottom: 1.25rem; }
+  .bd-sec h6{ font-size: .72rem; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; color: rgba(15,23,42,.45); margin-bottom: .5rem; }
+  .bd-card{
+    border-radius: 12px;
+    border: 1px solid rgba(15,23,42,.08);
+    background: rgba(255,255,255,.9);
+    padding: .65rem .75rem;
+    margin-bottom: .4rem;
+    font-size: .8125rem;
+  }
+  .bd-card .t{ font-weight: 700; color: #0f172a; }
+  .bd-card .m{ color: rgba(15,23,42,.55); font-size: .75rem; margin-top: .15rem; }
+  .bd-empty{ font-size: .8rem; color: rgba(15,23,42,.45); font-style: italic; }
+
+  .inv-preview{
+    border-radius: 14px;
+    border: 1px dashed rgba(79,70,229,.35);
+    background: rgba(79,70,229,.04);
+    padding: 1rem;
+    font-size: .85rem;
+  }
+  .inv-preview .rowx{ display:flex; justify-content:space-between; padding:.25rem 0; border-bottom:1px solid rgba(15,23,42,.06); }
+  .inv-preview .rowx:last-child{ border-bottom:0; font-weight:800; margin-top:.35rem; padding-top:.5rem; }
+  .inv-preview .disc{ color: #dc2626; }
+  .inv-period-banner{
+    font-size: .8125rem;
+    border-radius: 12px;
+    padding: .65rem .85rem;
+    background: rgba(79, 70, 229, 0.07);
+    border: 1px solid rgba(79, 70, 229, 0.15);
+    color: #1e293b;
+    line-height: 1.45;
+  }
+  .inv-period-banner .inv-period-lead{
+    font-weight: 800;
+    display: block;
+    margin-bottom: .25rem;
+    color: #4338ca;
+    font-size: .68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .inv-period-banner.complimentary-on{
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.28);
+  }
+  .inv-period-banner.complimentary-on .inv-period-lead{ color: #047857; }
+  .bd-complimentary-banner{
+    font-size: .8125rem;
+    padding: .55rem .75rem;
+    border-radius: 12px;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.28);
+    color: #065f46;
+    line-height: 1.4;
+  }
+  .bm-pill-complimentary{
+    background: rgba(16, 185, 129, 0.14);
+    color: #047857;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    font-size: .62rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.28rem 0.5rem;
+    border-radius: 999px;
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .inv-period-banner{
+    color: var(--text-primary, #e2e8f0);
+    background: rgba(99, 102, 241, 0.12);
+    border-color: rgba(148, 163, 184, 0.22);
+  }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .inv-period-banner .inv-period-lead{ color: #a5b4fc; }
+  :is(html.dark, html[data-bs-theme="dark"], html[data-theme="dark"]) .bd-complimentary-banner{
+    color: #6ee7b7;
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(52, 211, 153, 0.25);
+  }
+
+  /* Billing drawer: smoother slide (Stripe-like easing) */
+  #billingDrawer.offcanvas{
+    transition: transform .4s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .offcanvas-backdrop.show{
+    opacity: 0.45;
+    transition: opacity .35s ease;
+  }
+</style>
+
+<div class="container-fluid px-0 px-lg-2 pb-5">
+  <div
+    class="bm-wrap"
+    id="billingPageRoot"
+    {% if billing_api_schools_url %}data-billing-schools-api="{{ billing_api_schools_url|escape }}"{% endif %}
+    {% if billing_export_csv_url %}data-export-csv-url="{{ billing_export_csv_url|escape }}"{% endif %}
+    {% if billing_api_send_reminder_url %}data-send-reminder-url="{{ billing_api_send_reminder_url|escape }}"{% endif %}
+    {% if billing_api_coupons_url %}data-coupons-url="{{ billing_api_coupons_url|escape }}"{% endif %}
+    data-schools-url="{% url 'core:super_admin:control_center_section' 'schools' %}"
+    data-plans-url="{% url 'core:super_admin:control_center_section' 'plans' %}"
+  >
+    <div class="bm-hero mb-3">
+      <div>
+        <div class="text-uppercase small fw-bold opacity-75" style="letter-spacing:.12em;">Billing management</div>
+        <h1>School SaaS revenue</h1>
+        <p class="mb-0">Per-student billing and invoices — tap a school card for full details and actions.</p>
+      </div>
+    </div>
+
+    {% if billing_dashboard %}
+      <div class="bm-dash" id="billingDashSummary" aria-label="Billing summary">
+        <div class="bm-dash-card bm-dash-card--rev">
+          <div class="lbl">Total revenue</div>
+          <div class="val" id="bm-dash-revenue">₹{{ billing_dashboard.total_revenue_monthly }}</div>
+          <div class="sub">Estimated MRR after concessions</div>
+        </div>
+        <div class="bm-dash-card bm-dash-card--act">
+          <div class="lbl">Active schools</div>
+          <div class="val" id="bm-dash-active">{{ billing_dashboard.active_schools }}</div>
+          <div class="sub">Lifecycle status = Active</div>
+        </div>
+        <div class="bm-dash-card bm-dash-card--pend">
+          <div class="lbl">Pending payments</div>
+          <div class="val" id="bm-dash-pending">₹{{ billing_dashboard.pending_payments_amount }}</div>
+          <div class="sub"><span id="bm-dash-pending-n">{{ billing_dashboard.pending_invoices_count }}</span> unpaid invoice(s)</div>
+        </div>
+        <div class="bm-dash-card bm-dash-card--stu">
+          <div class="lbl">Total students</div>
+          <div class="val" id="bm-dash-students">{{ billing_dashboard.total_students }}</div>
+          <div class="sub">Live headcount across tenants</div>
+        </div>
+      </div>
+
+      <div class="bm-toolbar" id="billingToolbar">
+        <div class="bm-fld bm-fld-grow">
+          <label for="billingSearch">Search</label>
+          <input type="search" id="billingSearch" placeholder="School name…" autocomplete="off" />
+        </div>
+        <div class="bm-fld">
+          <label for="billingFilterPlan">Plan</label>
+          <select id="billingFilterPlan">
+            <option value="">All plans</option>
+            <option value="none">No plan</option>
+            <option value="basic">Basic</option>
+            <option value="pro">Pro</option>
+            <option value="premium">Premium</option>
+          </select>
+        </div>
+        <div class="bm-fld">
+          <label for="billingFilterStatus">Status</label>
+          <select id="billingFilterStatus">
+            <option value="">All statuses</option>
+            <option value="active">Active</option>
+            <option value="trial">Trial</option>
+            <option value="suspended">Suspended</option>
+            <option value="inactive">Inactive / Expired</option>
+          </select>
+        </div>
+        <div class="bm-fld">
+          <label for="billingFilterCycle">Billing cycle</label>
+          <select id="billingFilterCycle">
+            <option value="">All cycles</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+        </div>
+        <div class="bm-fld">
+          <label for="billingSort">Sort by</label>
+          <select id="billingSort">
+            <option value="">School name (A–Z)</option>
+            <option value="revenue_high">Highest revenue</option>
+            <option value="revenue_low">Lowest revenue</option>
+            <option value="updated_recent">Recently updated</option>
+          </select>
+        </div>
+        <div class="bm-toolbar-actions ms-auto d-flex flex-wrap gap-2 align-items-center">
+          {% if billing_export_csv_url %}
+            <a class="btn btn-outline-dark btn-sm" id="billingExportCsv" href="{{ billing_export_csv_url }}">Export CSV</a>
+          {% endif %}
+          {% if billing_api_coupons_url %}
+            <button type="button" class="btn btn-outline-primary btn-sm" id="billingShowCoupons" data-bs-toggle="modal" data-bs-target="#modalCoupons">
+              Active coupons
+            </button>
+          {% endif %}
+        </div>
+        <div class="bm-count" id="billingVisibleCount" aria-live="polite"></div>
+      </div>
+    {% endif %}
+
+    {% if billing_cards %}
+      <div id="billingGridShell" class="billing-grid-shell billing-grid-shell--loading">
+        <div class="bm-grid bm-grid-skeleton" id="billingGridSkeleton" aria-hidden="true">
+          {% for _ in "12345678"|make_list %}
+            <div class="bm-skel-card">
+              <span class="bm-skel-line bm-skel-line--lg"></span>
+              <span class="bm-skel-line bm-skel-line--sm"></span>
+              <span class="bm-skel-line bm-skel-line--md"></span>
+              <span class="bm-skel-line bm-skel-line--short"></span>
+            </div>
+          {% endfor %}
+        </div>
+        <div class="bm-grid" id="billingGrid">
+        {% for row in billing_cards %}
+          {% with s=row.school bd=row.breakdown %}
+            <article
+              class="bm-card bm-compact{% if row.high_revenue %} bm-compact-hot{% endif %}{% if row.has_pending_invoice %} bm-compact-pending{% endif %}"
+              tabindex="0"
+              role="button"
+              aria-label="Open school billing page"
+              data-school-id="{{ s.id }}"
+              data-school-name="{{ s.name|escapejs }}"
+              data-filter-name="{{ s.name|lower|escape }}"
+              data-plan-slug="{{ row.plan_slug|escape }}"
+              data-plan-price="{{ bd.plan_price_per_student }}"
+              data-tenant-students="{{ bd.tenant_student_count }}"
+              data-billed-students="{{ bd.student_count }}"
+              data-school-status="{{ s.school_status }}"
+              data-cycle="{{ s.saas_billing_cycle }}"
+              data-mrr="{{ bd.final_monthly }}"
+              data-students="{{ bd.tenant_student_count }}"
+              data-active="{% if s.school_status == 'active' %}1{% else %}0{% endif %}"
+              data-pending-amt="{{ row.pending_invoice_total|floatformat:2 }}"
+              data-pending-c="{{ row.pending_invoice_count }}"
+              data-pending-overdue="{% if row.pending_payment_overdue %}1{% else %}0{% endif %}"
+              data-sort-updated="{{ row.last_billing_at_iso|default:'' }}"
+              data-eff-billing-start="{{ row.card_effective_billing_start|default:'' }}"
+              data-complimentary="{% if row.complimentary_waiver_active %}1{% else %}0{% endif %}"
+              data-api-url="{% url 'core:super_admin:billing_school_api' s.id %}"
+              data-details-url="{% url 'core:super_admin:billing_school_details' s.id %}"
+              data-detail-page-url="{% url 'core:super_admin:billing_school_detail' s.id %}"
+              data-action-url="{% url 'core:super_admin:billing_school_action' s.id %}"
+              data-student-override="{% if s.billing_student_count_override %}{{ s.billing_student_count_override }}{% endif %}"
+            >
+              <div class="bm-compact-inner">
+                <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+                  <h2 class="bm-comp-title flex-grow-1">{{ s.name }}</h2>
+                  <div class="bm-pill-row flex-shrink-0">
+                    {% if s.school_status == "active" %}
+                      <span class="bm-pill bm-pill-active bm-status-pill">Active</span>
+                    {% elif s.school_status == "trial" %}
+                      <span class="bm-pill bm-pill-trial bm-status-pill">Trial</span>
+                    {% elif s.school_status == "suspended" %}
+                      <span class="bm-pill bm-pill-suspended bm-status-pill">Suspended</span>
+                    {% elif s.school_status == "inactive" %}
+                      <span class="bm-pill bm-pill-expired bm-status-pill">Expired</span>
+                    {% else %}
+                      <span class="bm-pill bm-pill-inactive bm-status-pill">{{ s.get_school_status_display }}</span>
+                    {% endif %}
+                  </div>
+                </div>
+                <div class="bm-comp-meta">
+                  <span class="bm-comp-plan">
+                    {% if s.plan %}
+                      {% if s.plan.name == "premium" %}Premium{% else %}{{ s.plan.get_name_display }}{% endif %}
+                    {% else %}No plan{% endif %}
+                  </span>
+                </div>
+                <div class="bm-comp-stu bm-comp-stu-line">
+                  {% if bd.uses_student_override %}{{ bd.tenant_student_count }} live · {{ bd.student_count }} billed{% else %}{{ bd.tenant_student_count }} students{% endif %}
+                </div>
+                <div class="bm-comp-amt mt-2">₹{{ bd.final_monthly }}<span class="fw-semibold" style="font-size:.55em;opacity:.75">/mo</span></div>
+                {% if bd.is_yearly %}
+                  <div class="bm-comp-yearly">Yearly bill ₹{{ bd.final_period }}</div>
+                {% else %}
+                  <div class="bm-comp-yearly" style="display:none"></div>
+                {% endif %}
+                <div
+                  class="bm-comp-xtra"
+                  {% if bd.extra_cost == "0.00" %}style="display:none"{% endif %}
+                  title="Extra per student per month: ₹{{ bd.billing_extra_per_student_month }}. Total extra on bill: ₹{{ bd.extra_cost }}."
+                >Extra ₹{{ bd.billing_extra_per_student_month }}/stu</div>
+                <div
+                  class="bm-comp-conc"
+                  {% if bd.concession_cost == "0.00" %}style="display:none"{% endif %}
+                  title="Concession per student per month: ₹{{ bd.billing_concession_per_student_month }}. Total concession on bill: ₹{{ bd.concession_cost }}."
+                >Concession ₹{{ bd.billing_concession_per_student_month }}/stu</div>
+                <div class="bm-compact-hint">Open full billing timeline &amp; invoices</div>
+              </div>
+              <div class="bm-compact-period-bar" onclick="event.stopPropagation();" role="group" aria-label="Default invoice period for generate">
+                <span class="bm-compact-period-lbl">Invoice period</span>
+                {% if s.saas_billing_cycle == 'yearly' %}
+                  <select class="form-select form-select-sm bm-card-inv-year" aria-label="Billing year">
+                    {% for y in row.card_year_choices %}
+                      <option value="{{ y }}"{% if y == row.card_invoice_period.year %} selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                  </select>
+                {% else %}
+                  <select class="form-select form-select-sm bm-card-inv-period" aria-label="Invoice period (month)">
+                    {% for po in billing_period_mmm_options %}
+                      <option value="{{ po.value }}"{% if po.value == row.card_period_monthly_value %} selected{% endif %}>{{ po.label }}</option>
+                    {% endfor %}
+                  </select>
+                {% endif %}
+                <span class="bm-pill bm-bill-status bm-bill-status--{{ row.card_billing_status.slug }}">{{ row.card_billing_status.label }}</span>
+              </div>
+            </article>
+          {% endwith %}
+        {% endfor %}
+        </div>
+      </div>
+    {% else %}
+      <div class="rounded-4 border p-4 text-center text-muted">No schools found.</div>
+    {% endif %}
+    {% if billing_period_mmm_options_json %}
+      <script type="application/json" id="billingPeriodOptionsJson">{{ billing_period_mmm_options_json|safe }}</script>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+{# Offcanvas + modals live here (outside erp-dashboard-panel) so Bootstrap fixed layers stack above backdrop-blur. #}
+    <!-- Modal: student count override -->
+    <div class="modal fade" id="modalStudents" tabindex="-1" aria-hidden="true" aria-labelledby="modalStudentsTitle">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+          <div class="modal-header border-0 pb-0">
+            <h3 class="modal-title h6 fw-bold" id="modalStudentsTitle">Update students count</h3>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body pt-2">
+            <p class="text-muted small">Override billable headcount for this school. Leave empty and save to use live tenant count.</p>
+            <label class="form-label small fw-semibold" for="modalStudentsInput">Students (billed)</label>
+            <input type="number" class="form-control rounded-3" id="modalStudentsInput" min="0" max="500000" placeholder="e.g. 240" />
+            <div class="small fw-semibold mt-2" id="modalStudentsMsg"></div>
+          </div>
+          <div class="modal-footer border-0 pt-0">
+            <button type="button" class="btn btn-light rounded-pill" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-dark rounded-pill px-4" id="modalStudentsSave">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: generate invoice -->
+    <div class="modal fade" id="modalInvoice" tabindex="-1" aria-hidden="true" aria-labelledby="modalInvoiceTitle">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow">
+          <div class="modal-header border-0 pb-0">
+            <h3 class="modal-title h6 fw-bold" id="modalInvoiceTitle">Generate invoice</h3>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body pt-2">
+            <div id="invPeriodBanner" class="inv-period-banner mb-3" style="display: none" role="note" aria-live="polite"></div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold mb-1">Billing period for this invoice</label>
+              <div class="d-flex flex-wrap gap-2 align-items-end" id="invPeriodPickers">
+                <div id="invMonthWrap">
+                  <label class="form-label small mb-0" for="invBillMonth">Month</label>
+                  <select id="invBillMonth" class="form-select form-select-sm rounded-3" aria-label="Billing month"></select>
+                </div>
+                <div>
+                  <label class="form-label small mb-0" for="invBillYear">Year</label>
+                  <select id="invBillYear" class="form-select form-select-sm rounded-3" aria-label="Billing year"></select>
+                </div>
+              </div>
+              <p class="text-muted small mb-0 mt-1" id="invPeriodHint">Pick the calendar month being invoiced (independent of payment date).</p>
+              <div class="mt-2 pt-2 border-top" style="border-color: rgba(15,23,42,.08) !important;">
+                <div class="form-check mb-1">
+                  <input class="form-check-input" type="checkbox" id="invIgnFree" />
+                  <label class="form-check-label small" for="invIgnFree">Bypass free-service window (delayed / manual correction)</label>
+                </div>
+                <div class="form-check mb-0">
+                  <input class="form-check-input" type="checkbox" id="invIgnSvc" />
+                  <label class="form-check-label small" for="invIgnSvc">Bypass service-start window</label>
+                </div>
+                <div class="form-check mb-0">
+                  <input class="form-check-input" type="checkbox" id="invIgnCommence" />
+                  <label class="form-check-label small" for="invIgnCommence">Bypass billing-start window (exceptional invoice)</label>
+                </div>
+              </div>
+            </div>
+            <div class="form-check form-switch mb-3">
+              <input class="form-check-input" type="checkbox" id="invGstToggle" />
+              <label class="form-check-label fw-semibold" for="invGstToggle">Apply GST</label>
+            </div>
+            <div class="mb-3" id="invGstRateWrap" style="display:none;">
+              <label class="form-label small" for="invGstRate">GST %</label>
+              <input type="number" class="form-control rounded-3" id="invGstRate" value="18" min="0" max="100" step="0.01" />
+            </div>
+            <div class="mb-2">
+              <label class="form-label small mb-0" for="invManualGrand">Manual total override (optional)</label>
+              <input type="number" class="form-control form-control-sm rounded-3" id="invManualGrand" min="0" step="0.01" placeholder="Leave empty for calculated total" />
+            </div>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" id="invReplaceIssued" />
+              <label class="form-check-label small" for="invReplaceIssued">Replace existing issued invoice for this period (voids the old row, then creates a new one)</label>
+            </div>
+            <div class="inv-preview mb-3" id="invPreview">Preview loads from selected school…</div>
+            <div class="small fw-semibold" id="invModalMsg"></div>
+          </div>
+          <div class="modal-footer border-0 pt-0">
+            <button type="button" class="btn btn-light rounded-pill" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-primary rounded-pill px-4" id="invModalGenerate">Generate invoice</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: active coupons (read-only) -->
+    <div class="modal fade" id="modalCoupons" tabindex="-1" aria-hidden="true" aria-labelledby="modalCouponsTitle">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow">
+          <div class="modal-header border-0 pb-0">
+            <h3 class="modal-title h6 fw-bold" id="modalCouponsTitle">Active subscription coupons</h3>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body pt-2">
+            <p class="text-muted small">Codes available today (fixed or percentage). Applying a coupon to a school is done from the Schools / subscription flows.</p>
+            <div id="couponsListBody" class="small text-body">Loading…</div>
+          </div>
+          <div class="modal-footer border-0 pt-0">
+            <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: mark paid -->
+    <div class="modal fade" id="modalPaid" tabindex="-1" aria-hidden="true" aria-labelledby="modalPaidTitle">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+          <div class="modal-header border-0 pb-0">
+            <h3 class="modal-title h6 fw-bold" id="modalPaidTitle">Mark invoice as paid</h3>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body pt-2">
+            <label class="form-label small" for="paidInvoiceSelect">Invoice</label>
+            <select id="paidInvoiceSelect" class="form-select form-select-sm rounded-3 mb-2" aria-label="Issued invoice"></select>
+            <label class="form-label small" for="paidAtDate">Paid on (optional, backdate)</label>
+            <input type="date" class="form-control form-control-sm rounded-3 mb-2" id="paidAtDate" />
+            <label class="form-label small" for="paidNotes">Notes (optional)</label>
+            <textarea class="form-control rounded-3" id="paidNotes" rows="2" placeholder="UTR, receipt ref…"></textarea>
+            <div class="small fw-semibold mt-2" id="paidModalMsg"></div>
+          </div>
+          <div class="modal-footer border-0 pt-0">
+            <button type="button" class="btn btn-light rounded-pill" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-success rounded-pill px-4" id="paidModalConfirm">Mark as paid</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: edit issued invoice (period / amount) -->
+    <div class="modal fade" id="modalInvoiceEdit" tabindex="-1" aria-hidden="true" aria-labelledby="modalInvoiceEditTitle">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+          <div class="modal-header border-0 pb-0">
+            <h3 class="modal-title h6 fw-bold" id="modalInvoiceEditTitle">Edit invoice</h3>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body pt-2">
+            <input type="hidden" id="invEditId" value="" />
+            <p class="text-muted small mb-2" id="invEditMeta"></p>
+            <div id="invEditPeriodWrap" class="d-flex flex-wrap gap-2 mb-2">
+              <div>
+                <label class="form-label small mb-0" for="invEditMonth">Month</label>
+                <select id="invEditMonth" class="form-select form-select-sm rounded-3"></select>
+              </div>
+              <div>
+                <label class="form-label small mb-0" for="invEditYear">Year</label>
+                <select id="invEditYear" class="form-select form-select-sm rounded-3"></select>
+              </div>
+            </div>
+            <label class="form-label small mb-0" for="invEditGrand">Grand total (₹)</label>
+            <input type="number" class="form-control form-control-sm rounded-3 mb-2" id="invEditGrand" min="0" step="0.01" />
+            <p class="small text-muted mb-0">Changing the period updates the invoice month key and due date. Amount override recalculates GST from the invoice’s GST setting.</p>
+            <div class="small fw-semibold mt-2" id="invEditMsg"></div>
+          </div>
+          <div class="modal-footer border-0 pt-0">
+            <button type="button" class="btn btn-light rounded-pill" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-primary rounded-pill px-4" id="invEditSave">Save changes</button>
+          </div>
+        </div>
+      </div>
+    </div>
+{% endblock %}
+
+{% block after_bootstrap %}
+<script>
+(function () {
+  function getCookie(name) {
+    var parts = ("; " + document.cookie).split("; " + name + "=");
+    if (parts.length === 2) return decodeURIComponent(parts.pop().split(";").shift() || "");
+    return "";
+  }
+
+  function fmtRupee(s) {
+    var n = parseFloat(s);
+    if (isNaN(n)) return "₹0.00";
+    return "₹" + n.toFixed(2);
+  }
+
+  function applyBreakdown(root, bd) {
+    if (!root || !bd) return;
+    var base = root.querySelector(".bm-v-base");
+    var extra = root.querySelector(".bm-v-extra");
+    var conc = root.querySelector(".bm-v-conc");
+    var per = root.querySelector(".bm-v-final-period");
+    var mo = root.querySelector(".bm-v-final-monthly");
+    if (base) base.textContent = fmtRupee(bd.base_cost);
+    if (extra) extra.textContent = fmtRupee(bd.extra_cost);
+    if (conc) conc.textContent = "−" + fmtRupee(bd.concession_cost).replace(/^₹/, "₹");
+    if (per) per.textContent = fmtRupee(bd.is_yearly ? bd.final_period : bd.final_monthly);
+    if (mo && bd.is_yearly) mo.textContent = fmtRupee(bd.final_monthly);
+  }
+
+  function updateDrawerBreakdownSummary(manageRoot, bd) {
+    if (!manageRoot || !bd) return;
+    var pe = manageRoot.querySelector("#bdm-kv-price");
+    var se = manageRoot.querySelector("#bdm-kv-students");
+    if (pe && bd.plan_price_per_student != null && bd.plan_price_per_student !== "") {
+      pe.textContent = "₹" + String(bd.plan_price_per_student) + " / mo";
+    }
+    if (se && bd.tenant_student_count != null) {
+      se.textContent = bd.uses_student_override
+        ? bd.tenant_student_count + " live · " + bd.student_count + " billed"
+        : bd.tenant_student_count + " students";
+    }
+  }
+
+  function syncCompactCardFromBreakdown(card, bd) {
+    if (!card || !bd) return;
+    var amtEl = card.querySelector(".bm-comp-amt");
+    if (amtEl) {
+      amtEl.innerHTML =
+        fmtRupee(bd.final_monthly) +
+        '<span class="fw-semibold" style="font-size:.55em;opacity:.75">/mo</span>';
+    }
+    var yEl = card.querySelector(".bm-comp-yearly");
+    if (yEl) {
+      if (bd.is_yearly) {
+        yEl.style.display = "";
+        yEl.textContent = "Yearly bill " + fmtRupee(bd.final_period);
+      } else {
+        yEl.style.display = "none";
+        yEl.textContent = "";
+      }
+    }
+    var stEl = card.querySelector(".bm-comp-stu-line");
+    if (stEl) {
+      stEl.textContent = bd.uses_student_override
+        ? bd.tenant_student_count + " live · " + bd.student_count + " billed"
+        : bd.tenant_student_count + " students";
+    }
+    var xEl = card.querySelector(".bm-comp-xtra");
+    if (xEl) {
+      var ex = parseFloat(String(bd.extra_cost != null ? bd.extra_cost : 0).replace(/,/g, ""));
+      if (ex > 0) {
+        xEl.style.display = "";
+        xEl.textContent = "Extra ₹" + String(bd.billing_extra_per_student_month) + "/stu";
+        xEl.title =
+          "Extra per student per month: ₹" +
+          String(bd.billing_extra_per_student_month) +
+          ". Total extra on bill: " +
+          fmtRupee(bd.extra_cost) +
+          ".";
+      } else {
+        xEl.style.display = "none";
+        xEl.removeAttribute("title");
+      }
+    }
+    var cEl = card.querySelector(".bm-comp-conc");
+    if (cEl) {
+      var co = parseFloat(String(bd.concession_cost != null ? bd.concession_cost : 0).replace(/,/g, ""));
+      if (co > 0) {
+        cEl.style.display = "";
+        cEl.textContent = "Concession ₹" + String(bd.billing_concession_per_student_month) + "/stu";
+        cEl.title =
+          "Concession per student per month: ₹" +
+          String(bd.billing_concession_per_student_month) +
+          ". Total concession on bill: " +
+          fmtRupee(bd.concession_cost) +
+          ".";
+      } else {
+        cEl.style.display = "none";
+        cEl.removeAttribute("title");
+      }
+    }
+    card.setAttribute("data-mrr", bd.final_monthly);
+    card.setAttribute("data-billed-students", bd.student_count);
+    if (bd.tenant_student_count != null) {
+      card.setAttribute("data-tenant-students", bd.tenant_student_count);
+    }
+    card.setAttribute("data-students", bd.tenant_student_count);
+    card.setAttribute("data-plan-price", bd.plan_price_per_student);
+  }
+
+  function postJson(url, body) {
+    return fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": getCookie("csrftoken") },
+      body: JSON.stringify(body || {})
+    }).then(function (r) {
+      return r.json().then(function (j) {
+        return { ok: r.ok, body: j };
+      });
+    });
+  }
+
+  var pageRoot = document.getElementById("billingPageRoot");
+
+  function parseDec(s) {
+    var n = parseFloat(String(s == null ? "" : s).replace(/,/g, ""));
+    return isNaN(n) ? 0 : n;
+  }
+
+  function previewBillingBreakdown(card, manageRoot) {
+    if (!manageRoot) return;
+    var planP = parseDec(card.getAttribute("data-plan-price"));
+    var tenant = parseInt(card.getAttribute("data-tenant-students"), 10) || 0;
+    var inp = manageRoot.querySelector(".bm-inline-billed");
+    var raw = inp && inp.value.trim() !== "" ? parseInt(inp.value, 10) : NaN;
+    var n = !isNaN(raw) ? Math.max(0, raw) : tenant;
+    var extraEl = manageRoot.querySelector('[data-field="billing_extra_per_student_month"]');
+    var concEl = manageRoot.querySelector('[data-field="billing_concession_per_student_month"]');
+    var cycEl = manageRoot.querySelector('[data-field="saas_billing_cycle"]');
+    var extraPs = parseDec(extraEl ? extraEl.value : "0");
+    var concPs = parseDec(concEl ? concEl.value : "0");
+    var cap = planP + extraPs;
+    if (concPs > cap) concPs = cap;
+    if (concPs < 0) concPs = 0;
+    var base = Math.round(planP * n * 100) / 100;
+    var exc = Math.round(extraPs * n * 100) / 100;
+    var conc = Math.round(concPs * n * 100) / 100;
+    var fm = Math.round((base + exc - conc) * 100) / 100;
+    if (fm < 0) fm = 0;
+    var isY = cycEl && cycEl.value === "yearly";
+    var fper = isY ? Math.round(fm * 12 * 100) / 100 : fm;
+    var synth = {
+      base_cost: base.toFixed(2),
+      extra_cost: exc.toFixed(2),
+      concession_cost: conc.toFixed(2),
+      final_monthly: fm.toFixed(2),
+      final_period: fper.toFixed(2),
+      is_yearly: isY,
+      uses_student_override: !!(inp && inp.value.trim() !== "" && !isNaN(raw)),
+      tenant_student_count: tenant,
+      student_count: String(n),
+      plan_price_per_student: String(planP)
+    };
+    applyBreakdown(manageRoot, synth);
+    updateDrawerBreakdownSummary(manageRoot, synth);
+  }
+
+  function scheduleTermsSave(card, manageRoot) {
+    if (card._bmTermsT) clearTimeout(card._bmTermsT);
+    card._bmTermsT = setTimeout(function () {
+      if (!manageRoot) return;
+      var msg = manageRoot.querySelector(".bm-save-msg");
+      var url = card.getAttribute("data-api-url");
+      var extraEl = manageRoot.querySelector('[data-field="billing_extra_per_student_month"]');
+      var concEl = manageRoot.querySelector('[data-field="billing_concession_per_student_month"]');
+      var cycEl = manageRoot.querySelector('[data-field="saas_billing_cycle"]');
+      var svcEl = manageRoot.querySelector('[data-field="saas_service_start_date"]');
+      var freeEl = manageRoot.querySelector('[data-field="saas_free_until_date"]');
+      var body = {
+        billing_extra_per_student_month: extraEl ? extraEl.value : "0",
+        billing_concession_per_student_month: concEl ? concEl.value : "0",
+        saas_billing_cycle: cycEl ? cycEl.value : "monthly"
+      };
+      if (svcEl) {
+        body.saas_service_start_date = svcEl.value.trim() === "" ? null : svcEl.value.trim();
+      }
+      if (freeEl) {
+        body.saas_free_until_date = freeEl.value.trim() === "" ? null : freeEl.value.trim();
+      }
+      postJson(url, body).then(function (res) {
+        if (res.ok && res.body && res.body.ok) {
+          if (msg) {
+            msg.textContent = "Saved";
+            msg.className = "bm-msg ok";
+          }
+          if (res.body.breakdown) {
+            applyBreakdown(manageRoot, res.body.breakdown);
+            updateDrawerBreakdownSummary(manageRoot, res.body.breakdown);
+            syncCompactCardFromBreakdown(card, res.body.breakdown);
+            var chipCyc = manageRoot.querySelector(".bdm-chip-cycle");
+            if (chipCyc && res.body.breakdown) {
+              chipCyc.textContent = res.body.breakdown.is_yearly ? "Yearly cycle" : "Monthly cycle";
+            }
+          }
+          if (concEl && res.body.billing) concEl.value = res.body.billing.concession_per_student;
+          var svcE2 = manageRoot.querySelector('[data-field="saas_service_start_date"]');
+          var freeE2 = manageRoot.querySelector('[data-field="saas_free_until_date"]');
+          if (res.body.billing) {
+            if (svcE2) {
+              svcE2.value = res.body.billing.saas_service_start_date
+                ? String(res.body.billing.saas_service_start_date).slice(0, 10)
+                : "";
+            }
+            if (freeE2) {
+              freeE2.value = res.body.billing.saas_free_until_date
+                ? String(res.body.billing.saas_free_until_date).slice(0, 10)
+                : "";
+            }
+          }
+          if (res.body.effective_billing_start_date && manageRoot) {
+            var bsIn2 = manageRoot.querySelector('[data-field="billing_start_date"]');
+            if (bsIn2) bsIn2.value = String(res.body.effective_billing_start_date).slice(0, 10);
+          }
+          if (res.body.effective_billing_start_date && card) {
+            card.setAttribute(
+              "data-eff-billing-start",
+              String(res.body.effective_billing_start_date).slice(0, 10)
+            );
+            updateCompactCardBillingPill(card);
+          }
+          recalcBillingDashboardFromVisible();
+        } else if (msg) {
+          msg.textContent = (res.body && res.body.error) || "Save failed";
+          msg.className = "bm-msg err";
+        }
+      });
+    }, 550);
+  }
+
+  function scheduleStudentInlineSave(card, manageRoot) {
+    if (card._bmStuT) clearTimeout(card._bmStuT);
+    card._bmStuT = setTimeout(function () {
+      if (!manageRoot) return;
+      var inp = manageRoot.querySelector(".bm-inline-billed");
+      var v = inp ? inp.value.trim() : "";
+      var body = { action: "set_student_override" };
+      if (v === "") body.student_count = null;
+      else {
+        var n = parseInt(v, 10);
+        if (isNaN(n)) return;
+        body.student_count = n;
+      }
+      postJson(card.getAttribute("data-action-url"), body).then(function (res) {
+        if (res.ok && res.body && res.body.ok) {
+          if (res.body.breakdown) {
+            applyBreakdown(manageRoot, res.body.breakdown);
+            updateDrawerBreakdownSummary(manageRoot, res.body.breakdown);
+            syncCompactCardFromBreakdown(card, res.body.breakdown);
+          }
+          recalcBillingDashboardFromVisible();
+        }
+      });
+    }, 550);
+  }
+
+  function scheduleAutoRenewSave(card, manageRoot, checked) {
+    if (card._bmArT) clearTimeout(card._bmArT);
+    card._bmArT = setTimeout(function () {
+      postJson(card.getAttribute("data-api-url"), { saas_billing_auto_renew: checked }).then(function (res) {
+        if (!res.ok || !res.body || !res.body.ok) {
+          var sw = manageRoot && manageRoot.querySelector(".bm-auto-renew");
+          if (sw) sw.checked = !checked;
+        }
+      });
+    }, 400);
+  }
+
+  function syncExportHref() {
+    var a = document.getElementById("billingExportCsv");
+    var base = pageRoot && pageRoot.getAttribute("data-export-csv-url");
+    if (!a || !base) return;
+    var p = new URLSearchParams();
+    if (billingSearch && billingSearch.value) p.set("q", billingSearch.value);
+    if (billingFilterPlan && billingFilterPlan.value) p.set("plan", billingFilterPlan.value);
+    if (billingFilterStatus && billingFilterStatus.value) p.set("status", billingFilterStatus.value);
+    if (billingFilterCycle && billingFilterCycle.value) p.set("cycle", billingFilterCycle.value);
+    if (billingSort && billingSort.value) p.set("sort", billingSort.value);
+    var qs = p.toString();
+    a.href = qs ? base + "?" + qs : base;
+  }
+
+  var billingGrid = document.getElementById("billingGrid");
+  var billingSearch = document.getElementById("billingSearch");
+  var billingFilterPlan = document.getElementById("billingFilterPlan");
+  var billingFilterStatus = document.getElementById("billingFilterStatus");
+  var billingFilterCycle = document.getElementById("billingFilterCycle");
+  var billingSort = document.getElementById("billingSort");
+  var billingVisibleCount = document.getElementById("billingVisibleCount");
+
+  function sortBillingCards() {
+    if (!billingGrid || !billingSort) return;
+    var mode = billingSort.value || "";
+    var cards = Array.from(billingGrid.querySelectorAll(".bm-card"));
+    function mrr(c) {
+      return parseFloat(c.getAttribute("data-mrr")) || 0;
+    }
+    function upd(c) {
+      var s = c.getAttribute("data-sort-updated") || "";
+      return s ? new Date(s).getTime() : 0;
+    }
+    function nameKey(c) {
+      return (c.getAttribute("data-filter-name") || "").toLowerCase();
+    }
+    if (mode === "revenue_high") cards.sort(function (a, b) {
+      return mrr(b) - mrr(a);
+    });
+    else if (mode === "revenue_low") cards.sort(function (a, b) {
+      return mrr(a) - mrr(b);
+    });
+    else if (mode === "updated_recent") cards.sort(function (a, b) {
+      return upd(b) - upd(a);
+    });
+    else cards.sort(function (a, b) {
+      return nameKey(a).localeCompare(nameKey(b));
+    });
+    cards.forEach(function (c) {
+      billingGrid.appendChild(c);
+    });
+  }
+
+  function recalcBillingDashboardFromVisible() {
+    var elR = document.getElementById("bm-dash-revenue");
+    var elA = document.getElementById("bm-dash-active");
+    var elP = document.getElementById("bm-dash-pending");
+    var elPn = document.getElementById("bm-dash-pending-n");
+    var elS = document.getElementById("bm-dash-students");
+    if (!elR || !billingGrid) return;
+    var revenue = 0;
+    var active = 0;
+    var students = 0;
+    var pendAmt = 0;
+    var pendInv = 0;
+    var totalCards = 0;
+    billingGrid.querySelectorAll(".bm-card").forEach(function (card) {
+      totalCards += 1;
+      if (card.style.display === "none") return;
+      revenue += parseFloat(card.getAttribute("data-mrr")) || 0;
+      students += parseInt(card.getAttribute("data-students"), 10) || 0;
+      if (card.getAttribute("data-active") === "1") active += 1;
+      pendAmt += parseFloat(card.getAttribute("data-pending-amt")) || 0;
+      pendInv += parseInt(card.getAttribute("data-pending-c"), 10) || 0;
+    });
+    elR.textContent = fmtRupee(String(revenue));
+    elA.textContent = String(active);
+    elP.textContent = fmtRupee(String(pendAmt));
+    if (elPn) elPn.textContent = String(pendInv);
+    elS.textContent = String(students);
+    if (billingVisibleCount) {
+      var vis = 0;
+      billingGrid.querySelectorAll(".bm-card").forEach(function (card) {
+        if (card.style.display !== "none") vis += 1;
+      });
+      billingVisibleCount.textContent = vis + " / " + totalCards + " schools visible";
+    }
+  }
+
+  function applyBillingFilters() {
+    if (!billingGrid) return;
+    var q = (billingSearch && billingSearch.value ? billingSearch.value : "").trim().toLowerCase();
+    var pl = billingFilterPlan ? billingFilterPlan.value : "";
+    var st = billingFilterStatus ? billingFilterStatus.value : "";
+    var cy = billingFilterCycle ? billingFilterCycle.value : "";
+    billingGrid.querySelectorAll(".bm-card").forEach(function (card) {
+      var name = (card.getAttribute("data-filter-name") || "").toLowerCase();
+      var slug = (card.getAttribute("data-plan-slug") || "").toLowerCase();
+      var status = card.getAttribute("data-school-status") || "";
+      var cycle = card.getAttribute("data-cycle") || "";
+      var okName = !q || name.indexOf(q) !== -1;
+      var okPlan = !pl || slug === pl;
+      var okStatus = !st || status === st;
+      var okCycle = !cy || cycle === cy;
+      card.style.display = okName && okPlan && okStatus && okCycle ? "" : "none";
+    });
+    recalcBillingDashboardFromVisible();
+    syncExportHref();
+  }
+
+  function onBillingSortChange() {
+    sortBillingCards();
+    applyBillingFilters();
+  }
+
+  if (billingSearch) billingSearch.addEventListener("input", applyBillingFilters);
+  if (billingFilterPlan) billingFilterPlan.addEventListener("change", applyBillingFilters);
+  if (billingFilterStatus) billingFilterStatus.addEventListener("change", applyBillingFilters);
+  if (billingFilterCycle) billingFilterCycle.addEventListener("change", applyBillingFilters);
+  if (billingSort) billingSort.addEventListener("change", onBillingSortChange);
+  if (billingGrid) applyBillingFilters();
+  syncExportHref();
+
+  function periodStartsBeforeBillingStart(card) {
+    var eff = card.getAttribute("data-eff-billing-start") || "";
+    if (!eff) return false;
+    var effT = new Date(eff + "T12:00:00").getTime();
+    if (isNaN(effT)) return false;
+    var yearly = card.getAttribute("data-cycle") === "yearly";
+    var y;
+    var m0;
+    if (yearly) {
+      var cy = card.querySelector(".bm-card-inv-year");
+      y = parseInt(cy && cy.value, 10);
+      m0 = 0;
+    } else {
+      var cper = card.querySelector(".bm-card-inv-period");
+      var pv = cper && cper.value;
+      if (!pv || pv.indexOf("-") < 0) return false;
+      var bits = pv.split("-");
+      y = parseInt(bits[0], 10);
+      m0 = parseInt(bits[1], 10) - 1;
+    }
+    if (isNaN(y) || isNaN(m0)) return false;
+    var ps = new Date(y, yearly ? 0 : m0, 1).getTime();
+    return ps < effT;
+  }
+
+  function updateCompactCardBillingPill(card) {
+    var pill = card.querySelector(".bm-bill-status");
+    if (!pill) return;
+    var comp = card.getAttribute("data-complimentary") === "1";
+    var hasPend = (card.getAttribute("data-pending-c") || "0") !== "0";
+    var schFree = periodStartsBeforeBillingStart(card);
+    var slug = "paid_up";
+    var label = "Paid";
+    if (schFree || comp) {
+      slug = "free_period";
+      label = "Free Period";
+    } else if (hasPend) {
+      slug = "pending";
+      label = "Pending";
+    }
+    pill.className = "bm-pill bm-bill-status bm-bill-status--" + slug;
+    pill.textContent = label;
+  }
+
+  function finishBillingGridSkeleton() {
+    var shell = document.getElementById("billingGridShell");
+    if (!shell || !shell.classList.contains("billing-grid-shell--loading")) return;
+    shell.classList.remove("billing-grid-shell--loading");
+    shell.classList.add("billing-grid-shell--ready");
+  }
+  var billingGridShell = document.getElementById("billingGridShell");
+  if (billingGridShell && billingGridShell.classList.contains("billing-grid-shell--loading")) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      finishBillingGridSkeleton();
+    } else {
+      window.setTimeout(finishBillingGridSkeleton, 140);
+    }
+  }
+
+  if (billingGrid) {
+    billingGrid.querySelectorAll(".bm-card.bm-compact").forEach(updateCompactCardBillingPill);
+    billingGrid.addEventListener("change", function (ev) {
+      var t = ev.target;
+      if (
+        t &&
+        (t.classList.contains("bm-card-inv-period") || t.classList.contains("bm-card-inv-year"))
+      ) {
+        var c2 = t.closest(".bm-card");
+        if (c2) updateCompactCardBillingPill(c2);
+      }
+    });
+    billingGrid.addEventListener("click", function (ev) {
+      if (ev.target.closest(".bm-compact-period-bar")) return;
+      var card = ev.target.closest(".bm-card.bm-compact");
+      if (!card || !billingGrid.contains(card)) return;
+      var u = card.getAttribute("data-detail-page-url");
+      if (u) window.location.href = u;
+    });
+    billingGrid.addEventListener("keydown", function (ev) {
+      if (ev.key !== "Enter" && ev.key !== " ") return;
+      var card = ev.target.closest(".bm-card.bm-compact");
+      if (!card || ev.target !== card) return;
+      ev.preventDefault();
+      var u2 = card.getAttribute("data-detail-page-url");
+      if (u2) window.location.href = u2;
+    });
+  }
+
+  var modalStu = document.getElementById("modalStudents");
+  var modalInv = document.getElementById("modalInvoice");
+  var modalPaid = document.getElementById("modalPaid");
+  var bsStu = modalStu ? new bootstrap.Modal(modalStu) : null;
+  var bsInv = modalInv ? new bootstrap.Modal(modalInv) : null;
+  var bsPaid = modalPaid ? new bootstrap.Modal(modalPaid) : null;
+  var modalInvEdit = document.getElementById("modalInvoiceEdit");
+  var bsInvEdit = modalInvEdit ? new bootstrap.Modal(modalInvEdit) : null;
+
+  var ctxCard = null;
+  var ctxManageRoot = null;
+
+  function billingPeriodOptionsList() {
+    var el = document.getElementById("billingPeriodOptionsJson");
+    if (!el) return [];
+    try {
+      return JSON.parse(el.textContent || "[]");
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function syncPeriodToInvoiceModal(card, manageRoot) {
+    var yEl = document.getElementById("invBillYear");
+    var mEl = document.getElementById("invBillMonth");
+    if (!yEl) return;
+    var yearly = card && card.getAttribute("data-cycle") === "yearly";
+    var bdy = manageRoot && manageRoot.querySelector("#bdm-inv-year");
+    var bdmPer = manageRoot && manageRoot.querySelector("#bdm-inv-period");
+    var cy = card && card.querySelector(".bm-card-inv-year");
+    var cper = card && card.querySelector(".bm-card-inv-period");
+    if (yearly) {
+      var ySrc = (bdy && bdy.value) || (cy && cy.value) || yEl.value;
+      yEl.value = ySrc;
+      return;
+    }
+    if (!mEl) return;
+    var pv2 = (bdmPer && bdmPer.value) || (cper && cper.value);
+    if (!pv2 && yEl.value && mEl.value) {
+      var mm = parseInt(mEl.value, 10);
+      if (!isNaN(mm)) {
+        pv2 = yEl.value + "-" + (mm < 10 ? "0" : "") + mm;
+      }
+    }
+    if (pv2 && pv2.indexOf("-") >= 0) {
+      var bits = pv2.split("-");
+      yEl.value = bits[0];
+      mEl.value = String(parseInt(bits[1], 10));
+    }
+  }
+
+  function esc(s) {
+    var d = document.createElement("div");
+    d.textContent = s == null ? "" : String(s);
+    return d.innerHTML;
+  }
+
+  if (modalInv) {
+    modalInv.addEventListener("show.bs.modal", function () {
+      var mg = document.getElementById("invManualGrand");
+      var rep = document.getElementById("invReplaceIssued");
+      var igc0 = document.getElementById("invIgnCommence");
+      if (mg) mg.value = "";
+      if (rep) rep.checked = false;
+      if (igc0) igc0.checked = false;
+      syncPeriodToInvoiceModal(ctxCard, ctxManageRoot);
+      if (ctxCard) refreshInvoicePreview(ctxCard);
+    });
+  }
+
+  if (modalPaid) {
+    modalPaid.addEventListener("show.bs.modal", function () {
+      var sel = document.getElementById("paidInvoiceSelect");
+      if (!sel || !ctxCard) return;
+      sel.innerHTML = '<option value="">Loading…</option>';
+      fetch(ctxCard.getAttribute("data-details-url"), { credentials: "same-origin" })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (d) {
+          var rows = (d && d.invoices_control_center) || [];
+          var opts = "";
+          for (var i = 0; i < rows.length; i++) {
+            var inv = rows[i];
+            if (inv.status !== "issued") continue;
+            opts +=
+              '<option value="' +
+              esc(String(inv.id)) +
+              '">' +
+              esc(inv.invoice_number || "") +
+              " · " +
+              esc(inv.month_display || inv.invoice_month_key || "") +
+              " · ₹" +
+              esc(String(inv.grand_total)) +
+              "</option>";
+          }
+          if (!opts) opts = '<option value="">No issued invoices</option>';
+          sel.innerHTML = opts;
+          var pend = window.__bmPendingPaidId;
+          if (pend) {
+            sel.value = String(pend);
+            window.__bmPendingPaidId = null;
+          }
+        })
+        .catch(function () {
+          sel.innerHTML = '<option value="">Failed to load</option>';
+        });
+    });
+  }
+
+  (function initInvoiceEditModalPickers() {
+    var mEl = document.getElementById("invEditMonth");
+    var yEl = document.getElementById("invEditYear");
+    if (!mEl || !yEl || mEl.dataset.bmInit === "1") return;
+    mEl.dataset.bmInit = "1";
+    var names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    for (var mi = 1; mi <= 12; mi++) {
+      var o = document.createElement("option");
+      o.value = String(mi);
+      o.textContent = names[mi - 1];
+      mEl.appendChild(o);
+    }
+    var yNow = new Date().getFullYear();
+    for (var yi = yNow - 4; yi <= yNow + 4; yi++) {
+      var oy = document.createElement("option");
+      oy.value = String(yi);
+      oy.textContent = String(yi);
+      yEl.appendChild(oy);
+    }
+  })();
+
+  var modalCouponsEl = document.getElementById("modalCoupons");
+  if (modalCouponsEl) {
+    modalCouponsEl.addEventListener("show.bs.modal", function () {
+      var url = pageRoot && pageRoot.getAttribute("data-coupons-url");
+      var body = document.getElementById("couponsListBody");
+      if (!url || !body) return;
+      body.innerHTML = '<p class="text-muted small">Loading…</p>';
+      fetch(url, { credentials: "same-origin" })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (d) {
+          if (!d || !d.ok || !d.coupons) {
+            body.innerHTML = '<p class="text-danger small">Could not load coupons.</p>';
+            return;
+          }
+          if (!d.coupons.length) {
+            body.innerHTML = '<p class="text-muted small">No active coupons for today.</p>';
+            return;
+          }
+          var h = '<ul class="list-group list-group-flush">';
+          for (var i = 0; i < d.coupons.length; i++) {
+            var c = d.coupons[i];
+            h +=
+              '<li class="list-group-item px-0"><strong>' +
+              esc(c.code) +
+              "</strong> — " +
+              esc(c.discount_type) +
+              " · " +
+              esc(c.discount_value) +
+              (c.valid_to ? " · valid to " + esc(c.valid_to) : "") +
+              "</li>";
+          }
+          h += "</ul>";
+          body.innerHTML = h;
+        })
+        .catch(function () {
+          document.getElementById("couponsListBody").innerHTML =
+            '<p class="text-danger small">Network error.</p>';
+        });
+    });
+  }
+
+  function renderList(title, items, renderItem) {
+    var h = '<div class="bd-sec"><h6>' + esc(title) + "</h6>";
+    if (!items || !items.length) {
+      h += '<p class="bd-empty">No entries yet.</p></div>';
+      return h;
+    }
+    for (var i = 0; i < items.length; i++) {
+      h += renderItem(items[i]);
+    }
+    h += "</div>";
+    return h;
+  }
+
+  function renderInvoiceHistoryTable(rows) {
+    var h = '<div class="bd-sec" id="bd-invoice-history"><h6>Invoice history</h6>';
+    if (!rows || !rows.length) {
+      h += '<p class="bd-empty">No Control Center invoices yet.</p></div>';
+      return h;
+    }
+    h +=
+      '<div class="table-responsive"><table class="table table-sm align-middle bm-inv-table mb-0"><thead><tr><th>Month</th><th>Amount</th><th>Status</th><th>Paid date</th><th class="text-end">Actions</th></tr></thead><tbody>';
+    for (var i = 0; i < rows.length; i++) {
+      var x = rows[i];
+      var actions = "";
+      if (x.status === "issued") {
+        actions =
+          '<div class="d-flex flex-wrap gap-1 justify-content-end">' +
+          '<button type="button" class="btn btn-outline-secondary btn-sm py-0 bm-inv-edit" data-id="' +
+          esc(String(x.id)) +
+          '" data-grand="' +
+          esc(String(x.grand_total)) +
+          '" data-key="' +
+          esc(x.invoice_month_key || "") +
+          '">Edit</button>' +
+          '<button type="button" class="btn btn-outline-primary btn-sm py-0 bm-inv-regen" data-id="' +
+          esc(String(x.id)) +
+          '">Regenerate</button>' +
+          '<button type="button" class="btn btn-outline-success btn-sm py-0 bm-inv-paid" data-id="' +
+          esc(String(x.id)) +
+          '">Mark paid</button>' +
+          "</div>";
+      } else {
+        actions = '<span class="small text-muted">—</span>';
+      }
+      h +=
+        "<tr><td>" +
+        esc(x.month_display || x.period_label || x.invoice_month_key || "—") +
+        "</td><td>" +
+        fmtRupee(x.grand_total) +
+        "</td><td>" +
+        (x.badge_status
+          ? '<span class="bm-inv-badge bm-inv-badge--' +
+            esc(x.badge_status) +
+            '">' +
+            esc(x.status_display || x.status) +
+            "</span>"
+          : esc(x.status_display || x.status)) +
+        "</td><td class=\"text-nowrap\">" +
+        esc(x.paid_date_display || "—") +
+        '</td><td class="text-end">' +
+        actions +
+        "</td></tr>";
+    }
+    h += "</tbody></table></div></div>";
+    return h;
+  }
+
+  function buildDrawerManagePanel(card, d) {
+    var sn = d.school || {};
+    var bd = d.breakdown || {};
+    var bill = d.billing || {};
+    var schoolsBase = (pageRoot && pageRoot.getAttribute("data-schools-url")) || "#";
+    var plansBase = (pageRoot && pageRoot.getAttribute("data-plans-url")) || "#";
+    var sid = card.getAttribute("data-school-id") || "";
+    var addonUrl = plansBase + "?addon_school=" + encodeURIComponent(sid);
+    var extraInit = esc(String(bd.billing_extra_per_student_month != null ? bd.billing_extra_per_student_month : "0"));
+    var concInit = esc(String(bd.billing_concession_per_student_month != null ? bd.billing_concession_per_student_month : "0"));
+    var cyc = bill.billing_cycle || card.getAttribute("data-cycle") || "monthly";
+    var cycMonthlySel = cyc === "yearly" ? "" : " selected";
+    var cycYearlySel = cyc === "yearly" ? " selected" : "";
+    var stuPh = String(bd.tenant_student_count != null ? bd.tenant_student_count : "");
+    var stuVal =
+      sn.billing_student_count_override != null && sn.billing_student_count_override !== ""
+        ? String(sn.billing_student_count_override)
+        : "";
+    var autoRen = bill.saas_billing_auto_renew ? " checked" : "";
+    var suspended = sn.school_status === "suspended";
+    var remindUrl = pageRoot && pageRoot.getAttribute("data-send-reminder-url");
+    var finLbl = bd.is_yearly ? "Yearly total" : "Final monthly";
+    var finSecond =
+      bd.is_yearly
+        ? '<div class="text-end"><div class="lbl">Monthly equiv.</div><div class="amt bm-v-final-monthly" style="font-size:1rem;opacity:.88">' +
+          fmtRupee(bd.final_monthly) +
+          "</div></div>"
+        : "";
+    var planLabel = esc(String(sn.plan_label || bill.plan_name || "—"));
+    var cycleLabel = cyc === "yearly" ? "Yearly" : "Monthly";
+    var lastPay = esc(String(bill.last_payment_date || "—"));
+    var overdueHtml = bill.pending_payment_overdue
+      ? '<p class="small text-danger fw-semibold mb-0 mt-2">Oldest issued invoice is past the overdue window.</p>'
+      : "";
+    var ip = d.invoice_period || {};
+    var periodShort = esc(String(ip.label || "—"));
+    var freeThrough =
+      bill.saas_free_until_date ||
+      bill.saas_billing_complimentary_until ||
+      sn.saas_free_until_date ||
+      sn.saas_billing_complimentary_until ||
+      "";
+    var svcIso =
+      sn.saas_service_start_date != null && sn.saas_service_start_date !== ""
+        ? String(sn.saas_service_start_date).slice(0, 10)
+        : "";
+    var freeIso =
+      sn.saas_free_until_date != null && sn.saas_free_until_date !== ""
+        ? String(sn.saas_free_until_date).slice(0, 10)
+        : freeThrough
+          ? String(freeThrough).slice(0, 10)
+          : "";
+    var regIso =
+      sn.registration_date != null && sn.registration_date !== ""
+        ? String(sn.registration_date).slice(0, 10)
+        : "";
+    var billStartIso =
+      sn.billing_start_date != null && sn.billing_start_date !== ""
+        ? String(sn.billing_start_date).slice(0, 10)
+        : "";
+    var compBanner =
+      bill.complimentary_waiver_active && freeThrough
+        ? '<div class="bd-complimentary-banner mb-3">Free / complimentary billing active through <strong>' +
+          esc(String(freeThrough).slice(0, 10)) +
+          "</strong>. Issued invoices total <strong>₹0</strong> while today is in that window.</div>"
+        : "";
+    var compFoot = bill.complimentary_waiver_active
+      ? '<p class="small fw-semibold mb-0 mt-2" style="color:#047857;">Complimentary window: amounts above are reference; <strong>Generate invoice</strong> issues at ₹0.</p>'
+      : "";
+    var stuBreak =
+      bd.uses_student_override
+        ? esc(String(bd.tenant_student_count)) + " live · " + esc(String(bd.student_count)) + " billed"
+        : esc(String(bd.tenant_student_count)) + " students";
+    var ipY = ip.year != null ? parseInt(String(ip.year), 10) : new Date().getFullYear();
+    var yNow = new Date().getFullYear();
+    var yOpts = "";
+    for (var yi = yNow - 4; yi <= yNow + 4; yi++) {
+      yOpts += '<option value="' + yi + '"' + (yi === ipY ? " selected" : "") + ">" + yi + "</option>";
+    }
+    var im = ip.month != null ? parseInt(String(ip.month), 10) : null;
+    var iy = ip.year != null ? parseInt(String(ip.year), 10) : null;
+    var curVal =
+      cyc !== "yearly" && iy != null && im != null
+        ? String(iy) + "-" + (im < 10 ? "0" : "") + im
+        : "";
+    var pOpts = billingPeriodOptionsList();
+    var periodSelHtml = pOpts
+      .map(function (o) {
+        return (
+          '<option value="' +
+          esc(o.value) +
+          '"' +
+          (o.value === curVal ? " selected" : "") +
+          ">" +
+          esc(o.label) +
+          "</option>"
+        );
+      })
+      .join("");
+    var invControlsSection =
+      '<section class="bd-panel bd-inv-controls">' +
+      '<h6 class="bd-panel-title">Invoice controls</h6>' +
+      '<p class="small text-muted mb-2">Choose the service period for the next invoice, then open the generate dialog (GST and overrides live there).</p>' +
+      '<div class="d-flex flex-wrap gap-2 align-items-end mb-2">' +
+      (cyc === "yearly"
+        ? '<div class="bm-field mb-0"><label class="small mb-0" for="bdm-inv-year">Year</label><select id="bdm-inv-year" class="form-select form-select-sm rounded-3">' +
+          yOpts +
+          "</select></div>"
+        : '<div class="bm-field mb-0"><label class="small mb-0" for="bdm-inv-period">Period</label><select id="bdm-inv-period" class="form-select form-select-sm rounded-3">' +
+          periodSelHtml +
+          "</select></div>") +
+      "</div>" +
+      '<div class="d-flex flex-wrap gap-2 align-items-center">' +
+      '<button type="button" class="bm-qbtn bm-d-inv-gen">Generate invoice…</button>' +
+      '<button type="button" class="btn btn-link btn-sm text-decoration-none p-0 align-baseline bm-d-inv-scrollhist">View invoice history</button>' +
+      "</div></section>";
+    return (
+      '<div class="bd-manage">' +
+      '<section class="bd-panel bd-panel-school">' +
+      '<h6 class="bd-panel-title">School</h6>' +
+      '<p class="bd-school-name">' +
+      esc(sn.name || "School") +
+      "</p>" +
+      '<div class="bd-school-grid">' +
+      '<div class="bd-school-row"><span>Plan</span><strong>' +
+      planLabel +
+      "</strong></div>" +
+      '<div class="bd-school-row"><span>Billing cycle</span><strong>' +
+      esc(cycleLabel) +
+      "</strong></div>" +
+      '<div class="bd-school-row"><span>Invoice period</span><strong>' +
+      periodShort +
+      "</strong></div>" +
+      (sn.code
+        ? '<div class="bd-school-row"><span>School code</span><strong>' + esc(String(sn.code)) + "</strong></div>"
+        : "") +
+      '<div class="bd-school-row"><span>Last payment</span><strong>' +
+      lastPay +
+      "</strong></div></div>" +
+      overdueHtml +
+      compBanner +
+      "</section>" +
+      '<section class="bd-panel bd-panel-actions">' +
+      '<h6 class="bd-panel-title">Actions</h6>' +
+      '<div class="bd-ag">' +
+      '<span class="bd-ag-label">Account</span>' +
+      '<div class="bd-ag-btns">' +
+      '<a class="bm-qbtn" href="' +
+      schoolsBase.replace(/"/g, "") +
+      '">Edit Plan</a>' +
+      '<a class="bm-qbtn" href="' +
+      addonUrl.replace(/"/g, "") +
+      '">Plans &amp; add-ons</a>' +
+      '<button type="button" class="' +
+      (suspended ? "bm-qbtn bm-q-toggle bm-q-danger" : "bm-qbtn bm-q-toggle bm-qbtn-danger") +
+      '" data-next="' +
+      (suspended ? "activate" : "suspend") +
+      '">' +
+      (suspended ? "Activate" : "Suspend") +
+      "</button></div></div>" +
+      '<div class="bd-ag">' +
+      '<span class="bd-ag-label">Billing terms</span>' +
+      '<div class="bd-ag-btns">' +
+      '<button type="button" class="bm-qbtn bm-q-students">Update Students</button>' +
+      '<button type="button" class="bm-qbtn bm-q-extra">Update Extra</button>' +
+      '<button type="button" class="bm-qbtn bm-q-conc">Update Concession</button>' +
+      '<button type="button" class="bm-qbtn bm-q-cycle">Change Cycle</button>' +
+      "</div></div>" +
+      '<div class="bd-ag">' +
+      '<span class="bd-ag-label">Invoices</span>' +
+      '<div class="bd-ag-btns">' +
+      '<button type="button" class="bm-qbtn bm-q-inv">Generate Invoice</button>' +
+      '<button type="button" class="bm-qbtn bm-q-paid">Mark as Paid</button>' +
+      (remindUrl ? '<button type="button" class="bm-qbtn bm-q-remind">Send Reminder</button>' : "") +
+      "</div></div></section>" +
+      invControlsSection +
+      '<section class="bd-panel bd-panel-edit">' +
+      '<h6 class="bd-panel-title">Adjust billing terms</h6>' +
+      '<div class="bm-inline-row">' +
+      '<div class="bm-field">' +
+      '<label for="bdm-billed">Billed students (override)</label>' +
+      '<input id="bdm-billed" class="form-control form-control-sm rounded-3 bm-inline-billed" type="number" min="0" max="500000" inputmode="numeric" placeholder="Live: ' +
+      esc(stuPh) +
+      '" value="' +
+      esc(stuVal) +
+      '" autocomplete="off"/>' +
+      '<div class="bm-inline-hint">Empty = use live count. Saves automatically.</div>' +
+      "</div>" +
+      '<div class="bm-field bm-field-autorenew pb-1">' +
+      '<div class="bd-autorenew-row">' +
+      '<label class="bd-toggle-label">' +
+      '<span class="bd-toggle-ui">' +
+      '<input class="bd-toggle-input bm-auto-renew" type="checkbox" role="switch" id="bdm-autorenew"' +
+      autoRen +
+      "/>" +
+      '<span class="bd-toggle-track" aria-hidden="true"><span class="bd-toggle-knob"></span></span>' +
+      "</span>" +
+      '<span class="bd-toggle-caption">Auto-renew<small>Next invoice on schedule</small></span>' +
+      "</label></div></div></div>" +
+      '<div class="bm-chip-row mb-2">' +
+      '<span class="bm-chip bdm-chip-cycle">' +
+      (bd.is_yearly ? "Yearly cycle" : "Monthly cycle") +
+      '</span><span class="bm-chip">₹' +
+      esc(String(bd.plan_price_per_student)) +
+      "/stu plan</span></div>" +
+      '<div class="bm-fields bm-billing-inputs">' +
+      '<div class="bm-field">' +
+      '<label for="bdm-extra">Extra ₹ / student / mo</label>' +
+      '<input id="bdm-extra" type="number" min="0" step="0.01" inputmode="decimal" value="' +
+      extraInit +
+      '" data-field="billing_extra_per_student_month"/>' +
+      "</div>" +
+      '<div class="bm-field">' +
+      '<label for="bdm-conc">Concession ₹ / student / mo</label>' +
+      '<input id="bdm-conc" type="number" min="0" step="0.01" inputmode="decimal" value="' +
+      concInit +
+      '" data-field="billing_concession_per_student_month"/>' +
+      "</div>" +
+      '<div class="bm-field bm-field-full">' +
+      '<label for="bdm-cycle">Billing cycle</label>' +
+      '<select id="bdm-cycle" data-field="saas_billing_cycle">' +
+      '<option value="monthly"' +
+      cycMonthlySel +
+      ">Monthly</option>" +
+      '<option value="yearly"' +
+      cycYearlySel +
+      ">Yearly</option></select></div>" +
+      '<div class="bm-field bm-field-full">' +
+      '<label for="bdm-svc-start">Service start (optional)</label>' +
+      '<input id="bdm-svc-start" type="date" class="form-control form-control-sm rounded-3" value="' +
+      esc(svcIso) +
+      '" data-field="saas_service_start_date"/>' +
+      '<div class="bm-inline-hint">No invoices for calendar periods before this month unless you use bypass on generate.</div></div>' +
+      '<div class="bm-field bm-field-full">' +
+      '<label for="bdm-free-until">Free until (optional)</label>' +
+      '<input id="bdm-free-until" type="date" class="form-control form-control-sm rounded-3" value="' +
+      esc(freeIso) +
+      '" data-field="saas_free_until_date"/>' +
+      '<div class="bm-inline-hint">Inclusive last day of free service; <strong>Generate invoice</strong> blocks periods ending on/before this date (use modal overrides if needed).</div></div>' +
+      '<div class="bm-field bm-field-full">' +
+      '<label for="bdm-reg">Registration (optional)</label>' +
+      '<input id="bdm-reg" type="date" class="form-control form-control-sm rounded-3" value="' +
+      esc(regIso) +
+      '" data-field="registration_date"/>' +
+      "</div>" +
+      '<div class="bm-field bm-field-full">' +
+      '<label for="bdm-bill-start">Billing start (optional)</label>' +
+      '<input id="bdm-bill-start" type="date" class="form-control form-control-sm rounded-3" value="' +
+      esc(billStartIso) +
+      '" data-field="billing_start_date"/>' +
+      '<div class="bm-inline-hint">First billable day. Leave aligned with Schools → Billing configuration; defaults to the day after free-until when free-until is updated without an explicit billing start.</div></div></div></section>' +
+      '<section class="bd-panel bd-panel-breakdown">' +
+      '<h6 class="bd-panel-title">Billing breakdown</h6>' +
+      '<div class="bd-kv-plain mb-2">' +
+      '<div class="bd-srow"><span>Price per student</span><strong id="bdm-kv-price">₹' +
+      esc(String(bd.plan_price_per_student)) +
+      " / mo</strong></div>" +
+      '<div class="bd-srow"><span>Total students</span><strong id="bdm-kv-students">' +
+      stuBreak +
+      "</strong></div></div>" +
+      '<div class="bm-break bm-breakdown" aria-label="Cost breakdown">' +
+      '<div class="bm-kv"><span>Base cost</span><span class="bm-v-base">' +
+      fmtRupee(bd.base_cost) +
+      "</span></div>" +
+      '<div class="bm-kv"><span>Extra charges</span><span class="bm-v-extra">' +
+      fmtRupee(bd.extra_cost) +
+      "</span></div>" +
+      '<div class="bm-kv neg"><span>Concession</span><span class="bm-v-conc">−' +
+      fmtRupee(bd.concession_cost) +
+      "</span></div></div>" +
+      '<div class="bm-final bm-final-total">' +
+      "<div><div class=\"lbl\">" +
+      finLbl +
+      '</div><div class="amt bm-v-final-period bd-amt-lg">' +
+      fmtRupee(bd.is_yearly ? bd.final_period : bd.final_monthly) +
+      "</div></div>" +
+      finSecond +
+      "</div>" +
+      '<p class="bm-foot mb-0">(plan × students) + (extra × students) − (concession × students). Yearly × 12.</p>' +
+      compFoot +
+      "</section>" +
+      '<section class="bd-panel bd-panel-save">' +
+      '<div class="bm-actions">' +
+      '<span class="bm-msg bm-save-msg" role="status"></span>' +
+      '<div class="d-flex gap-2 ms-auto">' +
+      '<button type="button" class="bm-btn bm-btn-primary bm-save-billing">Save billing</button></div></div></section></div>'
+    );
+  }
+
+  function wireDrawerManage(card, drawerBody, d) {
+    var root = drawerBody.querySelector(".bd-manage");
+    if (!root) return;
+    ctxManageRoot = root;
+    if (d && d.breakdown) {
+      applyBreakdown(root, d.breakdown);
+      updateDrawerBreakdownSummary(root, d.breakdown);
+    }
+
+    var btn = root.querySelector(".bm-save-billing");
+    var msg = root.querySelector(".bm-save-msg");
+    if (btn) {
+      btn.addEventListener("click", function () {
+        var url = card.getAttribute("data-api-url");
+        var extraEl = root.querySelector('[data-field="billing_extra_per_student_month"]');
+        var concEl = root.querySelector('[data-field="billing_concession_per_student_month"]');
+        var cycEl = root.querySelector('[data-field="saas_billing_cycle"]');
+        var svcEl = root.querySelector('[data-field="saas_service_start_date"]');
+        var freeEl = root.querySelector('[data-field="saas_free_until_date"]');
+        var regEl = root.querySelector('[data-field="registration_date"]');
+        var bsEl0 = root.querySelector('[data-field="billing_start_date"]');
+        var cycleBefore = cycEl ? cycEl.value : "";
+        var payload = {
+          billing_extra_per_student_month: extraEl ? extraEl.value : "0",
+          billing_concession_per_student_month: concEl ? concEl.value : "0",
+          saas_billing_cycle: cycEl ? cycEl.value : "monthly"
+        };
+        if (svcEl) {
+          payload.saas_service_start_date = svcEl.value.trim() === "" ? null : svcEl.value.trim();
+        }
+        if (freeEl) {
+          payload.saas_free_until_date = freeEl.value.trim() === "" ? null : freeEl.value.trim();
+        }
+        if (regEl) {
+          payload.registration_date = regEl.value.trim() === "" ? null : regEl.value.trim();
+        }
+        if (bsEl0) {
+          payload.billing_start_date = bsEl0.value.trim() === "" ? null : bsEl0.value.trim();
+        }
+        if (msg) {
+          msg.textContent = "Saving…";
+          msg.className = "bm-msg";
+        }
+        postJson(url, payload)
+          .then(function (res) {
+            if (res.ok && res.body && res.body.ok) {
+              if (msg) {
+                msg.textContent = "Saved";
+                msg.className = "bm-msg ok";
+              }
+              if (res.body.breakdown) {
+                applyBreakdown(root, res.body.breakdown);
+                updateDrawerBreakdownSummary(root, res.body.breakdown);
+                syncCompactCardFromBreakdown(card, res.body.breakdown);
+              }
+              if (res.body.billing) {
+                var concEl2 = root.querySelector('[data-field="billing_concession_per_student_month"]');
+                if (concEl2) concEl2.value = res.body.billing.concession_per_student;
+                var svcE3 = root.querySelector('[data-field="saas_service_start_date"]');
+                var freeE3 = root.querySelector('[data-field="saas_free_until_date"]');
+                var regE3 = root.querySelector('[data-field="registration_date"]');
+                var bsE3 = root.querySelector('[data-field="billing_start_date"]');
+                if (res.body.billing) {
+                  if (svcE3) {
+                    svcE3.value = res.body.billing.saas_service_start_date
+                      ? String(res.body.billing.saas_service_start_date).slice(0, 10)
+                      : "";
+                  }
+                  if (freeE3) {
+                    freeE3.value = res.body.billing.saas_free_until_date
+                      ? String(res.body.billing.saas_free_until_date).slice(0, 10)
+                      : "";
+                  }
+                  if (regE3) {
+                    regE3.value = res.body.billing.registration_date
+                      ? String(res.body.billing.registration_date).slice(0, 10)
+                      : "";
+                  }
+                  if (bsE3) {
+                    bsE3.value = res.body.billing.billing_start_date
+                      ? String(res.body.billing.billing_start_date).slice(0, 10)
+                      : "";
+                  }
+                }
+                if (res.body.effective_billing_start_date && card) {
+                  card.setAttribute(
+                    "data-eff-billing-start",
+                    String(res.body.effective_billing_start_date).slice(0, 10)
+                  );
+                  updateCompactCardBillingPill(card);
+                }
+              }
+              var chipCyc = root.querySelector(".bdm-chip-cycle");
+              if (chipCyc && res.body.breakdown) {
+                chipCyc.textContent = res.body.breakdown.is_yearly ? "Yearly cycle" : "Monthly cycle";
+              }
+              if (res.body.breakdown) {
+                card.setAttribute("data-plan-price", res.body.breakdown.plan_price_per_student);
+              }
+              if (res.body.saas_billing_cycle && res.body.saas_billing_cycle !== cycleBefore) {
+                window.location.reload();
+                return;
+              }
+              if (res.body.breakdown) {
+                card.setAttribute("data-cycle", res.body.saas_billing_cycle || cycleBefore);
+              }
+              recalcBillingDashboardFromVisible();
+            } else if (msg) {
+              msg.textContent = (res.body && res.body.error) || "Save failed";
+              msg.className = "bm-msg err";
+            }
+          })
+          .catch(function () {
+            if (msg) {
+              msg.textContent = "Network error";
+              msg.className = "bm-msg err";
+            }
+          });
+      });
+    }
+
+    ["billing_extra_per_student_month", "billing_concession_per_student_month", "saas_billing_cycle", "saas_service_start_date", "saas_free_until_date"].forEach(function (
+      field
+    ) {
+      var el = root.querySelector('[data-field="' + field + '"]');
+      if (!el) return;
+      if (
+        field === "saas_billing_cycle" ||
+        field === "saas_service_start_date" ||
+        field === "saas_free_until_date"
+      ) {
+        el.addEventListener("change", function () {
+          previewBillingBreakdown(card, root);
+          scheduleTermsSave(card, root);
+        });
+      } else {
+        el.addEventListener("input", function () {
+          previewBillingBreakdown(card, root);
+          scheduleTermsSave(card, root);
+        });
+      }
+    });
+
+    var inlineB = root.querySelector(".bm-inline-billed");
+    if (inlineB) {
+      inlineB.addEventListener("input", function () {
+        previewBillingBreakdown(card, root);
+        scheduleStudentInlineSave(card, root);
+      });
+    }
+
+    var ar = root.querySelector(".bm-auto-renew");
+    if (ar) {
+      ar.addEventListener("change", function () {
+        scheduleAutoRenewSave(card, root, ar.checked);
+      });
+    }
+
+    var remindBtn = root.querySelector(".bm-q-remind");
+    if (remindBtn) {
+      remindBtn.addEventListener("click", function () {
+        var url = pageRoot && pageRoot.getAttribute("data-send-reminder-url");
+        if (!url) return;
+        if (
+          !window.confirm(
+            "Send a payment reminder email to this school's contact_email (if overdue invoice exists)?"
+          )
+        ) {
+          return;
+        }
+        postJson(url, { school_id: parseInt(card.getAttribute("data-school-id"), 10) }).then(function (res) {
+          if (res.ok && res.body && res.body.ok) {
+            window.alert("Reminder sent to " + (res.body.recipient || "recipient"));
+          } else {
+            window.alert((res.body && res.body.error) || "Failed");
+          }
+        });
+      });
+    }
+
+    root.querySelector(".bm-q-students") &&
+      root.querySelector(".bm-q-students").addEventListener("click", function () {
+        ctxCard = card;
+        document.getElementById("modalStudentsMsg").textContent = "";
+        document.getElementById("modalStudentsInput").value = card.getAttribute("data-student-override") || "";
+        bsStu && bsStu.show();
+      });
+
+    ["bm-q-extra", "bm-q-conc", "bm-q-cycle"].forEach(function (cls) {
+      var b = root.querySelector("." + cls);
+      if (!b) return;
+      b.addEventListener("click", function () {
+        var wrap = root.querySelector(".bm-billing-inputs");
+        if (wrap) wrap.scrollIntoView({ behavior: "smooth", block: "center" });
+        if (cls === "bm-q-extra") {
+          var xe = root.querySelector('[data-field="billing_extra_per_student_month"]');
+          if (xe) xe.focus();
+        }
+        if (cls === "bm-q-conc") {
+          var ce = root.querySelector('[data-field="billing_concession_per_student_month"]');
+          if (ce) ce.focus();
+        }
+        if (cls === "bm-q-cycle") {
+          var ye = root.querySelector('[data-field="saas_billing_cycle"]');
+          if (ye) ye.focus();
+        }
+      });
+    });
+
+    root.querySelector(".bm-q-inv") &&
+      root.querySelector(".bm-q-inv").addEventListener("click", function () {
+        ctxCard = card;
+        syncPeriodToInvoiceModal(card, root);
+        document.getElementById("invModalMsg").textContent = "";
+        document.getElementById("invGstToggle").checked = false;
+        document.getElementById("invGstRateWrap").style.display = "none";
+        var igf = document.getElementById("invIgnFree");
+        var igs = document.getElementById("invIgnSvc");
+        if (igf) igf.checked = false;
+        if (igs) igs.checked = false;
+        refreshInvoicePreview(card);
+        bsInv && bsInv.show();
+      });
+
+    var dInvGen = root.querySelector(".bm-d-inv-gen");
+    if (dInvGen) {
+      dInvGen.addEventListener("click", function () {
+        ctxCard = card;
+        syncPeriodToInvoiceModal(card, root);
+        document.getElementById("invModalMsg").textContent = "";
+        document.getElementById("invGstToggle").checked = false;
+        document.getElementById("invGstRateWrap").style.display = "none";
+        var igf2 = document.getElementById("invIgnFree");
+        var igs2 = document.getElementById("invIgnSvc");
+        if (igf2) igf2.checked = false;
+        if (igs2) igs2.checked = false;
+        refreshInvoicePreview(card);
+        bsInv && bsInv.show();
+      });
+    }
+    var dHist = root.querySelector(".bm-d-inv-scrollhist");
+    if (dHist) {
+      dHist.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        var h = document.getElementById("bd-invoice-history");
+        if (h) h.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+
+    var bodyShell = root.closest("#billingDrawerBody");
+    if (bodyShell) {
+      bodyShell.querySelectorAll(".bm-inv-regen").forEach(function (btn) {
+        btn.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          var id = btn.getAttribute("data-id");
+          if (
+            !window.confirm(
+              "Void this issued invoice and create a fresh one for the same period (using current plan and student counts)?"
+            )
+          ) {
+            return;
+          }
+          postJson(card.getAttribute("data-action-url"), {
+            action: "regenerate_invoice",
+            invoice_id: parseInt(id, 10)
+          }).then(function (res) {
+            if (res.ok && res.body && res.body.ok) window.location.reload();
+            else window.alert((res.body && res.body.error) || "Failed");
+          });
+        });
+      });
+      bodyShell.querySelectorAll(".bm-inv-paid").forEach(function (btn) {
+        btn.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          ctxCard = card;
+          window.__bmPendingPaidId = btn.getAttribute("data-id");
+          document.getElementById("paidModalMsg").textContent = "";
+          document.getElementById("paidNotes").value = "";
+          var pad = document.getElementById("paidAtDate");
+          if (pad) pad.value = "";
+          bsPaid && bsPaid.show();
+        });
+      });
+      bodyShell.querySelectorAll(".bm-inv-edit").forEach(function (btn) {
+        btn.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          ctxCard = card;
+          var id = btn.getAttribute("data-id");
+          var g = btn.getAttribute("data-grand") || "";
+          var key = btn.getAttribute("data-key") || "";
+          document.getElementById("invEditMsg").textContent = "";
+          document.getElementById("invEditId").value = id;
+          document.getElementById("invEditGrand").value = g;
+          var parts = key.split("-");
+          var yk = parts.length >= 1 ? parseInt(parts[0], 10) : NaN;
+          var mk = parts.length >= 2 ? parseInt(parts[1], 10) : NaN;
+          var ySel = document.getElementById("invEditYear");
+          var mSel = document.getElementById("invEditMonth");
+          var wrap = document.getElementById("invEditPeriodWrap");
+          var yearly = card.getAttribute("data-cycle") === "yearly";
+          if (wrap) {
+            var firstCol = wrap.querySelector("div:first-child");
+            if (firstCol) firstCol.style.display = yearly ? "none" : "";
+          }
+          if (ySel && !isNaN(yk)) ySel.value = String(yk);
+          if (mSel && !isNaN(mk) && mk >= 1 && mk <= 12) mSel.value = String(mk);
+          document.getElementById("invEditMeta").textContent =
+            "Invoice #" + String(id) + (key ? " · " + key : "");
+          bsInvEdit && bsInvEdit.show();
+        });
+      });
+    }
+
+    root.querySelector(".bm-q-paid") &&
+      root.querySelector(".bm-q-paid").addEventListener("click", function () {
+        ctxCard = card;
+        window.__bmPendingPaidId = null;
+        document.getElementById("paidModalMsg").textContent = "";
+        document.getElementById("paidNotes").value = "";
+        var pad0 = document.getElementById("paidAtDate");
+        if (pad0) pad0.value = "";
+        bsPaid && bsPaid.show();
+      });
+
+    root.querySelector(".bm-q-toggle") &&
+      root.querySelector(".bm-q-toggle").addEventListener("click", function () {
+        var next = this.getAttribute("data-next");
+        var actUrl = card.getAttribute("data-action-url");
+        postJson(actUrl, { action: next === "suspend" ? "suspend" : "activate" }).then(function (res) {
+          if (res.ok && res.body && res.body.ok) window.location.reload();
+          else alert((res.body && res.body.error) || "Action failed");
+        });
+      });
+  }
+
+  function invoicePeriodLabelFromUi() {
+    var yEl = document.getElementById("invBillYear");
+    var mEl = document.getElementById("invBillMonth");
+    var mw = document.getElementById("invMonthWrap");
+    if (!yEl || !yEl.value) return "";
+    var y = parseInt(yEl.value, 10);
+    if (isNaN(y)) return "";
+    if (mw && mw.style.display === "none") {
+      return "Calendar year " + y;
+    }
+    var m = parseInt(mEl && mEl.value ? mEl.value : "1", 10);
+    if (isNaN(m) || m < 1 || m > 12) m = 1;
+    var names = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December"
+    ];
+    return names[m - 1] + " " + y;
+  }
+
+  function refreshInvoicePreview(card) {
+    var prev = document.getElementById("invPreview");
+    if (!prev || !card) return;
+    var baseUrl = card.getAttribute("data-details-url");
+    var yEl = document.getElementById("invBillYear");
+    var mEl = document.getElementById("invBillMonth");
+    var mw = document.getElementById("invMonthWrap");
+    var detUrl = baseUrl;
+    if (baseUrl && yEl && yEl.value) {
+      var u = baseUrl.indexOf("?") >= 0 ? baseUrl + "&" : baseUrl + "?";
+      u += "preview_year=" + encodeURIComponent(yEl.value);
+      if (!mw || mw.style.display !== "none") {
+        if (mEl && mEl.value) u += "&preview_month=" + encodeURIComponent(mEl.value);
+      }
+      detUrl = u;
+    }
+    fetch(detUrl, { credentials: "same-origin" })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (d) {
+        if (!d || !d.ok) {
+          prev.textContent = "Could not load preview.";
+          var pb0 = document.getElementById("invPeriodBanner");
+          if (pb0) {
+            pb0.style.display = "none";
+            pb0.innerHTML = "";
+          }
+          var genB0 = document.getElementById("invModalGenerate");
+          if (genB0) genB0.disabled = false;
+          return;
+        }
+        var bd = d.breakdown || {};
+        var sn = d.school || {};
+        var ip = d.invoice_period || {};
+        var waived = !!d.complimentary_waiver_active;
+        var schFree = !!d.schedule_free_for_invoice_period;
+        var periodBanner = document.getElementById("invPeriodBanner");
+        if (periodBanner) {
+          periodBanner.style.display = "block";
+          periodBanner.className =
+            "inv-period-banner mb-3" + (waived || schFree ? " complimentary-on" : "");
+          var intro = ip.intro_sentence || "";
+          var subnote = "";
+          if (schFree && d.effective_billing_start_date) {
+            subnote =
+              '<div class="mt-2 small">This period is before the billing start date (<strong>' +
+              esc(String(d.effective_billing_start_date).slice(0, 10)) +
+              "</strong>). Totals are <strong>₹0</strong> (free period). Enable bypass below only for an intentional exception.</div>";
+          } else if (waived && d.complimentary_through) {
+            subnote =
+              '<div class="mt-2 small">Complimentary access through <strong>' +
+              esc(d.complimentary_through) +
+              "</strong> — this issue will record <strong>₹0</strong>.</div>";
+          } else if ((sn.saas_free_until_date || sn.saas_billing_complimentary_until) && !waived) {
+            subnote =
+              '<div class="mt-2 small text-muted">A free-until date is set, but today is after that window — normal totals apply.</div>';
+          }
+          var yEl = document.getElementById("invBillYear");
+          var mEl = document.getElementById("invBillMonth");
+          var mw = document.getElementById("invMonthWrap");
+          if (yEl && ip.year != null) {
+            yEl.value = String(ip.year);
+          }
+          if (mEl && ip.month != null) {
+            mEl.value = String(ip.month);
+          } else if (mEl && bd.is_yearly) {
+            mEl.value = "1";
+          }
+          if (mw) {
+            mw.style.display = bd.is_yearly ? "none" : "";
+          }
+          var hint = document.getElementById("invPeriodHint");
+          if (hint) {
+            hint.textContent = bd.is_yearly
+              ? "Yearly plan: invoice covers the full calendar year selected."
+              : "Monthly plan: pick the service month (independent of when payment arrives).";
+          }
+          var introText =
+            bd.is_yearly && yEl && yEl.value
+              ? "This invoice is for annual billing for Calendar year " + yEl.value + "."
+              : intro;
+          if (!bd.is_yearly && yEl && yEl.value && mEl && mEl.value) {
+            introText = "This invoice is for the month of " + invoicePeriodLabelFromUi() + ".";
+          }
+          periodBanner.innerHTML =
+            '<span class="inv-period-lead">Billing period</span>' + esc(introText) + subnote;
+        }
+        var gstOn = document.getElementById("invGstToggle").checked;
+        var rate = parseFloat(document.getElementById("invGstRate").value) || 0;
+        var sub = parseFloat(bd.is_yearly ? bd.final_period : bd.final_monthly) || 0;
+        var gst = gstOn ? Math.round(sub * (rate / 100) * 100) / 100 : 0;
+        var grand = Math.round((sub + gst) * 100) / 100;
+        var origGrand = grand;
+        var igc = document.getElementById("invIgnCommence");
+        var genBtn = document.getElementById("invModalGenerate");
+        if (genBtn) genBtn.disabled = !!(schFree && !(igc && igc.checked));
+        var gstRow = gstOn
+          ? '<div class="rowx"><span>GST (' + rate + "%)</span><span>" + fmtRupee(String(gst)) + "</span></div>"
+          : "";
+        var tail = waived || schFree
+          ? gstRow +
+            '<div class="rowx disc"><span>' +
+            (schFree ? "Scheduled free period (before billing start)" : "Complimentary waiver (through " + esc(d.complimentary_through || "") + ")") +
+            "</span><span>−" +
+            fmtRupee(String(origGrand)) +
+            "</span></div>" +
+            '<div class="rowx"><span><strong>Invoice total</strong></span><span><strong>₹0.00</strong></span></div>'
+          : gstRow +
+            '<div class="rowx"><span>Final amount</span><span>' +
+            fmtRupee(String(grand)) +
+            "</span></div>";
+        prev.innerHTML =
+          '<div class="rowx"><span>School</span><span>' +
+          esc(sn.name) +
+          "</span></div>" +
+          '<div class="rowx"><span>Plan</span><span>' +
+          esc(sn.plan_label || "—") +
+          "</span></div>" +
+          '<div class="rowx"><span>Billing period</span><span>' +
+          esc(invoicePeriodLabelFromUi() || ip.label || "—") +
+          "</span></div>" +
+          '<div class="rowx"><span>Student count</span><span>' +
+          esc(bd.student_count) +
+          "</span></div>" +
+          '<div class="rowx"><span>Base cost</span><span>' +
+          fmtRupee(bd.base_cost) +
+          "</span></div>" +
+          '<div class="rowx"><span>Extra charges</span><span>' +
+          fmtRupee(bd.extra_cost) +
+          "</span></div>" +
+          '<div class="rowx disc"><span>Discount / Concession Applied</span><span>' +
+          "−" +
+          fmtRupee(bd.concession_cost) +
+          "</span></div>" +
+          '<div class="rowx"><span>Subtotal</span><span>' +
+          fmtRupee(String(sub)) +
+          "</span></div>" +
+          tail;
+      })
+      .catch(function () {
+        document.getElementById("invPreview").textContent = "Preview failed.";
+        var pbE = document.getElementById("invPeriodBanner");
+        if (pbE) {
+          pbE.style.display = "none";
+          pbE.innerHTML = "";
+        }
+        var genB = document.getElementById("invModalGenerate");
+        if (genB) genB.disabled = false;
+      });
+  }
+
+  var gstT = document.getElementById("invGstToggle");
+  var gstW = document.getElementById("invGstRateWrap");
+  if (gstT && gstW) {
+    gstT.addEventListener("change", function () {
+      gstW.style.display = gstT.checked ? "block" : "none";
+      if (ctxCard) refreshInvoicePreview(ctxCard);
+    });
+    document.getElementById("invGstRate").addEventListener("input", function () {
+      if (ctxCard) refreshInvoicePreview(ctxCard);
+    });
+  }
+
+  (function initInvoicePeriodPickers() {
+    var mEl = document.getElementById("invBillMonth");
+    var yEl = document.getElementById("invBillYear");
+    if (!mEl || !yEl || mEl.dataset.bmInit === "1") return;
+    mEl.dataset.bmInit = "1";
+    var names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    for (var mi = 1; mi <= 12; mi++) {
+      var o = document.createElement("option");
+      o.value = String(mi);
+      o.textContent = names[mi - 1];
+      mEl.appendChild(o);
+    }
+    var yNow = new Date().getFullYear();
+    for (var yi = yNow - 4; yi <= yNow + 4; yi++) {
+      var oy = document.createElement("option");
+      oy.value = String(yi);
+      oy.textContent = String(yi);
+      yEl.appendChild(oy);
+    }
+    function onInvPeriodChange() {
+      if (ctxCard) refreshInvoicePreview(ctxCard);
+    }
+    mEl.addEventListener("change", onInvPeriodChange);
+    yEl.addEventListener("change", onInvPeriodChange);
+    var igf = document.getElementById("invIgnFree");
+    var igs = document.getElementById("invIgnSvc");
+    var igc = document.getElementById("invIgnCommence");
+    if (igf) igf.addEventListener("change", onInvPeriodChange);
+    if (igs) igs.addEventListener("change", onInvPeriodChange);
+    if (igc)
+      igc.addEventListener("change", function () {
+        onInvPeriodChange();
+        if (ctxCard) refreshInvoicePreview(ctxCard);
+      });
+  })();
+
+  document.getElementById("modalStudentsSave") &&
+    document.getElementById("modalStudentsSave").addEventListener("click", function () {
+      var msg = document.getElementById("modalStudentsMsg");
+      var v = document.getElementById("modalStudentsInput").value.trim();
+      if (!ctxCard) return;
+      msg.textContent = "Saving…";
+      postJson(ctxCard.getAttribute("data-action-url"), {
+        action: "set_student_override",
+        student_count: v === "" ? null : v
+      }).then(function (res) {
+        if (res.ok && res.body && res.body.ok) {
+          msg.textContent = "Updated.";
+          syncCompactCardFromBreakdown(ctxCard, res.body.breakdown);
+          setTimeout(function () {
+            bsStu && bsStu.hide();
+            window.location.reload();
+          }, 500);
+        } else {
+          msg.textContent = (res.body && res.body.error) || "Failed";
+          msg.className = "text-danger";
+        }
+      });
+    });
+
+  document.getElementById("invModalGenerate") &&
+    document.getElementById("invModalGenerate").addEventListener("click", function () {
+      var msg = document.getElementById("invModalMsg");
+      if (!ctxCard) return;
+      msg.textContent = "Generating…";
+      var genBody = {
+        action: "generate_invoice",
+        include_gst: document.getElementById("invGstToggle").checked,
+        gst_rate_percent: document.getElementById("invGstRate").value,
+        ignore_free_service_window: document.getElementById("invIgnFree").checked,
+        ignore_service_start_window: document.getElementById("invIgnSvc").checked,
+        ignore_billing_start_window: document.getElementById("invIgnCommence")
+          ? document.getElementById("invIgnCommence").checked
+          : false
+      };
+      var yEl = document.getElementById("invBillYear");
+      var mEl = document.getElementById("invBillMonth");
+      var mw = document.getElementById("invMonthWrap");
+      if (yEl && yEl.value) {
+        genBody.billing_year = parseInt(yEl.value, 10);
+      }
+      if (!mw || mw.style.display !== "none") {
+        if (mEl && mEl.value) {
+          genBody.billing_month = parseInt(mEl.value, 10);
+        }
+      }
+      var repEl = document.getElementById("invReplaceIssued");
+      if (repEl && repEl.checked) {
+        genBody.replace_issued_invoice = true;
+      }
+      var manEl = document.getElementById("invManualGrand");
+      if (manEl && manEl.value.trim() !== "") {
+        genBody.manual_grand_total = manEl.value.trim();
+      }
+      postJson(ctxCard.getAttribute("data-action-url"), genBody).then(function (res) {
+        if (res.ok && res.body && res.body.ok) {
+          msg.textContent = "Created " + res.body.invoice.invoice_number;
+          setTimeout(function () {
+            bsInv && bsInv.hide();
+            window.location.reload();
+          }, 600);
+        } else {
+          msg.textContent = (res.body && res.body.error) || "Failed";
+        }
+      });
+    });
+
+  document.getElementById("paidModalConfirm") &&
+    document.getElementById("paidModalConfirm").addEventListener("click", function () {
+      var msg = document.getElementById("paidModalMsg");
+      if (!ctxCard) return;
+      msg.textContent = "Updating…";
+      var paidBody = {
+        action: "mark_paid",
+        notes: document.getElementById("paidNotes").value
+      };
+      var psel = document.getElementById("paidInvoiceSelect");
+      if (psel && psel.value) {
+        paidBody.invoice_id = parseInt(psel.value, 10);
+      }
+      var padD = document.getElementById("paidAtDate");
+      if (padD && padD.value) {
+        paidBody.paid_at = padD.value;
+      }
+      postJson(ctxCard.getAttribute("data-action-url"), paidBody).then(function (res) {
+        if (res.ok && res.body && res.body.ok) {
+          msg.textContent = "Marked " + res.body.invoice_number + " as paid.";
+          setTimeout(function () {
+            bsPaid && bsPaid.hide();
+            window.location.reload();
+          }, 600);
+        } else {
+          msg.textContent = (res.body && res.body.error) || "Failed";
+        }
+      });
+    });
+
+  document.getElementById("invEditSave") &&
+    document.getElementById("invEditSave").addEventListener("click", function () {
+      var msg = document.getElementById("invEditMsg");
+      if (!ctxCard) return;
+      var id = document.getElementById("invEditId").value;
+      var g = document.getElementById("invEditGrand").value.trim();
+      var yearly = ctxCard.getAttribute("data-cycle") === "yearly";
+      var y = document.getElementById("invEditYear").value;
+      var payload = { action: "update_generated_invoice", invoice_id: parseInt(id, 10) };
+      if (yearly) {
+        payload.billing_year = parseInt(y, 10);
+      } else {
+        payload.billing_year = parseInt(y, 10);
+        payload.billing_month = parseInt(document.getElementById("invEditMonth").value, 10);
+      }
+      if (g !== "") {
+        payload.grand_total = g;
+      }
+      msg.textContent = "Saving…";
+      postJson(ctxCard.getAttribute("data-action-url"), payload).then(function (res) {
+        if (res.ok && res.body && res.body.ok) {
+          msg.textContent = "Saved.";
+          setTimeout(function () {
+            bsInvEdit && bsInvEdit.hide();
+            window.location.reload();
+          }, 500);
+        } else {
+          msg.textContent = (res.body && res.body.error) || "Failed";
+        }
+      });
+    });
+})();
+</script>
+{% endblock %}

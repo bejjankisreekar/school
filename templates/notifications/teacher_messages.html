@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Teacher Chat | School ERP{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="row g-3">
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-header fw-semibold">Students</div>
+        <div class="list-group list-group-flush">
+          {% for peer in peers %}
+          <a class="list-group-item list-group-item-action {% if active_peer_id == peer.id %}active{% endif %}" href="?peer={{ peer.id }}">
+            {{ peer.name }} <small class="ms-1">({{ peer.role }})</small>
+            {% if peer.unread %}<span class="badge bg-danger float-end">{{ peer.unread }}</span>{% endif %}
+          </a>
+          {% empty %}
+          <div class="list-group-item text-muted">No students mapped to your classes.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-header fw-semibold">Conversation</div>
+        <div class="card-body chat-thread chat-container" id="chatThread">
+          {% for m in thread %}
+          <div class="message {% if m.sender_id == request.user.id %}sent{% else %}received{% endif %}">
+            <div class="message-bubble">
+              <div class="message-text">{{ m.content }}</div>
+              <div class="message-meta">{{ m.timestamp|date:"M d, Y h:i A" }}</div>
+            </div>
+          </div>
+          {% empty %}
+          <div class="text-muted">Select a student and start chatting.</div>
+          {% endfor %}
+        </div>
+        <div class="card-footer">
+          <form id="chatForm" method="post" class="d-flex gap-2">
+            {% csrf_token %}
+            <input type="hidden" id="receiverId" name="receiver_id" value="{{ active_peer_id|default:'' }}">
+            <textarea id="chatInput" class="form-control" name="content" rows="1" placeholder="Type message..." {% if not active_peer_id %}disabled{% endif %}></textarea>
+            <button class="btn btn-success" {% if not active_peer_id %}disabled{% endif %}>Send</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    var userId = "{{ request.user.id }}";
+    var activePeerId = "{{ active_peer_id|default:'' }}";
+    var thread = document.getElementById("chatThread");
+    var input = document.getElementById("chatInput");
+    var receiverEl = document.getElementById("receiverId");
+    var form = document.getElementById("chatForm");
+    function scrollBottom() { if (thread) thread.scrollTop = thread.scrollHeight; }
+    function autosize() {
+      try {
+        input.style.height = "auto";
+        input.style.height = Math.min(140, input.scrollHeight) + "px";
+      } catch (e) {}
+    }
+    function bubble(data) {
+      if (!activePeerId) return;
+      var mine = String(data.sender_id) === String(userId);
+      var other = String(data.sender_id) === String(activePeerId) || String(data.receiver_id) === String(activePeerId);
+      if (!other) return;
+      var msg = document.createElement("div");
+      msg.className = "message " + (mine ? "sent" : "received");
+
+      var bubble = document.createElement("div");
+      bubble.className = "message-bubble";
+
+      var text = document.createElement("div");
+      text.className = "message-text";
+      text.textContent = data.content || "";
+
+      var meta = document.createElement("div");
+      meta.className = "message-meta";
+      meta.textContent = new Date(data.timestamp).toLocaleString();
+
+      bubble.appendChild(text);
+      bubble.appendChild(meta);
+      msg.appendChild(bubble);
+      thread.appendChild(msg);
+      scrollBottom();
+    }
+    var protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    var socket = new WebSocket(protocol + "://" + window.location.host + "/ws/chat/" + userId + "/");
+    socket.onmessage = function (e) { try { bubble(JSON.parse(e.data)); } catch (_) {} };
+    form.addEventListener("submit", function (e) {
+      if (!activePeerId || !socket || socket.readyState !== 1) return;
+      e.preventDefault();
+      var content = (input.value || "").trim();
+      if (!content) return;
+      socket.send(JSON.stringify({ receiver_id: Number(receiverEl.value), content: content }));
+      input.value = "";
+      autosize();
+    });
+    input.addEventListener("input", autosize);
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        form.requestSubmit ? form.requestSubmit() : form.submit();
+      }
+    });
+    autosize();
+    scrollBottom();
+  })();
+</script>
+{% endblock %}

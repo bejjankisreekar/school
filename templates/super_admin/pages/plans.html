@@ -1,0 +1,457 @@
+{% extends "base.html" %}
+{% load static %}
+{% load nav_tags %}
+
+{% block title %}Plans & Features | Control Center{% endblock %}
+
+{% block content %}
+<style>
+  .cc-wrap{ max-width: 1100px; margin: 0 auto; }
+  .cc-card{
+    border-radius: 16px;
+    border: 1px solid rgba(15,23,42,.10);
+    box-shadow: 0 10px 24px rgba(2,6,23,.06);
+    background: rgba(255,255,255,.9);
+  }
+  .cc-plan{
+    border-radius: 18px;
+    border: 1px solid rgba(15,23,42,.10);
+    background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,255,255,.82));
+    box-shadow: 0 14px 30px rgba(2,6,23,.08);
+    overflow: hidden;
+  }
+  .cc-plan-h{
+    padding: 1.05rem 1.05rem .75rem;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:.75rem;
+    border-bottom: 1px solid rgba(15,23,42,.08);
+  }
+  .cc-plan-title{ font-weight: 900; letter-spacing: -0.02em; }
+  .cc-badge{ font-size:.75rem; padding:.2rem .55rem; border-radius:999px; border:1px solid rgba(15,23,42,.12); background: rgba(255,255,255,.7); }
+  .cc-cat{
+    font-size: .72rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    font-weight: 900;
+    color: rgba(15,23,42,.62);
+    margin: .9rem 0 .35rem;
+  }
+  .cc-chip{
+    border:1px solid rgba(15,23,42,.10);
+    border-radius: 14px;
+    padding:.6rem .75rem;
+    background: rgba(255,255,255,.65);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:.75rem;
+  }
+  .cc-chip .cc-meta{ min-width: 0; }
+  .cc-chip .cc-name{ font-weight: 800; font-size: .92rem; margin:0; }
+  .cc-chip .cc-code{ font-size: .78rem; color: rgba(15,23,42,.55); }
+  .cc-switch .form-check-input{ width: 2.8rem; height: 1.4rem; cursor:pointer; }
+  .cc-switch .form-check-input:checked{ background-color:#4f46e5; border-color:#4f46e5; }
+
+  /* Comparison matrix (grid-styled "table") */
+  .cmp-wrap{
+    border-radius: 18px;
+    border: 1px solid rgba(15,23,42,.10);
+    background: rgba(255,255,255,.88);
+    box-shadow: 0 14px 30px rgba(2,6,23,.08);
+    overflow: hidden;
+  }
+  .cmp-head{
+    padding: .9rem 1.05rem;
+    border-bottom: 1px solid rgba(15,23,42,.08);
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap: .75rem;
+  }
+  .cmp-title{ font-weight: 900; letter-spacing:-0.02em; }
+  .cmp-scroll{ overflow-x:auto; }
+  .cmp-grid{
+    min-width: 760px;
+    display:grid;
+    grid-template-columns: 280px repeat(3, 1fr);
+  }
+  .cmp-cell{
+    padding: .7rem .85rem;
+    border-bottom: 1px solid rgba(15,23,42,.06);
+    border-right: 1px solid rgba(15,23,42,.06);
+    background: rgba(255,255,255,.55);
+  }
+  .cmp-cell:last-child{ border-right: 0; }
+  .cmp-rowhead{
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: rgba(17,24,39,.95);
+    color: #fff;
+    font-weight: 800;
+    border-bottom: 1px solid rgba(255,255,255,.10);
+  }
+  .cmp-rowhead.cmp-premium{
+    background: rgba(79,70,229,.98);
+  }
+  .cmp-feature{
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: rgba(255,255,255,.92);
+    font-weight: 800;
+  }
+  .cmp-feature .cmp-code{ display:block; font-weight: 700; font-size:.78rem; color: rgba(15,23,42,.55); }
+  .cmp-cat{
+    grid-column: 1 / -1;
+    padding: .55rem .9rem;
+    background: rgba(2,6,23,.03);
+    border-bottom: 1px solid rgba(15,23,42,.08);
+    font-size: .72rem;
+    letter-spacing: .10em;
+    text-transform: uppercase;
+    font-weight: 900;
+    color: rgba(15,23,42,.62);
+  }
+  .cmp-yes, .cmp-no{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    font-weight: 900;
+    font-size: .95rem;
+  }
+  .cmp-yes{ background: rgba(34,197,94,.14); color: #166534; border: 1px solid rgba(34,197,94,.30); }
+  .cmp-no{ background: rgba(244,63,94,.10); color: #9f1239; border: 1px solid rgba(244,63,94,.28); }
+  .cmp-premium-col{ background: rgba(79,70,229,.06); }
+
+  /* School add-on matrix: fixed columns so headers line up with every row */
+  .cc-addon-scroll{ overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .cc-addon-table{
+    table-layout: fixed;
+    width: 100%;
+    min-width: 720px;
+  }
+  .cc-addon-table thead th{
+    vertical-align: middle;
+    font-size: .72rem;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    font-weight: 800;
+    color: rgba(15,23,42,.55);
+    border-bottom-width: 1px;
+    white-space: nowrap;
+  }
+  .cc-addon-table tbody td{ vertical-align: middle; }
+  .cc-addon-table .cc-col-feature{ width: 24%; min-width: 10rem; word-wrap: break-word; }
+  .cc-addon-table .cc-col-plan{ width: 12%; min-width: 5.5rem; }
+  .cc-addon-table .cc-col-addon{ width: 14%; min-width: 6.5rem; }
+  .cc-addon-table .cc-col-price{ width: 12%; min-width: 6.5rem; }
+  .cc-addon-table .cc-col-notes{ width: 38%; min-width: 12rem; }
+  .cc-addon-table .cc-col-price .form-control{ max-width: 7.5rem; margin-left: auto; }
+  .cc-addon-table .cc-muted-cell{ color: rgba(15,23,42,.48); font-size: .8125rem; }
+</style>
+
+<div class="container-fluid px-0 px-lg-2 pb-5">
+  <div class="cc-wrap">
+    <div class="cc-card mb-4 p-4 p-md-5">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+        <div>
+          <h2 class="h5 fw-bold mb-1">School add-on features</h2>
+          <p class="text-muted small mb-0">
+            Enable individual modules beyond a school’s base plan (e.g. Basic school buys one Premium feature).
+            Set the agreed extra monthly charge for billing records; access updates as soon as you save.
+          </p>
+        </div>
+      </div>
+
+      <form method="get" action="{% url 'core:super_admin:control_center_section' 'plans' %}" class="row g-2 align-items-end">
+        <div class="col-12 col-md-9">
+          <label class="form-label small text-muted mb-1" for="addon_school_select">School</label>
+          <select class="form-select" id="addon_school_select" name="addon_school" required>
+            <option value="">— Choose a school —</option>
+            {% for s in schools %}
+              <option value="{{ s.id }}" {% if addon_school and addon_school.id == s.id %}selected{% endif %}>{{ s.name }} ({{ s.code }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-3 d-grid">
+          <button type="submit" class="btn btn-dark rounded-pill">Load school</button>
+        </div>
+      </form>
+
+      {% if addon_matrix %}
+        <form method="post" class="mt-4">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="save_school_feature_addons">
+          <input type="hidden" name="school_id" value="{{ addon_school.id }}">
+
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <div class="fw-semibold">{{ addon_school.name }}</div>
+            <span class="cc-badge">{% if addon_school.plan %}{{ addon_school.plan.get_name_display }}{% else %}Default modules{% endif %}</span>
+          </div>
+
+          <div class="cc-addon-scroll border rounded-3" style="border-color: rgba(15,23,42,.12) !important;">
+            <table class="table table-sm align-middle mb-0 cc-addon-table">
+              <colgroup>
+                <col style="width:24%" />
+                <col style="width:12%" />
+                <col style="width:14%" />
+                <col style="width:12%" />
+                <col style="width:38%" />
+              </colgroup>
+              <thead class="table-light">
+                <tr>
+                  <th scope="col" class="cc-col-feature">Feature</th>
+                  <th scope="col" class="cc-col-plan">Plan</th>
+                  <th scope="col" class="cc-col-addon">Add-on</th>
+                  <th scope="col" class="cc-col-price text-end">Extra ₹ / mo</th>
+                  <th scope="col" class="cc-col-notes">Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in addon_matrix %}
+                  <tr>
+                    <td class="cc-col-feature">
+                      <div class="fw-semibold">{{ row.feature.name }}</div>
+                      <code class="small text-muted">{{ row.feature.code }}</code>
+                    </td>
+                    <td class="cc-col-plan">
+                      {% if row.in_plan %}
+                        <span class="badge rounded-pill text-bg-success">Included</span>
+                      {% else %}
+                        <span class="badge rounded-pill text-bg-secondary">Not in plan</span>
+                      {% endif %}
+                    </td>
+                    <td class="cc-col-addon">
+                      {% if row.in_plan %}
+                        <span class="cc-muted-cell">—</span>
+                      {% else %}
+                        <div class="form-check form-switch m-0">
+                          <input class="form-check-input" type="checkbox" role="switch" name="addon_enabled__{{ row.feature.code }}" id="addon_on_{{ row.feature.id }}" {% if row.addon and row.addon.is_enabled %}checked{% endif %}>
+                          <label class="form-check-label small" for="addon_on_{{ row.feature.id }}">Enable</label>
+                        </div>
+                      {% endif %}
+                    </td>
+                    <td class="cc-col-price text-end">
+                      {% if row.in_plan %}
+                        <span class="cc-muted-cell">—</span>
+                      {% else %}
+                        <input type="number" class="form-control form-control-sm text-end" name="addon_price__{{ row.feature.code }}" min="0" step="0.01" value="{% if row.addon %}{{ row.addon.extra_monthly_charge }}{% else %}0{% endif %}">
+                      {% endif %}
+                    </td>
+                    <td class="cc-col-notes">
+                      {% if row.in_plan %}
+                        <span class="cc-muted-cell">Already included in plan — no add-on stored.</span>
+                      {% else %}
+                        <input type="text" class="form-control form-control-sm" name="addon_notes__{{ row.feature.code }}" placeholder="Invoice #, agreement…" value="{{ row.addon.notes|default:'' }}">
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="d-flex justify-content-end mt-3">
+            <button type="submit" class="btn btn-dark rounded-pill px-4">
+              <i class="bi bi-check2-circle me-1"></i>Save add-ons
+            </button>
+          </div>
+        </form>
+      {% elif addon_school %}
+        <p class="text-muted small mt-3 mb-0">No catalog features yet — create features in the section below first.</p>
+      {% endif %}
+
+      {% if addon_school %}
+        <div class="rounded-3 border p-3 p-md-4 mt-4" style="border-color: rgba(15,23,42,.10) !important; background: linear-gradient(135deg, rgba(79,70,229,.06), rgba(255,255,255,.55));">
+          <div class="fw-bold mb-1">Per-student billing</div>
+          <p class="text-muted small mb-3 mb-md-4">
+            Matches the <a href="{% url 'core:super_admin:control_center_section' 'billing' %}">Billing</a> tab: extra and concession per student / month, plus cycle. Saved via the same API (no full page POST).
+          </p>
+          <div class="row g-2 g-md-3 align-items-end" id="plan-school-billing" data-api-url="{% url 'core:super_admin:billing_school_api' addon_school.id %}">
+            <div class="col-6 col-md-3">
+              <label class="form-label small text-muted mb-1" for="ps-extra">Extra ₹ / student / mo</label>
+              <input type="number" class="form-control" id="ps-extra" min="0" step="0.01" value="{{ addon_school.billing_extra_per_student_month }}" />
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label small text-muted mb-1" for="ps-conc">Concession ₹ / student / mo</label>
+              <input type="number" class="form-control" id="ps-conc" min="0" step="0.01" value="{{ addon_school.billing_concession_per_student_month }}" />
+            </div>
+            <div class="col-12 col-md-3">
+              <label class="form-label small text-muted mb-1" for="ps-cycle">Billing cycle</label>
+              <select class="form-select" id="ps-cycle">
+                <option value="monthly" {% if addon_school.saas_billing_cycle == "monthly" %}selected{% endif %}>Monthly</option>
+                <option value="yearly" {% if addon_school.saas_billing_cycle == "yearly" %}selected{% endif %}>Yearly</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-3 d-grid d-md-flex gap-2">
+              <button type="button" class="btn btn-primary rounded-pill flex-grow-1" id="ps-billing-save">Save billing</button>
+              <a class="btn btn-outline-secondary rounded-pill flex-grow-1 text-center" href="{% url 'core:super_admin:control_center_section' 'billing' %}">Open Billing</a>
+            </div>
+            <div class="col-12"><span id="ps-billing-msg" class="small fw-semibold" style="min-height:1.25rem;"></span></div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    {% for p in plans %}
+      <div class="cc-plan mb-3">
+        <div class="cc-plan-h">
+          <div class="min-w-0">
+            <div class="cc-plan-title">{{ p.get_name_display }}</div>
+            <div class="text-muted small">
+              <span class="fw-semibold">₹{{ p.price }}</span>
+              {% if p.list_price and p.list_price > p.price %}
+                <span class="ms-2" style="text-decoration: line-through; opacity:.65;">₹{{ p.list_price }}</span>
+              {% endif %}
+              <span class="ms-1">/ student / month</span>
+            </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <span class="cc-badge">{{ p.features.count }} enabled</span>
+            <button form="planForm{{ p.id }}" class="btn btn-sm btn-dark rounded-pill px-3">
+              <i class="bi bi-check2-circle me-1"></i>Save
+            </button>
+          </div>
+        </div>
+
+        <div class="p-3">
+          <form id="planForm{{ p.id }}" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_plan_features">
+            <input type="hidden" name="plan_id" value="{{ p.id }}">
+
+            {% for cat, feats in feature_groups %}
+              <div class="cc-cat">
+                {% if cat == "academic" %}Academic
+                {% elif cat == "operations" %}Operations
+                {% elif cat == "exams" %}Exams
+                {% elif cat == "communication" %}Communication
+                {% elif cat == "finance" %}Finance
+                {% else %}Other
+                {% endif %}
+              </div>
+
+              <div class="row g-2">
+                {% for f in feats %}
+                  <div class="col-12 col-md-6">
+                    <div class="cc-chip">
+                      <div class="cc-meta">
+                        <p class="cc-name text-truncate mb-0">{{ f.name }}</p>
+                        <div class="cc-code"><code>{{ f.code }}</code></div>
+                      </div>
+                      <div class="form-check form-switch cc-switch m-0">
+                        <input class="form-check-input" type="checkbox" name="features" value="{{ f.code }}" {% if f in p.features.all %}checked{% endif %}>
+                      </div>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% endfor %}
+          </form>
+        </div>
+      </div>
+    {% endfor %}
+
+    {% if comparison %}
+      <div class="cmp-wrap mt-4">
+        <div class="cmp-head">
+          <div>
+            <div class="cmp-title">Feature comparison</div>
+            <div class="text-muted small">Clear view of what each plan includes.</div>
+          </div>
+          <span class="cc-badge">Premium highlighted</span>
+        </div>
+
+        <div class="cmp-scroll">
+          <div class="cmp-grid">
+            <div class="cmp-cell cmp-rowhead">Feature</div>
+            {% for col in comparison.plan_cols %}
+              <div class="cmp-cell cmp-rowhead {% if col.key == 'premium' %}cmp-premium{% endif %}">
+                {{ col.label }}
+              </div>
+            {% endfor %}
+
+            {% for cat, feats in comparison.feature_groups %}
+              <div class="cmp-cat">
+                {% if cat == "academic" %}Academic
+                {% elif cat == "operations" %}Operations
+                {% elif cat == "exams" %}Exams
+                {% elif cat == "communication" %}Communication
+                {% elif cat == "finance" %}Finance
+                {% else %}Other
+                {% endif %}
+              </div>
+
+              {% for f in feats %}
+                <div class="cmp-cell cmp-feature">
+                  {{ f.name }}
+                  <span class="cmp-code"><code>{{ f.code }}</code></span>
+                </div>
+                {% for col in comparison.plan_cols %}
+                  {% with enabled_codes=comparison.plan_feature_codes|get_item:col.id %}
+                    <div class="cmp-cell text-center {% if col.key == 'premium' %}cmp-premium-col{% endif %}">
+                      {% if enabled_codes and f.code in enabled_codes %}
+                        <span class="cmp-yes">✓</span>
+                      {% else %}
+                        <span class="cmp-no">✗</span>
+                      {% endif %}
+                    </div>
+                  {% endwith %}
+                {% endfor %}
+              {% endfor %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+<script>
+(function () {
+  var root = document.getElementById("plan-school-billing");
+  if (!root) return;
+  function getCookie(name) {
+    var parts = ("; " + document.cookie).split("; " + name + "=");
+    if (parts.length === 2) return decodeURIComponent(parts.pop().split(";").shift() || "");
+    return "";
+  }
+  var btn = document.getElementById("ps-billing-save");
+  var msg = document.getElementById("ps-billing-msg");
+  btn.addEventListener("click", function () {
+    msg.textContent = "Saving…";
+    msg.style.color = "";
+    fetch(root.getAttribute("data-api-url"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": getCookie("csrftoken") },
+      body: JSON.stringify({
+        billing_extra_per_student_month: document.getElementById("ps-extra").value,
+        billing_concession_per_student_month: document.getElementById("ps-conc").value,
+        saas_billing_cycle: document.getElementById("ps-cycle").value
+      })
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+      .then(function (res) {
+        if (res.ok && res.body && res.body.ok) {
+          msg.textContent = "Saved — values match Billing tab.";
+          msg.style.color = "#15803d";
+        } else {
+          msg.textContent = (res.body && res.body.error) || "Save failed";
+          msg.style.color = "#b91c1c";
+        }
+      })
+      .catch(function () {
+        msg.textContent = "Network error";
+        msg.style.color = "#b91c1c";
+      });
+  });
+})();
+</script>
+{% endblock %}
+

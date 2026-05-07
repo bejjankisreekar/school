@@ -464,19 +464,29 @@ def apply_structure_to_students(structure: FeeStructure, due_date: date, section
         students = students.filter(section_id=eff_section)
     ay = structure.academic_year
     created = 0
-    for st in students.iterator():
-        _, was_created = Fee.objects.get_or_create(
-            student=st,
-            fee_structure=structure,
-            due_date=due_date,
-            defaults={
-                "amount": structure.amount,
-                "academic_year": ay,
-                "status": "PENDING",
-            },
-        )
-        if was_created:
-            created += 1
+    batch_size = 300
+    last_pk = None
+    while True:
+        q = students.order_by("pk")
+        if last_pk is not None:
+            q = q.filter(pk__gt=last_pk)
+        batch = list(q[:batch_size])
+        if not batch:
+            break
+        for st in batch:
+            _, was_created = Fee.objects.get_or_create(
+                student=st,
+                fee_structure=structure,
+                due_date=due_date,
+                defaults={
+                    "amount": structure.amount,
+                    "academic_year": ay,
+                    "status": "PENDING",
+                },
+            )
+            if was_created:
+                created += 1
+        last_pk = batch[-1].pk
     return created, None
 
 
@@ -631,10 +641,10 @@ def fee_structure_ui_meta_for_billing() -> dict:
     """
     classes_by_year: dict[str, set[int]] = defaultdict(set)
     slot_keys: list[str] = []
-    for r in (
-        FeeStructure.objects.filter(classroom_id__isnull=False)
-        .values("academic_year_id", "classroom_id", "fee_type_id", "section_id")
-        .iterator(chunk_size=500)
+    for r in list(
+        FeeStructure.objects.filter(classroom_id__isnull=False).values(
+            "academic_year_id", "classroom_id", "fee_type_id", "section_id"
+        )
     ):
         aid = r["academic_year_id"]
         yk = str(aid) if aid is not None else "none"
@@ -2028,11 +2038,21 @@ def sync_student_fees_to_fee_structure(structure: FeeStructure, user) -> int:
     from amounts + payments. Returns how many ``Fee`` rows had their gross ``amount`` changed.
     """
     n_changed = 0
-    qs = Fee.objects.filter(fee_structure_id=structure.id)
-    for fee in qs.iterator(chunk_size=250):
-        if fee.amount != structure.amount:
-            fee.amount = structure.amount
-            fee.save_with_audit(user)
-            n_changed += 1
-        refresh_fee_status_from_payments(fee)
+    qs = Fee.objects.filter(fee_structure_id=structure.id).order_by("pk")
+    batch_size = 250
+    last_pk = None
+    while True:
+        q = qs
+        if last_pk is not None:
+            q = q.filter(pk__gt=last_pk)
+        batch = list(q[:batch_size])
+        if not batch:
+            break
+        for fee in batch:
+            if fee.amount != structure.amount:
+                fee.amount = structure.amount
+                fee.save_with_audit(user)
+                n_changed += 1
+            refresh_fee_status_from_payments(fee)
+        last_pk = batch[-1].pk
     return n_changed

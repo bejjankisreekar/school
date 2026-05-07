@@ -36,43 +36,57 @@
         {% endif %}
       </div>
 
-      <!-- RIGHT: notification + theme + profile -->
+      <!-- RIGHT: mobile actions dropdown + desktop icons + profile -->
       <div class="topbar-right">
+        {# Mobile: keep actions in a compact dropdown to give school name space #}
+        <div class="dropdown d-sm-none">
+          <button class="btn btn-link app-header-icon-slot text-body text-decoration-none app-header-icon-btn position-relative"
+                  type="button"
+                  id="mobileActionsDropdown"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false"
+                  aria-label="Quick actions">
+            <i class="bi bi-three-dots-vertical app-header-toolbar-icon"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end app-header-dropdown-menu border-0 py-2 mt-2" aria-labelledby="mobileActionsDropdown">
+            {% if request.user.role == "STUDENT" %}
+              <li>
+                <a class="dropdown-item app-header-dropdown-item" href="{% url 'notifications:student_notifications' %}">
+                  <i class="bi bi-bell me-2 text-body-secondary"></i>Notifications
+                </a>
+              </li>
+            {% endif %}
+            <li>
+              <button type="button" class="dropdown-item app-header-dropdown-item" onclick="toggleTheme()">
+                <i class="bi bi-moon-stars me-2 text-body-secondary"></i>Toggle theme
+              </button>
+            </li>
+          </ul>
+        </div>
+
+        {# Desktop / tablet: show icons inline #}
+        <div class="d-none d-sm-flex align-items-center">
+          {% if request.user.role == "STUDENT" %}
+          <a href="{% url 'notifications:student_notifications' %}" class="btn btn-link app-header-icon-slot text-body text-decoration-none position-relative app-header-icon-btn" aria-label="Notifications">
+            <i class="bi bi-bell app-header-toolbar-icon"></i>
+            <span
+              id="notif-count"
+              data-url="{% url 'notifications:student_notifications_unread_count' %}"
+              class="badge app-header-notif-badge bg-danger position-absolute top-0 start-100 translate-middle rounded-pill"
+              style="display: none; min-width: 18px; height: 18px; padding: 0; font-size: 11px;"
+            >0</span>
+          </a>
+          {% endif %}
+          <button type="button" id="themeToggle" class="btn btn-link app-header-icon-slot text-body-secondary border-0 text-decoration-none app-header-icon-btn" title="Toggle theme" aria-label="Toggle theme">
+            <i id="themeIcon" class="bi bi-moon-stars app-header-toolbar-icon"></i>
+          </button>
+        </div>
+
         {% if request.user.role == "SUPERADMIN" %}
-        <a href="{% url 'core:superadmin_control_center' %}" class="btn btn-link app-header-icon-slot text-body text-decoration-none app-header-icon-btn" title="Super Admin Control Center" aria-label="Control Center">
+        <a href="{% url 'core:super_admin:control_center' %}" class="btn btn-link app-header-icon-slot text-body text-decoration-none app-header-icon-btn" title="Super Admin Control Center" aria-label="Control Center">
           <i class="bi bi-sliders2 app-header-toolbar-icon"></i>
         </a>
-        <a href="{% url 'core:superadmin_financials' %}" class="btn btn-link app-header-icon-slot text-body text-decoration-none app-header-icon-btn" title="Platform financials" aria-label="Financials">
-          <i class="bi bi-currency-exchange app-header-toolbar-icon"></i>
-        </a>
-        <a href="{% url 'core:superadmin_enrollments' %}" class="btn btn-link app-header-icon-slot text-body text-decoration-none app-header-icon-btn" title="School enrollments" aria-label="Enrollments">
-          <i class="bi bi-building-add app-header-toolbar-icon"></i>
-        </a>
-        <a href="{% url 'core:superadmin_enquiries' %}" class="btn btn-link app-header-icon-slot text-body text-decoration-none position-relative app-header-icon-btn" aria-label="Enquiries">
-          <i class="bi bi-bell app-header-toolbar-icon"></i>
-          <span
-            id="enquiriesBadge"
-            data-url="{% url 'core:enquiries_unread_count_api' %}"
-            class="badge app-header-notif-badge bg-primary position-absolute top-0 start-100 translate-middle rounded-pill"
-            style="display: none; min-width: 18px; height: 18px; padding: 0; font-size: 11px;"
-          >0</span>
-        </a>
         {% endif %}
-        {% if request.user.role == "STUDENT" %}
-        <a href="{% url 'notifications:student_notifications' %}" class="btn btn-link app-header-icon-slot text-body text-decoration-none position-relative app-header-icon-btn" aria-label="Notifications">
-          <i class="bi bi-bell app-header-toolbar-icon"></i>
-          <span
-            id="notif-count"
-            data-url="{% url 'notifications:student_notifications_unread_count' %}"
-            class="badge app-header-notif-badge bg-danger position-absolute top-0 start-100 translate-middle rounded-pill"
-            style="display: none; min-width: 18px; height: 18px; padding: 0; font-size: 11px;"
-          >0</span>
-        </a>
-        {% endif %}
-
-        <button type="button" id="themeToggle" class="btn btn-link app-header-icon-slot text-body-secondary border-0 text-decoration-none app-header-icon-btn" title="Toggle theme" aria-label="Toggle theme">
-          <i id="themeIcon" class="bi bi-moon-stars app-header-toolbar-icon"></i>
-        </button>
 
         <div class="topbar-profile dropdown app-header-profile-dropdown">
           <button class="profile-trigger btn d-flex align-items-center gap-2 rounded-pill border-0 text-decoration-none text-body bg-transparent" type="button" id="profileDropdown" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false" aria-label="Account menu">
@@ -117,7 +131,4 @@
       </div>
     </div>
   </div>
-  {% if request.user.role == "SUPERADMIN" %}
-  <script src="{% static 'js/enquiry.js' %}" defer></script>
-  {% endif %}
 </header>

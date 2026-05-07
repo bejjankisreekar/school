@@ -7,11 +7,14 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.cache import never_cache
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.db import connection
 from django.db.utils import ProgrammingError
 from django.core.management import call_command
 
+from apps.customers.models import School
 from apps.school_data.models import Student
 
 from .forms import (
@@ -36,7 +39,7 @@ def _require_admin_or_super(user):
 def _dashboard_redirect_for_user(user):
     role = getattr(user, "role", None)
     if role == "SUPERADMIN":
-        return redirect("core:super_admin_dashboard")
+        return redirect("core:super_admin:control_center")
     if role == "ADMIN":
         return redirect("core:admin_dashboard")
     if role == "TEACHER":
@@ -49,7 +52,7 @@ def _dashboard_redirect_for_user(user):
 def _profile_breadcrumb_home(user):
     role = getattr(user, "role", None)
     if role == "SUPERADMIN":
-        return reverse("core:super_admin_dashboard"), "Dashboard"
+        return reverse("core:super_admin:control_center"), "Control Center"
     if role == "ADMIN":
         return reverse("core:admin_dashboard"), "Dashboard"
     if role == "TEACHER":
@@ -88,7 +91,7 @@ def _sessions_for_user(user, current_session_key: str | None):
 def _logout_other_sessions(user, keep_session_key: str | None) -> int:
     uid = str(user.pk)
     deleted = 0
-    for s in Session.objects.filter(expire_date__gte=timezone.now()).iterator():
+    for s in list(Session.objects.filter(expire_date__gte=timezone.now())):
         if keep_session_key and s.session_key == keep_session_key:
             continue
         try:
@@ -577,7 +580,7 @@ def change_password_first(request):
         # Already changed; redirect to dashboard
         role = getattr(user, "role", None)
         if role == "SUPERADMIN":
-            return redirect("core:super_admin_dashboard")
+            return redirect("core:super_admin:control_center")
         if role == "ADMIN":
             return redirect("core:admin_dashboard")
         if role == "TEACHER":
@@ -596,7 +599,7 @@ def change_password_first(request):
 
         role = getattr(user, "role", None)
         if role == "SUPERADMIN":
-            return redirect("core:super_admin_dashboard")
+            return redirect("core:super_admin:control_center")
         if role == "ADMIN":
             return redirect("core:admin_dashboard")
         if role == "TEACHER":
@@ -608,6 +611,8 @@ def change_password_first(request):
     return render(request, "accounts/change_password_first.html", {"form": form})
 
 
+@never_cache
+@ensure_csrf_cookie
 def login_view(request, login_type: str = "portal"):
     if request.method == "POST":
         # Security requirement:
@@ -631,6 +636,28 @@ def login_view(request, login_type: str = "portal"):
                 )
                 if cand and cand.check_password(raw_password):
                     role = getattr(cand, "role", "") or ""
+                    school_block = None
+                    if role != User.Roles.SUPERADMIN:
+                        school_block = School.school_login_block_reason_for_code(
+                            getattr(cand, "school_id", None)
+                        )
+                    if school_block:
+                        ip = request.META.get("HTTP_X_FORWARDED_FOR") or request.META.get("REMOTE_ADDR")
+                        ip = (ip.split(",")[0].strip() if isinstance(ip, str) and ip else None)
+                        try:
+                            BlockedLoginAttempt.objects.create(
+                                username=cand.username or raw_login,
+                                role=role,
+                                ip_address=ip,
+                                reason=school_block,
+                                school_id=getattr(cand, "school_id", None),
+                                user=cand,
+                            )
+                        except Exception:
+                            pass
+                        return redirect(
+                            f"{reverse('accounts:access_restricted')}?type={school_block}&role={role}&login_type={login_type}"
+                        )
                     # Admin/Superadmin login should not be affected.
                     if role in (User.Roles.TEACHER, User.Roles.STUDENT) and not cand.is_active:
                         # Audit log
@@ -663,9 +690,29 @@ def login_view(request, login_type: str = "portal"):
         form = AuthenticationForm(request, data=post_data)
         if form.is_valid():
             user = form.get_user()
+            school_block = None
+            if getattr(user, "role", None) != User.Roles.SUPERADMIN:
+                school_block = School.school_login_block_reason_for_code(getattr(user, "school_id", None))
+            if school_block:
+                ip = request.META.get("HTTP_X_FORWARDED_FOR") or request.META.get("REMOTE_ADDR")
+                ip = (ip.split(",")[0].strip() if isinstance(ip, str) and ip else None)
+                try:
+                    BlockedLoginAttempt.objects.create(
+                        username=user.username,
+                        role=getattr(user, "role", "") or "",
+                        ip_address=ip,
+                        reason=school_block,
+                        school_id=getattr(user, "school_id", None),
+                        user=user,
+                    )
+                except Exception:
+                    pass
+                return redirect(
+                    f"{reverse('accounts:access_restricted')}?type={school_block}&role={getattr(user, 'role', '') or ''}&login_type={login_type}"
+                )
             login(request, user)
             # Clear setup-warning flags so fresh messages can appear if needed
-            for key in ("invalid_setup_shown", "fee_not_available_shown"):
+            for key in ("invalid_setup_shown", "fee_not_available_shown", "school_soft_inactive_notice_shown"):
                 request.session.pop(key, None)
 
             remember = request.POST.get("remember_me")
@@ -686,7 +733,7 @@ def login_view(request, login_type: str = "portal"):
 
             role = getattr(user, "role", None)
             if role == "SUPERADMIN":
-                target = reverse("core:super_admin_dashboard")  # /superadmin/dashboard/
+                target = reverse("core:super_admin:control_center")
             elif role == "ADMIN":
                 target = reverse("core:admin_dashboard")       # /school/dashboard/
             elif role == "TEACHER":
@@ -709,6 +756,8 @@ def login_view(request, login_type: str = "portal"):
             "form": form,
             "login_type": login_type,
             "next": request.GET.get("next", "") or "",
+            # POST must hit the same URL the user loaded (login vs portal-login vs school-login).
+            "login_form_action": request.path,
         },
     )
 

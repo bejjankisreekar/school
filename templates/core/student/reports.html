@@ -1,18 +1,216 @@
 {% extends "base.html" %}
-{% block title %}My Analytics | School ERP{% endblock %}
+{% block title %}Performance Reports | School ERP{% endblock %}
 {% block extra_head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid px-0">
-  <h1 class="h4 fw-bold mb-3">My Analytics</h1>
-  <p class="text-muted mb-4">Overview of your exam performance and attendance.</p>
+  <style>
+    .reports-page { max-width: 1200px; margin: 0 auto; }
+    .rep-hero {
+      border-radius: 1.25rem;
+      padding: 1.25rem 1.25rem;
+      color: #fff;
+      background:
+        radial-gradient(900px circle at 10% 20%, rgba(59, 130, 246, 0.45) 0%, rgba(59, 130, 246, 0.0) 55%),
+        radial-gradient(700px circle at 90% 10%, rgba(168, 85, 247, 0.45) 0%, rgba(168, 85, 247, 0.0) 55%),
+        linear-gradient(135deg, #2563eb 0%, #7c3aed 55%, #4338ca 100%);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 14px 40px rgba(15, 23, 42, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      overflow: hidden;
+      position: relative;
+    }
+    .rep-hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.0) 45%);
+      pointer-events: none;
+    }
+    .rep-hero .subtitle { color: rgba(255,255,255,0.86); }
+    .rep-card {
+      border-radius: 1.15rem;
+      border: 1px solid var(--bs-border-color-translucent);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 12px 34px rgba(15, 23, 42, 0.08);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .rep-card:hover { transform: translateY(-1px); box-shadow: 0 12px 40px rgba(15, 23, 42, 0.12); }
+    .metric { font-size: 1.65rem; font-weight: 900; letter-spacing: -0.02em; }
+    .metric-sub { font-size: 0.85rem; color: var(--bs-secondary-color); }
+
+    /* Modern button system for this dashboard */
+    .rep-actions .btn,
+    .rep-btn {
+      border-radius: 999px !important;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      padding: 0.38rem 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease, border-color 0.12s ease;
+      box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+      white-space: nowrap;
+    }
+    .rep-actions .btn:hover,
+    .rep-btn:hover { transform: translateY(-1px); box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12); }
+    .rep-actions .btn:active,
+    .rep-btn:active { transform: translateY(0); box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08); }
+
+    .rep-btn-soft {
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      color: rgba(255, 255, 255, 0.95);
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.14);
+    }
+    .rep-btn-soft:hover { background: rgba(255, 255, 255, 0.18); border-color: rgba(255, 255, 255, 0.28); }
+
+    .btn-outline-secondary.rep-pill { border-color: rgba(148, 163, 184, 0.8) !important; }
+    .btn-outline-secondary.rep-pill:hover { border-color: rgba(99, 102, 241, 0.55) !important; color: #4f46e5 !important; }
+    .btn-outline-primary.rep-pill:hover { box-shadow: 0 14px 30px rgba(37, 99, 235, 0.18) !important; }
+    .btn-outline-success.rep-pill:hover { box-shadow: 0 14px 30px rgba(22, 163, 74, 0.18) !important; }
+
+    .rep-btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      justify-content: flex-end;
+    }
+  </style>
+
+  <div class="reports-page">
+    <!-- Header -->
+    <div class="rep-hero mb-4">
+      <div class="position-relative d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+          <h1 class="h4 fw-bold mb-1">Performance Reports</h1>
+          <div class="subtitle small">Track your academic progress and insights</div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+          <span class="badge bg-light text-dark border px-3 py-2">Overall: {{ summary.overall_pct }}%</span>
+          <span class="badge bg-light text-dark border px-3 py-2">Attendance: {{ attendance.percentage }}%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="row g-3 mb-4">
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card border-0 rep-card h-100">
+          <div class="card-body">
+            <div class="text-muted small text-uppercase fw-semibold" style="letter-spacing:0.06em;">Overall %</div>
+            <div class="metric text-primary">{{ summary.overall_pct }}%</div>
+            <div class="metric-sub">All subjects combined</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card border-0 rep-card h-100">
+          <div class="card-body">
+            <div class="text-muted small text-uppercase fw-semibold" style="letter-spacing:0.06em;">Total Exams</div>
+            <div class="metric">{{ summary.total_exams }}</div>
+            <div class="metric-sub">Recorded exams/sessions</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card border-0 rep-card h-100">
+          <div class="card-body">
+            <div class="text-muted small text-uppercase fw-semibold" style="letter-spacing:0.06em;">Best Subject</div>
+            <div class="metric text-success">{{ summary.best_subject|default:"—" }}</div>
+            <div class="metric-sub">{% if performance.strongest_pct %}{{ performance.strongest_pct }}%{% else %}Not enough data{% endif %}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card border-0 rep-card h-100">
+          <div class="card-body">
+            <div class="text-muted small text-uppercase fw-semibold" style="letter-spacing:0.06em;">Lowest Subject</div>
+            <div class="metric text-danger">{{ summary.lowest_subject|default:"—" }}</div>
+            <div class="metric-sub">{% if performance.weakest_pct %}{{ performance.weakest_pct }}%{% else %}Not enough data{% endif %}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Insights -->
+    <div class="card border-0 rep-card mb-4">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+          <h2 class="h5 fw-bold mb-0"><i class="bi bi-lightbulb me-2"></i>Insights</h2>
+          <div class="text-muted small">Smart summary based on your marks</div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-12 col-md-4">
+            <div class="border rounded-4 p-3 h-100">
+              <div class="text-muted small text-uppercase fw-semibold" style="letter-spacing:0.06em;">Improvement Trend</div>
+              {% if insights.trend_state != "N/A" %}
+                <div class="metric {% if insights.trend_state == 'Improving' %}text-success{% elif insights.trend_state == 'Declining' %}text-danger{% else %}text-primary{% endif %}">
+                  {{ insights.trend_arrow }} {{ insights.trend_state }}
+                </div>
+                <div class="metric-sub">
+                  {% if insights.trend_delta is not None %}Δ {{ insights.trend_delta }}% · {% endif %}
+                  {{ insights.trend_note }}
+                </div>
+              {% else %}
+                <div class="metric text-muted">—</div>
+                <div class="metric-sub">Not enough exam data yet</div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="col-12 col-md-4">
+            <div class="border rounded-4 p-3 h-100">
+              <div class="text-muted small text-uppercase fw-semibold" style="letter-spacing:0.06em;">Best Subject</div>
+              {% if insights.best_subject %}
+                <div class="metric text-success">{{ insights.best_subject }}</div>
+                <div class="metric-sub">{{ insights.best_subject_pct }}%</div>
+              {% else %}
+                <div class="metric text-muted">—</div>
+                <div class="metric-sub">Not enough marks yet</div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="col-12 col-md-4">
+            <div class="border rounded-4 p-3 h-100">
+              <div class="text-muted small text-uppercase fw-semibold" style="letter-spacing:0.06em;">Weak Subjects</div>
+              {% if insights.weak_subjects %}
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                  {% for ws in insights.weak_subjects %}
+                    <span class="badge rounded-pill bg-danger-subtle text-danger border px-3 py-2">
+                      <i class="bi bi-exclamation-triangle me-1"></i>{{ ws.name }} · <strong>{{ ws.pct }}%</strong>
+                    </span>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="metric text-muted">—</div>
+                <div class="metric-sub">No weak subjects detected</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <div class="alert alert-primary mb-0 rounded-4 border">
+            <div class="d-flex gap-2">
+              <div class="flex-shrink-0"><i class="bi bi-stars"></i></div>
+              <div class="flex-grow-1">
+                <div class="fw-semibold">Target suggestion</div>
+                <div class="small">{{ insights.suggestion }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
   <div class="row g-4">
     <!-- Exam Analytics -->
     <div class="col-lg-6">
-      <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card border-0 rep-card h-100">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <h2 class="h5 fw-bold mb-0">Exam Analytics</h2>
@@ -41,17 +239,31 @@
                       <span class="badge bg-light text-dark border rounded-pill fs-6">Pending</span>
                       {% endif %}
                     </div>
-                    <div class="btn-group btn-group-sm flex-wrap">
+                    <div class="rep-btn-group rep-actions">
                       {% if exam.is_session and exam.session_id %}
-                      <a href="{% url 'core:student_exam_session_detail' exam.session_id %}" class="btn btn-outline-secondary">Details</a>
-                      <a href="{% url 'core:student_report_card_session_view' exam.session_id %}" class="btn btn-outline-primary">Report card</a>
-                      <a href="{% url 'core:student_report_card_session_pdf' exam.session_id %}" class="btn btn-outline-success"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
+                      <a href="{% url 'core:student_exam_session_detail' exam.session_id %}" class="btn btn-outline-secondary btn-sm rep-pill">
+                        <i class="bi bi-card-list"></i>Details
+                      </a>
+                      <a href="{% url 'core:student_report_card_session_view' exam.session_id %}" class="btn btn-outline-primary btn-sm rep-pill">
+                        <i class="bi bi-journal-text"></i>Report card
+                      </a>
+                      <a href="{% url 'core:student_report_card_session_pdf' exam.session_id %}" class="btn btn-outline-success btn-sm rep-pill">
+                        <i class="bi bi-file-earmark-pdf"></i>PDF
+                      </a>
                       {% elif exam.exam_id %}
-                      <a href="{% url 'core:student_exam_detail_by_id' exam.exam_id %}" class="btn btn-outline-secondary">Details</a>
-                      <a href="{% url 'core:student_report_card_view' exam.exam_id %}" class="btn btn-outline-primary">Report card</a>
-                      <a href="{% url 'core:student_report_card_pdf' exam.exam_id %}" class="btn btn-outline-success"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
+                      <a href="{% url 'core:student_exam_detail_by_id' exam.exam_id %}" class="btn btn-outline-secondary btn-sm rep-pill">
+                        <i class="bi bi-card-list"></i>Details
+                      </a>
+                      <a href="{% url 'core:student_report_card_view' exam.exam_id %}" class="btn btn-outline-primary btn-sm rep-pill">
+                        <i class="bi bi-journal-text"></i>Report card
+                      </a>
+                      <a href="{% url 'core:student_report_card_pdf' exam.exam_id %}" class="btn btn-outline-success btn-sm rep-pill">
+                        <i class="bi bi-file-earmark-pdf"></i>PDF
+                      </a>
                       {% else %}
-                      <a href="{% url 'core:student_exam_detail' exam.exam_name %}" class="btn btn-outline-secondary">Details</a>
+                      <a href="{% url 'core:student_exam_detail' exam.exam_name %}" class="btn btn-outline-secondary btn-sm rep-pill">
+                        <i class="bi bi-card-list"></i>Details
+                      </a>
                       {% endif %}
                     </div>
                   </div>
@@ -68,13 +280,17 @@
 
     <!-- Attendance Summary -->
     <div class="col-lg-6">
-      <div class="card border-0 shadow-sm rounded-4 mb-4">
+      <div class="card border-0 rep-card mb-4">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <h2 class="h5 fw-bold mb-0">Attendance Summary</h2>
             <div class="d-flex gap-2">
-              <a href="{% url 'core:student_attendance_report_view' %}" class="btn btn-outline-secondary btn-sm">Report View</a>
-              <a href="{% url 'core:student_attendance_report_pdf' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-file-earmark-pdf me-1"></i>Attendance PDF</a>
+              <a href="{% url 'core:student_attendance_report_view' %}" class="btn btn-outline-secondary btn-sm rep-pill">
+                <i class="bi bi-eye"></i>Report view
+              </a>
+              <a href="{% url 'core:student_attendance_report_pdf' %}" class="btn btn-outline-primary btn-sm rep-pill">
+                <i class="bi bi-file-earmark-pdf"></i>Attendance PDF
+              </a>
             </div>
           </div>
           <div class="row g-3">
@@ -95,11 +311,13 @@
       </div>
 
       <!-- Performance Summary -->
-      <div class="card border-0 shadow-sm rounded-4">
+      <div class="card border-0 rep-card">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <h2 class="h5 fw-bold mb-0">Performance Summary</h2>
-            <a href="{% url 'core:student_cumulative_report_view' %}" class="btn btn-outline-primary btn-sm">Cumulative Report</a>
+            <a href="{% url 'core:student_cumulative_report_view' %}" class="btn btn-outline-primary btn-sm rep-pill">
+              <i class="bi bi-collection"></i>Cumulative report
+            </a>
           </div>
           <div class="row g-3">
             <div class="col-md-6">
@@ -142,9 +360,9 @@
 
   <div class="row g-4 mt-1">
     <div class="col-lg-6">
-      <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card border-0 rep-card h-100">
         <div class="card-body">
-          <h2 class="h6 fw-bold mb-3">Marks Trend Across Exams</h2>
+          <h2 class="h6 fw-bold mb-3"><i class="bi bi-graph-up me-2"></i>Marks Trend</h2>
           <div style="height: 260px;">
             <canvas id="examTrendChart"></canvas>
           </div>
@@ -152,9 +370,17 @@
       </div>
     </div>
     <div class="col-lg-6">
-      <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card border-0 rep-card h-100">
         <div class="card-body">
-          <h2 class="h6 fw-bold mb-3">Subject-wise Marks</h2>
+          <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+            <h2 class="h6 fw-bold mb-0"><i class="bi bi-bar-chart me-2"></i>Subject-wise Performance</h2>
+            <select id="subjectFilter" class="form-select form-select-sm" style="max-width: 220px;">
+              <option value="">All Subjects</option>
+              {% for s in subject_chart_labels %}
+                <option value="{{ s }}">{{ s }}</option>
+              {% endfor %}
+            </select>
+          </div>
           <div style="height: 260px;">
             <canvas id="subjectMarksChart"></canvas>
           </div>
@@ -162,17 +388,47 @@
       </div>
     </div>
   </div>
+
+  <div class="row g-4 mt-1">
+    <div class="col-12">
+      <div class="card border-0 rep-card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+            <h2 class="h6 fw-bold mb-0"><i class="bi bi-calendar-check me-2"></i>Attendance Trend</h2>
+            <form method="get" class="d-flex align-items-center gap-2">
+              <label class="text-muted small mb-0" for="attGranularity">View</label>
+              <select id="attGranularity" name="att_granularity" class="form-select form-select-sm" style="max-width: 180px;" onchange="this.form.submit()">
+                <option value="monthly" {% if att_granularity == "monthly" %}selected{% endif %}>Monthly</option>
+                <option value="weekly" {% if att_granularity == "weekly" %}selected{% endif %}>Weekly</option>
+                <option value="daily" {% if att_granularity == "daily" %}selected{% endif %}>Daily</option>
+              </select>
+            </form>
+          </div>
+          <div style="height: 260px;">
+            <canvas id="attendanceTrendChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 </div>
 {{ exam_trend_labels|json_script:"exam-trend-labels" }}
 {{ exam_trend_values|json_script:"exam-trend-values" }}
 {{ subject_chart_labels|json_script:"subject-chart-labels" }}
 {{ subject_chart_values|json_script:"subject-chart-values" }}
+{{ subject_chart_map|json_script:"subject-chart-map" }}
+{{ attendance_trend_labels|json_script:"attendance-trend-labels" }}
+{{ attendance_trend_values|json_script:"attendance-trend-values" }}
 <script>
 document.addEventListener("DOMContentLoaded", function () {
   const trendLabels = JSON.parse(document.getElementById("exam-trend-labels").textContent || "[]");
   const trendValues = JSON.parse(document.getElementById("exam-trend-values").textContent || "[]");
   const subjectLabels = JSON.parse(document.getElementById("subject-chart-labels").textContent || "[]");
   const subjectValues = JSON.parse(document.getElementById("subject-chart-values").textContent || "[]");
+  const subjectMap = JSON.parse(document.getElementById("subject-chart-map").textContent || "{}");
+  const attLabels = JSON.parse(document.getElementById("attendance-trend-labels").textContent || "[]");
+  const attValues = JSON.parse(document.getElementById("attendance-trend-values").textContent || "[]");
 
   const trendCanvas = document.getElementById("examTrendChart");
   if (trendCanvas && trendLabels.length) {
@@ -198,8 +454,9 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   const subjectCanvas = document.getElementById("subjectMarksChart");
+  let subjectChart = null;
   if (subjectCanvas && subjectLabels.length) {
-    new Chart(subjectCanvas, {
+    subjectChart = new Chart(subjectCanvas, {
       type: "bar",
       data: {
         labels: subjectLabels,
@@ -208,6 +465,44 @@ document.addEventListener("DOMContentLoaded", function () {
           backgroundColor: "rgba(25, 135, 84, 0.75)",
           borderColor: "#198754",
           borderWidth: 1,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { min: 0, max: 100 } },
+      },
+    });
+  }
+
+  const filter = document.getElementById("subjectFilter");
+  if (filter && subjectChart) {
+    filter.addEventListener("change", function () {
+      const selected = (filter.value || "").trim();
+      if (!selected) {
+        subjectChart.data.labels = subjectLabels;
+        subjectChart.data.datasets[0].data = subjectValues;
+      } else {
+        subjectChart.data.labels = [selected];
+        subjectChart.data.datasets[0].data = [subjectMap[selected] ?? 0];
+      }
+      subjectChart.update();
+    });
+  }
+
+  const attCanvas = document.getElementById("attendanceTrendChart");
+  if (attCanvas && attLabels.length) {
+    new Chart(attCanvas, {
+      type: "line",
+      data: {
+        labels: attLabels,
+        datasets: [{
+          data: attValues,
+          borderColor: "#7c3aed",
+          backgroundColor: "rgba(124, 58, 237, 0.15)",
+          fill: true,
+          tension: 0.3
         }],
       },
       options: {
