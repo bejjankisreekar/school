@@ -334,3 +334,22 @@ class DbConnectionSanitizeMiddleware(MiddlewareMixin):
         except Exception:
             pass
         return response
+
+
+
+class ActiveAcademicYearMiddleware(MiddlewareMixin):
+    """Attach request.academic_year lazily for the active tenant.
+
+    Views, forms, and templates can rely on request.academic_year (or the
+    current_academic_year template var via the context processor) so they do
+    not need to query the AcademicYear table on every request.
+    """
+
+    def process_request(self, request):
+        try:
+            from apps.core.active_academic_year import attach_lazy_to_request
+
+            attach_lazy_to_request(request)
+        except Exception:
+            request.academic_year = None
+        return None

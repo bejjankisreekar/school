@@ -985,7 +985,7 @@ def _create_school_tenant_from_superadmin_form(request, form: SuperAdminCreateSc
     try:
         seed_tenant_bootstrap(school)
     except Exception:
-        pass
+        logger.exception("Tenant bootstrap failed after creating school %s (schema=%s)", school.code, school.schema_name)
 
     user = UserModel(
         username=username,

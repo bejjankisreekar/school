@@ -8126,6 +8126,38 @@ def school_academic_year_set_active(request, year_id):
     return redirect("core:school_academic_years")
 
 
+@login_required
+@require_POST
+def select_active_academic_year(request):
+    """Update the session's active academic year from the navbar selector.
+
+    Validates that the academic year belongs to the current tenant before
+    persisting it; redirects back to the originating page (``next`` param or
+    ``HTTP_REFERER``) so users stay where they were.
+    """
+    from apps.core.active_academic_year import set_active_academic_year
+
+    raw = request.POST.get("academic_year") or request.POST.get("year_id")
+    ok = set_active_academic_year(request, raw)
+    if ok:
+        from django.contrib import messages as _msg
+        from apps.core.active_academic_year import get_active_academic_year
+
+        ay = get_active_academic_year(request)
+        if ay is not None:
+            _msg.success(request, f"Now viewing {ay.name}.")
+        else:
+            _msg.info(request, "Academic year selection cleared.")
+    else:
+        from django.contrib import messages as _msg
+
+        _msg.error(request, "Selected academic year is no longer available.")
+
+    next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or "/"
+    return redirect(next_url)
+
+
+
 @admin_required
 def school_academic_year_edit(request, year_id):
     school = request.user.school
@@ -8473,151 +8505,122 @@ def school_year_end_promote(request):
 @admin_required
 @feature_required("students")
 def school_classes(request):
-    school = request.user.school
-    if not school:
+    # User.school FK uses to_field="code"; school_id holds the school code string, not School.pk.
+    school_code = getattr(request.user, "school_id", None)
+    if not school_code:
         return redirect("core:admin_dashboard")
-    ensure_tenant_for_request(request)
+    from apps.customers.models import School
+
+    try:
+        school = School.objects.only("id", "schema_name", "code", "name").get(code=school_code)
+    except School.DoesNotExist:
+        return redirect("core:admin_dashboard")
+
     import logging
+    from django.core.paginator import Paginator
     from django.db import ProgrammingError, InterfaceError, InternalError
-    from django.db import transaction
-    from apps.core.db_schema_utils import missing_tables
-    from apps.core.tenant_schema_repair import recover_db_connection_for_request
+    from django.db.models import Count, Q
+    from django_tenants.utils import tenant_context
+
+    from apps.core.db_schema_utils import tenant_school_data_core_ready
 
     logger = logging.getLogger(__name__)
 
-    def build_response():
-        from django.core.paginator import Paginator
-        from django_tenants.utils import get_tenant_database_alias
-        from django.db.models import Count, Q
+    schema = getattr(school, "schema_name", "") or ""
+    raw_ay_param = request.GET.get("academic_year")
+    show_all_years = raw_ay_param == "all"
+    if show_all_years:
+        academic_year_id = None
+    elif raw_ay_param:
+        academic_year_id = raw_ay_param
+    else:
+        # Default to the request-active academic year when none was passed in
+        # the URL so navigating with the navbar selector drives this list.
+        active_ay = getattr(request, "academic_year", None)
+        academic_year_id = str(active_ay.pk) if active_ay is not None else None
+    search = (request.GET.get("q") or "").strip()
+    page_no = request.GET.get("page") or 1
 
-        ensure_tenant_for_request(request)
-        recover_db_connection_for_request(request, close_connection=False)
-        alias = get_tenant_database_alias()
-        try:
-            # Ensure the tenant DB alias connection is open; queries below must run
-            # on the tenant-bound connection (schema-per-tenant search_path).
-            from django.db import connections
-
-            connections[alias].ensure_connection()
-        except Exception:
-            pass
-
-        # Prefer the schema bound on the active tenant connection (more reliable than School.schema_name
-        # if user-school binding is partial or the object was loaded from public schema).
-        try:
-            from django.db import connections
-
-            schema = getattr(connections[alias], "schema_name", None) or getattr(school, "schema_name", "") or ""
-        except Exception:
-            schema = getattr(school, "schema_name", "") or ""
-
-        miss = missing_tables(schema, ("school_data_classroom",)) if schema else []
-        if schema and miss:
-            logger.error(
-                "Missing classroom table; returning empty classes list. schema=%s path=%s",
-                schema,
-                request.path,
-            )
-            paginator = Paginator([], 15)
-            classes = paginator.get_page(1)
-            return render(request, "core/school/classes/list.html", {
-                "classes": classes,
-                "total_classes": 0,
-                "academic_years": [],
-                "filters": {"academic_year": request.GET.get("academic_year"), "q": request.GET.get("q", "").strip()},
-            })
-        if not schema:
-            logger.warning(
-                "school_classes called without schema_name; attempting query anyway. user_id=%s path=%s",
-                getattr(request.user, "id", None),
-                request.path,
-            )
-
-        qs = (
-            ClassRoom.objects.all()
-            .annotate(
-                section_count=Count("sections", distinct=True),
-                student_count=Count("enrollments", filter=Q(enrollments__is_current=True), distinct=True),
-            )
-            .order_by("grade_order", "name")
-        )
-        academic_year_id = request.GET.get("academic_year")
-        if academic_year_id:
-            qs = qs.filter(academic_year_id=academic_year_id)
-        search = request.GET.get("q", "").strip()
-        if search:
-            qs = qs.filter(name__icontains=search)
-        logger.info(
-            "school_classes list user_id=%s schema=%s filters(academic_year=%s q=%s)",
-            getattr(request.user, "id", None),
-            schema,
-            academic_year_id,
-            search,
-        )
-        paginator = Paginator(qs, 15)
-        page = request.GET.get("page", 1)
-        classes = paginator.get_page(page)
-        try:
-            classes.object_list = list(classes.object_list)
-        except Exception:
-            classes.object_list = []
-
-        # Academic year dropdown is optional; tolerate missing table by returning empty list.
-        try:
-            schema = getattr(school, "schema_name", "") or ""
-            if missing_tables(schema, ("school_data_academicyear",)):
-                academic_years = []
-            else:
-                academic_years = list(AcademicYear.objects.only("pk", "name", "start_date", "end_date", "is_active").order_by("-start_date"))
-        except Exception:
-            academic_years = []
-        try:
-            total_classes = ClassRoom.objects.count()
-        except Exception:
-            logger.exception(
-                "school_classes count failed; using page length fallback. user_id=%s schema=%s path=%s",
-                getattr(request.user, "id", None),
-                schema,
-                request.path,
-            )
-            total_classes = 0
-        return render(request, "core/school/classes/list.html", {
-            "classes": classes,
-            "total_classes": total_classes or len(getattr(classes, "object_list", []) or []),
-            "academic_years": academic_years,
-            "filters": {"academic_year": academic_year_id, "q": search},
-        })
-
-    try:
-        return build_response()
-    except (ProgrammingError, InterfaceError, InternalError):
-        schema = getattr(school, "schema_name", "") or ""
-        logger.exception("DB error in school_classes; returning safe fallback. schema=%s path=%s", schema, request.path)
-        try:
-            if transaction.get_connection().in_atomic_block:
-                transaction.set_rollback(True)
-        except Exception:
-            pass
-        try:
-            recover_db_connection_for_request(request)
-        except Exception:
-            pass
-        from django.core.paginator import Paginator
+    def empty_response():
         paginator = Paginator([], 15)
         classes = paginator.get_page(1)
         return render(request, "core/school/classes/list.html", {
             "classes": classes,
             "total_classes": 0,
             "academic_years": [],
-            "filters": {"academic_year": request.GET.get("academic_year"), "q": request.GET.get("q", "").strip()},
+            "filters": {"academic_year": academic_year_id, "q": search},
         })
+
+    if not tenant_school_data_core_ready(school):
+        logger.error(
+            "school_classes blocked: tenant not ready schema=%s user_id=%s",
+            schema,
+            getattr(request.user, "id", None),
+        )
+        return empty_response()
+
+    try:
+        with tenant_context(school):
+            qs = (
+                ClassRoom.objects.select_related("academic_year")
+                .annotate(
+                    section_count=Count("sections", distinct=True),
+                    student_count=Count("enrollments", filter=Q(enrollments__is_current=True), distinct=True),
+                )
+                .order_by("grade_order", "name")
+            )
+            if academic_year_id:
+                qs = qs.filter(academic_year_id=academic_year_id)
+            if search:
+                qs = qs.filter(name__icontains=search)
+
+            paginator = Paginator(qs, 15)
+            page = paginator.get_page(page_no)
+            page.object_list = list(page.object_list)
+            total_classes = ClassRoom.objects.count()
+            academic_years = list(
+                AcademicYear.objects.only(
+                    "pk", "name", "start_date", "end_date", "is_active"
+                ).order_by("-start_date")
+            )
+    except (ProgrammingError, InterfaceError, InternalError):
+        logger.exception(
+            "DB error in school_classes; returning safe fallback. schema=%s path=%s",
+            schema,
+            request.path,
+        )
+        return empty_response()
+
+    logger.info(
+        "school_classes list user_id=%s schema=%s total=%s page_count=%s ay_filter=%s q=%s",
+        getattr(request.user, "id", None),
+        schema,
+        total_classes,
+        len(page.object_list),
+        academic_year_id,
+        search,
+    )
+
+    return render(request, "core/school/classes/list.html", {
+        "classes": page,
+        "total_classes": total_classes,
+        "academic_years": academic_years,
+        "filters": {"academic_year": academic_year_id, "q": search},
+    })
 
 
 @transaction.non_atomic_requests
 @admin_required
 def school_class_add(request):
-    school = request.user.school
-    if not school:
+    # User.school FK uses to_field="code"; school_id holds the school code string, not School.pk.
+    school_code = getattr(request.user, "school_id", None)
+    if not school_code:
+        return redirect("core:admin_dashboard")
+    from apps.customers.models import School
+
+    try:
+        school = School.objects.only("id", "schema_name", "code", "name").get(code=school_code)
+    except School.DoesNotExist:
         return redirect("core:admin_dashboard")
     ensure_tenant_for_request(request)
     import logging
@@ -8626,40 +8629,22 @@ def school_class_add(request):
     from apps.core.tenant_schema_repair import (
         recover_db_connection_for_request,
         run_migrate_schemas_for_tenant_school,
+        tenant_schema_repair_may_run_migrate,
         tenant_schema_repair_should_retry,
     )
     logger = logging.getLogger(__name__)
 
     def build_response():
+        from django.db import connection, connections
+        from django_tenants.utils import get_tenant_database_alias
+
         from .forms import ClassRoomForm
-        from apps.core.db_schema_utils import missing_tables
-        # region agent log
-        import json as _json
-        import time as _time
-        def _dbg(hypothesisId: str, message: str, data: dict):
-            try:
-                with open("debug-b9d4c6.log", "a", encoding="utf-8") as f:
-                    f.write(_json.dumps({
-                        "sessionId": "b9d4c6",
-                        "runId": "classes_add_pre",
-                        "hypothesisId": hypothesisId,
-                        "location": "apps/core/views.py:school_class_add",
-                        "message": message,
-                        "data": data,
-                        "timestamp": int(_time.time() * 1000),
-                    }) + "\n")
-            except Exception:
-                pass
-        # endregion agent log
+        from apps.core.db_schema_utils import missing_tables, tenant_school_data_core_ready
 
         ensure_tenant_for_request(request)
         # Ensure clean tenant connection (rollback on correct alias).
         recover_db_connection_for_request(request, close_connection=False)
         try:
-            # Ensure tenant alias connection is open and bound.
-            from django.db import connections
-            from django_tenants.utils import get_tenant_database_alias
-
             alias = get_tenant_database_alias()
             connections[alias].ensure_connection()
             try:
@@ -8669,66 +8654,50 @@ def school_class_add(request):
         except Exception:
             pass
 
-        # region agent log
-        try:
-            from django.db import connection as _c
-            from django_tenants.utils import get_tenant_database_alias as _g
-            _alias = _g()
-            _dbg("H1", "after_bind", {
-                "path": request.path,
-                "method": request.method,
-                "user_id": getattr(request.user, "id", None),
-                "school_id": getattr(school, "id", None),
-                "school_schema": getattr(school, "schema_name", None),
-                "conn_schema": getattr(_c, "schema_name", None),
-                "tenant_alias": _alias,
-            })
-        except Exception:
-            pass
-        # endregion agent log
+        logger.info(
+            "school_class_add bind user_id=%s school_schema=%s conn_schema=%s",
+            getattr(request.user, "id", None),
+            getattr(school, "schema_name", None),
+            getattr(connection, "schema_name", None),
+        )
 
-        # If tenant tables are genuinely missing for this school schema, show a clear message
-        # and render safely (no template-time DB queries). This probe uses information_schema
-        # so it is correct even if search_path/tenant binding is wrong.
         schema = getattr(school, "schema_name", "") or ""
-        try:
-            miss = (
-                missing_tables(
-                    schema,
-                    ("school_data_academicyear", "school_data_section", "school_data_classroom"),
-                )
-                if schema
-                else []
+        core_tables = (
+            "school_data_academicyear",
+            "school_data_section",
+            "school_data_classroom",
+        )
+
+        ready = tenant_school_data_core_ready(school)
+        if not ready and tenant_schema_repair_may_run_migrate():
+            logger.warning(
+                "school_class_add: tenant ORM probe failed schema=%s; running migrate_schemas",
+                schema,
             )
-        except Exception as probe_exc:
-            miss = ["__probe_error__"]
-            _dbg("H3", "missing_tables_exception", {"schema": schema, "err": str(probe_exc)[:200]})
-
-        _dbg("H3", "missing_tables_result", {"schema": schema, "miss": miss})
-        if miss:
-            # missing_tables() uses information_schema, but it returns False on probe errors too.
-            # Confirm with a real ORM probe before telling the user to run migrations.
+            run_migrate_schemas_for_tenant_school(school)
+            recover_db_connection_for_request(request, close_connection=False)
+            ensure_tenant_for_request(request)
             try:
-                from django_tenants.utils import get_tenant_database_alias
-                from apps.school_data.models import AcademicYear
-
                 alias = get_tenant_database_alias()
-                list(AcademicYear.objects.using(alias).only("pk")[:1])
-                miss = []
-                _dbg("H3", "orm_probe_ok", {"alias": alias, "schema": schema})
+                connections[alias].ensure_connection()
+                connections[alias].set_tenant(school)
             except Exception:
-                # If even the ORM probe fails, treat as genuinely not ready / not bound.
-                _dbg("H3", "orm_probe_failed", {"schema": schema})
                 pass
+            ready = tenant_school_data_core_ready(school)
 
-        if miss:
+        if not ready:
+            miss: list[str] = []
+            try:
+                miss = missing_tables(schema, core_tables) if schema else []
+            except Exception:
+                pass
             hint = tenant_migrate_cli_hint(school)
             messages.error(
                 request,
                 "Database tables for this school are not ready yet. "
                 f"Run tenant migrations and reload this page:\n\n{hint}",
             )
-            form = ClassRoomForm(school, request.POST or None)
+            form = ClassRoomForm(school, request.POST or None, request=request)
             try:
                 from apps.school_data.models import AcademicYear, Section
 
@@ -8736,35 +8705,54 @@ def school_class_add(request):
                 form.fields["sections"].queryset = Section.objects.none()
             except Exception:
                 pass
-            _dbg("H1", "rendering_with_empty_pickes_due_to_miss", {"schema": schema, "miss": miss})
+            logger.error(
+                "school_class_add blocked: tenant not ready schema=%s info_schema_miss=%s",
+                schema,
+                miss,
+            )
             return render(request, "core/school/classes/form.html", {"form": form, "title": "Add Class"})
 
-        # Tables exist: proceed normally. If we still hit a ProgrammingError, it's almost
-        # always a tenant binding/search_path issue, not a migration issue.
-        form = ClassRoomForm(school, request.POST or None)
-        # region agent log
         try:
-            ay_qs = getattr(form.fields.get("academic_year"), "queryset", None)
-            sec_qs = getattr(form.fields.get("sections"), "queryset", None)
-            _dbg("H4", "form_querysets", {
-                "ay_db": getattr(ay_qs, "db", None),
-                "ay_count": ay_qs.count() if ay_qs is not None else None,
-                "sec_db": getattr(sec_qs, "db", None),
-                "sec_count": sec_qs.count() if sec_qs is not None else None,
-            })
+            from apps.school_data.master_data_defaults import ensure_default_academic_years
+
+            created_ay = ensure_default_academic_years(school)
+            if created_ay:
+                logger.info(
+                    "school_class_add: auto-seeded academic years schema=%s created=%s",
+                    schema,
+                    created_ay,
+                )
+        except Exception:
+            logger.exception("ensure_default_academic_years failed schema=%s", schema)
+
+        try:
+            from apps.school_data.models import AcademicYear
+            from django_tenants.utils import tenant_context
+
+            with tenant_context(school):
+                ay_n = AcademicYear.objects.count()
+            logger.info(
+                "school_class_add tenant_ok schema=%s academic_year_count=%s",
+                schema,
+                ay_n,
+            )
         except Exception:
             pass
-        # endregion agent log
+
+        form = ClassRoomForm(school, request.POST or None, request=request)
 
         # Evaluate DB-backed field querysets here so tenant/schema issues are handled
         # inside the view (retry loop) instead of crashing during template rendering.
         try:
+            from django_tenants.utils import tenant_context
+
             ay_qs = getattr(form.fields.get("academic_year"), "queryset", None)
-            if ay_qs is not None:
-                list(ay_qs.only("pk")[:1])
             sec_qs = getattr(form.fields.get("sections"), "queryset", None)
-            if sec_qs is not None:
-                list(sec_qs.only("pk")[:1])
+            with tenant_context(school):
+                if ay_qs is not None:
+                    list(ay_qs.only("pk")[:1])
+                if sec_qs is not None:
+                    list(sec_qs.only("pk")[:1])
         except (ProgrammingError, InterfaceError, InternalError):
             schema = getattr(school, "schema_name", "") or ""
             logger.exception(
@@ -8832,32 +8820,18 @@ def school_class_add(request):
                     len(getattr(form.fields.get("sections"), "choices", []) or []),
                 )
                 messages.error(request, "Please fix the highlighted fields and try again.")
-        # region agent log
+
         try:
-            # Do NOT consume messages here (iterating messages.get_messages() would clear them).
-            _msgs = []
-            try:
-                storage = getattr(request, "_messages", None)
-                queued = list(getattr(storage, "_queued_messages", []) or []) if storage is not None else []
-                _msgs = [{"level": getattr(m, "level", None), "tags": getattr(m, "tags", ""), "msg": str(m)[:200]} for m in queued]
-            except Exception:
-                _msgs = ["<unavailable>"]
             ay_qs = getattr(form.fields.get("academic_year"), "queryset", None)
             sec_qs = getattr(form.fields.get("sections"), "queryset", None)
-            ay_html = str(form["academic_year"]) if "academic_year" in form.fields else ""
-            opt_count = ay_html.count("<option")
-            _dbg("H2", "before_render", {
-                "method": request.method,
-                "conn_schema": getattr(connection, "schema_name", None),
-                "school_schema": getattr(school, "schema_name", None),
-                "ay_count": ay_qs.count() if ay_qs is not None else None,
-                "sec_count": sec_qs.count() if sec_qs is not None else None,
-                "ay_option_tags": opt_count,
-                "queued_messages": _msgs,
-            })
+            logger.info(
+                "school_class_add render schema=%s ay_count=%s sec_count=%s",
+                getattr(school, "schema_name", None),
+                ay_qs.count() if ay_qs is not None else None,
+                sec_qs.count() if sec_qs is not None else None,
+            )
         except Exception:
             pass
-        # endregion agent log
         return render(
             request,
             "core/school/classes/form.html",
@@ -8876,6 +8850,14 @@ def school_class_add(request):
             return build_response()
         except Exception as e:
             if isinstance(e, (ProgrammingError, InterfaceError, InternalError)):
+                if attempt == 1 and tenant_schema_repair_should_retry(e):
+                    logger.warning(
+                        "school_class_add DB error; applying tenant migrations and retrying. schema=%s",
+                        getattr(school, "schema_name", ""),
+                    )
+                    run_migrate_schemas_for_tenant_school(school)
+                    recover_db_connection_for_request(request)
+                    continue
                 schema = getattr(school, "schema_name", "") or ""
                 logger.exception("DB error in school_class_add; showing form fallback. schema=%s path=%s", schema, request.path)
                 try:
@@ -8893,13 +8875,11 @@ def school_class_add(request):
                     recover_db_connection_for_request(request)
                 except Exception:
                     pass
-                # Do not instantiate ClassRoomForm here: it may query tenant tables (AcademicYear/Section)
-                # and crash again if migrations haven't been applied. Render a safe form with empty pickers.
                 try:
                     from apps.school_data.models import AcademicYear, Section
                     from .forms import ClassRoomForm
 
-                    form = ClassRoomForm(school, request.POST or None)
+                    form = ClassRoomForm(school, request.POST or None, request=request)
                     try:
                         form.fields["academic_year"].queryset = AcademicYear.objects.none()
                     except Exception:
@@ -8909,7 +8889,6 @@ def school_class_add(request):
                     except Exception:
                         pass
                 except Exception:
-                    # Last-resort: render without a form instance.
                     form = None
                 return render(request, "core/school/classes/form.html", {"form": form, "title": "Add Class"})
             if attempt == 2 or not tenant_schema_repair_should_retry(e):
@@ -8942,7 +8921,7 @@ def school_class_edit(request, class_id):
         except Exception:
             pass
         classroom = get_object_or_404(ClassRoom, id=class_id)
-        form = ClassRoomForm(school, request.POST or None, instance=classroom)
+        form = ClassRoomForm(school, request.POST or None, instance=classroom, request=request)
         if request.method == "POST" and form.is_valid():
             with transaction.atomic():
                 obj = form.save(commit=False)

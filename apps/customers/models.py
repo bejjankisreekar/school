@@ -346,6 +346,21 @@ class School(TenantMixin):
             from apps.core.tenant_schema_repair import apply_tenant_migrations_for_school
 
             apply_tenant_migrations_for_school(self, verbosity=verbosity)
+            try:
+                from apps.school_data.master_data_defaults import (
+                    ensure_default_academic_years,
+                    ensure_master_data_defaults,
+                )
+
+                ensure_master_data_defaults(self)
+                ensure_default_academic_years(self)
+            except Exception:
+                import logging
+
+                logging.getLogger(__name__).exception(
+                    "Tenant bootstrap seed after create_schema failed (schema=%s)",
+                    getattr(self, "schema_name", ""),
+                )
 
     def save(self, *args, **kwargs):
         if getattr(self, "is_archived", False):

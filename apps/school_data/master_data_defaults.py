@@ -7,9 +7,11 @@ Idempotent: only creates options that do not already exist (by key + name_normal
 from __future__ import annotations
 
 import logging
+from datetime import date
 from typing import Type
 
 from django.db.models import Max
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -131,3 +133,37 @@ def ensure_master_data_defaults(school) -> int:
 
     with tenant_context(school):
         return seed_master_data_options(MasterDataOption)
+
+
+def ensure_default_academic_years(school) -> int:
+    """
+    If the tenant has no academic years yet, create one active April–March year from today's date.
+
+    Safe to call multiple times. Returns number of ``AcademicYear`` rows created (0 or 1).
+    """
+    from django_tenants.utils import tenant_context
+
+    from apps.school_data.models import AcademicYear
+
+    with tenant_context(school):
+        if AcademicYear.objects.exists():
+            return 0
+        today = timezone.localdate()
+        y, m = today.year, today.month
+        if m >= 4:
+            start_y, end_y = y, y + 1
+        else:
+            start_y, end_y = y - 1, y
+        AcademicYear.objects.create(
+            name=f"{start_y}-{end_y}",
+            start_date=date(start_y, 4, 1),
+            end_date=date(end_y, 3, 31),
+            is_active=True,
+        )
+        logger.info(
+            "Seeded default academic year for tenant schema=%s name=%s-%s",
+            getattr(school, "schema_name", ""),
+            start_y,
+            end_y,
+        )
+        return 1

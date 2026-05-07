@@ -187,29 +187,45 @@ class TeacherMasterForm(forms.Form):
     )
 
     def __init__(self, school, teacher=None, *args, **kwargs):
+        from django_tenants.utils import tenant_context
+
         self.school = school
         self.teacher = teacher
         super().__init__(*args, **kwargs)
-        self.fields["subjects"].queryset = Subject.objects.order_by("display_order", "name")
-        self.fields["classrooms"].queryset = ClassRoom.objects.select_related("academic_year").order_by(
-            *ORDER_AY_START_GRADE_NAME
-        )
+        with tenant_context(school):
+            subject_qs = Subject.objects.order_by("display_order", "name")
+            self.fields["subjects"].queryset = subject_qs
+            subject_rows = list(subject_qs.values_list("pk", "name"))
+            self.fields["subjects"].choices = [(pk, str(name)) for pk, name in subject_rows]
 
-        def _master_choices(master_key: str, empty_label: str = "— Select —"):
-            qs = MasterDataOption.objects.filter(key=master_key, is_active=True).order_by("name")
-            items = [(o.name, o.name) for o in qs.only("name")]
-            return [("", empty_label)] + items
+            classroom_qs = ClassRoom.objects.select_related("academic_year").order_by(
+                *ORDER_AY_START_GRADE_NAME
+            )
+            self.fields["classrooms"].queryset = classroom_qs
+            classroom_rows = list(classroom_qs)
+            self.fields["classrooms"].choices = [
+                (
+                    obj.pk,
+                    f"{obj.name} - {obj.academic_year.name}" if obj.academic_year else obj.name,
+                )
+                for obj in classroom_rows
+            ]
 
-        # All master-like dropdowns are stored as plain strings (Teacher fields / extra_data),
-        # but their options come from tenant-scoped MasterDataOption.
-        self.fields["gender"].widget.choices = _master_choices("gender", "— Not specified —")
-        self.fields["blood_group"].widget.choices = _master_choices("blood_group", "— Not specified —")
-        self.fields["designation"].widget.choices = _master_choices("designation")
-        self.fields["department"].widget.choices = _master_choices("department")
-        self.fields["mother_tongue"].widget.choices = _master_choices("mother_tongue")
-        self.fields["nationality"].widget.choices = _master_choices("nationality")
-        self.fields["religion"].widget.choices = _master_choices("religion")
-        self.fields["qualification"].widget.choices = _master_choices("qualification")
+            def _master_choices(master_key: str, empty_label: str = "— Select —"):
+                qs = MasterDataOption.objects.filter(key=master_key, is_active=True).order_by("name")
+                items = [(o.name, o.name) for o in qs.only("name")]
+                return [("", empty_label)] + items
+
+            # All master-like dropdowns are stored as plain strings (Teacher fields / extra_data),
+            # but their options come from tenant-scoped MasterDataOption.
+            self.fields["gender"].widget.choices = _master_choices("gender", "— Not specified —")
+            self.fields["blood_group"].widget.choices = _master_choices("blood_group", "— Not specified —")
+            self.fields["designation"].widget.choices = _master_choices("designation")
+            self.fields["department"].widget.choices = _master_choices("department")
+            self.fields["mother_tongue"].widget.choices = _master_choices("mother_tongue")
+            self.fields["nationality"].widget.choices = _master_choices("nationality")
+            self.fields["religion"].widget.choices = _master_choices("religion")
+            self.fields["qualification"].widget.choices = _master_choices("qualification")
 
         ph = {
             "first_name": "e.g. Priya",
@@ -281,8 +297,9 @@ class TeacherMasterForm(forms.Form):
             self.initial.setdefault("religion", basic.get("religion") or "")
             self.initial.setdefault("mother_tongue", basic.get("mother_tongue") or "")
             self.initial.setdefault("role", teacher.user.role)
-            self.initial.setdefault("subjects", list(teacher.subjects.all()))
-            self.initial.setdefault("classrooms", list(teacher.classrooms.all()))
+            with tenant_context(school):
+                self.initial.setdefault("subjects", list(teacher.subjects.values_list("pk", flat=True)))
+                self.initial.setdefault("classrooms", list(teacher.classrooms.values_list("pk", flat=True)))
             self.initial.setdefault("address_line1", addr_lines[0] if addr_lines else "")
             self.initial.setdefault("address_line2", addr_lines[1] if len(addr_lines) > 1 else "")
             self.initial.setdefault("city", contact.get("city") or "")
@@ -316,13 +333,6 @@ class TeacherMasterForm(forms.Form):
                 "record_status",
                 status_block.get("record_status") or ("ACTIVE" if teacher.user.is_active else "INACTIVE"),
             )
-        # Warm choice querysets once so SelectMultiple widgets do not trigger a second
-        # chunked server-side cursor pass during template render (InvalidCursorName risk).
-        try:
-            list(self.fields["subjects"].queryset)
-            list(self.fields["classrooms"].queryset)
-        except Exception:
-            pass
         # Never allow changing portal role from this form.
         if "role" in self.fields:
             del self.fields["role"]

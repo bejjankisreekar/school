@@ -29,19 +29,36 @@ class Migration(migrations.Migration):
             name='subject',
             options={'ordering': ['display_order', 'name']},
         ),
-        migrations.RenameField(
-            model_name='dropdownmaster',
-            old_name='updated_on',
-            new_name='modified_on',
-        ),
-        migrations.RemoveField(
-            model_name='dropdownmaster',
-            name='updated_by',
-        ),
-        migrations.AddField(
-            model_name='dropdownmaster',
-            name='modified_by',
-            field=models.ForeignKey(blank=True, editable=False, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(class)s_modified', to=settings.AUTH_USER_MODEL),
+        # 0061 already renamed updated_* columns to modified_* in the DB via RunSQL.
+        # ORM state still had updated_on/updated_by until this release; sync state only.
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.RenameField(
+                    model_name='dropdownmaster',
+                    old_name='updated_on',
+                    new_name='modified_on',
+                ),
+                migrations.RemoveField(
+                    model_name='dropdownmaster',
+                    name='updated_by',
+                ),
+                migrations.AddField(
+                    model_name='dropdownmaster',
+                    name='modified_by',
+                    field=models.ForeignKey(blank=True, editable=False, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(class)s_modified', to=settings.AUTH_USER_MODEL),
+                ),
+                migrations.AlterField(
+                    model_name='dropdownmaster',
+                    name='created_by',
+                    field=models.ForeignKey(blank=True, editable=False, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(class)s_created', to=settings.AUTH_USER_MODEL),
+                ),
+                migrations.AlterField(
+                    model_name='dropdownmaster',
+                    name='created_on',
+                    field=models.DateTimeField(auto_now_add=True, db_index=True),
+                ),
+            ],
+            database_operations=[],
         ),
         migrations.AlterField(
             model_name='admission',
@@ -67,16 +84,6 @@ class Migration(migrations.Migration):
             model_name='admissionstatushistory',
             name='modified_by',
             field=models.ForeignKey(blank=True, editable=False, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(class)s_modified', to=settings.AUTH_USER_MODEL),
-        ),
-        migrations.AlterField(
-            model_name='dropdownmaster',
-            name='created_by',
-            field=models.ForeignKey(blank=True, editable=False, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(class)s_created', to=settings.AUTH_USER_MODEL),
-        ),
-        migrations.AlterField(
-            model_name='dropdownmaster',
-            name='created_on',
-            field=models.DateTimeField(auto_now_add=True, db_index=True),
         ),
         migrations.AlterField(
             model_name='holidayevent',

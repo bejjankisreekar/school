@@ -187,6 +187,7 @@ urlpatterns = [
     path("school/academic-years/<int:year_id>/set-active/", views.school_academic_year_set_active, name="school_academic_year_set_active"),
     path("school/academic-years/<int:year_id>/delete/", views.school_academic_year_delete, name="school_academic_year_delete"),
     path("school/academic-years/end-and-promote/", views.school_year_end_promote, name="school_year_end_promote"),
+    path("settings/active-academic-year/", views.select_active_academic_year, name="set_active_academic_year"),
     path("school/promote-students/", views.school_promote_students, name="school_promote_students"),
     path("school/classes/", views.school_classes, name="school_classes"),
     path("school/classes/add/", views.school_class_add, name="school_class_add"),

@@ -36,8 +36,28 @@
         {% endif %}
       </div>
 
-      <!-- RIGHT: mobile actions dropdown + desktop icons + profile -->
+      <!-- RIGHT: AY selector + mobile actions dropdown + desktop icons + profile -->
       <div class="topbar-right">
+        {% if request.user.is_authenticated and request.user.school and request.user.role != "SUPERADMIN" and available_academic_years %}
+        <form method="post" action="{% url 'core:set_active_academic_year' %}" class="topbar-ay-form me-2 d-none d-md-flex align-items-center" data-ay-selector>
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}" />
+          <label for="topbarAcademicYear" class="visually-hidden">Academic year</label>
+          <div class="input-group input-group-sm topbar-ay-input">
+            <span class="input-group-text bg-transparent border-end-0 text-body-secondary px-2" aria-hidden="true">
+              <i class="bi bi-calendar3"></i>
+            </span>
+            <select id="topbarAcademicYear" name="academic_year" class="form-select form-select-sm border-start-0" onchange="this.form.submit()" aria-label="Active academic year">
+              {% for ay in available_academic_years %}
+              <option value="{{ ay.pk }}" {% if current_academic_year and ay.pk == current_academic_year.pk %}selected{% endif %}>
+                {{ ay.name }}{% if ay.is_active %} *{% endif %}
+              </option>
+              {% endfor %}
+            </select>
+            <noscript><button type="submit" class="btn btn-sm btn-primary">Set</button></noscript>
+          </div>
+        </form>
+        {% endif %}
         {# Mobile: keep actions in a compact dropdown to give school name space #}
         <div class="dropdown d-sm-none">
           <button class="btn btn-link app-header-icon-slot text-body text-decoration-none app-header-icon-btn position-relative"

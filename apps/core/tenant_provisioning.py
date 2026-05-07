@@ -194,9 +194,13 @@ def provision_school_from_enrollment(
         Domain.objects.create(domain=domain_host, tenant=school, is_primary=True)
 
     try:
-        from apps.school_data.master_data_defaults import ensure_master_data_defaults
+        from apps.school_data.master_data_defaults import (
+            ensure_default_academic_years,
+            ensure_master_data_defaults,
+        )
 
         ensure_master_data_defaults(school)
+        ensure_default_academic_years(school)
     except Exception:
         logger.exception("Master data defaults seed failed after provisioning schema %s", schema_name)
 

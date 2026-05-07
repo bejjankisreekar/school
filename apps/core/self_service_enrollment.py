@@ -69,12 +69,16 @@ def seed_tenant_bootstrap(school: School) -> None:
     """
     Seed tenant-scoped defaults that every school can later change in Master Dropdown Settings.
 
-    Academic structure (years, classes, subjects, fees, routes) stays empty until configured.
+    Ensures at least one academic year exists so class/student pickers are usable immediately.
     """
     try:
-        from apps.school_data.master_data_defaults import ensure_master_data_defaults
+        from apps.school_data.master_data_defaults import (
+            ensure_default_academic_years,
+            ensure_master_data_defaults,
+        )
 
         ensure_master_data_defaults(school)
+        ensure_default_academic_years(school)
     except Exception:
         logger.exception("Master data defaults seed failed for schema %s", school.schema_name)
 

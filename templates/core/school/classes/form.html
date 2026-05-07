@@ -304,12 +304,6 @@
             </a>
           </div>
           {{ form.academic_year }}
-          {% if dbg %}
-            <div class="form-text small" id="sc-ay-dbg">
-              DBG(server): years={{ dbg_ay_count }} sections={{ dbg_sec_count }} options={{ dbg_ay_option_tags }}
-            </div>
-            <div class="form-text small text-muted" id="sc-ay-dbg-dom"></div>
-          {% endif %}
           {% if form.academic_year.help_text %}<div class="form-text small">{{ form.academic_year.help_text }}</div>{% endif %}
           {% if form.academic_year.errors %}<div class="text-danger small mt-1">{{ form.academic_year.errors.0 }}</div>{% endif %}
         </div>
@@ -402,34 +396,6 @@
 
 <script>
 (function () {
-  // region agent log
-  try {
-    var sel = document.getElementById("{{ form.academic_year.id_for_label }}");
-    if (sel) {
-      var cs = window.getComputedStyle(sel);
-      fetch('http://127.0.0.1:7747/ingest/1d7c67d5-6726-4b2a-9307-022121b8eb04',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b9d4c6'},body:JSON.stringify({sessionId:'b9d4c6',location:'templates/core/school/classes/form.html:academic_year_dom',message:'academic_year_dom',data:{options:sel.options?sel.options.length:null,selectedIndex:sel.selectedIndex,value:sel.value,display:cs.display,visibility:cs.visibility,opacity:cs.opacity,color:cs.color,backgroundColor:cs.backgroundColor},timestamp:Date.now()})}).catch(()=>{});
-      var dbgDom = document.getElementById("sc-ay-dbg-dom");
-      if (dbgDom) {
-        var optTexts = [];
-        try {
-          for (var i = 0; i < sel.options.length && i < 6; i++) optTexts.push(sel.options[i].text);
-        } catch(e) {}
-        dbgDom.textContent =
-          "DBG(dom): options=" + (sel.options ? sel.options.length : "?") +
-          " value=" + (sel.value || "''") +
-          " display=" + cs.display +
-          " visibility=" + cs.visibility +
-          " opacity=" + cs.opacity +
-          " color=" + cs.color +
-          " bg=" + cs.backgroundColor +
-          " first=" + optTexts.join(" | ");
-      }
-    } else {
-      fetch('http://127.0.0.1:7747/ingest/1d7c67d5-6726-4b2a-9307-022121b8eb04',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b9d4c6'},body:JSON.stringify({sessionId:'b9d4c6',location:'templates/core/school/classes/form.html:academic_year_dom',message:'academic_year_dom_missing',data:{},timestamp:Date.now()})}).catch(()=>{});
-    }
-  } catch(e) {}
-  // endregion agent log
-
   var form = document.getElementById("sc-class-form");
   var submitBtn = document.getElementById("sc-submit-btn");
   function setSubmitting(on) {

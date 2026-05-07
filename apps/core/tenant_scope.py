@@ -10,9 +10,13 @@ Middleware also runs this at process_view time for every authenticated school us
 """
 from __future__ import annotations
 
+import logging
+
 from django.db import connection, connections
 
 from apps.core.tenant_bind import path_exempts_user_tenant_bind
+
+logger = logging.getLogger(__name__)
 
 
 def ensure_tenant_for_request(request) -> None:
@@ -46,32 +50,12 @@ def ensure_tenant_for_request(request) -> None:
     except Exception:
         pass
 
-    # region agent log
-    try:
-        import json as _json
-        import time as _time
-        from django.db import connection as _c
-        from django_tenants.utils import get_tenant_database_alias as _g
-        with open("debug-b9d4c6.log", "a", encoding="utf-8") as f:
-            f.write(_json.dumps({
-                "sessionId": "b9d4c6",
-                "runId": "classes_add_pre",
-                "hypothesisId": "H1",
-                "location": "apps/core/tenant_scope.py:ensure_tenant_for_request",
-                "message": "tenant_bound",
-                "data": {
-                    "path": path,
-                    "user_id": getattr(user, "id", None),
-                    "school_id": getattr(school, "id", None),
-                    "school_schema": getattr(school, "schema_name", None),
-                    "conn_schema": getattr(_c, "schema_name", None),
-                    "tenant_alias": _g(),
-                },
-                "timestamp": int(_time.time() * 1000),
-            }) + "\n")
-    except Exception:
-        pass
-    # endregion agent log
+    logger.debug(
+        "ensure_tenant_for_request user_id=%s school_schema=%s conn_schema=%s",
+        getattr(user, "id", None),
+        getattr(school, "schema_name", None),
+        getattr(connection, "schema_name", None),
+    )
     from apps.core.tenant_schema_repair import ensure_core_school_data_tables_if_needed
 
     ensure_core_school_data_tables_if_needed(request, school)

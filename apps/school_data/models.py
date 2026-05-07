@@ -202,6 +202,7 @@ class ClassRoom(BaseModel):
                 fields=["name", "academic_year"],
                 condition=Q(academic_year__isnull=False),
                 name="unique_classroom_name_per_academic_year",
+                violation_error_message="A class with this name already exists for the selected academic year.",
             ),
         ]
         ordering = ["academic_year", "grade_order", "name"]

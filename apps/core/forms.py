@@ -5,7 +5,7 @@ from decimal import Decimal
 import re
 
 from django import forms
-from django.forms.models import BaseInlineFormSet, inlineformset_factory
+from django.forms.models import BaseInlineFormSet, construct_instance, inlineformset_factory
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.password_validation import (
@@ -2531,72 +2531,57 @@ class ClassRoomForm(forms.ModelForm):
             "sections": forms.CheckboxSelectMultiple(),
         }
 
-    def __init__(self, school, *args, **kwargs):
-        from django.db import connections
-        from django.db import connection as active_connection
-        from django_tenants.utils import get_tenant_database_alias
+    def __init__(self, school, *args, request=None, **kwargs):
+        from django_tenants.utils import get_tenant_database_alias, tenant_context
 
         self.school = school
         self.db_alias = get_tenant_database_alias()
-        # Make tenant-bound choice lists stable across GET/POST even if the connection
-        # was recycled between requests (common with schema-per-tenant search_path).
-        try:
-            conn = connections[self.db_alias]
-            try:
-                conn.ensure_connection()
-            except Exception:
-                pass
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-            try:
-                conn.set_tenant(school)
-            except Exception:
-                pass
-        except Exception:
-            pass
-        super().__init__(*args, **kwargs)
+        self._request = request
 
-        # As a second line of defense, bind the active/default connection too.
-        # Some parts of the app use the default connection directly.
-        try:
-            active_connection.set_tenant(school)
-        except Exception:
-            pass
+        # Build form and materialize tenant-bound choices inside tenant_context so the
+        # template can render <option> tags without re-querying when the connection has
+        # bounced back to public/another schema between __init__ and template render.
+        with tenant_context(school):
+            super().__init__(*args, **kwargs)
 
-        # Always validate against real DB rows (tenant-scoped).
-        # This prevents "Select a valid choice" errors caused by stale/empty choice lists.
-        def _set_academic_year_qs():
-            # Prefer explicit alias (stable in django-tenants setups).
-            qs = AcademicYear.objects.using(self.db_alias).order_by("-start_date")
-            self.fields["academic_year"].queryset = qs
-            try:
-                self.fields["academic_year"].empty_label = "— Optional —"
-            except Exception:
-                pass
-
-        try:
-            _set_academic_year_qs()
-            # If it rendered empty due to a transient tenant bind issue, retry once.
-            if self.fields["academic_year"].queryset.count() == 0:
+            # Default the academic year to the request-active one when the form is
+            # unbound. Users can still override via the dropdown; bound submissions
+            # are left untouched so validation errors round-trip the user's choice.
+            if request is not None and not self.is_bound:
                 try:
-                    # Re-bind both connections and retry.
-                    conn = connections[self.db_alias]
-                    conn.set_tenant(school)
+                    from apps.core.active_academic_year import (
+                        get_active_academic_year,
+                    )
+
+                    active_ay = get_active_academic_year(request)
+                    if active_ay is not None:
+                        self.initial.setdefault("academic_year", active_ay.pk)
                 except Exception:
                     pass
-                try:
-                    active_connection.set_tenant(school)
-                except Exception:
-                    pass
-                _set_academic_year_qs()
-        except Exception:
-            self.fields["academic_year"].queryset = AcademicYear.objects.none()
-        try:
-            self.fields["sections"].queryset = Section.objects.using(self.db_alias).order_by("name")
-        except Exception:
-            self.fields["sections"].queryset = Section.objects.none()
+
+            ay_field = self.fields["academic_year"]
+            try:
+                ay_qs = AcademicYear.objects.order_by("-start_date")
+                ay_field.queryset = ay_qs
+                ay_rows = list(ay_qs.values_list("pk", "name"))
+                ay_field.choices = [("", "— Optional —")] + [(pk, str(name)) for pk, name in ay_rows]
+                self._academic_year_pks = {str(pk) for pk, _ in ay_rows}
+            except Exception:
+                ay_field.queryset = AcademicYear.objects.none()
+                ay_field.choices = [("", "— Optional —")]
+                self._academic_year_pks = set()
+
+            sec_field = self.fields["sections"]
+            try:
+                sec_qs = Section.objects.order_by("name")
+                sec_field.queryset = sec_qs
+                sec_rows = list(sec_qs.values_list("pk", "name"))
+                sec_field.choices = [(pk, str(name)) for pk, name in sec_rows]
+                self._section_pks = {str(pk) for pk, _ in sec_rows}
+            except Exception:
+                sec_field.queryset = Section.objects.none()
+                sec_field.choices = []
+                self._section_pks = set()
 
         # Consistent Bootstrap styling + inline invalid feedback.
         for name, field in self.fields.items():
@@ -2607,9 +2592,83 @@ class ClassRoomForm(forms.ModelForm):
             else:
                 w.attrs["class"] = base
 
+    def clean_academic_year(self):
+        from django_tenants.utils import tenant_context
+
+        raw = self.data.get("academic_year") if self.is_bound else self.cleaned_data.get("academic_year")
+        if raw in (None, "", "None"):
+            return None
+        with tenant_context(self.school):
+            try:
+                return AcademicYear.objects.get(pk=raw)
+            except (AcademicYear.DoesNotExist, ValueError, TypeError):
+                from django.core.exceptions import ValidationError
+
+                raise ValidationError("Select a valid academic year.")
+
+    def clean_sections(self):
+        from django.core.exceptions import ValidationError
+        from django_tenants.utils import tenant_context
+
+        if not self.is_bound:
+            return Section.objects.none()
+        raw_ids = (
+            self.data.getlist("sections")
+            if hasattr(self.data, "getlist")
+            else (self.data.get("sections") or [])
+        )
+        if isinstance(raw_ids, str):
+            raw_ids = [raw_ids]
+        if not raw_ids:
+            return Section.objects.none()
+        with tenant_context(self.school):
+            qs = Section.objects.filter(pk__in=raw_ids)
+            if qs.count() != len(set(raw_ids)):
+                raise ValidationError("Select valid sections.")
+            return qs
+
     def clean(self):
+        from django_tenants.utils import tenant_context
+
         data = super().clean()
+        name = (data.get("name") or "").strip()
+        ay = data.get("academic_year")
+        if name and ay is not None:
+            with tenant_context(self.school):
+                qs = ClassRoom.objects.filter(name__iexact=name, academic_year=ay)
+                if self.instance.pk:
+                    qs = qs.exclude(pk=self.instance.pk)
+                if qs.exists():
+                    self.add_error(
+                        "name",
+                        f'A class named "{name}" already exists for {ay}. Pick a different name or another academic year.',
+                    )
         return data
+
+    def _post_clean(self):
+        # Run model field cleaning + uniqueness checks inside tenant_context, but skip
+        # constraint validation: clean() already adds a friendly inline duplicate error,
+        # so we don't want Django's "Constraint X is violated." in non-field errors.
+        from django_tenants.utils import tenant_context
+
+        opts = self._meta
+        exclude = self._get_validation_exclusions()
+        try:
+            self.instance = construct_instance(self, self.instance, opts.fields, opts.exclude)
+        except ValidationError as e:
+            self._update_errors(e)
+
+        try:
+            with tenant_context(self.school):
+                self.instance.full_clean(exclude=exclude, validate_unique=False, validate_constraints=False)
+        except ValidationError as e:
+            self._update_errors(e)
+
+        try:
+            with tenant_context(self.school):
+                self.validate_unique()
+        except ValidationError as e:
+            self._update_errors(e)
 
 
 # ---- School Admin: Section CRUD ----

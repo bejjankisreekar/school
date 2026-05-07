@@ -39,10 +39,14 @@ def app_branding(request):
         elif role == "SUPERADMIN":
             # Top-bar “Messages” opens platform inbox (school admins), not internal admin_messages.
             try:
-                connection.set_schema_to_public()
-                from apps.platform_messaging import services as _platform_msg
+                # IMPORTANT: never leave the connection on public schema during template render.
+                # Using schema_context auto-restores the previous tenant schema.
+                from django_tenants.utils import schema_context
 
-                data["inbox_unread_count"] = int(_platform_msg.unread_count_for_superadmin())
+                with schema_context("public"):
+                    from apps.platform_messaging import services as _platform_msg
+
+                    data["inbox_unread_count"] = int(_platform_msg.unread_count_for_superadmin())
             except Exception:
                 data["inbox_unread_count"] = 0
             try:
@@ -64,12 +68,15 @@ def app_branding(request):
             platform_unread = 0
             if school_admin_can_use_platform_messaging(user):
                 try:
-                    connection.set_schema_to_public()
-                    from apps.platform_messaging import services as _platform_msg
+                    # IMPORTANT: never leave the connection on public schema during template render.
+                    from django_tenants.utils import schema_context
 
-                    _pk = _platform_msg.resolve_school_pk_for_user(user)
-                    if _pk is not None:
-                        platform_unread = int(_platform_msg.unread_count_for_school_admin(_pk))
+                    with schema_context("public"):
+                        from apps.platform_messaging import services as _platform_msg
+
+                        _pk = _platform_msg.resolve_school_pk_for_user(user)
+                        if _pk is not None:
+                            platform_unread = int(_platform_msg.unread_count_for_school_admin(_pk))
                 except Exception:
                     platform_unread = 0
 
@@ -289,3 +296,31 @@ def sidebar_menu(request):
     except Exception:
         # Never break a page due to sidebar config.
         return {"sidebar_menu_tree": None}
+
+
+
+def active_academic_year(request):
+    """Expose the active academic year and the available list to templates.
+
+    Adds two variables for every authenticated tenant request:
+
+    * ``current_academic_year`` -- the active ``AcademicYear`` instance (or ``None``)
+    * ``available_academic_years`` -- ordered list for the navbar selector
+
+    Anonymous users / requests without a school get empty values. Resolution is
+    cached per-request by :func:`apps.core.active_academic_year.get_active_academic_year`.
+    """
+    try:
+        from apps.core.active_academic_year import (
+            get_active_academic_year,
+            list_available_academic_years,
+        )
+
+        ay = get_active_academic_year(request)
+        years = list_available_academic_years(request) if ay or getattr(request, "user", None) else []
+        return {
+            "current_academic_year": ay,
+            "available_academic_years": years,
+        }
+    except Exception:
+        return {"current_academic_year": None, "available_academic_years": []}
